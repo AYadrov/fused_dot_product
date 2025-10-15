@@ -135,3 +135,10 @@ def CARRY_SAVE_ADDER_TREE(FXPs: list[FixedPoint]) -> FixedPoint:
     s1, c1 = CSA(FXPs[0], FXPs[1], FXPs[2])
     s2, c2 = CSA(resize(FXPs[3], FXPs[3].m+1, FXPs[3].n), resize(s1, s1.m+1, s1.n), c1)
     return s2 + c2
+    
+def EXP_OVERFLOW_UNDERFLOW_HANDLING(e):
+    if e <= 0:
+        raise Exception("Underflow")
+    elif e >= 255:
+        raise Exception("Overflow")
+    return min(max(e, 0), 255)

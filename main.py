@@ -8,7 +8,6 @@ from optimized import optimized_dot_product
 from conventional import conventional_dot_product
 
 def main():
-    # Create the parser
     parser = argparse.ArgumentParser(description="Fused dot product, Kaul et al. (2019)")
     parser.add_argument("-s", "--seed", help="RANDOM SEED", default=int(time.time()))
     parser.add_argument("-v", "--verbose", help="0 (no verbose) or 1 (yes verbose)", default=0)
@@ -34,7 +33,7 @@ def main():
         print("x =", fp_a)
         print("y =", fp_b)
 
-    ########## CONV+OPTIMIZED ######
+    ########## CONV+OPTIMIZED ##########
 
     print("Unfused result of dot-product:\n\t", unfused_res)
 

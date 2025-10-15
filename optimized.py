@@ -9,11 +9,8 @@
 from config import *
 from utils import *
 
-import time
 import math
-from random import getrandbits, seed
 from fixedpoint import FixedPoint
-
 
 def optimized_dot_product(a, b):
     ########## DOT PRODUCT #############
@@ -24,12 +21,7 @@ def optimized_dot_product(a, b):
     E_p = [a[i][1] + b[i][1] - BF16_BIAS for i in range(N)]
     
     # UNDERFLOW/OVERFLOW
-    for e in E_p:
-        if e <= 0:
-            raise Exception("Underflow")
-        elif e >= 255:
-            raise Exception("Overflow")
-    E_p = [min(max(e, 0), 255) for e in E_p]
+    E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(e) for e in E_p]
     
     for e in E_p:
         assert e.bit_length() <= BF16_EXPONENT_BITS + 1

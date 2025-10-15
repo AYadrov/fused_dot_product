@@ -9,7 +9,6 @@
 from config import *
 from utils import *
 
-from random import getrandbits, seed
 from fixedpoint import FixedPoint
 
 def conventional_dot_product(a, b):
@@ -19,6 +18,9 @@ def conventional_dot_product(a, b):
 
     # Step 1. Exponents add
     E_p = [a[i][1] + b[i][1] - BF16_BIAS for i in range(N)]
+    
+    # UNDERFLOW/OVERFLOW
+    E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(e) for e in E_p]
 
     # Step 2. Calculate maximum exponent
     E_m = max(E_p)
