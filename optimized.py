@@ -61,28 +61,32 @@ def optimized_dot_product(a, b):
     assert MAX_EXP.bit_length() <= BF16_EXPONENT_BITS + 1
 
     ########## MANTISSAS ###############
+    
+    # Step 1. Convert mantissas to FixedPoint
+    M_a = [bf16_mantissa_to_FXP(x[2]) for x in a]
+    M_b = [bf16_mantissa_to_FXP(x[2]) for x in b]
 
-    # Step 1. Multiply mantissas multiplication FixedPoint
-    M_p = [MxM2FXP(x[2], y[2]) for x, y in zip(a, b)]
+    # Step 2. Multiply mantissas using FixedPoint
+    M_p = [MxM2FXP(x, y) for x, y in zip(M_a, M_b)]
 
     for m in M_p:
         assert m.n == 2 * BF16_MANTISSA_BITS and m.m == 2
 
-    # Step 2. Locally shift mantissas by the inverted last {s} bits of E_p
+    # Step 3. Locally shift mantissas by the inverted last {s} bits of E_p
     output_length = (2 * BF16_MANTISSA_BITS + 2) + (2**s - 1)
     M_p = [RIGHT_SHIFT(m, sh, output_length) for m, sh in zip(M_p, LOCAL_SHIFTS)]
 
     for m in M_p:
         assert m.n == output_length - 2 and m.m == 2
 
-    # Step 3. Globally shift mantissas by GLOBAL_SHIFTS[i] amount
+    # Step 4. Globally shift mantissas by GLOBAL_SHIFTS[i] amount
     output_length = Wf + 2**s - 1
     M_p = [RIGHT_SHIFT(x, shift, output_length) for x, shift in zip(M_p, GLOBAL_SHIFTS)]
 
     for m in M_p:
         assert m.n == output_length - 2 and m.m == 2
 
-    # Step 4. Adjust signs using xor operation
+    # Step 5. Adjust signs using xor operation
     # As a result of adding a sign, integer bits of fixedpoint gets increased by 1 to avoid overflow during conversion
     S_p = [x[0] ^ y[0] for x, y in zip(a, b)] 
     M_p = [FXP_ADD_SIGN(x, s) for x, s in zip(M_p, S_p)]

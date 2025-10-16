@@ -30,18 +30,21 @@ def conventional_dot_product(a, b):
     sh = [E_m - E_p[i] for i in range(N)]
 
     ########## MANTISSAS ###############
+    # Step 1. Convert mantissas to FixedPoint
+    M_a = [bf16_mantissa_to_FXP(x[2]) for x in a]
+    M_b = [bf16_mantissa_to_FXP(x[2]) for x in b]
 
-    # Step 1. Multiply mantissas using FixedPoint
-    M_p = [MxM2FXP(x[2], y[2]) for x, y in zip(a, b)]
+    # Step 2. Multiply mantissas using FixedPoint
+    M_p = [MxM2FXP(x, y) for x, y in zip(M_a, M_b)]
     for m in M_p:
         assert m.n == 2 * BF16_MANTISSA_BITS and m.m == 2
 
-    # Step 2. Shift mantissas
+    # Step 3. Shift mantissas
     M_p = [RIGHT_SHIFT(x, shift, Wf) for x, shift in zip(M_p, sh)]
     for m in M_p:
         assert m.n == Wf - 2 and m.m == 2
 
-    # Step 3. Adjust sign for mantissas using xor operation
+    # Step 4. Adjust sign for mantissas using xor operation
     # As a result of adding a sign, integer bits of fixedpoint gets increased by 1 to avoid overflow during conversion
     S_p = [x[0] ^ y[0] for x, y in zip(a, b)]
     M_p = [FXP_ADD_SIGN(x, s) for x, s in zip(M_p, S_p)]

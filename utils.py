@@ -26,32 +26,21 @@ def S_E_M2float(s: int,  e: int, m: int) -> float:
 # Function encodes floating-point given a fix-point mantissa and exponent
 def FXP_E2float(fxp: FixedPoint, e: int) -> float:
     return float(fxp) * 2 ** (e - BF16_BIAS)
+    
+def bf16_mantissa_to_FXP(m: int):
+    assert m.bit_length() <= BF16_MANTISSA_BITS
+    assert m >= 0
+    return FixedPoint(f"0b1{m:0{BF16_MANTISSA_BITS}b}", signed=0, m=1, n=BF16_MANTISSA_BITS, str_base=2)
 
 # Function is given mantissa bits of BFfloat16 format as integers
 #   Mantissas are casted to Q1.7 as 0b1[7 mantissa bits] binary representation
 #   Then, fixpoint mantissas are multiplied using internal functions
-def MxM2FXP(m_1: int, m_2: int) -> FixedPoint:
-    assert m_1.bit_length() <= BF16_MANTISSA_BITS
-    assert m_2.bit_length() <= BF16_MANTISSA_BITS
-    assert m_1 >= 0 and m_2 >= 0
-
-    # FXP_1, FXP_2: UQ1.7
-    # Decimal mantissa 1.01...01 converts to FXP as '0b101...01'
-    FXP_1 = FixedPoint(f"0b1{m_1:0{BF16_MANTISSA_BITS}b}", signed=0, m=1, n=BF16_MANTISSA_BITS, str_base=2)
-    FXP_2 = FixedPoint(f"0b1{m_2:0{BF16_MANTISSA_BITS}b}", signed=0, m=1, n=BF16_MANTISSA_BITS, str_base=2)
-
-    # No rounding error at conversion
-    fp_m_1 = 1.0 + m_1 / (2 ** BF16_MANTISSA_BITS)
-    fp_m_2 = 1.0 + m_2 / (2 ** BF16_MANTISSA_BITS)
-    assert abs(fp_m_1 - float(FXP_1)) == 0.0
-    assert abs(fp_m_2 - float(FXP_2)) == 0.0
+def MxM2FXP(FXP_1: FixedPoint, FXP_2: FixedPoint) -> FixedPoint:
 
     # FXP_out: UQ2.14
     # Multiplication is done in full-precision - no accuracy lose
     FXP_out = FXP_1 * FXP_2
    
-    # No rounding error after multiplication
-    assert fp_m_1 * fp_m_2 == float(FXP_out)
     # Output size does match expectations
     assert FXP_out.m == 2 # product of two [1, 2) numbers give an output with 2 integer bits
     assert FXP_out.n == BF16_MANTISSA_BITS * 2
