@@ -9,6 +9,7 @@
 from config import *
 from utils import *
 
+import math
 from fixedpoint import FixedPoint
 
 def conventional_dot_product(a, b):
@@ -44,17 +45,20 @@ def conventional_dot_product(a, b):
     # As a result of adding a sign, integer bits of fixedpoint gets increased by 1 to avoid overflow during conversion
     S_p = [x[0] ^ y[0] for x, y in zip(a, b)]
     M_p = [FXP_ADD_SIGN(x, s) for x, s in zip(M_p, S_p)]
+    
     for m in M_p:
         assert m.n == Wf - 2
         assert m.m == 3
 
-    ########## ADDER TREE ##############
+    ########## ADDER TREE ############## 
+   
+    s1 = M_p[0] + M_p[1]
+    s2 = M_p[2] + M_p[3]
+    fx_sum = s1 + s2
 
-    # Output should have Wf + Log2(N) bits. 1 bits goes to the sign, 4 bits for integer part
-    fx_sum = FixedPoint(0, signed=1, m=5, n=Wf + 2 - 5)
-    for x in M_p:
-        fx_sum += x
-
+    # Unfortunately, we are off by 1 bits from the design with the sign logic
+    assert fx_sum.n + fx_sum.m == Wf + math.ceil(math.log2(N)) + 1
+    
     ########## RESULT ##################
 
     res = FXP_E2float(fx_sum, E_m)

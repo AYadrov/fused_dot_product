@@ -28,7 +28,7 @@ def optimized_dot_product(a, b):
     
     # Step 2. Take last inverted {s} bits of exponents for a local shift
     LOCAL_SHIFTS = [invert_bits(take_last_bits(e, s), s) for e in E_p]
-    
+     
     for sh, e in zip(LOCAL_SHIFTS, E_p):
         assert sh.bit_length() <= s
         assert sh >= 0
@@ -89,16 +89,18 @@ def optimized_dot_product(a, b):
 
     for m in M_p:
         assert m.n == (Wf + (2**s - 1)) - 2
-        assert m.m == 3 
+        assert m.m == 3
 
     ########## ADDER TREE ##############
 
     # Adder tree 
-    # Output should have Wf + Log2(N) bits. 1 bits goes to the sign, 4 bits for integer part
+    # Output should have {Wf + Log2(N) + 2**s - 1 + 1(sign)} bits
     fx_sum = CARRY_SAVE_ADDER_TREE(M_p)
-    
+
     assert float(fx_sum) == float(sum(M_p)), \
         f"Carry-save tree failed, {float(fx_sum)} != {float(sum(M_p))}"
+    # Unfortunately, we are off by 2 bits with signed logic from the design
+    assert fx_sum.n + fx_sum.m == Wf + (2**s - 1) + math.ceil(math.log2(N)) + 2
 
     ########## RESULT ##################
 
