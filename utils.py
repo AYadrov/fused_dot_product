@@ -1,4 +1,6 @@
 from config import *
+from AST import *
+
 from fixedpoint import FixedPoint, resize
 from random import getrandbits
 
@@ -27,6 +29,9 @@ def S_E_M2float(s: int,  e: int, m: int) -> float:
 def FXP_E2float(fxp: FixedPoint, e: int) -> float:
     return float(fxp) * 2 ** (e - BF16_BIAS)
     
+@Node(
+    spec=lambda m: FixedPoint(1.0 + m / (2 ** BF16_MANTISSA_BITS)),
+    comp=float)
 def bf16_mantissa_to_FXP(m: int):
     assert m.bit_length() <= BF16_MANTISSA_BITS
     assert m >= 0
