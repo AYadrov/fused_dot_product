@@ -1,3 +1,5 @@
+# File defines basic operators for floating-point evaluations
+
 from fused_dot_product.ast.AST import *
 
 ######### SPEC HELPERS #############
@@ -46,7 +48,6 @@ def And(x, y):
             args=[x, y])
 
 def Or(x, y):
-    # makes sure than x >= y
     def spec(a, b):
         m = max(a, b)
         return sum([(1 << n) * (((a >> n) & 1) + ((b >> n) & 1) - 
@@ -71,3 +72,12 @@ def Xor(x: int, y: int):
             comp=int,
             args=[x, y])
 
+# Some basic tests
+if __name__ == '__main__':
+    from random import randint
+    num_tests = 1000
+   
+    basic_operations = [Xor, Or, And, Min, Max, Sub, Add]
+    for f in basic_operations:
+        for i in range(num_tests):
+            f(randint(0, 10000), randint(0, 10000)).evaluate()

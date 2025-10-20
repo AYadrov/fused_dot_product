@@ -20,7 +20,7 @@ class Operator:
         
         self.specification = spec
         self.implementation = impl
-        self.comparator = comps
+        self.comparator = comp
         self.args = args
 
     def evaluate(self):
