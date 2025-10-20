@@ -4,6 +4,7 @@ from AST import *
 from fixedpoint import FixedPoint, resize
 from random import getrandbits
 
+
 def generate_BF16_1x4(shared_exponent_bits: int):
     unshared_exponent_bits = BF16_EXPONENT_BITS - shared_exponent_bits
     assert shared_exponent_bits <= BF16_EXPONENT_BITS
@@ -26,10 +27,12 @@ def S_E_M2float(s: int,  e: int, m: int) -> float:
     return (-1) ** s * m_ * 2 ** (e - BF16_BIAS)
 
 # Function encodes floating-point given a fix-point mantissa and exponent
+@operator(
+    spec=lambda m, e: float(m) * 2**(e - BF16_BIAS))
 def FXP_E2float(fxp: FixedPoint, e: int) -> float:
     return float(fxp) * 2 ** (e - BF16_BIAS)
     
-@Node(
+@operator(
     spec=lambda m: FixedPoint(1.0 + m / (2 ** BF16_MANTISSA_BITS)),
     comp=float)
 def bf16_mantissa_to_FXP(m: int):
@@ -40,6 +43,9 @@ def bf16_mantissa_to_FXP(m: int):
 # Function is given mantissa bits of BFfloat16 format as integers
 #   Mantissas are casted to Q1.7 as 0b1[7 mantissa bits] binary representation
 #   Then, fixpoint mantissas are multiplied using internal functions
+@operator(
+    spec=lambda x, y: float(x) * float(y),
+    comp=float)
 def MxM2FXP(FXP_1: FixedPoint, FXP_2: FixedPoint) -> FixedPoint:
 
     # FXP_out: UQ2.14
@@ -47,8 +53,8 @@ def MxM2FXP(FXP_1: FixedPoint, FXP_2: FixedPoint) -> FixedPoint:
     FXP_out = FXP_1 * FXP_2
    
     # Output size does match expectations
-    assert FXP_out.m == 2 # product of two [1, 2) numbers give an output with 2 integer bits
-    assert FXP_out.n == BF16_MANTISSA_BITS * 2
+    assert FXP_out.m == FXP_1.m + FXP_2.m # product of two [1, 2) numbers give an output with 2 integer bits
+    assert FXP_out.n == FXP_1.n + FXP_2.n
 
     return FXP_out
 
@@ -64,6 +70,8 @@ def OR_tree(bits: list[int]) -> int:
     return int(any(bits))
 
 # Function calculates a maximum exponent for {ep}s with length {n}
+@operator(
+    spec=lambda exponents, bit_width: max(exponents))
 def OPTIMIZED_MAX_EXP(exponents: list[int], bit_width: int) -> int:
     assert bit_width > 0, "Bit width must be positive"
     num_elements = len(exponents)
@@ -100,6 +108,9 @@ def invert_bits(x: int, s: int) -> int:
     return (2**s - 1) - x
 
 # acc_req is required bit length after the shift (accuracy requirement)
+@operator(
+    spec=lambda FXP, sh, acc_req: float(FXP)/2**sh,
+    comp=float)
 def RIGHT_SHIFT(FXP: FixedPoint, sh: int, acc_req: int) -> FixedPoint:
     FXP_resized = resize(FXP, FXP.m, acc_req - FXP.m)
     return FXP_resized >> sh
@@ -108,6 +119,9 @@ def LEFT_SHIFT(FXP: FixedPoint, sh: int) -> FixedPoint:
     FXP_resized = resize(FXP, FXP.m + sh, FXP.n)
     return FXP_resized << sh
 
+@operator(
+    spec=lambda FXP, sign: FXP * (-1) ** sign,
+    comp=float)
 def FXP_ADD_SIGN(FXP: FixedPoint, sign: int) -> FixedPoint:
     assert sign in (0, 1)
     m_ = FXP.m + 1
@@ -124,6 +138,9 @@ def CSA(a: FixedPoint, b: FixedPoint, c: FixedPoint):
 # It is important to call CSA only on fixed points with equal lengths!
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
+@operator(
+    spec=sum,
+    comp=float)
 def CARRY_SAVE_ADDER_TREE(FXPs: list[FixedPoint]) -> FixedPoint:
     assert len(FXPs) == 4
     s1, c1 = CSA(FXPs[0], FXPs[1], FXPs[2])

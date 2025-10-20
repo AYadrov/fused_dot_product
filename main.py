@@ -4,8 +4,6 @@ import random
 
 from config import *
 from utils import unfused_dot_product, generate_BF16_1x4, S_E_M2float
-from optimized import optimized_dot_product
-from conventional import conventional_dot_product
 from conventional_design import Conventional
 from optimized_design import Optimized
 
@@ -38,18 +36,11 @@ def main():
     ########## CONV+OPTIMIZED ##########
 
     print("Unfused result of dot-product:\n\t", unfused_res)
-
-    conventional_res = conventional_dot_product(a, b)
+    conventional_res = Conventional()(a,b)
     print("Absolute difference between conventional/unfused:\n\t", abs(unfused_res-conventional_res))
-
-    conventional_res2 = Conventional()(a,b)
-    print("Absolute difference between conventional/unfused 2:\n\t", abs(unfused_res-conventional_res2))
- 
-    optimized_res = optimized_dot_product(a, b)
-    print("Absolute difference between optimized/unfused:\n\t", abs(unfused_res-optimized_res))
     
-    optimized_res2 = Optimized()(a,b)
-    print("Absolute difference between conventional/unfused 2:\n\t", abs(unfused_res-optimized_res2))
+    optimized_res = Optimized()(a,b)
+    print("Absolute difference between conventional/unfused:\n\t", abs(unfused_res-optimized_res))
     return 0
   
 if __name__ == "__main__":

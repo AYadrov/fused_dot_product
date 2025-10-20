@@ -1,4 +1,4 @@
-from AST import CTree, Node
+from AST import CTree, Operator
 from utils import *
 import math
 
@@ -7,52 +7,35 @@ class Optimized(CTree):
     def __init__(self):
         super().__init__()
 
-        # Nodes for exponents
-        self.exponents_adder = Node(
+        # Operators for exponents
+        self.exponents_adder = Operator(
                 spec=lambda x, y: x + y - (2**(BF16_EXPONENT_BITS-1) - 1),
                 impl=lambda x, y: x + y - BF16_BIAS)
-        self.estimate_local_shift = Node(
+        self.estimate_local_shift = Operator(
                 spec=lambda e, s: (2**s - 1 - (e % 2**s)),
                 impl=lambda e, s: invert_bits(take_last_bits(e, s), s))
-        self.max_exp = Node(
-                spec=lambda x, bit_width: max(x),
-                impl=lambda x, bit_width: OPTIMIZED_MAX_EXP(x, bit_width))
-        self.estimate_global_shift = Node(
+        self.estimate_global_shift = Operator(
                 spec=lambda x, y, s: (x - y) * 2**s,
                 impl=lambda x, y, s: (x - y) * 2**s)
-        self.get_leading_n_bits = Node(
+        self.get_leading_n_bits = Operator(
                 spec=lambda e, n: math.floor(e / (2**s)),
                 impl=lambda e, n: e >> n)
+                
+        self.max_exp = OPTIMIZED_MAX_EXP
         
-        # Nodes for mantissas
-        self.mantissa2FXP = Node(
-                spec=lambda m: FixedPoint(1.0 + m / (2 ** BF16_MANTISSA_BITS)),
-                impl=bf16_mantissa_to_FXP,
-                comp=float)
-        self.mantissas_mul = Node(
-                spec=lambda x, y: float(x) * float(y),
-                impl=lambda x, y: x * y,
-                comp=float)
-        self.right_shift = Node(
-                spec=lambda x, sh, Wf: float(x)/2**sh,
-                impl=RIGHT_SHIFT,
-                comp=float)
-        self.calculate_sign = Node(
+        # Operators for mantissas
+        self.mantissa2FXP = bf16_mantissa_to_FXP
+        self.mantissas_mul = MxM2FXP
+        self.right_shift = RIGHT_SHIFT
+        self.add_sign_to_FXP = FXP_ADD_SIGN
+        self.adder_tree = CARRY_SAVE_ADDER_TREE
+        
+        self.calculate_sign = Operator(
                 spec=lambda x, y: 0 if x == y else 1,
                 impl=lambda x, y: x ^ y)
-        self.add_sign_to_FXP = Node(
-                spec=lambda val, sign: val * (-1) ** sign,
-                impl=FXP_ADD_SIGN,
-                comp=float)
-        self.adder_tree = Node(
-                spec=sum,
-                impl=CARRY_SAVE_ADDER_TREE,
-                comp=float)
         
         # Converting back to float
-        self.to_float = Node(
-                spec=lambda m, e: float(m) * 2**(e - BF16_BIAS),
-                impl=FXP_E2float)
+        self.to_float = FXP_E2float
 
     def __call__(self, a, b):
         ########## EXPONENTS ###############
