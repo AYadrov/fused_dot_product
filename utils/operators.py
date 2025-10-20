@@ -1,5 +1,8 @@
-from ..ast import *
-from .utils import *
+from fused_dot_product.ast.AST import *
+from fused_dot_product.utils.utils import *
+from fused_dot_product.config import *
+
+from fixedpoint import FixedPoint, resize
 
 # Function encodes floating-point given a fix-point mantissa and exponent
 @operator(

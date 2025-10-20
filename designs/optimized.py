@@ -1,5 +1,6 @@
-from ..ast import CTree, Operator
-from ..utils import *
+from fused_dot_product.ast.AST  import CTree, Operator
+from fused_dot_product.utils.operators import *
+from fused_dot_product.utils.utils import *
 import math
 
 

@@ -1,5 +1,5 @@
-from ..config import *
-from ..ast import *
+from fused_dot_product.config import *
+from fused_dot_product.ast import *
 
 from fixedpoint import FixedPoint, resize
 from random import getrandbits
