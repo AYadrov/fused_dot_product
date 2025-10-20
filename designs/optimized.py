@@ -1,5 +1,5 @@
-from AST import CTree, Operator
-from utils import *
+from ..ast import CTree, Operator
+from ..utils import *
 import math
 
 

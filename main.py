@@ -2,10 +2,10 @@ import argparse
 import time
 import random
 
-from config import *
-from utils import unfused_dot_product, generate_BF16_1x4, S_E_M2float
-from conventional_design import Conventional
-from optimized_design import Optimized
+
+from .config import *
+from .utils import unfused_dot_product, generate_BF16_1x4, S_E_M2float
+from .designs import Optimized, Conventional
 
 def main():
     parser = argparse.ArgumentParser(description="Fused dot product, Kaul et al. (2019)")
