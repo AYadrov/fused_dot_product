@@ -2,6 +2,7 @@
 
 from fused_dot_product.ast.AST import *
 from fused_dot_product.utils.utils import *
+from fused_dot_product.utils.basics import *
 from fused_dot_product.config import *
 
 from fixedpoint import FixedPoint, resize
@@ -10,7 +11,7 @@ from fixedpoint import FixedPoint, resize
 
 # Operator encodes floating-point given a fix-point mantissa and exponent
 def FXP_E2float(fxp, e) -> Operator:
-    def spec(m: FixedPoint, e: int): 
+    def spec(m: FixedPoint, e: int):
         return float(m) * 2**(e - BF16_BIAS)
     def impl(m: FixedPoint, e: int):
         return float(m) * 2**(e - BF16_BIAS)
@@ -19,7 +20,8 @@ def FXP_E2float(fxp, e) -> Operator:
             spec=spec,
             impl=impl,
             comp=lambda x: x,
-            args=[fxp, e])
+            args=[fxp, e],
+            name="FXP_E2float")
     
 def bf16_mantissa_to_FXP(m) -> Operator:
     def spec(m: int):
@@ -33,7 +35,8 @@ def bf16_mantissa_to_FXP(m) -> Operator:
             spec=spec,
             impl=impl,
             comp=lambda x: float(x),
-            args=[m])
+            args=[m],
+            name="bf16_mantissa_to_FXP")
 
 def MxM2FXP(FXP_1, FXP_2) -> Operator:
     def spec(FXP_1: FixedPoint, FXP_2: FixedPoint) -> float:
@@ -52,7 +55,8 @@ def MxM2FXP(FXP_1, FXP_2) -> Operator:
             spec=spec,
             impl=impl,
             comp=lambda x: float(x),
-            args=[FXP_1, FXP_2])
+            args=[FXP_1, FXP_2],
+            name="MxM2FXP")
     
 # Operator calculates a maximum exponent for {ep}s with length {n}
 def OPTIMIZED_MAX_EXP(exponents, bit_width) -> Operator:
@@ -87,10 +91,11 @@ def OPTIMIZED_MAX_EXP(exponents, bit_width) -> Operator:
             spec=spec,
             impl=impl,
             comp=lambda x: x,
-            args=[exponents, bit_width])
+            args=[exponents, bit_width],
+            name="OPTIMIZED_MAX_EXP")
 
 # acc_req is the required bit length after the shift (accuracy requirement)
-def RIGHT_SHIFT(FXP, sh, acc_req) -> Operator:
+def RIGHT_SHIFT_FXP(FXP, sh, acc_req) -> Operator:
     def spec(FXP: FixedPoint, sh: int, acc_req: int) -> float:
         return float(FXP)/2**sh
         
@@ -102,7 +107,8 @@ def RIGHT_SHIFT(FXP, sh, acc_req) -> Operator:
             spec=spec,
             impl=impl,
             comp=lambda x: float(x),
-            args=[FXP, sh, acc_req])
+            args=[FXP, sh, acc_req],
+            name="RIGHT_SHIFT")
 
 def FXP_ADD_SIGN(FXP, sign) -> Operator:
     def spec(FXP: FixedPoint, sign: int) -> FixedPoint:
@@ -118,24 +124,65 @@ def FXP_ADD_SIGN(FXP, sign) -> Operator:
             spec=spec,
             impl=impl,
             comp=lambda x: float(x),
-            args=[FXP, sign])
+            args=[FXP, sign],
+            name="FXP_ADD_SIGN")
         
 # It is important to call CSA only on fixed points with equal lengths!
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
-def CARRY_SAVE_ADDER_TREE(FXPs: list[FixedPoint]) -> FixedPoint:
-    def spec(FXPs: list[FixedPoint]) -> FixedPoint:
-        return sum(FXPs)
+def CSA_TREE4(FXP0, FXP1, FXP2, FXP3) -> Operator:
+    def spec(FXP0: FixedPoint, 
+             FXP1: FixedPoint, 
+             FXP2: FixedPoint, 
+             FXP3: FixedPoint) -> FixedPoint:
+        return FXP0 + FXP1 + FXP2 + FXP3
     
-    def impl(FXPs: list[FixedPoint]) -> FixedPoint:
-        assert len(FXPs) == 4
-        s1, c1 = CSA(FXPs[0], FXPs[1], FXPs[2])
-        s2, c2 = CSA(resize(FXPs[3], FXPs[3].m+1, FXPs[3].n), resize(s1, s1.m+1, s1.n), c1)
+    def impl(FXP0: FixedPoint, 
+             FXP1: FixedPoint, 
+             FXP2: FixedPoint, 
+             FXP3: FixedPoint) -> FixedPoint:
+        s1, c1 = CSA(FXP0, FXP1, FXP2)
+        s2, c2 = CSA(resize(FXP3, FXP3.m+1, FXP3.n), resize(s1, s1.m+1, s1.n), c1)
         return s2 + c2
     
     return Operator(
             spec=spec,
             impl=impl,
             comp=lambda x: float(x),
-            args=[FXPs])
+            args=[FXP0, FXP1, FXP2, FXP3],
+            name="CSA_TREE4")
+
+# Take last {s} bits of number x
+def take_last_s_bits(x, s) -> Operator:
+    def spec(x: int, s: int) -> int:
+        return x & (2 ** s - 1)
+    def impl_constructor(x, s) -> int:
+        return And(x, (Sub(Lshift(1, s), 1)))
+    
+    return Operator(
+            spec=spec,
+            impl=impl_constructor(x, s),
+            comp=lambda x: x,
+            args=[x, s],
+            name="take_last_s_bits")
+
+# Negate bits of {x}
+# negate_bits(3, 2) -> 0, because '0b11' -> '0b00'
+# negate_bits(0, 2) -> 3
+def invert_bits(x, s) -> Operator:
+    def spec(x: int, s: int) -> int:
+        return (2**s - 1) - x
+        
+    def impl_constructor(x, s) -> Operator:
+        return Sub(Sub(Lshift(1, s), 1), x)
+    
+    return Operator(
+            spec=spec,
+            impl=impl_constructor(x, s),
+            comp=lambda x: x,
+            args=[x, s],
+            name="invert_bits")
+        
+
+invert_bits(take_last_s_bits(2, 3), 4).print_tree()
 

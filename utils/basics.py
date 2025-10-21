@@ -40,7 +40,7 @@ def Min(x, y):
             name="Min")
 
 def And(x, y):
-    def spec(a, b):
+    def spec(a: int, b: int) -> int:
         m = max(a, b)
         return sum([(1 << n) * ((a >> n) & 1) * ((b >> n) & 1)
                 for n in range(0, bit_width(m))])
@@ -53,12 +53,12 @@ def And(x, y):
             name="And")
 
 def Or(x, y):
-    def spec(a, b):
+    def spec(a: int, b: int) -> int:
         m = max(a, b)
         return sum([(1 << n) * (((a >> n) & 1) + ((b >> n) & 1) - 
                  ((a >> n) & 1) * ((b >> n) & 1))
                     for n in range(0, bit_width(m))])
-
+    
     return Operator(
             spec=spec,
             impl=lambda a, b: a | b,
@@ -66,26 +66,36 @@ def Or(x, y):
             args=[x, y],
             name="Or")
 
-def Xor(x: int, y: int):
-    def spec(a, b):
+def Xor(x, y):
+    def spec(a: int, b: int) -> int:
         m = max(a, b)
         return sum([(1 << n) * (((a >> n) & 1) ^ ((b >> n) & 1))
                 for n in range(0, bit_width(m))])
- 
+    
     return Operator(
             spec=spec,
             impl=lambda a, b: a ^ b,
             comp=int,
             args=[x, y],
             name="Xor")
+            
+def Lshift(x, n):
+    def spec(x: int, n: int) -> int:
+        return x * 2 ** n
+    return Operator(
+            spec=spec,
+            impl=lambda x, n: x << n,
+            comp=int,
+            args=[x, n],
+            name="Lshift")
 
 # Some basic tests
 # Checks whether spec evaluation and impl evaluation results are equal
 if __name__ == '__main__':
     from random import randint
     num_tests = 1000
-   
-    basic_operations = [Xor, Or, And, Min, Max, Sub, Add]
+    
+    basic_operations = [Xor, Or, And, Min, Max, Sub, Add, Lshift]
     for f in basic_operations:
         for i in range(num_tests):
             f(randint(0, 10000), randint(0, 10000)).evaluate()

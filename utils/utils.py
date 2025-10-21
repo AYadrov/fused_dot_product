@@ -33,21 +33,11 @@ def unfused_dot_product(FP_xs: list[float], FP_ys: list[float]) -> list[float]:
     for i in range(len(FP_xs)):
         out += FP_xs[i] * FP_ys[i]
     return out
-    
+
 def OR_tree(bits: list[int]) -> int:
     return int(any(bits))
-    
-# Take last {s} bits of number x
-def take_last_bits(x: int, s: int) -> int:
-    return x & (2**s - 1)
 
-# Negate bits of {x}
-# negate_bits(3, 2) -> 0, because '0b11' -> '0b00'
-# negate_bits(0, 2) -> 3
-def invert_bits(x: int, s: int) -> int:
-    return (2**s - 1) - x
-
-def LEFT_SHIFT(FXP: FixedPoint, sh: int) -> FixedPoint:
+def LEFT_FXP_SHIFT(FXP: FixedPoint, sh: int) -> FixedPoint:
     FXP_resized = resize(FXP, FXP.m + sh, FXP.n)
     return FXP_resized << sh
 
