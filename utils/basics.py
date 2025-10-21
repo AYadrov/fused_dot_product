@@ -73,6 +73,7 @@ def Xor(x: int, y: int):
             args=[x, y])
 
 # Some basic tests
+# Checks whether spec evaluation and impl evaluation results are equal
 if __name__ == '__main__':
     from random import randint
     num_tests = 1000

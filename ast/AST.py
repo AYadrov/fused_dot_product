@@ -5,13 +5,11 @@ class CTree:
 
     def __call__(self, pt):
         return 0
-        
-
 
 class Operator:
     def __init__(self, spec=None,
-                       comp=lambda x: x,
                        impl=None,
+                       comp=lambda x: x,
                        args=[]):
         assert callable(comp)
         assert callable(spec)
