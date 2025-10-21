@@ -3,9 +3,18 @@ from typing import Any
 # Computational tree
 class CTree:
     def __init__(self):
-        self.smth = 0
+        self.free_vars = []
+        self.root = None
+        
+    def load_args(*pt):
+        for val, fv in zip(self.free_vars, *pt):
+            fv.load_val(val)
+            
+    def add_free_var(self, fv):
+        self.free_vars.append(fv)
 
-    def __call__(self, pt):
+    def __call__(self, *pt):
+        self.load_args(*pt)
         return 0
 
 class Operator:
@@ -18,7 +27,7 @@ class Operator:
         self.cost = cost
 
     def evaluate(self):
-        vals = [a.evaluate() if isinstance(a, Operator) else a for a in self.args]
+        vals = [a.evaluate() if isinstance(a, Operator) or isinstance(a, FreeVar) else a for a in self.args]
         
         spec_res = self.spec(*vals)
         impl_res = self.impl(*vals)
@@ -37,7 +46,7 @@ class Operator:
             # Compute new prefix for the module’s own internal tree
             module_prefix = prefix + ("    " if is_last else "│   ")
             # Indent extra spaces to visually align the vertical bar after ──┤
-            module_indent = " " * (len(self.name) + len(" (Module) ──┤") - 1)
+            module_indent = " " * (len(self.name) + len(" (Module) ──┐") - 1)
             self.impl.print_tree(prefix=module_prefix + module_indent, is_last=True)
         else:
             print(prefix + connector + self.name + " (Custom)")
@@ -54,5 +63,20 @@ class Operator:
     def _arg_str(self, arg: Any) -> str:
         if isinstance(arg, Operator):
             return arg.name
-        return repr(arg)
+        elif isinstance(arg, FreeVar):
+            return arg.name
+        else:
+            return repr(arg)
+        
+class FreeVar:
+    def __init__(self, name):
+        self.name = name
+        self.val = None
+        self.type = None
+    
+    def load_val(self, val):
+        self.val = val
+        
+    def evaluate(self):
+        return self.val
 

@@ -38,7 +38,7 @@ def bf16_mantissa_to_FXP(m) -> Operator:
             args=[m],
             name="bf16_mantissa_to_FXP")
 
-def MxM2FXP(FXP_1, FXP_2) -> Operator:
+def Mul_fxp(FXP_1, FXP_2) -> Operator:
     def spec(FXP_1: FixedPoint, FXP_2: FixedPoint) -> float:
         return float(FXP_1) * float(FXP_2)
         
@@ -56,7 +56,7 @@ def MxM2FXP(FXP_1, FXP_2) -> Operator:
             impl=impl,
             comp=lambda x: float(x),
             args=[FXP_1, FXP_2],
-            name="MxM2FXP")
+            name="Mul_fxp")
     
 # Operator calculates a maximum exponent for {ep}s with length {n}
 def OPTIMIZED_MAX_EXP(exponents, bit_width) -> Operator:
@@ -108,7 +108,7 @@ def RIGHT_SHIFT_FXP(FXP, sh, acc_req) -> Operator:
             impl=impl,
             comp=lambda x: float(x),
             args=[FXP, sh, acc_req],
-            name="RIGHT_SHIFT")
+            name="RIGHT_SHIFT_FXP")
 
 def FXP_ADD_SIGN(FXP, sign) -> Operator:
     def spec(FXP: FixedPoint, sign: int) -> FixedPoint:
@@ -182,7 +182,21 @@ def invert_bits(x, s) -> Operator:
             comp=lambda x: x,
             args=[x, s],
             name="invert_bits")
-        
 
-invert_bits(take_last_s_bits(2, 3), 4).print_tree()
+def EXP_OVERFLOW_UNDERFLOW_HANDLING(e) -> Operator:
+    def spec(e: int) -> int:
+        min(max(e, 0), 255)
+    def impl(e: int) -> int:
+        if e <= 0:
+            raise Exception("Underflow")
+        elif e >= 255:
+            raise Exception("Overflow")
+        return min(max(e, 0), 255)
+        
+    return Operator(
+            spec=spec,
+            impl=impl,
+            comp=lambda x: x,
+            args=[e],
+            name="EXP_OVERFLOW_UNDERFLOW_HANDLING")
 

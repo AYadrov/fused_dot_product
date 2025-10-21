@@ -47,10 +47,3 @@ def CSA(a: FixedPoint, b: FixedPoint, c: FixedPoint):
     sum_  = a ^ b ^ c
     carry = (a & b) | (a & c) | (b & c)
     return sum_, LEFT_SHIFT(carry, 1)
-    
-def EXP_OVERFLOW_UNDERFLOW_HANDLING(e):
-    if e <= 0:
-        raise Exception("Underflow")
-    elif e >= 255:
-        raise Exception("Overflow")
-    return min(max(e, 0), 255)
