@@ -9,31 +9,31 @@ def bit_width(x):
 ######### BASIC OPERATORS ##########
 def Add(x, y):
     return Operator(
-            spec=lambda x, y: x + y,
-            impl=lambda x, y: x + y,
-            comp=lambda x: x,
+            spec=lambda a, b: a + b,
+            impl=lambda a, b: a + b,
+            comp=lambda a: a,
             args=[x, y])
 
 def Sub(x, y):
     return Operator(
-            spec=lambda x, y: x - y,
-            impl=lambda x, y: x - y,
-            comp=lambda x: x,
+            spec=lambda a, b: a - b,
+            impl=lambda a, b: a - b,
+            comp=lambda a: a,
             args=[x, y])
 
 def Max(x, y):
     return Operator(
-            spec=lambda x, y: x if x >= y else y,
+            spec=lambda a, b: a if a >= b else b,
             impl=max,
-            comp=lambda x: x,
+            comp=lambda a: a,
             args=[x, y])
 
 def Min(x, y):
     return Operator(
-            spec=lambda x, y: x if x < y else y,
+            spec=lambda a, b: a if a < b else b,
             impl=min,
-            comp=lambda x: x,
-            args=[x,y])
+            comp=lambda a: a,
+            args=[x, y])
 
 def And(x, y):
     def spec(a, b):
