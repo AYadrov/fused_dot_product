@@ -12,28 +12,32 @@ def Add(x, y):
             spec=lambda a, b: a + b,
             impl=lambda a, b: a + b,
             comp=lambda a: a,
-            args=[x, y])
+            args=[x, y],
+            name="Add")
 
 def Sub(x, y):
     return Operator(
             spec=lambda a, b: a - b,
             impl=lambda a, b: a - b,
             comp=lambda a: a,
-            args=[x, y])
+            args=[x, y],
+            name="Sub")
 
 def Max(x, y):
     return Operator(
             spec=lambda a, b: a if a >= b else b,
             impl=max,
             comp=lambda a: a,
-            args=[x, y])
+            args=[x, y],
+            name="Max")
 
 def Min(x, y):
     return Operator(
             spec=lambda a, b: a if a < b else b,
             impl=min,
             comp=lambda a: a,
-            args=[x, y])
+            args=[x, y],
+            name="Min")
 
 def And(x, y):
     def spec(a, b):
@@ -45,7 +49,8 @@ def And(x, y):
             spec=spec,
             impl=lambda a, b: a & b,
             comp=int,
-            args=[x, y])
+            args=[x, y],
+            name="And")
 
 def Or(x, y):
     def spec(a, b):
@@ -58,7 +63,8 @@ def Or(x, y):
             spec=spec,
             impl=lambda a, b: a | b,
             comp=int,
-            args=[x, y])
+            args=[x, y],
+            name="Or")
 
 def Xor(x: int, y: int):
     def spec(a, b):
@@ -70,7 +76,8 @@ def Xor(x: int, y: int):
             spec=spec,
             impl=lambda a, b: a ^ b,
             comp=int,
-            args=[x, y])
+            args=[x, y],
+            name="Xor")
 
 # Some basic tests
 # Checks whether spec evaluation and impl evaluation results are equal
