@@ -21,7 +21,15 @@ def Sub(x, y):
             impl=lambda a, b: a - b,
             comp=lambda a: a,
             args=[x, y],
-            name="Sub")
+            name="Sub")   
+            
+def Mul(x, y):
+    return Operator(
+            spec=lambda a, b: a * b,
+            impl=lambda a, b: a * b,
+            comp=lambda a: a,
+            args=[x, y],
+            name="Mul")
 
 def Max(x, y):
     return Operator(
@@ -95,7 +103,7 @@ if __name__ == '__main__':
     from random import randint
     num_tests = 1000
     
-    basic_operations = [Xor, Or, And, Min, Max, Sub, Add, Lshift]
+    basic_operations = [Xor, Or, And, Min, Max, Sub, Add, Mul, Lshift]
     for f in basic_operations:
         for i in range(num_tests):
             f(randint(0, 10000), randint(0, 10000)).evaluate()

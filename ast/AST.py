@@ -9,7 +9,9 @@ class CTree:
         raise Exception("__call__ is not implemented")
         
     def print_tree(self):
-        raise Exception("print_tree is not implemented")
+        if not self.root:
+            raise Exception("Tree is empty")
+        self.root.print_tree()
 
 class Operator:
     def __init__(self, spec, impl, comp, args, name, cost=0):

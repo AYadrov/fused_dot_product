@@ -5,6 +5,7 @@ from fused_dot_product.utils.utils import *
 from fused_dot_product.utils.basics import *
 from fused_dot_product.config import *
 
+import math
 from fixedpoint import FixedPoint, resize
 
 ########## CUSTOM OPERATORS ########
@@ -57,14 +58,81 @@ def Mul_fxp(FXP_1, FXP_2) -> Operator:
             comp=lambda x: float(x),
             args=[FXP_1, FXP_2],
             name="Mul_fxp")
-    
-# Operator calculates a maximum exponent for {ep}s with length {n}
-def OPTIMIZED_MAX_EXP(exponents, bit_width) -> Operator:
-    def spec(exponents: list[int], bit_width: int) -> int:
-        return max(exponents)
+
+# acc_req is the required bit length after the shift (accuracy requirement)
+def RIGHT_SHIFT_FXP(FXP, sh, acc_req) -> Operator:
+    def spec(FXP: FixedPoint, sh: int, acc_req: int) -> float:
+        return float(FXP)/2**sh
         
-    def impl(exponents: list[int], bit_width: int) -> int:
+    def impl(FXP: FixedPoint, sh: int, acc_req: int) -> FixedPoint:
+        FXP_resized = resize(FXP, FXP.m, acc_req - FXP.m)
+        return FXP_resized >> sh
+        
+    return Operator(
+            spec=spec,
+            impl=impl,
+            comp=lambda x: float(x),
+            args=[FXP, sh, acc_req],
+            name="RIGHT_SHIFT_FXP")
+
+def FXP_ADD_SIGN(FXP, sign) -> Operator:
+    def spec(FXP: FixedPoint, sign: int) -> FixedPoint:
+        return FXP * (-1) ** sign
+    
+    def impl(FXP: FixedPoint, sign: int) -> FixedPoint:
+        assert sign in (0, 1)
+        m_ = FXP.m + 1
+        with FXP(m=m_, signed=1):
+            return -FixedPoint(FXP) if sign else FixedPoint(FXP)
+    
+    return Operator(
+            spec=spec,
+            impl=impl,
+            comp=lambda x: float(x),
+            args=[FXP, sign],
+            name="FXP_ADD_SIGN")
+            
+def conventional_max_exponent(e0, e1, e2, e3):
+    def spec(e0: int, e1: int, e2: int, e3: int) -> int:
+        return max(max(e0, e1), max(e2, e3))
+    def impl_constructor(e0, e1, e2, e3) -> Operator:
+        return Max(Max(e0, e1), Max(e2, e3))
+    
+    return Operator(
+            spec=spec,
+            impl=impl_constructor(e0, e1, e2, e3),
+            comp=lambda x: x,
+            args=[e0, e1, e2, e3],
+            name="conventional_max_exponent")
+
+def conventional_adder_tree(FXP0, FXP1, FXP2, FXP3) -> Operator:
+    def spec(FXP0: FixedPoint, 
+             FXP1: FixedPoint, 
+             FXP2: FixedPoint, 
+             FXP3: FixedPoint) -> FixedPoint:
+        return FXP0 + FXP1 + FXP2 + FXP3
+    
+    def impl(FXP0: FixedPoint,
+             FXP1: FixedPoint,
+             FXP2: FixedPoint,
+             FXP3: FixedPoint) -> FixedPoint:
+         return (FXP0 + FXP1) + (FXP2 + FXP3)
+    
+    return Operator(
+            spec=spec,
+            impl=impl,
+            comp=lambda x: float(x),
+            args=[FXP0, FXP1, FXP2, FXP3],
+            name="conventional_adder_tree")
+        
+# Operator calculates a maximum exponent for {ep}s with length {n}
+def OPTIMIZED_MAX_EXP(e0, e1, e2, e3, bit_width) -> Operator:
+    def spec(e0: int, e1: int, e2: int, e3: int, bit_width: int) -> int:
+        return max(max(e0, e1), max(e2, e3))
+    
+    def impl(e0: int, e1: int, e2: int, e3: int, bit_width: int) -> int:
         assert bit_width > 0
+        exponents = [e0, e1, e2, e3]
         num_elements = len(exponents)
 
         # Binary representations of exponents, extra element {0} for convenience
@@ -91,42 +159,9 @@ def OPTIMIZED_MAX_EXP(exponents, bit_width) -> Operator:
             spec=spec,
             impl=impl,
             comp=lambda x: x,
-            args=[exponents, bit_width],
+            args=[e0, e1, e2, e3, bit_width],
             name="OPTIMIZED_MAX_EXP")
-
-# acc_req is the required bit length after the shift (accuracy requirement)
-def RIGHT_SHIFT_FXP(FXP, sh, acc_req) -> Operator:
-    def spec(FXP: FixedPoint, sh: int, acc_req: int) -> float:
-        return float(FXP)/2**sh
-        
-    def impl(FXP: FixedPoint, sh: int, acc_req: int) -> FixedPoint:
-        FXP_resized = resize(FXP, FXP.m, acc_req - FXP.m)
-        return FXP_resized >> sh
-        
-    return Operator(
-            spec=spec,
-            impl=impl,
-            comp=lambda x: float(x),
-            args=[FXP, sh, acc_req],
-            name="RIGHT_SHIFT_FXP")
-
-def FXP_ADD_SIGN(FXP, sign) -> Operator:
-    def spec(FXP: FixedPoint, sign: int) -> FixedPoint:
-        return FXP * (-1) ** sign
-        
-    def impl(FXP: FixedPoint, sign: int) -> FixedPoint:
-        assert sign in (0, 1)
-        m_ = FXP.m + 1
-        with FXP(m=m_, signed=1):
-            return -FixedPoint(FXP) if sign else FixedPoint(FXP)
-    
-    return Operator(
-            spec=spec,
-            impl=impl,
-            comp=lambda x: float(x),
-            args=[FXP, sign],
-            name="FXP_ADD_SIGN")
-        
+            
 # It is important to call CSA only on fixed points with equal lengths!
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
@@ -153,18 +188,33 @@ def CSA_TREE4(FXP0, FXP1, FXP2, FXP3) -> Operator:
             name="CSA_TREE4")
 
 # Take last {s} bits of number x
-def take_last_s_bits(x, s) -> Operator:
-    def spec(x: int, s: int) -> int:
-        return x & (2 ** s - 1)
-    def impl_constructor(x, s) -> int:
-        return And(x, (Sub(Lshift(1, s), 1)))
+def take_last_n_bits(x, n) -> Operator:
+    def spec(x: int, n: int) -> int:
+        return x & (2 ** n - 1)
+    def impl_constructor(x, n) -> int:
+        return And(x, (Sub(Lshift(1, n), 1)))
     
     return Operator(
             spec=spec,
-            impl=impl_constructor(x, s),
+            impl=impl_constructor(x, n),
             comp=lambda x: x,
-            args=[x, s],
-            name="take_last_s_bits")
+            args=[x, n],
+            name="take_last_n_bits")
+            
+# This function is wrong when x < 0
+def drop_last_n_bits(x, n) -> Operator:
+    def spec(x: int, n: int) -> int:
+        return math.floor(x / (2**n))
+    
+    def impl(x: int, n: int) -> int:
+        return x >> n
+    
+    return Operator(
+            spec=spec,
+            impl=impl,
+            comp=lambda x: x,
+            args=[x, n],
+            name="drop_last_n_bits")
 
 # Negate bits of {x}
 # negate_bits(3, 2) -> 0, because '0b11' -> '0b00'

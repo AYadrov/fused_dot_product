@@ -1,128 +1,138 @@
-from fused_dot_product.ast.AST  import CTree, Operator
+from fused_dot_product.ast.AST  import CTree, Operator, FreeVar
 from fused_dot_product.utils.operators import *
 from fused_dot_product.utils.utils import *
-import math
+from fused_dot_product.utils.basics import *
+
 
 
 class Optimized(CTree):
     def __init__(self):
         super().__init__()
-
-        # Operators for exponents
-        self.exponents_adder = Operator(
-                spec=lambda x, y: x + y - (2**(BF16_EXPONENT_BITS-1) - 1),
-                impl=lambda x, y: x + y - BF16_BIAS)
-        self.estimate_local_shift = Operator(
-                spec=lambda e, s: (2**s - 1 - (e % 2**s)),
-                impl=lambda e, s: invert_bits(take_last_bits(e, s), s))
-        self.estimate_global_shift = Operator(
-                spec=lambda x, y, s: (x - y) * 2**s,
-                impl=lambda x, y, s: (x - y) * 2**s)
-        self.get_leading_n_bits = Operator(
-                spec=lambda e, n: math.floor(e / (2**s)),
-                impl=lambda e, n: e >> n)
-                
-        self.max_exp = OPTIMIZED_MAX_EXP
+        self.free_vars = self.define_free_vars()
+        self.root = self.build_tree()
         
-        # Operators for mantissas
-        self.mantissa2FXP = bf16_mantissa_to_FXP
-        self.mantissas_mul = MxM2FXP
-        self.right_shift = RIGHT_SHIFT
-        self.add_sign_to_FXP = FXP_ADD_SIGN
-        self.adder_tree = CARRY_SAVE_ADDER_TREE
+    def define_free_vars(self):
+        self.E_a = [FreeVar("e_a_0"), FreeVar("e_a_1"), FreeVar("e_a_2"), FreeVar("e_a_3")]
+        self.E_b = [FreeVar("e_b_0"), FreeVar("e_b_1"), FreeVar("e_b_2"), FreeVar("e_b_3")]
         
-        self.calculate_sign = Operator(
-                spec=lambda x, y: 0 if x == y else 1,
-                impl=lambda x, y: x ^ y)
+        self.M_a = [FreeVar("m_a_0"), FreeVar("m_a_1"), FreeVar("m_a_2"), FreeVar("m_a_3")]
+        self.M_b = [FreeVar("m_b_0"), FreeVar("m_b_1"), FreeVar("m_b_2"), FreeVar("m_b_3")]
         
-        # Converting back to float
-        self.to_float = FXP_E2float
-
-    def __call__(self, a, b):
+        self.S_a = [FreeVar("s_a_0"), FreeVar("s_a_1"), FreeVar("s_a_2"), FreeVar("s_a_3")]
+        self.S_b = [FreeVar("s_b_0"), FreeVar("s_b_1"), FreeVar("s_b_2"), FreeVar("s_b_3")]
+        
+        self.s = FreeVar("s")
+        self.Wf = FreeVar("Wf")
+        self.bf16_bias = FreeVar("BF16_bias")
+        self.bf16_exponent_bits = FreeVar("BF16_exponent_bits")
+        self.bf16_mantissa_bits = FreeVar("BF16_mantissa_bits")
+        
+        return [self.S_a, self.M_a, self.E_a, self.S_b, self.M_b, self.E_b,
+                self.s, self.Wf, self.bf16_bias, self.bf16_exponent_bits, self.bf16_mantissa_bits]
+    
+    def build_tree(self):
         ########## EXPONENTS ###############
         # Step 1. Exponents add
-        E_p = [self.exponents_adder(a[i][1], b[i][1]) for i in range(N)]
+        E_p = [exponents_adder(self.E_a[i], self.E_b[i]) for i in range(N)]
+        E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(E_p[i]) for i in range(N)]
 
-        # UNDERFLOW/OVERFLOW
-        E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(e) for e in E_p]
-
-        for e in E_p:
-            assert e.bit_length() <= BF16_EXPONENT_BITS + 1
+        # for e in E_p:
+        #     assert e.bit_length() <= BF16_EXPONENT_BITS + 1
 
         # Step 2. Estimate local shifts
-        LOCAL_SHIFTS = [self.estimate_local_shift(e, s) for e in E_p]
+        L_shifts = [invert_bits(take_last_n_bits(E_p[i], self.s), self.s) for i in range(N)]
 
-        for sh, e in zip(LOCAL_SHIFTS, E_p):
-            assert sh.bit_length() <= s
-            assert sh >= 0
+        # for sh, e in zip(LOCAL_SHIFTS, E_p):
+        #     assert sh.bit_length() <= s
+        #     assert sh >= 0
         
         # Step 3. Take leading {9-s} bits for max exponent and a global shift
-        LEADING_EXPONENTS = [self.get_leading_n_bits(e, s) for e in E_p]
+        E_lead = [drop_last_n_bits(E_p[i], self.s) for i in range(N)]
 
         # Step 4. Take max exponent
-        MAX_EXP = self.max_exp(LEADING_EXPONENTS, BF16_EXPONENT_BITS + 1 - s)
+        # TODO: maybe no need to add 1
+        E_max = OPTIMIZED_MAX_EXP(
+            *E_lead, 
+            Sub(Add(self.bf16_exponent_bits, 1), self.s)
+        )
 
-        assert MAX_EXP.bit_length() <= BF16_EXPONENT_BITS + 1 - s
+        # assert MAX_EXP.bit_length() <= BF16_EXPONENT_BITS + 1 - s
 
         # Step 5. Calculate global shifts as {(max_exp - exp) * 2**s}
-        GLOBAL_SHIFTS = [self.estimate_global_shift(MAX_EXP, LEADING_EXPONENTS[i], s) for i in range(N)]
+        G_shifts = [Lshift(Sub(E_max, E_lead[i]), self.s) for i in range(N)]
 
-        for gsh in GLOBAL_SHIFTS:
-            assert gsh.bit_length() <= BF16_EXPONENT_BITS + 1
-            assert gsh >= 0
+        # for gsh in GLOBAL_SHIFTS:
+        #     assert gsh.bit_length() <= BF16_EXPONENT_BITS + 1
+        #     assert gsh >= 0
 
         # Step 6. Append {s} 1s at the end of the max exponent for a normalization
-        MAX_EXP = MAX_EXP * 2**s + (2**s - 1)
+        E_max = Add(Lshift(E_max, self.s), Sub(Lshift(1, self.s), 1))
     
-        assert MAX_EXP.bit_length() <= BF16_EXPONENT_BITS + 1
+        # assert MAX_EXP.bit_length() <= BF16_EXPONENT_BITS + 1
     
         ########## MANTISSAS ###############
     
         # Step 1. Convert mantissas to FixedPoint
-        M_a = [self.mantissa2FXP(x[2]) for x in a]
-        M_b = [self.mantissa2FXP(x[2]) for x in b]
-
+        M_a = [bf16_mantissa_to_FXP(self.M_a[i]) for i in range(N)]
+        M_b = [bf16_mantissa_to_FXP(self.M_b[i]) for i in range(N)]
+        
         # Step 2. Multiply mantissas using FixedPoint
-        M_p = [self.mantissas_mul(x, y) for x, y in zip(M_a, M_b)]
+        M_p = [Mul_fxp(M_a[i], M_b[i]) for i in range(N)]
 
-        for m in M_p:
-            assert m.n == 2 * BF16_MANTISSA_BITS and m.m == 2
+        # for m in M_p:
+        #     assert m.n == 2 * BF16_MANTISSA_BITS and m.m == 2
 
         # Step 3. Locally shift mantissas by the inverted last {s} bits of E_p
-        output_length = (2 * BF16_MANTISSA_BITS + 2) + (2**s - 1)
-        M_p = [self.right_shift(m, sh, output_length) for m, sh in zip(M_p, LOCAL_SHIFTS)]
+        output_length = Add(Mul(2, Add(self.bf16_mantissa_bits, 1)), Sub(Lshift(1, self.s), 1))
+        M_p = [RIGHT_SHIFT_FXP(M_p[i], L_shifts[i], output_length) for i in range(N)]
 
-        for m in M_p:
-            assert m.n == output_length - 2 and m.m == 2
+        # for m in M_p:
+        #     assert m.n == output_length - 2 and m.m == 2
 
         # Step 4. Globally shift mantissas by GLOBAL_SHIFTS[i] amount
-        output_length = Wf + 2**s - 1
-        M_p = [self.right_shift(x, shift, output_length) for x, shift in zip(M_p, GLOBAL_SHIFTS)]
+        output_length = Add(self.Wf, Sub(Lshift(1, self.s), 1))
+        M_p = [RIGHT_SHIFT_FXP(M_p[i], G_shifts[i], output_length) for i in range(N)]
 
-        for m in M_p:
-            assert m.n == output_length - 2 and m.m == 2
+        # for m in M_p:
+        #     assert m.n == output_length - 2 and m.m == 2
 
         # Step 5. Adjust signs using xor operation
         # As a result of adding a sign, integer bits of fixedpoint gets increased by 1 to avoid overflow during conversion
-        S_p = [self.calculate_sign(x[0], y[0]) for x, y in zip(a, b)] 
-        M_p = [self.add_sign_to_FXP(x, s) for x, s in zip(M_p, S_p)]
+        S_p = [Xor(self.S_a[i], self.S_b[i]) for i in range(N)]
+        M_p = [FXP_ADD_SIGN(M_p[i], S_p[i]) for i in range(N)]
 
-        for m in M_p:
-            assert m.n == (Wf + (2**s - 1)) - 2
-            assert m.m == 3
+        # for m in M_p:
+        #     assert m.n == (Wf + (2**s - 1)) - 2
+        #     assert m.m == 3
 
         ########## ADDER TREE ##############
     
         # Adder tree 
         # Output should have {Wf + Log2(N) + 2**s - 1 + 1(sign)} bits
-        fx_sum = self.adder_tree(M_p)
+        M_sum = CSA_TREE4(*M_p)
 
-        assert float(fx_sum) == float(sum(M_p)), \
-            f"Carry-save tree failed, {float(fx_sum)} != {float(sum(M_p))}"
+        # assert float(fx_sum) == float(sum(M_p)), \
+        #     f"Carry-save tree failed, {float(fx_sum)} != {float(sum(M_p))}"
         # Unfortunately, we are off by 2 bits with signed logic from the design
-        assert fx_sum.n + fx_sum.m == Wf + (2**s - 1) + math.ceil(math.log2(N)) + 2
+        # assert fx_sum.n + fx_sum.m == Wf + (2**s - 1) + math.ceil(math.log2(N)) + 2
 
         ########## RESULT ##################
 
-        res = FXP_E2float(fx_sum, MAX_EXP)
-        return res
+        root = FXP_E2float(M_sum, E_max)
+        return root
+        
+    def __call__(self, a, b):
+        for i in range(N):
+            self.S_a[i].load_val(a[i][0]); self.E_a[i].load_val(a[i][1]); self.M_a[i].load_val(a[i][2]);
+            self.S_b[i].load_val(b[i][0]); self.E_b[i].load_val(b[i][1]); self.M_b[i].load_val(b[i][2]);
+        
+        self.s.load_val(s)
+        self.Wf.load_val(Wf)
+        self.bf16_bias.load_val(BF16_BIAS)
+        self.bf16_exponent_bits.load_val(BF16_EXPONENT_BITS)
+        self.bf16_mantissa_bits.load_val(BF16_MANTISSA_BITS)
+        
+        return self.root.evaluate()
+        
+if __name__ == '__main__':
+    Optimized().print_tree()
