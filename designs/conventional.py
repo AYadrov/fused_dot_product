@@ -5,9 +5,9 @@ from fused_dot_product.utils.basics import *
             
 def conventional_max_exponent(e0, e1, e2, e3):
     def spec(e0: int, e1: int, e2: int, e3: int) -> int:
-        return max(max(e0, e1), max(e2, e2))
+        return max(max(e0, e1), max(e2, e3))
     def impl_constructor(e0, e1, e2, e3) -> Operator:
-        return Max(Max(e0, e1), Max(e2, e2))
+        return Max(Max(e0, e1), Max(e2, e3))
     
     return Operator(
             spec=spec,
@@ -15,13 +15,32 @@ def conventional_max_exponent(e0, e1, e2, e3):
             comp=lambda x: x,
             args=[e0, e1, e2, e3],
             name="conventional_max_exponent")
+            
+def conventional_adder_tree(FXP0, FXP1, FXP2, FXP3) -> Operator:
+    def spec(FXP0: FixedPoint, 
+             FXP1: FixedPoint, 
+             FXP2: FixedPoint, 
+             FXP3: FixedPoint) -> FixedPoint:
+        return FXP0 + FXP1 + FXP2 + FXP3
+        
+    def impl(FXP0: FixedPoint,
+             FXP1: FixedPoint,
+             FXP2: FixedPoint,
+             FXP3: FixedPoint) -> FixedPoint:
+         return (FXP0 + FXP1) + (FXP2 + FXP3)
+    return Operator(
+            spec=spec,
+            impl=impl,
+            comp=lambda x: float(x),
+            args=[FXP0, FXP1, FXP2, FXP3],
+            name="conventional_adder_tree")
+
 
 class Conventional(CTree):
     def __init__(self):
         super().__init__()
         self.free_vars = self.define_free_vars()
         self.root = self.build_tree()
-        # self.root.print_tree()
            
     def define_free_vars(self):
         self.E_a = [FreeVar("e_a_0"), FreeVar("e_a_1"), FreeVar("e_a_2"), FreeVar("e_a_3")]
@@ -77,7 +96,7 @@ class Conventional(CTree):
             
         ########## ADDER TREE ##############
         
-        M_sum = CSA_TREE4(*M_p)
+        M_sum = conventional_adder_tree(*M_p)
 
         # Unfortunately, we are off by 1 bits from the design with the sign logic
         # assert M_sum.n + M_sum.m == Wf + math.ceil(math.log2(N)) + 1
@@ -98,6 +117,11 @@ class Conventional(CTree):
             self.M_b[i].load_val(b[i][2])
         
         return self.root.evaluate()
+        
+    def print_tree(self):
+        if not self.root:
+            raise Exception("Tree is empty")
+        self.root.print_tree()
 
 if __name__ == '__main__':
     import random
@@ -116,7 +140,6 @@ if __name__ == '__main__':
             assert False
         except Exception as e:
             assert str(e) == "Underflow"
-            
             
     assert Conventional()(*generate_BF16_2x4x1(5)) == -9.358937422513046e+18
     overflow()

@@ -6,7 +6,10 @@ class CTree:
         self.root = None
 
     def __call__(self, pt):
-        raise Exception("Execution is not implemented")
+        raise Exception("__call__ is not implemented")
+        
+    def print_tree(self):
+        raise Exception("print_tree is not implemented")
 
 class Operator:
     def __init__(self, spec, impl, comp, args, name, cost=0):
