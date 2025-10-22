@@ -3,19 +3,10 @@ from typing import Any
 # Computational tree
 class CTree:
     def __init__(self):
-        self.free_vars = []
         self.root = None
-        
-    def load_args(*pt):
-        for val, fv in zip(self.free_vars, *pt):
-            fv.load_val(val)
-            
-    def add_free_var(self, fv):
-        self.free_vars.append(fv)
 
-    def __call__(self, *pt):
-        self.load_args(*pt)
-        return 0
+    def __call__(self, pt):
+        raise Exception("Execution is not implemented")
 
 class Operator:
     def __init__(self, spec, impl, comp, args, name, cost=0):
@@ -28,9 +19,13 @@ class Operator:
 
     def evaluate(self):
         vals = [a.evaluate() if isinstance(a, Operator) or isinstance(a, FreeVar) else a for a in self.args]
-        
+        # Nested operator gets evalauted independently
+        if isinstance(self.impl, Operator):
+            impl_res = self.impl.evaluate()
+        else:
+            impl_res = self.impl(*vals)
+            
         spec_res = self.spec(*vals)
-        impl_res = self.impl(*vals)
         assert self.comp(spec_res) == self.comp(impl_res), \
             f"Operator {self.name}'s spec and impl evaluations do not match for input: {vals}"
         return impl_res
@@ -42,10 +37,10 @@ class Operator:
 
         # Print this node
         if is_module:
-            print(prefix + connector + f"{self.name} (Module) ──┤")
+            print(prefix + connector + f"{self.name} (Module) ──┐")
             # Compute new prefix for the module’s own internal tree
             module_prefix = prefix + ("    " if is_last else "│   ")
-            # Indent extra spaces to visually align the vertical bar after ──┤
+            # Indent extra spaces to visually align the vertical bar after ──┐
             module_indent = " " * (len(self.name) + len(" (Module) ──┐") - 1)
             self.impl.print_tree(prefix=module_prefix + module_indent, is_last=True)
         else:

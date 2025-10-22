@@ -5,17 +5,17 @@ from fixedpoint import FixedPoint, resize
 from random import getrandbits
 
 
-def generate_BF16_1x4(shared_exponent_bits: int):
+def generate_BF16_2x4x1(shared_exponent_bits: int):
     unshared_exponent_bits = BF16_EXPONENT_BITS - shared_exponent_bits
-    assert shared_exponent_bits <= BF16_EXPONENT_BITS
+    assert shared_exponent_bits < (1 << BF16_EXPONENT_BITS)
     assert shared_exponent_bits >= 0
-    assert Wf > 2 # At least two bits are required for integer part of a fixed point
 
     # Generating input data of type: 
     #   List[(sign, exponent, mantissa)]
-    shared_exp = getrandbits(shared_exponent_bits) * 2 ** unshared_exponent_bits
+    shared_exp = getrandbits(shared_exponent_bits) << unshared_exponent_bits
     a = [(getrandbits(1), shared_exp + getrandbits(unshared_exponent_bits), getrandbits(BF16_MANTISSA_BITS)) for _ in range(1, N+1)]
-    return a
+    b = [(getrandbits(1), shared_exp + getrandbits(unshared_exponent_bits), getrandbits(BF16_MANTISSA_BITS)) for _ in range(1, N+1)]
+    return a, b
 
 # Function encodes floating-point given sign, exponent and mantissa
 def S_E_M2float(s: int,  e: int, m: int) -> float:
@@ -46,4 +46,4 @@ def LEFT_FXP_SHIFT(FXP: FixedPoint, sh: int) -> FixedPoint:
 def CSA(a: FixedPoint, b: FixedPoint, c: FixedPoint):
     sum_  = a ^ b ^ c
     carry = (a & b) | (a & c) | (b & c)
-    return sum_, LEFT_SHIFT(carry, 1)
+    return sum_, LEFT_FXP_SHIFT(carry, 1)

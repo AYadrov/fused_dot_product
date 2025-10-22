@@ -185,7 +185,7 @@ def invert_bits(x, s) -> Operator:
 
 def EXP_OVERFLOW_UNDERFLOW_HANDLING(e) -> Operator:
     def spec(e: int) -> int:
-        min(max(e, 0), 255)
+        return min(max(e, 0), 255)
     def impl(e: int) -> int:
         if e <= 0:
             raise Exception("Underflow")
@@ -199,4 +199,17 @@ def EXP_OVERFLOW_UNDERFLOW_HANDLING(e) -> Operator:
             comp=lambda x: x,
             args=[e],
             name="EXP_OVERFLOW_UNDERFLOW_HANDLING")
+            
+def exponents_adder(x, y):
+    def spec(x: int, y: int) -> int:
+        return x + y - (2**(BF16_EXPONENT_BITS-1) - 1)
+    def impl_constructor(x, y) -> Operator:
+        return Sub(Add(x, y), BF16_BIAS)
+    
+    return Operator(
+            spec=spec,
+            impl=impl_constructor(x, y),
+            comp=lambda x: x,
+            args=[x, y],
+            name="exponents_adder")
 

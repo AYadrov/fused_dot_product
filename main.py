@@ -20,8 +20,7 @@ def main():
     ######### GENERATING DATA ##########
     
     random.seed(args.seed)
-    a = generate_BF16_1x4(args.shared_exponent)
-    b = generate_BF16_1x4(args.shared_exponent) 
+    a, b = generate_BF16_2x4x1(args.shared_exponent)
 
     ########### GROUND TRUTH ###########
     
