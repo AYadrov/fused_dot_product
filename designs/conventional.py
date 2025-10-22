@@ -21,7 +21,7 @@ class Conventional(CTree):
         super().__init__()
         self.free_vars = self.define_free_vars()
         self.root = self.build_tree()
-        self.root.print_tree()
+        # self.root.print_tree()
            
     def define_free_vars(self):
         self.E_a = [FreeVar("e_a_0"), FreeVar("e_a_1"), FreeVar("e_a_2"), FreeVar("e_a_3")]
@@ -102,5 +102,26 @@ class Conventional(CTree):
 if __name__ == '__main__':
     import random
     random.seed(5)
-    a, b = generate_BF16_2x4x1(5)
-    assert Conventional()(a, b) == -9.358937422513046e+18
+    
+    def overflow():
+        try:
+            Conventional()(*generate_BF16_2x4x1(5))
+            assert False
+        except Exception as e:
+            assert str(e) == "Overflow"
+            
+    def underflow():
+        try:
+            Conventional()(*generate_BF16_2x4x1(5))
+            assert False
+        except Exception as e:
+            assert str(e) == "Underflow"
+            
+            
+    assert Conventional()(*generate_BF16_2x4x1(5)) == -9.358937422513046e+18
+    overflow()
+    underflow()
+    overflow()   
+    assert Conventional()(*generate_BF16_2x4x1(5)) == 4.3820434424121985e-26
+    assert Conventional()(*generate_BF16_2x4x1(5)) == 773044352.0
+

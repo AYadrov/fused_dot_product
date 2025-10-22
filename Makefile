@@ -11,10 +11,15 @@ install: check-python
 	@pip install -U fixedpoint
 	@echo "Installation is done"
 
-tests: basic-tests
+tests: basic-tests conventional-tests
 
 basic-tests:
 	@echo "Running utils/basics.py..."
 	@cd .. && python -m fused_dot_product.utils.basics
+	@echo "Complete"
+
+conventional-tests:
+	@echo "Running designs/conventional.py..."
+	@cd .. && python -m fused_dot_product.designs.conventional
 	@echo "Complete"
 
