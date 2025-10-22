@@ -86,5 +86,8 @@ class Conventional(CTree):
         return self.root.evaluate()
 
 if __name__ == '__main__':
-    Conventional().print_tree()
+    design = Conventional()
+    design.print_tree()
+    print("Depth =", design.depth())
+    print("Critical path cost =", design.critical_path_cost())
 

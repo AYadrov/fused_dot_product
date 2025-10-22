@@ -3,7 +3,7 @@ import time
 import random
 
 from fused_dot_product.config import *
-from fused_dot_product.utils.utils import unfused_dot_product, generate_BF16_1x4, S_E_M2float
+from fused_dot_product.utils.utils import unfused_dot_product, generate_BF16_2x4x1, S_E_M2float
 from fused_dot_product.designs.optimized import Optimized
 from fused_dot_product.designs.conventional import Conventional
 
@@ -36,10 +36,10 @@ def main():
     ########## CONV+OPTIMIZED ##########
 
     print("Unfused result of dot-product:\n\t", unfused_res)
-    conventional_res = Conventional()(a,b)
+    conventional_res = Conventional()(a, b)
     print("Absolute difference between conventional/unfused:\n\t", abs(unfused_res-conventional_res))
     
-    optimized_res = Optimized()(a,b)
+    optimized_res = Optimized()(a, b)
     print("Absolute difference between conventional/unfused:\n\t", abs(unfused_res-optimized_res))
     return 0
   

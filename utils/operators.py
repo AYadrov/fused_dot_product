@@ -93,17 +93,7 @@ def FXP_ADD_SIGN(FXP, sign) -> Operator:
             name="FXP_ADD_SIGN")
             
 def conventional_max_exponent(e0, e1, e2, e3):
-    def spec(e0: int, e1: int, e2: int, e3: int) -> int:
-        return max(max(e0, e1), max(e2, e3))
-    def impl_constructor(e0, e1, e2, e3) -> Operator:
-        return Max(Max(e0, e1), Max(e2, e3))
-    
-    return Operator(
-            spec=spec,
-            impl=impl_constructor(e0, e1, e2, e3),
-            comp=lambda x: x,
-            args=[e0, e1, e2, e3],
-            name="conventional_max_exponent")
+    return Max(Max(e0, e1), Max(e2, e3))
 
 def conventional_adder_tree(FXP0, FXP1, FXP2, FXP3) -> Operator:
     def spec(FXP0: FixedPoint, 
@@ -189,17 +179,7 @@ def CSA_TREE4(FXP0, FXP1, FXP2, FXP3) -> Operator:
 
 # Take last {s} bits of number x
 def take_last_n_bits(x, n) -> Operator:
-    def spec(x: int, n: int) -> int:
-        return x & (2 ** n - 1)
-    def impl_constructor(x, n) -> int:
-        return And(x, (Sub(Lshift(1, n), 1)))
-    
-    return Operator(
-            spec=spec,
-            impl=impl_constructor(x, n),
-            comp=lambda x: x,
-            args=[x, n],
-            name="take_last_n_bits")
+    return And(x, (Sub(Lshift(1, n), 1)))
             
 # This function is wrong when x < 0
 def drop_last_n_bits(x, n) -> Operator:
@@ -220,18 +200,7 @@ def drop_last_n_bits(x, n) -> Operator:
 # negate_bits(3, 2) -> 0, because '0b11' -> '0b00'
 # negate_bits(0, 2) -> 3
 def invert_bits(x, s) -> Operator:
-    def spec(x: int, s: int) -> int:
-        return (2**s - 1) - x
-        
-    def impl_constructor(x, s) -> Operator:
-        return Sub(Sub(Lshift(1, s), 1), x)
-    
-    return Operator(
-            spec=spec,
-            impl=impl_constructor(x, s),
-            comp=lambda x: x,
-            args=[x, s],
-            name="invert_bits")
+    return Sub(Sub(Lshift(1, s), 1), x)
 
 def EXP_OVERFLOW_UNDERFLOW_HANDLING(e) -> Operator:
     def spec(e: int) -> int:
@@ -251,15 +220,5 @@ def EXP_OVERFLOW_UNDERFLOW_HANDLING(e) -> Operator:
             name="EXP_OVERFLOW_UNDERFLOW_HANDLING")
             
 def exponents_adder(x, y):
-    def spec(x: int, y: int) -> int:
-        return x + y - (2**(BF16_EXPONENT_BITS-1) - 1)
-    def impl_constructor(x, y) -> Operator:
-        return Sub(Add(x, y), BF16_BIAS)
-    
-    return Operator(
-            spec=spec,
-            impl=impl_constructor(x, y),
-            comp=lambda x: x,
-            args=[x, y],
-            name="exponents_adder")
+    return Sub(Add(x, y), BF16_BIAS)
 
