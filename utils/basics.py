@@ -7,7 +7,7 @@ def bit_width(x):
     return max(1, x.bit_length())
 
 ######### BASIC OPERATORS ##########
-def Add(x, y):
+def Add(x, y) -> Operator:
     return Operator(
             spec=lambda a, b: a + b,
             impl=lambda a, b: a + b,
@@ -15,7 +15,7 @@ def Add(x, y):
             args=[x, y],
             name="Add")
 
-def Sub(x, y):
+def Sub(x, y) -> Operator:
     return Operator(
             spec=lambda a, b: a - b,
             impl=lambda a, b: a - b,
@@ -23,7 +23,7 @@ def Sub(x, y):
             args=[x, y],
             name="Sub")   
             
-def Mul(x, y):
+def Mul(x, y) -> Operator:
     return Operator(
             spec=lambda a, b: a * b,
             impl=lambda a, b: a * b,
@@ -31,7 +31,7 @@ def Mul(x, y):
             args=[x, y],
             name="Mul")
 
-def Max(x, y):
+def Max(x, y) -> Operator:
     return Operator(
             spec=lambda a, b: a if a >= b else b,
             impl=max,
@@ -39,7 +39,7 @@ def Max(x, y):
             args=[x, y],
             name="Max")
 
-def Min(x, y):
+def Min(x, y) -> Operator:
     return Operator(
             spec=lambda a, b: a if a < b else b,
             impl=min,
@@ -47,7 +47,7 @@ def Min(x, y):
             args=[x, y],
             name="Min")
 
-def And(x, y):
+def And(x, y) -> Operator:
     def spec(a: int, b: int) -> int:
         m = max(a, b)
         return sum([(1 << n) * ((a >> n) & 1) * ((b >> n) & 1)
@@ -60,7 +60,7 @@ def And(x, y):
             args=[x, y],
             name="And")
 
-def Or(x, y):
+def Or(x, y) -> Operator:
     def spec(a: int, b: int) -> int:
         m = max(a, b)
         return sum([(1 << n) * (((a >> n) & 1) + ((b >> n) & 1) - 
@@ -74,7 +74,7 @@ def Or(x, y):
             args=[x, y],
             name="Or")
 
-def Xor(x, y):
+def Xor(x, y) -> Operator:
     def spec(a: int, b: int) -> int:
         m = max(a, b)
         return sum([(1 << n) * (((a >> n) & 1) ^ ((b >> n) & 1))
@@ -87,7 +87,7 @@ def Xor(x, y):
             args=[x, y],
             name="Xor")
             
-def Lshift(x, n):
+def Lshift(x, n) -> Operator:
     def spec(x: int, n: int) -> int:
         return x * 2 ** n
     return Operator(
@@ -96,7 +96,7 @@ def Lshift(x, n):
             comp=int,
             args=[x, n],
             name="Lshift")
-
+            
 # Some basic tests
 # Checks whether spec evaluation and impl evaluation results are equal
 if __name__ == '__main__':

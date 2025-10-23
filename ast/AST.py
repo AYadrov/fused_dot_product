@@ -57,7 +57,7 @@ class Operator:
 
     def print_tree(self, prefix: str = "", is_last: bool = True):
         """Print the AST in a Linux 'tree'-like style with module visualization."""
-        connector = "└── " if is_last else "├── "=
+        connector = "└── " if is_last else "├── "
 
         print(prefix + connector + self.name)
         # Prepare new prefix for children

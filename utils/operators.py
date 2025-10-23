@@ -151,6 +151,7 @@ def OPTIMIZED_MAX_EXP(e0, e1, e2, e3, bit_width) -> Operator:
             comp=lambda x: x,
             args=[e0, e1, e2, e3, bit_width],
             name="OPTIMIZED_MAX_EXP")
+        
             
 # It is important to call CSA only on fixed points with equal lengths!
 # This is due to signed fixed points that we use
@@ -219,6 +220,6 @@ def EXP_OVERFLOW_UNDERFLOW_HANDLING(e) -> Operator:
             args=[e],
             name="EXP_OVERFLOW_UNDERFLOW_HANDLING")
             
-def exponents_adder(x, y):
+def exponents_adder(x, y) -> Operator:
     return Sub(Add(x, y), BF16_BIAS)
 
