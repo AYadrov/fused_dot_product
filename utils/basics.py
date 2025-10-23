@@ -22,7 +22,7 @@ def Sub(x, y) -> Operator:
             comp=lambda a: a,
             args=[x, y],
             name="Sub")   
-            
+
 def Mul(x, y) -> Operator:
     return Operator(
             spec=lambda a, b: a * b,
@@ -34,7 +34,7 @@ def Mul(x, y) -> Operator:
 def Max(x, y) -> Operator:
     return Operator(
             spec=lambda a, b: a if a >= b else b,
-            impl=max,
+            impl=lambda a, b: max(a, b),
             comp=lambda a: a,
             args=[x, y],
             name="Max")
@@ -42,7 +42,7 @@ def Max(x, y) -> Operator:
 def Min(x, y) -> Operator:
     return Operator(
             spec=lambda a, b: a if a < b else b,
-            impl=min,
+            impl=lambda a, b: min(a, b),
             comp=lambda a: a,
             args=[x, y],
             name="Min")
@@ -56,7 +56,7 @@ def And(x, y) -> Operator:
     return Operator(
             spec=spec,
             impl=lambda a, b: a & b,
-            comp=int,
+            comp=lambda x: int(x),
             args=[x, y],
             name="And")
 
@@ -70,7 +70,7 @@ def Or(x, y) -> Operator:
     return Operator(
             spec=spec,
             impl=lambda a, b: a | b,
-            comp=int,
+            comp=lambda x: int(x),
             args=[x, y],
             name="Or")
 
@@ -83,20 +83,31 @@ def Xor(x, y) -> Operator:
     return Operator(
             spec=spec,
             impl=lambda a, b: a ^ b,
-            comp=int,
+            comp=lambda x: int(x),
             args=[x, y],
             name="Xor")
-            
+
 def Lshift(x, n) -> Operator:
     def spec(x: int, n: int) -> int:
         return x * 2 ** n
     return Operator(
             spec=spec,
             impl=lambda x, n: x << n,
-            comp=int,
+            comp=lambda x: int(x),
             args=[x, n],
             name="Lshift")
             
+def Rshift(x, n) -> Operator:
+    # Right shift operates stricly over integers
+    def spec(x: int, n: int) -> int:
+        return int(x / 2 ** n)
+    return Operator(
+            spec=spec,
+            impl=lambda x, n: x >> n,
+            comp=lambda x: int(x),
+            args=[x, n],
+            name="Rshift")
+
 # Some basic tests
 # Checks whether spec evaluation and impl evaluation results are equal
 if __name__ == '__main__':
@@ -107,3 +118,4 @@ if __name__ == '__main__':
     for f in basic_operations:
         for i in range(num_tests):
             f(randint(0, 10000), randint(0, 10000)).evaluate()
+

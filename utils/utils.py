@@ -40,10 +40,3 @@ def OR_tree(bits: list[int]) -> int:
 def LEFT_FXP_SHIFT(FXP: FixedPoint, sh: int) -> FixedPoint:
     FXP_resized = resize(FXP, FXP.m + sh, FXP.n)
     return FXP_resized << sh
-
-# Carry save add for a general case
-# For a fixed number of inputs you may not need to shift carry every time after CSA
-def CSA(a: FixedPoint, b: FixedPoint, c: FixedPoint):
-    sum_  = a ^ b ^ c
-    carry = (a & b) | (a & c) | (b & c)
-    return sum_, LEFT_FXP_SHIFT(carry, 1)

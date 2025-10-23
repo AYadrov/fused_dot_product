@@ -52,7 +52,7 @@ class Operator:
         spec_res = self.spec(*vals)
         
         assert self.comp(spec_res) == self.comp(impl_res), \
-            f"Operator {self.name}'s spec and impl evaluations do not match for input: {vals}"
+            f"Operator {self.name}'s spec and impl evaluations do not match for input: {vals}, self.comp({spec_res}) != self.comp({impl_res})"
         return impl_res
 
     def print_tree(self, prefix: str = "", is_last: bool = True):

@@ -31,6 +31,9 @@ class Optimized(CTree):
                 self.s, self.Wf, self.bf16_bias, self.bf16_exponent_bits, self.bf16_mantissa_bits]
     
     def build_tree(self):
+        ########## CONSTANTS ###############
+        pow2s_sub1 = Sub(Lshift(1, self.s), 1)
+    
         ########## EXPONENTS ###############
         # Step 1. Exponents add
         E_p = [exponents_adder(self.E_a[i], self.E_b[i]) for i in range(N)]
@@ -53,7 +56,7 @@ class Optimized(CTree):
         # TODO: maybe no need to add 1
         E_max = OPTIMIZED_MAX_EXP(
             *E_lead, 
-            Sub(Add(self.bf16_exponent_bits, 1), self.s)
+            Sub(self.bf16_exponent_bits, self.s)
         )
 
         # assert MAX_EXP.bit_length() <= BF16_EXPONENT_BITS + 1 - s
@@ -66,40 +69,52 @@ class Optimized(CTree):
         #     assert gsh >= 0
 
         # Step 6. Append {s} 1s at the end of the max exponent for a normalization
-        E_max = Add(Lshift(E_max, self.s), Sub(Lshift(1, self.s), 1))
-    
+        E_max = Add(Lshift(E_max, self.s), pow2s_sub1)
+        
         # assert MAX_EXP.bit_length() <= BF16_EXPONENT_BITS + 1
     
         ########## MANTISSAS ###############
     
-        # Step 1. Convert mantissas to FixedPoint
-        M_a = [bf16_mantissa_to_FXP(self.M_a[i]) for i in range(N)]
-        M_b = [bf16_mantissa_to_FXP(self.M_b[i]) for i in range(N)]
+        # Step 1. Convert mantissas to UQ1.7
+        M_a = [bf16_mantissa_to_FXP_NEW(self.M_a[i]) for i in range(N)] # UQ1.{BF16_mantissa_bits}
+        M_b = [bf16_mantissa_to_FXP_NEW(self.M_b[i]) for i in range(N)] # UQ1.{BF16_mantissa_bits}
+        mantissa_length = Add(1, self.bf16_mantissa_bits)
         
-        # Step 2. Multiply mantissas using FixedPoint
-        M_p = [Mul_fxp(M_a[i], M_b[i]) for i in range(N)]
+        # Step 2. Multiply mantissas into UQ2.14
+        M_p = [Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.{BF16_mantissa_bits * 2}
+        mantissa_length = Lshift(mantissa_length, 1)
 
         # for m in M_p:
         #     assert m.n == 2 * BF16_MANTISSA_BITS and m.m == 2
 
         # Step 3. Locally shift mantissas by the inverted last {s} bits of E_p
-        output_length = Add(Mul(2, Add(self.bf16_mantissa_bits, 1)), Sub(Lshift(1, self.s), 1))
-        M_p = [RIGHT_SHIFT_FXP(M_p[i], L_shifts[i], output_length) for i in range(N)]
+        # Make room for the right shift
+        extend_bits = pow2s_sub1
+        M_p = [Lshift(M_p[i], extend_bits) for i in range(N)] # UQ2.{BF16_mantissa_bits * 2 + (2**s - 1)}
+        M_p = [Rshift(M_p[i], L_shifts[i]) for i in range(N)] # UQ2.{BF16_mantissa_bits * 2 + (2**s - 1)}
+        mantissa_length = Add(mantissa_length, extend_bits)
 
         # for m in M_p:
         #     assert m.n == output_length - 2 and m.m == 2
 
         # Step 4. Globally shift mantissas by GLOBAL_SHIFTS[i] amount
-        output_length = Add(self.Wf, Sub(Lshift(1, self.s), 1))
-        M_p = [RIGHT_SHIFT_FXP(M_p[i], G_shifts[i], output_length) for i in range(N)]
-
+        # Make room for the right shift
+        acc_req_after_global_shift = Add(self.Wf, pow2s_sub1)
+        extend_bits = Sub(acc_req_after_global_shift, mantissa_length)
+        
+        M_p = [Lshift(M_p[i], extend_bits) for i in range(N)] # UQ2.{Wf + (2**s - 1) - 2}
+        M_p = [Rshift(M_p[i], G_shifts[i]) for i in range(N)] # UQ2.{Wf + (2**s - 1) - 2}
+        
+        mantissa_length = Add(mantissa_length, extend_bits) # Wf + (2**s - 1)
+        
         # for m in M_p:
         #     assert m.n == output_length - 2 and m.m == 2
 
         # Step 5. Adjust signs using xor operation
-        # As a result of adding a sign, integer bits of fixedpoint gets increased by 1 to avoid overflow during conversion
         S_p = [Xor(self.S_a[i], self.S_b[i]) for i in range(N)]
-        M_p = [FXP_ADD_SIGN(M_p[i], S_p[i]) for i in range(N)]
+        
+        M_p = [to_twos_complement(M_p[i], S_p[i], mantissa_length) for i in range(N)]  # Q3.{Wf + (2**s - 1) - 2}
+        mantissa_length = Add(mantissa_length, 1)
 
         # for m in M_p:
         #     assert m.n == (Wf + (2**s - 1)) - 2
@@ -109,7 +124,7 @@ class Optimized(CTree):
     
         # Adder tree 
         # Output should have {Wf + Log2(N) + 2**s - 1 + 1(sign)} bits
-        M_sum = CSA_TREE4(*M_p)
+        M_sum = CSA_TREE4(*M_p, mantissa_length)
 
         # assert float(fx_sum) == float(sum(M_p)), \
         #     f"Carry-save tree failed, {float(fx_sum)} != {float(sum(M_p))}"
