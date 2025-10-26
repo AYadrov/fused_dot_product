@@ -114,8 +114,10 @@ class Optimized(CTree):
         S_p = [Xor(self.S_a[i], self.S_b[i]) for i in range(N)]
         
         M_p = [to_twos_complement(M_p[i], S_p[i], mantissa_length) for i in range(N)]  # Q3.{Wf + (2**s - 1) - 2}
-        mantissa_length = Add(mantissa_length, 1)
+        mantissa_length = Add(mantissa_length, 1) # Wf + (2**s - 1) + 1
 
+        M_p = [from_twos_complement(M_p[i], mantissa_length) for i in range(N)]
+        mantissa_length = Sub(mantissa_length, 1)
         # for m in M_p:
         #     assert m.n == (Wf + (2**s - 1)) - 2
         #     assert m.m == 3
@@ -124,7 +126,11 @@ class Optimized(CTree):
     
         # Adder tree 
         # Output should have {Wf + Log2(N) + 2**s - 1 + 1(sign)} bits
-        M_sum = CSA_TREE4(*M_p, mantissa_length)
+        M_p = [TO_FXP(x, Sub(mantissa_length, 2)) for x in M_p]
+
+        M_sum = conventional_adder_tree(*M_p)
+        # M_sum = CSA_TREE4(*M_p, mantissa_length)
+        # M_sum = TO_FXP(M_sum, Sub(Add(self.Wf, pow2s_sub1), 6))
 
         # assert float(fx_sum) == float(sum(M_p)), \
         #     f"Carry-save tree failed, {float(fx_sum)} != {float(sum(M_p))}"

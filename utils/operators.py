@@ -40,15 +40,20 @@ def bf16_mantissa_to_FXP(m) -> Operator:
         args=[m],
         name="bf16_mantissa_to_FXP"
     )
-            
+
 def bf16_mantissa_to_FXP_NEW(m) -> Operator:
     return Or(m, Lshift(1, BF16_MANTISSA_BITS))
-    
+
+# Function extends mantissa length by one
 def to_twos_complement(mantissa, sign, bit_width) -> Operator:
-    return Add(
-        Lshift(sign, Add(bit_width, 1)), mantissa
-    )
-    
+    full_width = Add(bit_width, 1)
+    two_pow = Lshift(1, full_width)
+    # Compute both candidates
+    neg = Sub(two_pow, mantissa)  # 2^(bit_width+1) - mantissa
+    pos = mantissa
+    # Select one using sign mask: result = pos*(1-sign) + neg*sign
+    return Add(Mul(Sub(1, sign), pos), Mul(sign, neg))
+
 def extract_sign_bit(mantissa, bit_width) -> Operator:
     return Rshift(
         mantissa, Sub(bit_width, 1)
@@ -61,14 +66,15 @@ def from_twos_complement(mantissa, bit_width) -> Operator:
     )
     
 def extend_twos_complement(mantissa, bit_width, new_bit_width) -> Operator:
-    length_difference = Sub(new_bit_width, bit_width)
-    additional_leading_bits = Max(0, Sub(Lshift(extract_sign_bit(mantissa, bit_width), length_difference), 1))
-    return Or(mantissa, Lshift(additional_leading_bits, bit_width))
+    len_diff = Sub(new_bit_width, bit_width)
+    sign = extract_sign_bit(mantissa, bit_width)
+    upper_bits = Sub(Lshift(sign, len_diff), sign)
+    return Or(mantissa, Lshift(upper_bits, bit_width))
             
 def TO_FXP(m, fractional_bits):
     return Operator(
-        spec=lambda m, fractional_bits: FixedPoint(float(m) / (2 ** fractional_bits), signed=0, m=2, n=fractional_bits),
-        impl=lambda m, fractional_bits: FixedPoint(float(m) / (2 ** fractional_bits), signed=0, m=2, n=fractional_bits),
+        spec=lambda m, fractional_bits: FixedPoint(float(m) / (2 ** fractional_bits), signed=1, m=3, n=fractional_bits),
+        impl=lambda m, fractional_bits: FixedPoint(float(m) / (2 ** fractional_bits), signed=1, m=3, n=fractional_bits),
         comp=lambda x: x,
         args=[m, fractional_bits],
         name="TO_FXP"
