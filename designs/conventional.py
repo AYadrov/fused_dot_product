@@ -26,6 +26,7 @@ class Conventional(CTree):
     
     def build_tree(self):
         ########## EXPONENTS ###############
+        
         # Step 1. Exponents add
         E_p = [exponents_adder(self.E_a[i], self.E_b[i]) for i in range(N)]
         
@@ -33,54 +34,54 @@ class Conventional(CTree):
         E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(e) for e in E_p]
         
         # Step 2. Calculate maximum exponent
-        E_m = conventional_max_exponent(*E_p)
+        E_m = MAX_EXPONENT4(*E_p)
         
         # Step 3. Calculate global shifts
         sh = [Sub(E_m, E_p[i]) for i in range(N)]
         
         ########## MANTISSAS ###############
-        # Step 1. Convert mantissas to FixedPoint
-        M_a = [bf16_mantissa_to_FXP(self.M_a[i]) for i in range(N)]
-        M_b = [bf16_mantissa_to_FXP(self.M_b[i]) for i in range(N)]
         
-        # Step 2. Multiply mantissas using FixedPoint
-        M_p = [Mul_fxp(M_a[i], M_b[i]) for i in range(N)]
+        # Step 1. Convert mantissas to UQ
+        M_a = [bf16_mantissa_to_UQ(self.M_a[i]) for i in range(N)] # UQ1.7
+        M_b = [bf16_mantissa_to_UQ(self.M_b[i]) for i in range(N)] # UQ1.7
+        mantissa_length = Add(1, BF16_MANTISSA_BITS) # 1 + 7 = 8
         
-        # for m in M_p:
-        #     assert m.n == 2 * BF16_MANTISSA_BITS and m.m == 2
+        # Step 2. Multiply mantissas
+        M_p = [Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
+        mantissa_length = Lshift(mantissa_length, 1) # 16
         
         # Step 3. Shift mantissas
-        M_p_shifted = [RIGHT_SHIFT_FXP(M_p[i], sh[i], self.Wf) for i in range(N)]
-        
-        # for m in M_p:
-        #     assert m.n == Wf - 2 and m.m == 2
+        # Make room for the right shift first, accuracy requirement is Wf
+        extend_bits = Sub(self.Wf, mantissa_length) # Wf - 16
+        M_p = [Lshift(M_p[i], extend_bits) for i in range(N)]
+        M_p = [Rshift(M_p[i], sh[i]) for i in range(N)] # UQ2.{Wf - 2}
+        mantissa_length = self.Wf
         
         # Step 4. Adjust sign for mantissas using xor operation
         # As a result of adding a sign, integer bits of fixedpoint gets increased by 1 to avoid overflow during conversion
         S_p = [Xor(self.S_a[i], self.S_b[i]) for i in range(N)]
-        M_p = [FXP_ADD_SIGN(M_p_shifted[i], S_p[i]) for i in range(N)]
-        
-        # for m in M_p:
-        #    assert m.n == Wf - 2
-        #    assert m.m == 3
+        M_p = [UQ_to_Q(M_p[i], S_p[i], mantissa_length) for i in range(N)] # Q3.{Wf - 2}
+        mantissa_length = Add(1, mantissa_length)
         
         ########## ADDER TREE ##############
         
-        M_sum = conventional_adder_tree(*M_p)
+        M_sum = ADDER_TREE4(*M_p, mantissa_length) # Q5.{Wf - 2}
+        mantissa_length = Add(2, mantissa_length) # Wf + 3
         
-        # Unfortunately, we are off by 1 bits from the design with the sign logic
-        # assert M_sum.n + M_sum.m == Wf + math.ceil(math.log2(N)) + 1
+        M_sum = Q_to_signed_UQ(M_sum, mantissa_length) # UQ4.{Wf - 2}
+        mantissa_length = Sub(mantissa_length, 1) # Wf + 2
         
-        ########## RESULT ##################
+        ########## RESULT ################## 
         
-        root = FXP_E2float(M_sum, E_m)
+        fraction_bits = Sub(self.Wf, 2)
+        root = signed_UQ_E_to_float(M_sum, fraction_bits, E_m)
         return root
-    
+        
     def __call__(self, a, b):
         for i in range(N):
             self.S_a[i].load_val(a[i][0]); self.E_a[i].load_val(a[i][1]); self.M_a[i].load_val(a[i][2]);
             self.S_b[i].load_val(b[i][0]); self.E_b[i].load_val(b[i][1]); self.M_b[i].load_val(b[i][2]);
-            
+         
         self.Wf.load_val(Wf)
         
         return self.root.evaluate()
