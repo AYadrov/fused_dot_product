@@ -65,7 +65,8 @@ def from_twos_complement(mantissa, bit_width) -> Operator:
         Lshift(extract_sign_bit(mantissa, bit_width), bit_width)
     )
     
-def extend_twos_complement(mantissa, bit_width, extend_bits) -> Operator:
+def extend_twos_complement(mantissa, bit_width, bit_width_new) -> Operator:
+    extend_bits = Sub(bit_width_new, bit_width)
     sign = extract_sign_bit(mantissa, bit_width)
     upper_bits = Sub(Lshift(sign, extend_bits), sign)
     return Or(mantissa, Lshift(upper_bits, bit_width))
@@ -196,6 +197,13 @@ def OPTIMIZED_MAX_EXP(e0, e1, e2, e3, bit_width) -> Operator:
         args=[e0, e1, e2, e3, bit_width],
         name="OPTIMIZED_MAX_EXP"
     )
+    
+def Add_twos_complement(x, x_bits, y, y_bits) -> Operator:
+    output_len = Add(Max(x_bits, y_bits), 1)
+    x_ = extend_twos_complement(x, x_bits, output_len)
+    y_ = extend_twos_complement(y, y_bits, output_len)
+    mask = Sub(Lshift(1, output_len), 1)
+    return And(Add(x_, y_), mask)
 
 # It is important to call CSA only on fixed points with equal lengths!
 # This is due to signed fixed points that we use
@@ -203,10 +211,10 @@ def OPTIMIZED_MAX_EXP(e0, e1, e2, e3, bit_width) -> Operator:
 # The result's length is bit_width+3
 def CSA_TREE4(m0, m1, m2, m3, bit_width) -> Operator:
     s1, c1 = CSA(m0, m1, m2)
-    m3_ = extend_twos_complement(m3, bit_width, 1)
-    s1_ = extend_twos_complement(s1, bit_width, 1)
+    m3_ = extend_twos_complement(m3, bit_width, Add(1, bit_width))
+    s1_ = extend_twos_complement(s1, bit_width, Add(1, bit_width))
     s2, c2 = CSA(m3_, s1_, c1)
-    return Add(from_twos_complement(s2, Add(bit_width, 1)), from_twos_complement(c2, Add(bit_width, 2)))
+    return Add_twos_complement(s2, Add(1, bit_width), c2, Add(2, bit_width))
 
 # Carry save add for a general case
 # For a fixed number of inputs you may not need to shift carry every time after CSA

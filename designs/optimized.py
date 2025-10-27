@@ -123,8 +123,10 @@ class Optimized(CTree):
         ########## ADDER TREE ##############
     
         # Adder tree
-        M_sum = CSA_TREE4(*M_p, mantissa_length) # UQ5.{Wf + (2**s - 1) - 2}
-        mantissa_length = Add(mantissa_length, 3) # Wf + (2**s - 1) + 3
+        M_sum = CSA_TREE4(*M_p, mantissa_length) # UQ6.{Wf + (2**s - 1) - 2}
+        mantissa_length = Add(mantissa_length, 3) # Wf + (2**s - 1) + 4
+        
+        M_sum = from_twos_complement(M_sum, mantissa_length)
         
         M_sum = TO_FXP(M_sum, 1, 6, Sub(Add(self.Wf, pow2s_sub1), 2))
 
