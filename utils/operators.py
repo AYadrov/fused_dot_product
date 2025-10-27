@@ -65,18 +65,17 @@ def from_twos_complement(mantissa, bit_width) -> Operator:
         Lshift(extract_sign_bit(mantissa, bit_width), bit_width)
     )
     
-def extend_twos_complement(mantissa, bit_width, new_bit_width) -> Operator:
-    len_diff = Sub(new_bit_width, bit_width)
+def extend_twos_complement(mantissa, bit_width, extend_bits) -> Operator:
     sign = extract_sign_bit(mantissa, bit_width)
-    upper_bits = Sub(Lshift(sign, len_diff), sign)
+    upper_bits = Sub(Lshift(sign, extend_bits), sign)
     return Or(mantissa, Lshift(upper_bits, bit_width))
             
-def TO_FXP(m, fractional_bits):
+def TO_FXP(m, signed, integer_bits, fractional_bits):
     return Operator(
-        spec=lambda m, fractional_bits: FixedPoint(float(m) / (2 ** fractional_bits), signed=1, m=3, n=fractional_bits),
-        impl=lambda m, fractional_bits: FixedPoint(float(m) / (2 ** fractional_bits), signed=1, m=3, n=fractional_bits),
+        spec=lambda m, signed, integer_bits, fractional_bits: FixedPoint(float(m) / (2 ** fractional_bits), signed=signed, m=integer_bits, n=fractional_bits),
+        impl=lambda m, signed, integer_bits, fractional_bits: FixedPoint(float(m) / (2 ** fractional_bits), signed=signed, m=integer_bits, n=fractional_bits),
         comp=lambda x: x,
-        args=[m, fractional_bits],
+        args=[m, signed, integer_bits, fractional_bits],
         name="TO_FXP"
     )
 
@@ -201,11 +200,12 @@ def OPTIMIZED_MAX_EXP(e0, e1, e2, e3, bit_width) -> Operator:
 # It is important to call CSA only on fixed points with equal lengths!
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
+# The result's length is bit_width+3
 def CSA_TREE4(m0, m1, m2, m3, bit_width) -> Operator:
     s1, c1 = CSA(m0, m1, m2)
-    m3_ = extend_twos_complement(m3, bit_width, Add(bit_width, 1))
-    s1_ = extend_twos_complement(s1, bit_width, Add(bit_width, 1))
-    s2, c2 = CSA(m3, s1, c1)
+    m3_ = extend_twos_complement(m3, bit_width, 1)
+    s1_ = extend_twos_complement(s1, bit_width, 1)
+    s2, c2 = CSA(m3_, s1_, c1)
     return Add(from_twos_complement(s2, Add(bit_width, 1)), from_twos_complement(c2, Add(bit_width, 2)))
 
 # Carry save add for a general case
