@@ -6,24 +6,8 @@ from fused_dot_product.utils.basics import *
 from fused_dot_product.config import *
 
 import math
-from fixedpoint import FixedPoint, resize
 
 ########## CUSTOM OPERATORS ########
-
-# Operator encodes floating-point given a fix-point mantissa and exponent
-def FXP_E2float(fxp, e) -> Operator:
-    def spec(m: FixedPoint, e: int):
-        return float(m) * 2**(e - BF16_BIAS)
-    def impl(m: FixedPoint, e: int):
-        return float(m) * 2**(e - BF16_BIAS)
-        
-    return Operator(
-        spec=spec,
-        impl=impl,
-        comp=lambda x: x,
-        args=[fxp, e],
-        name="FXP_E2float"
-    )
     
 # Operator encodes floating-point given a fix-point mantissa and exponent
 def UQ_E2float(fxp, fraction_bits, e) -> Operator:
@@ -42,7 +26,6 @@ def UQ_E2float(fxp, fraction_bits, e) -> Operator:
     
 def bf16_mantissa_to_UQ(m) -> Operator:
     return Or(m, Lshift(1, BF16_MANTISSA_BITS))
-
 
 # Function extends mantissa length by one
 def to_twos_complement(mantissa, sign, bit_width) -> Operator:
@@ -70,71 +53,6 @@ def extend_twos_complement(mantissa, bit_width, bit_width_new) -> Operator:
     sign = twos_complement_sign_bit(mantissa, bit_width)
     upper_bits = Sub(Lshift(sign, extend_bits), sign)
     return Or(mantissa, Lshift(upper_bits, bit_width))
-            
-def TO_FXP(m, signed, integer_bits, fractional_bits):
-    return Operator(
-        spec=lambda m, signed, integer_bits, fractional_bits: FixedPoint(float(m) / (2 ** fractional_bits), signed=signed, m=integer_bits, n=fractional_bits),
-        impl=lambda m, signed, integer_bits, fractional_bits: FixedPoint(float(m) / (2 ** fractional_bits), signed=signed, m=integer_bits, n=fractional_bits),
-        comp=lambda x: x,
-        args=[m, signed, integer_bits, fractional_bits],
-        name="TO_FXP"
-    )
-
-def Mul_fxp(FXP_1, FXP_2) -> Operator:
-    def spec(FXP_1: FixedPoint, FXP_2: FixedPoint) -> float:
-        return float(FXP_1) * float(FXP_2)
-        
-    # Multiplication is done in full-precision - no accuracy lose 
-    def impl(FXP_1: FixedPoint, FXP_2: FixedPoint) -> FixedPoint:
-        FXP_out = FXP_1 * FXP_2
-        
-        assert FXP_out.m == FXP_1.m + FXP_2.m
-        assert FXP_out.n == FXP_1.n + FXP_2.n
-    
-        return FXP_out
-        
-    return Operator(
-        spec=spec,
-        impl=impl,
-        comp=lambda x: float(x),
-        args=[FXP_1, FXP_2],
-        name="Mul_fxp"
-    )
-
-# acc_req is the required bit length after the shift (accuracy requirement)
-def RIGHT_SHIFT_FXP(FXP, sh, acc_req) -> Operator:
-    def spec(FXP: FixedPoint, sh: int, acc_req: int) -> float:
-        return float(FXP)/2**sh
-        
-    def impl(FXP: FixedPoint, sh: int, acc_req: int) -> FixedPoint:
-        FXP_resized = resize(FXP, FXP.m, acc_req - FXP.m)
-        return FXP_resized >> sh
-        
-    return Operator(
-        spec=spec,
-        impl=impl,
-        comp=lambda x: float(x),
-        args=[FXP, sh, acc_req],
-        name="RIGHT_SHIFT_FXP"
-    )
-
-def FXP_ADD_SIGN(FXP, sign) -> Operator:
-    def spec(FXP: FixedPoint, sign: int) -> FixedPoint:
-        return FXP * (-1) ** sign
-    
-    def impl(FXP: FixedPoint, sign: int) -> FixedPoint:
-        assert sign in (0, 1)
-        m_ = FXP.m + 1
-        with FXP(m=m_, signed=1):
-            return -FixedPoint(FXP) if sign else FixedPoint(FXP)
-    
-    return Operator(
-        spec=spec,
-        impl=impl,
-        comp=lambda x: float(x),
-        args=[FXP, sign],
-        name="FXP_ADD_SIGN"
-    )
  
 def conventional_max_exponent(e0, e1, e2, e3):
     return Max(Max(e0, e1), Max(e2, e3))
@@ -182,7 +100,7 @@ def OPTIMIZED_MAX_EXP(e0, e1, e2, e3, bit_width) -> Operator:
         args=[e0, e1, e2, e3, bit_width],
         name="OPTIMIZED_MAX_EXP"
     )
-    
+
 def Add_twos_complement(x, x_bits, y, y_bits) -> Operator:
     output_len = Add(Max(x_bits, y_bits), 1)
     x_ = extend_twos_complement(x, x_bits, output_len)
@@ -202,8 +120,8 @@ def CSA_TREE4(m0, m1, m2, m3, bit_width) -> Operator:
     return Add_twos_complement(s2, Add(1, bit_width), c2, Add(2, bit_width))
 
 # Carry save add for a general case
-# For a fixed number of inputs you may not need to shift carry every time after CSA
-def CSA(a: FixedPoint, b: FixedPoint, c: FixedPoint):
+# Depending on a task, you may not need to shift carry every time after CSA
+def CSA(a, b, c):
     sum_  = Xor(Xor(a, b), c)
     carry = Or(Or(And(a, b), And(a, c)), And(b, c))
     return sum_, Lshift(carry, 1)

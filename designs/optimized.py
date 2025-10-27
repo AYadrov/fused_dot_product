@@ -4,7 +4,6 @@ from fused_dot_product.utils.utils import *
 from fused_dot_product.utils.basics import *
 
 
-
 class Optimized(CTree):
     def __init__(self):
         super().__init__()

@@ -1,7 +1,6 @@
 from fused_dot_product.config import *
 from fused_dot_product.ast import *
 
-from fixedpoint import FixedPoint, resize
 from random import getrandbits
 
 
@@ -36,7 +35,3 @@ def unfused_dot_product(FP_xs: list[float], FP_ys: list[float]) -> list[float]:
 
 def OR_tree(bits: list[int]) -> int:
     return int(any(bits))
-
-def LEFT_FXP_SHIFT(FXP: FixedPoint, sh: int) -> FixedPoint:
-    FXP_resized = resize(FXP, FXP.m + sh, FXP.n)
-    return FXP_resized << sh
