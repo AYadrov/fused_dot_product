@@ -25,6 +25,21 @@ def FXP_E2float(fxp, e) -> Operator:
         name="FXP_E2float"
     )
     
+# Operator encodes floating-point given a fix-point mantissa and exponent
+def FXP_E2float_new(fxp, fraction_bits, e) -> Operator:
+    def spec(m: int, fraction_bits: int, e: int):
+        return float(m) / 2**fraction_bits * 2**(e - BF16_BIAS)
+    def impl(m: int, fraction_bits: int, e: int):
+        return float(m) / 2**fraction_bits * 2**(e - BF16_BIAS)
+        
+    return Operator(
+        spec=spec,
+        impl=impl,
+        comp=lambda x: x,
+        args=[fxp, fraction_bits, e],
+        name="FXP_E2float"
+    )
+    
 def bf16_mantissa_to_FXP(m) -> Operator:
     def spec(m: int):
         return FixedPoint(1.0 + m / (2 ** BF16_MANTISSA_BITS))
@@ -54,7 +69,7 @@ def to_twos_complement(mantissa, sign, bit_width) -> Operator:
     # Select one using sign mask: result = pos*(1-sign) + neg*sign
     return Add(Mul(Sub(1, sign), pos), Mul(sign, neg))
 
-def extract_sign_bit(mantissa, bit_width) -> Operator:
+def twos_complement_sign_bit(mantissa, bit_width) -> Operator:
     return Rshift(
         mantissa, Sub(bit_width, 1)
     )
@@ -62,12 +77,12 @@ def extract_sign_bit(mantissa, bit_width) -> Operator:
 def from_twos_complement(mantissa, bit_width) -> Operator:
     return Sub(
         mantissa,
-        Lshift(extract_sign_bit(mantissa, bit_width), bit_width)
+        Lshift(twos_complement_sign_bit(mantissa, bit_width), bit_width)
     )
     
 def extend_twos_complement(mantissa, bit_width, bit_width_new) -> Operator:
     extend_bits = Sub(bit_width_new, bit_width)
-    sign = extract_sign_bit(mantissa, bit_width)
+    sign = twos_complement_sign_bit(mantissa, bit_width)
     upper_bits = Sub(Lshift(sign, extend_bits), sign)
     return Or(mantissa, Lshift(upper_bits, bit_width))
             
