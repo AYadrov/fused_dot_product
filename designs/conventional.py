@@ -61,7 +61,7 @@ class Conventional(CTree):
         # As a result of adding a sign, integer bits of fixedpoint gets increased by 1 to avoid overflow during conversion
         S_p = [Xor(self.S_a[i], self.S_b[i]) for i in range(N)]
         M_p = [UQ_to_Q(M_p[i], S_p[i], mantissa_length) for i in range(N)] # Q3.{Wf - 2}
-        mantissa_length = Add(1, mantissa_length)
+        mantissa_length = Add(1, mantissa_length) # Wf + 1
         
         ########## ADDER TREE ##############
         
