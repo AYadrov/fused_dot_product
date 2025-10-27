@@ -58,7 +58,7 @@ class Conventional(CTree):
         # Step 4. Adjust sign for mantissas using xor operation
         # As a result of adding a sign, integer bits of fixedpoint gets increased by 1 to avoid overflow during conversion
         S_p = [Xor(self.S_a[i], self.S_b[i]) for i in range(N)]
-        M_p = [to_twos_complement(M_p[i], S_p[i], mantissa_length) for i in range(N)] # Q3.{Wf - 2}
+        M_p = [UQ_to_Q(M_p[i], S_p[i], mantissa_length) for i in range(N)] # Q3.{Wf - 2}
         mantissa_length = Add(1, mantissa_length)
         
         ########## ADDER TREE ##############
@@ -66,13 +66,13 @@ class Conventional(CTree):
         M_sum = conventional_adder_tree(*M_p, mantissa_length) # Q5.{Wf - 2}
         mantissa_length = Add(2, mantissa_length) # Wf + 3
 
-        M_sum = from_twos_complement(M_sum, mantissa_length) # UQ4.{Wf - 2}
+        M_sum = Q_to_signed_UQ(M_sum, mantissa_length) # UQ4.{Wf - 2}
         mantissa_length = Sub(mantissa_length, 1) # Wf + 2
         
         ########## RESULT ################## 
        
         fraction_bits = Sub(self.Wf, 2)
-        root = UQ_E2float(M_sum, fraction_bits, E_m)
+        root = signed_UQ_E_to_float(M_sum, fraction_bits, E_m)
         return root
     
     def __call__(self, a, b):

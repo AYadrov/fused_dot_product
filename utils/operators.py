@@ -9,7 +9,7 @@ import math
 
 ########## CUSTOM OPERATORS ########
     
-def UQ_E_to_float(fxp, fraction_bits, exponent) -> Operator:
+def signed_UQ_E_to_float(fxp, fraction_bits, exponent) -> Operator:
     """
     Convert a signed fixed-point mantissa and exponent into a floating-point value.
 
@@ -52,7 +52,7 @@ def bf16_mantissa_to_UQ(m) -> Operator:
     return Or(m, Lshift(1, BF16_MANTISSA_BITS))
 
 # Function extends mantissa length by one
-def to_twos_complement(mantissa, sign, bit_width) -> Operator:
+def UQ_to_Q(mantissa, sign, bit_width) -> Operator:
     """
     Converts unsigned fixed-point mantissa into a signed fixed-point
     using twos complements.
@@ -73,7 +73,7 @@ def to_twos_complement(mantissa, sign, bit_width) -> Operator:
     # Select one using sign mask: result = pos*(1-sign) + neg*sign
     return Add(Mul(Sub(1, sign), pos), Mul(sign, neg))
 
-def twos_complement_sign_bit(mantissa, bit_width) -> Operator:
+def Q_sign_bit(mantissa, bit_width) -> Operator:
     """
     Extracts the sign bit (MSB) from a two's complement integer.
 
@@ -88,7 +88,7 @@ def twos_complement_sign_bit(mantissa, bit_width) -> Operator:
         mantissa, Sub(bit_width, 1)
     )
     
-def from_twos_complement(mantissa, bit_width) -> Operator:
+def Q_to_signed_UQ(mantissa, bit_width) -> Operator:
     """
     Converts a two's complement encoded integer into a signed value.
 
@@ -101,10 +101,10 @@ def from_twos_complement(mantissa, bit_width) -> Operator:
     """
     return Sub(
         mantissa,
-        Lshift(twos_complement_sign_bit(mantissa, bit_width), bit_width)
+        Lshift(Q_sign_bit(mantissa, bit_width), bit_width)
     )
     
-def extend_twos_complement(mantissa, bit_width, bit_width_new) -> Operator:
+def extend_Q(mantissa, bit_width, bit_width_new) -> Operator:
     """
     Extends a two's complement integer to a larger bit width.
 
@@ -118,7 +118,7 @@ def extend_twos_complement(mantissa, bit_width, bit_width_new) -> Operator:
         where the sign bit is replicated into the extended upper bits.
     """
     extend_bits = Sub(bit_width_new, bit_width)
-    sign = twos_complement_sign_bit(mantissa, bit_width)
+    sign = Q_sign_bit(mantissa, bit_width)
     upper_bits = Sub(Lshift(sign, extend_bits), sign)
     return Or(mantissa, Lshift(upper_bits, bit_width))
  
@@ -225,8 +225,8 @@ def Add_twos_complement(x, x_bits, y, y_bits) -> Operator:
         Output has {max(x_bits, y_bits) + 1} bit width.
     """
     output_len = Add(Max(x_bits, y_bits), 1)
-    x_ = extend_twos_complement(x, x_bits, output_len)
-    y_ = extend_twos_complement(y, y_bits, output_len)
+    x_ = extend_Q(x, x_bits, output_len)
+    y_ = extend_Q(y, y_bits, output_len)
     mask = Sub(Lshift(1, output_len), 1)
     return And(Add(x_, y_), mask)
 
@@ -249,8 +249,8 @@ def CSA_TREE4(m0, m1, m2, m3, bit_width) -> Operator:
         Output has {bit_width + 3} bit width.
     """
     s1, c1 = CSA(m0, m1, m2)
-    m3_ = extend_twos_complement(m3, bit_width, Add(1, bit_width))
-    s1_ = extend_twos_complement(s1, bit_width, Add(1, bit_width))
+    m3_ = extend_Q(m3, bit_width, Add(1, bit_width))
+    s1_ = extend_Q(s1, bit_width, Add(1, bit_width))
     s2, c2 = CSA(m3_, s1_, c1)
     return Add_twos_complement(s2, Add(1, bit_width), c2, Add(2, bit_width))
 
@@ -319,7 +319,7 @@ def drop_last_n_bits(x, n) -> Operator:
     )
 
 def invert_bits(x, s) -> Operator:
-"""
+    """
     Inverts (negates) the lowest s bits of an integer.
 
     Args:

@@ -89,7 +89,7 @@ class Optimized(CTree):
         # Step 5. Adjust signs using xor operation
         S_p = [Xor(self.S_a[i], self.S_b[i]) for i in range(N)]
         
-        M_p = [to_twos_complement(M_p[i], S_p[i], mantissa_length) for i in range(N)] # Q3.{Wf + (2**s - 1) - 2}
+        M_p = [UQ_to_Q(M_p[i], S_p[i], mantissa_length) for i in range(N)] # Q3.{Wf + (2**s - 1) - 2}
         mantissa_length = Add(mantissa_length, 1) # Wf + (2**s - 1) + 1
 
         ########## ADDER TREE ##############
@@ -98,13 +98,13 @@ class Optimized(CTree):
         M_sum = CSA_TREE4(*M_p, mantissa_length) # Q6.{Wf + (2**s - 1) - 2}
         mantissa_length = Add(mantissa_length, 3) # Wf + (2**s - 1) + 4
         
-        M_sum = from_twos_complement(M_sum, mantissa_length) # UQ5.{Wf + (2**s - 1) - 2}
+        M_sum = Q_to_signed_UQ(M_sum, mantissa_length) # UQ5.{Wf + (2**s - 1) - 2}
         mantissa_length = Sub(mantissa_length, 1) # Wf + (2**s - 1) + 3
 
         ########## RESULT ##################
         
         fraction_bits = Sub(mantissa_length, 5) # Wf + (2**s - 1) - 2
-        root = UQ_E2float(M_sum, fraction_bits, E_max)
+        root = signed_UQ_E_to_float(M_sum, fraction_bits, E_max)
         return root
         
     def __call__(self, a, b):
