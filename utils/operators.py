@@ -35,7 +35,7 @@ def signed_UQ_E_to_float(fxp, fraction_bits, exponent) -> Operator:
         impl=impl,
         comp=lambda x: x,
         args=[fxp, fraction_bits, exponent],
-        name="UQ_E_to_float",
+        name="signed_UQ_E_to_float",
     )
     
 def bf16_mantissa_to_UQ(m) -> Operator:
@@ -207,7 +207,7 @@ def OPTIMIZED_MAX_EXP4(e0, e1, e2, e3, bit_width) -> Operator:
         impl=impl,
         comp=lambda x: x,
         args=[e0, e1, e2, e3, bit_width],
-        name="OPTIMIZED_MAX_EXP"
+        name="OPTIMIZED_MAX_EXP4"
     )
 
 def Add_twos_complement(x, x_bits, y, y_bits) -> Operator:
