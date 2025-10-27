@@ -122,7 +122,7 @@ def extend_Q(mantissa, bit_width, bit_width_new) -> Operator:
     upper_bits = Sub(Lshift(sign, extend_bits), sign)
     return Or(mantissa, Lshift(upper_bits, bit_width))
  
-def conventional_max_exponent(e0, e1, e2, e3):
+def MAX_EXPONENT4(e0, e1, e2, e3):
     """
     Computes the maximum exponent value among four inputs using pairwise comparison.
 
@@ -137,7 +137,7 @@ def conventional_max_exponent(e0, e1, e2, e3):
     """
     return Max(Max(e0, e1), Max(e2, e3))
 
-def conventional_adder_tree(x0, x1, x2, x3, bit_width) -> Operator:
+def ADDER_TREE4(x0, x1, x2, x3, bit_width) -> Operator:
     """
     Performs a two-level addition of four two's complement operands using an adder tree structure.
 
@@ -157,7 +157,7 @@ def conventional_adder_tree(x0, x1, x2, x3, bit_width) -> Operator:
     bit_width_ = Add(1, bit_width)
     return Add_twos_complement(res1, bit_width_, res2, bit_width_)
 
-def OPTIMIZED_MAX_EXP(e0, e1, e2, e3, bit_width) -> Operator:
+def OPTIMIZED_MAX_EXP4(e0, e1, e2, e3, bit_width) -> Operator:
     """
     Computes the maximum exponent value among four inputs using a bitwise comparison tree.
 
@@ -233,7 +233,7 @@ def Add_twos_complement(x, x_bits, y, y_bits) -> Operator:
 # It is important to call CSA only on fixed points with equal lengths!
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
-def CSA_TREE4(m0, m1, m2, m3, bit_width) -> Operator:
+def CSA_ADDER_TREE4(m0, m1, m2, m3, bit_width) -> Operator:
     """
     Performs a four-operand addition using a carry-save adder (CSA) tree structure.
 

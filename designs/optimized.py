@@ -45,7 +45,7 @@ class Optimized(CTree):
         E_lead = [drop_last_n_bits(E_p[i], self.s) for i in range(N)]
 
         # Step 4. Take max exponent
-        E_max = OPTIMIZED_MAX_EXP(
+        E_max = OPTIMIZED_MAX_EXP4(
             *E_lead, 
             Sub(self.bf16_exponent_bits, self.s)
         )
@@ -95,7 +95,7 @@ class Optimized(CTree):
         ########## ADDER TREE ##############
     
         # Adder tree
-        M_sum = CSA_TREE4(*M_p, mantissa_length) # Q6.{Wf + (2**s - 1) - 2}
+        M_sum = CSA_ADDER_TREE4(*M_p, mantissa_length) # Q6.{Wf + (2**s - 1) - 2}
         mantissa_length = Add(mantissa_length, 3) # Wf + (2**s - 1) + 4
         
         M_sum = Q_to_signed_UQ(M_sum, mantissa_length) # UQ5.{Wf + (2**s - 1) - 2}

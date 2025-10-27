@@ -33,7 +33,7 @@ class Conventional(CTree):
         E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(e) for e in E_p]
         
         # Step 2. Calculate maximum exponent
-        E_m = conventional_max_exponent(*E_p)
+        E_m = MAX_EXPONENT4(*E_p)
         
         # Step 3. Calculate global shifts
         sh = [Sub(E_m, E_p[i]) for i in range(N)]
@@ -63,7 +63,7 @@ class Conventional(CTree):
         
         ########## ADDER TREE ##############
         
-        M_sum = conventional_adder_tree(*M_p, mantissa_length) # Q5.{Wf - 2}
+        M_sum = ADDER_TREE4(*M_p, mantissa_length) # Q5.{Wf - 2}
         mantissa_length = Add(2, mantissa_length) # Wf + 3
 
         M_sum = Q_to_signed_UQ(M_sum, mantissa_length) # UQ4.{Wf - 2}
