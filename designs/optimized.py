@@ -76,8 +76,8 @@ class Optimized(CTree):
         ########## MANTISSAS ###############
     
         # Step 1. Convert mantissas to UQ1.7
-        M_a = [bf16_mantissa_to_FXP_NEW(self.M_a[i]) for i in range(N)] # UQ1.{BF16_mantissa_bits}
-        M_b = [bf16_mantissa_to_FXP_NEW(self.M_b[i]) for i in range(N)] # UQ1.{BF16_mantissa_bits}
+        M_a = [bf16_mantissa_to_UQ(self.M_a[i]) for i in range(N)] # UQ1.{BF16_mantissa_bits}
+        M_b = [bf16_mantissa_to_UQ(self.M_b[i]) for i in range(N)] # UQ1.{BF16_mantissa_bits}
         mantissa_length = Add(1, self.bf16_mantissa_bits)
         
         # Step 2. Multiply mantissas into UQ2.14
@@ -137,7 +137,7 @@ class Optimized(CTree):
         ########## RESULT ##################
         
         fraction_bits = Sub(mantissa_length, 5)
-        root = FXP_E2float_new(M_sum, fraction_bits, E_max)
+        root = UQ_E2float(M_sum, fraction_bits, E_max)
         return root
         
     def __call__(self, a, b):

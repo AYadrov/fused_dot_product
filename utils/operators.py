@@ -26,7 +26,7 @@ def FXP_E2float(fxp, e) -> Operator:
     )
     
 # Operator encodes floating-point given a fix-point mantissa and exponent
-def FXP_E2float_new(fxp, fraction_bits, e) -> Operator:
+def UQ_E2float(fxp, fraction_bits, e) -> Operator:
     def spec(m: int, fraction_bits: int, e: int):
         return float(m) / 2**fraction_bits * 2**(e - BF16_BIAS)
     def impl(m: int, fraction_bits: int, e: int):
@@ -40,24 +40,9 @@ def FXP_E2float_new(fxp, fraction_bits, e) -> Operator:
         name="FXP_E2float"
     )
     
-def bf16_mantissa_to_FXP(m) -> Operator:
-    def spec(m: int):
-        return FixedPoint(1.0 + m / (2 ** BF16_MANTISSA_BITS))
-    def impl(m: int):
-        assert m.bit_length() <= BF16_MANTISSA_BITS
-        assert m >= 0
-        return FixedPoint(f"0b1{m:0{BF16_MANTISSA_BITS}b}", signed=0, m=1, n=BF16_MANTISSA_BITS, str_base=2)
-    
-    return Operator(
-        spec=spec,
-        impl=impl,
-        comp=lambda x: float(x),
-        args=[m],
-        name="bf16_mantissa_to_FXP"
-    )
-
-def bf16_mantissa_to_FXP_NEW(m) -> Operator:
+def bf16_mantissa_to_UQ(m) -> Operator:
     return Or(m, Lshift(1, BF16_MANTISSA_BITS))
+
 
 # Function extends mantissa length by one
 def to_twos_complement(mantissa, sign, bit_width) -> Operator:
@@ -154,26 +139,11 @@ def FXP_ADD_SIGN(FXP, sign) -> Operator:
 def conventional_max_exponent(e0, e1, e2, e3):
     return Max(Max(e0, e1), Max(e2, e3))
 
-def conventional_adder_tree(FXP0, FXP1, FXP2, FXP3) -> Operator:
-    def spec(FXP0: FixedPoint,
-             FXP1: FixedPoint,
-             FXP2: FixedPoint,
-             FXP3: FixedPoint) -> FixedPoint:
-        return FXP0 + FXP1 + FXP2 + FXP3
-    
-    def impl(FXP0: FixedPoint,
-             FXP1: FixedPoint,
-             FXP2: FixedPoint,
-             FXP3: FixedPoint) -> FixedPoint:
-         return (FXP0 + FXP1) + (FXP2 + FXP3)
-    
-    return Operator(
-        spec=spec,
-        impl=impl,
-        comp=lambda x: float(x),
-        args=[FXP0, FXP1, FXP2, FXP3],
-        name="conventional_adder_tree"
-    )
+def conventional_adder_tree(x0, x1, x2, x3, bit_width) -> Operator:
+    res1 = Add_twos_complement(x0, bit_width, x1, bit_width)
+    res2 = Add_twos_complement(x2, bit_width, x3, bit_width) 
+    bit_width_ = Add(1, bit_width)
+    return Add_twos_complement(res1, bit_width_, res2, bit_width_)
 
 # Operator calculates a maximum exponent for {ep}s with length {n}
 def OPTIMIZED_MAX_EXP(e0, e1, e2, e3, bit_width) -> Operator:
