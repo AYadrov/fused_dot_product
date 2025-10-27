@@ -28,12 +28,14 @@ class Optimized(CTree):
         
         return [self.S_a, self.M_a, self.E_a, self.S_b, self.M_b, self.E_b,
                 self.s, self.Wf, self.bf16_bias, self.bf16_exponent_bits, self.bf16_mantissa_bits]
-    
+        
     def build_tree(self):
         ########## CONSTANTS ###############
+        
         pow2s_sub1 = Sub(Lshift(1, self.s), 1)
-    
+        
         ########## EXPONENTS ###############
+        
         # Step 1. Exponents add
         E_p = [exponents_adder(self.E_a[i], self.E_b[i]) for i in range(N)]
         E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(E_p[i]) for i in range(N)]
@@ -43,23 +45,23 @@ class Optimized(CTree):
         
         # Step 3. Take leading {9-s} bits for max exponent and a global shift
         E_lead = [drop_last_n_bits(E_p[i], self.s) for i in range(N)]
-
+        
         # Step 4. Take max exponent
         E_max = OPTIMIZED_MAX_EXP4(
             *E_lead, 
             Sub(self.bf16_exponent_bits, self.s)
         )
-
+        
         # Step 5. Calculate global shifts as {(max_exp - exp) * 2**s}
         G_shifts = [Lshift(Sub(E_max, E_lead[i]), self.s) for i in range(N)]
-
+        
         # Step 6. Append {s} 1s at the end of the max exponent for a normalization
         E_max = Add(Lshift(E_max, self.s), pow2s_sub1)
         
         # assert MAX_EXP.bit_length() <= BF16_EXPONENT_BITS + 1
-    
+        
         ########## MANTISSAS ###############
-    
+        
         # Step 1. Convert mantissas to UQ1.7
         M_a = [bf16_mantissa_to_UQ(self.M_a[i]) for i in range(N)] # UQ1.{BF16_mantissa_bits}
         M_b = [bf16_mantissa_to_UQ(self.M_b[i]) for i in range(N)] # UQ1.{BF16_mantissa_bits}
@@ -68,15 +70,15 @@ class Optimized(CTree):
         # Step 2. Multiply mantissas into UQ2.14
         M_p = [Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.{BF16_mantissa_bits * 2}
         mantissa_length = Lshift(mantissa_length, 1)
-
+        
         # Step 3. Locally shift mantissas by the inverted last {s} bits of E_p
         # Make room for the right shift
         extend_bits = pow2s_sub1
         M_p = [Lshift(M_p[i], extend_bits) for i in range(N)] # UQ2.{BF16_mantissa_bits * 2 + (2**s - 1)}
         M_p = [Rshift(M_p[i], L_shifts[i]) for i in range(N)] # UQ2.{BF16_mantissa_bits * 2 + (2**s - 1)}
         mantissa_length = Add(mantissa_length, extend_bits)
-
-        # Step 4. Globally shift mantissas by GLOBAL_SHIFTS[i] amount
+        
+        # Step 4. Globally shift mantissas by G_shifts[i] amount
         # Make room for the right shift
         acc_req_after_global_shift = Add(self.Wf, pow2s_sub1)
         extend_bits = Sub(acc_req_after_global_shift, mantissa_length)
@@ -85,22 +87,22 @@ class Optimized(CTree):
         M_p = [Rshift(M_p[i], G_shifts[i]) for i in range(N)] # UQ2.{Wf + (2**s - 1) - 2}
         
         mantissa_length = Add(mantissa_length, extend_bits) # Wf + (2**s - 1)
-
+        
         # Step 5. Adjust signs using xor operation
         S_p = [Xor(self.S_a[i], self.S_b[i]) for i in range(N)]
         
         M_p = [UQ_to_Q(M_p[i], S_p[i], mantissa_length) for i in range(N)] # Q3.{Wf + (2**s - 1) - 2}
         mantissa_length = Add(mantissa_length, 1) # Wf + (2**s - 1) + 1
-
+        
         ########## ADDER TREE ##############
-    
+        
         # Adder tree
         M_sum = CSA_ADDER_TREE4(*M_p, mantissa_length) # Q6.{Wf + (2**s - 1) - 2}
         mantissa_length = Add(mantissa_length, 3) # Wf + (2**s - 1) + 4
         
         M_sum = Q_to_signed_UQ(M_sum, mantissa_length) # UQ5.{Wf + (2**s - 1) - 2}
         mantissa_length = Sub(mantissa_length, 1) # Wf + (2**s - 1) + 3
-
+        
         ########## RESULT ##################
         
         fraction_bits = Sub(mantissa_length, 5) # Wf + (2**s - 1) - 2

@@ -26,6 +26,7 @@ class Conventional(CTree):
     
     def build_tree(self):
         ########## EXPONENTS ###############
+        
         # Step 1. Exponents add
         E_p = [exponents_adder(self.E_a[i], self.E_b[i]) for i in range(N)]
         
@@ -39,11 +40,12 @@ class Conventional(CTree):
         sh = [Sub(E_m, E_p[i]) for i in range(N)]
         
         ########## MANTISSAS ###############
+        
         # Step 1. Convert mantissas to UQ
         M_a = [bf16_mantissa_to_UQ(self.M_a[i]) for i in range(N)] # UQ1.7
         M_b = [bf16_mantissa_to_UQ(self.M_b[i]) for i in range(N)] # UQ1.7
         mantissa_length = Add(1, BF16_MANTISSA_BITS) # 1 + 7 = 8
-
+        
         # Step 2. Multiply mantissas
         M_p = [Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
         mantissa_length = Lshift(mantissa_length, 1) # 16
@@ -65,21 +67,21 @@ class Conventional(CTree):
         
         M_sum = ADDER_TREE4(*M_p, mantissa_length) # Q5.{Wf - 2}
         mantissa_length = Add(2, mantissa_length) # Wf + 3
-
+        
         M_sum = Q_to_signed_UQ(M_sum, mantissa_length) # UQ4.{Wf - 2}
         mantissa_length = Sub(mantissa_length, 1) # Wf + 2
         
         ########## RESULT ################## 
-       
+        
         fraction_bits = Sub(self.Wf, 2)
         root = signed_UQ_E_to_float(M_sum, fraction_bits, E_m)
         return root
-    
+        
     def __call__(self, a, b):
         for i in range(N):
             self.S_a[i].load_val(a[i][0]); self.E_a[i].load_val(a[i][1]); self.M_a[i].load_val(a[i][2]);
             self.S_b[i].load_val(b[i][0]); self.E_b[i].load_val(b[i][1]); self.M_b[i].load_val(b[i][2]);
-            
+         
         self.Wf.load_val(Wf)
         
         return self.root.evaluate()
