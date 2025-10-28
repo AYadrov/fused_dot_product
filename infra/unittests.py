@@ -78,14 +78,17 @@ class TestFusedDotProduct(unittest.TestCase):
         
         num_tests = 100
         for func in basic_operators:
+            N_inputs = len(inspect.signature(func).parameters)
             with self.subTest(operator=func.__name__):
                 for _ in range(num_tests):
-                    a, b = random.randint(0, 1000), random.randint(0, 1000)
-                    op = func(a,b)
+                    args = []
+                    for i in range(N_inputs):
+                        args.append(random.randint(0, 1000))
+                    op = func(*args)
                     
                     # Evaluate using spec and impl
-                    spec_result = op.spec(a,b)
-                    impl_result = op.impl(a,b)
+                    spec_result = op.spec(*args)
+                    impl_result = op.impl(*args)
                     
                     # Comparison through comparison function
                     comp_spec = op.comp(spec_result)
@@ -93,7 +96,7 @@ class TestFusedDotProduct(unittest.TestCase):
                     
                     self.assertEqual(
                         comp_spec, comp_impl,
-                        msg=f"{func.__name__} failed for inputs {a}, {b}: "
+                        msg=f"{func.__name__} failed for inputs {args}: "
                             f"spec={comp_spec}, impl={comp_impl}"
                     )
 
