@@ -17,7 +17,7 @@ class CTree:
         def recurse(node):
             local_max_depth = 0
             for node_ in node.args:
-                if isinstance(node_, Operator):
+                if isinstance(node_, Op):
                     local_max_depth = max(local_max_depth, 1 + recurse(node_))
             return local_max_depth
         return recurse(self.root)
@@ -27,7 +27,7 @@ class CTree:
         def recurse(node):
             local_max_cost = 0
             for node_ in node.args:
-                if isinstance(node_, Operator):
+                if isinstance(node_, Op):
                     local_max_cost = max(local_max_cost, node_.cost + recurse(node_))
             return local_max_cost
         return recurse(self.root)
@@ -36,23 +36,31 @@ class CTree:
         if not self.root:
             raise Exception("Tree is empty")
 
-class Operator:
+class Node:
+    def __init__(self):
+        self.args = []
+    
+    def evaluate(self):
+        raise Exception("evaluate is not implemented")
+        
+
+class Op(Node):
     def __init__(self, spec, impl, comp, args, name, cost=1):
         self.spec = spec  # specification (mathematical definition)
         self.impl = impl  # implementation (actual execution)
         self.comp = comp  # converter
         self.args = args  # operands
-        self.name = name  # operator's name
+        self.name = name  # op's name
         self.cost = cost
 
     def evaluate(self):
-        vals = [a.evaluate() if isinstance(a, Operator) or isinstance(a, FreeVar) else a for a in self.args]
+        vals = [a.evaluate() if isinstance(a, Op) or isinstance(a, FreeVar) else a for a in self.args]
         
         impl_res = self.impl(*vals)
         spec_res = self.spec(*vals)
         
         assert self.comp(spec_res) == self.comp(impl_res), \
-            f"Operator {self.name}'s spec and impl evaluations do not match for input: {vals}, self.comp({spec_res}) != self.comp({impl_res})"
+            f"Op {self.name}'s spec and impl evaluations do not match for input: {vals}, self.comp({spec_res}) != self.comp({impl_res})"
         return impl_res
 
     def print_tree(self, prefix: str = "", is_last: bool = True):
@@ -64,21 +72,21 @@ class Operator:
         new_prefix = prefix + ("    " if is_last else "│   ")
         for i, arg in enumerate(self.args):
             is_arg_last = (i == len(self.args) - 1)
-            if isinstance(arg, Operator):
+            if isinstance(arg, Op):
                 arg.print_tree(new_prefix, is_arg_last)
             else:
                 leaf_connector = "└── " if is_arg_last else "├── "
                 print(new_prefix + leaf_connector + self._arg_str(arg))
         
     def _arg_str(self, arg: Any) -> str:
-        if isinstance(arg, Operator):
+        if isinstance(arg, Op):
             return arg.name
         elif isinstance(arg, FreeVar):
             return arg.name
         else:
             return repr(arg)
         
-class FreeVar:
+class FreeVar(Node):
     def __init__(self, name):
         self.name = name
         self.val = None

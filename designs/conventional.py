@@ -1,4 +1,4 @@
-from fused_dot_product.ast.AST import CTree, Operator
+from fused_dot_product.ast.AST import CTree, Op
 from fused_dot_product.utils.operators import *
 from fused_dot_product.utils.utils import *
 from fused_dot_product.utils.basics import *

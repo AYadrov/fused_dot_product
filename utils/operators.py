@@ -9,7 +9,7 @@ import math
 
 ########## CUSTOM OPERATORS ########
     
-def signed_UQ_E_to_float(fxp, fraction_bits, exponent) -> Operator:
+def signed_UQ_E_to_float(fxp, fraction_bits, exponent) -> Op:
     """
     Convert a signed fixed-point mantissa and exponent into a floating-point value.
 
@@ -30,7 +30,7 @@ def signed_UQ_E_to_float(fxp, fraction_bits, exponent) -> Operator:
     def impl(m: int, frac_bits: int, e: int) -> float:
         return float(m) * 2.0 ** (e - BF16_BIAS - frac_bits)
 
-    return Operator(
+    return Op(
         spec=spec,
         impl=impl,
         comp=lambda x: x,
@@ -38,7 +38,7 @@ def signed_UQ_E_to_float(fxp, fraction_bits, exponent) -> Operator:
         name="signed_UQ_E_to_float",
     )
     
-def bf16_mantissa_to_UQ(m) -> Operator:
+def bf16_mantissa_to_UQ(m) -> Op:
     """
     Converts the fractional part of a BF16 mantissa into an unsigned fixed-point mantissa
     by restoring the implicit leading 1 bit.
@@ -51,7 +51,7 @@ def bf16_mantissa_to_UQ(m) -> Operator:
     """
     return Or(m, Lshift(1, BF16_MANTISSA_BITS))
 
-def UQ_to_Q(mantissa, sign, bit_width) -> Operator:
+def UQ_to_Q(mantissa, sign, bit_width) -> Op:
     """
     Converts unsigned fixed-point mantissa into a signed fixed-point
     using twos complements.
@@ -72,7 +72,7 @@ def UQ_to_Q(mantissa, sign, bit_width) -> Operator:
     # Select one using sign mask: result = pos*(1-sign) + neg*sign
     return Add(Mul(Sub(1, sign), pos), Mul(sign, neg))
 
-def Q_sign_bit(mantissa, bit_width) -> Operator:
+def Q_sign_bit(mantissa, bit_width) -> Op:
     """
     Extracts the sign bit (MSB) from a two's complement integer.
 
@@ -87,7 +87,7 @@ def Q_sign_bit(mantissa, bit_width) -> Operator:
         mantissa, Sub(bit_width, 1)
     )
     
-def Q_to_signed_UQ(mantissa, bit_width) -> Operator:
+def Q_to_signed_UQ(mantissa, bit_width) -> Op:
     """
     Converts a two's complement encoded integer into a signed value.
 
@@ -103,7 +103,7 @@ def Q_to_signed_UQ(mantissa, bit_width) -> Operator:
         Lshift(Q_sign_bit(mantissa, bit_width), bit_width)
     )
     
-def extend_Q(mantissa, bit_width, bit_width_new) -> Operator:
+def extend_Q(mantissa, bit_width, bit_width_new) -> Op:
     """
     Extends a two's complement integer to a larger bit width.
 
@@ -136,7 +136,7 @@ def MAX_EXPONENT4(e0, e1, e2, e3):
     """
     return Max(Max(e0, e1), Max(e2, e3))
 
-def ADDER_TREE4(x0, x1, x2, x3, bit_width) -> Operator:
+def ADDER_TREE4(x0, x1, x2, x3, bit_width) -> Op:
     """
     Performs a two-level addition of four two's complement operands using an adder tree structure.
 
@@ -156,7 +156,7 @@ def ADDER_TREE4(x0, x1, x2, x3, bit_width) -> Operator:
     bit_width_ = Add(1, bit_width)
     return Add_twos_complement(res1, bit_width_, res2, bit_width_)
 
-def OPTIMIZED_MAX_EXP4(e0, e1, e2, e3, bit_width) -> Operator:
+def OPTIMIZED_MAX_EXP4(e0, e1, e2, e3, bit_width) -> Op:
     """
     Computes the maximum exponent value among four inputs using a bitwise comparison tree.
 
@@ -201,7 +201,7 @@ def OPTIMIZED_MAX_EXP4(e0, e1, e2, e3, bit_width) -> Operator:
         
         return int(''.join(map(str, map(int, maxexp))), 2)
     
-    return Operator(
+    return Op(
         spec=spec,
         impl=impl,
         comp=lambda x: x,
@@ -209,7 +209,7 @@ def OPTIMIZED_MAX_EXP4(e0, e1, e2, e3, bit_width) -> Operator:
         name="OPTIMIZED_MAX_EXP4"
     )
 
-def Add_twos_complement(x, x_bits, y, y_bits) -> Operator:
+def Add_twos_complement(x, x_bits, y, y_bits) -> Op:
     """
     Adds two two's complement integers of potentially different bit widths.
 
@@ -232,7 +232,7 @@ def Add_twos_complement(x, x_bits, y, y_bits) -> Operator:
 # It is important to call CSA only on fixed points with equal lengths!
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
-def CSA_ADDER_TREE4(m0, m1, m2, m3, bit_width) -> Operator:
+def CSA_ADDER_TREE4(m0, m1, m2, m3, bit_width) -> Op:
     """
     Performs a four-operand addition using a carry-save adder (CSA) tree structure.
 
@@ -273,7 +273,7 @@ def CSA(a, b, c):
     carry = Or(Or(And(a, b), And(a, c)), And(b, c))
     return sum_, Lshift(carry, 1)
 
-def take_last_n_bits(x, n) -> Operator:
+def take_last_n_bits(x, n) -> Op:
     """
     Extracts the least significant n bits from an integer value.
 
@@ -287,7 +287,7 @@ def take_last_n_bits(x, n) -> Operator:
     """
     return And(x, (Sub(Lshift(1, n), 1)))
 
-def drop_last_n_bits(x, n) -> Operator:
+def drop_last_n_bits(x, n) -> Op:
     """
     Drops the least significant n bits of an integer by performing an arithmetic right shift.
 
@@ -309,7 +309,7 @@ def drop_last_n_bits(x, n) -> Operator:
     def impl(x: int, n: int) -> int:
         return x >> n
     
-    return Operator(
+    return Op(
         spec=spec,
         impl=impl,
         comp=lambda x: x,
@@ -317,7 +317,7 @@ def drop_last_n_bits(x, n) -> Operator:
         name="drop_last_n_bits"
     )
 
-def invert_bits(x, s) -> Operator:
+def invert_bits(x, s) -> Op:
     """
     Inverts (negates) the lowest s bits of an integer.
 
@@ -335,7 +335,7 @@ def invert_bits(x, s) -> Operator:
     """
     return Sub(Sub(Lshift(1, s), 1), x)
 
-def EXP_OVERFLOW_UNDERFLOW_HANDLING(e) -> Operator:
+def EXP_OVERFLOW_UNDERFLOW_HANDLING(e) -> Op:
     """
     Handles exponent overflow and underflow conditions by clamping or raising exceptions.
 
@@ -357,7 +357,7 @@ def EXP_OVERFLOW_UNDERFLOW_HANDLING(e) -> Operator:
             raise Exception("Overflow")
         return min(max(e, 0), 255)
     
-    return Operator(
+    return Op(
         spec=spec,
         impl=impl,
         comp=lambda x: x,
@@ -365,7 +365,7 @@ def EXP_OVERFLOW_UNDERFLOW_HANDLING(e) -> Operator:
         name="EXP_OVERFLOW_UNDERFLOW_HANDLING"
     )
 
-def exponents_adder(x, y) -> Operator:
+def exponents_adder(x, y) -> Op:
     """
     Adds two exponent values and adjusts the result by subtracting the BF16 bias.
 
