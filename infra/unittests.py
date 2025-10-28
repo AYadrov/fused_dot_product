@@ -65,7 +65,7 @@ class TestFusedDotProduct(unittest.TestCase):
 
                 self.assertTrue(rel_err_conv < ACC_TOL, msg=msg_conv)
                 self.assertTrue(rel_err_opt < ACC_TOL, msg=msg_opt)
-                
+   
     def test_basic_operators(self):
         """Check implementation and specification execution of basic functions."""
         # Dynamically import module
@@ -82,9 +82,6 @@ class TestFusedDotProduct(unittest.TestCase):
                 for _ in range(num_tests):
                     a, b = random.randint(0, 1000), random.randint(0, 1000)
                     op = func(a,b)
-                    # print(op)
-                    # print(op(a, b))
-                    # print(op(a,b).spec(a,b))
                     
                     # Evaluate using spec and impl
                     spec_result = op.spec(a,b)
@@ -100,6 +97,6 @@ class TestFusedDotProduct(unittest.TestCase):
                             f"spec={comp_spec}, impl={comp_impl}"
                     )
 
-                
+
 if __name__ == "__main__":
     unittest.main()
