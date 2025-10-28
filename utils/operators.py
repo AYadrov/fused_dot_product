@@ -51,7 +51,6 @@ def bf16_mantissa_to_UQ(m) -> Operator:
     """
     return Or(m, Lshift(1, BF16_MANTISSA_BITS))
 
-# Function extends mantissa length by one
 def UQ_to_Q(mantissa, sign, bit_width) -> Operator:
     """
     Converts unsigned fixed-point mantissa into a signed fixed-point
@@ -379,4 +378,3 @@ def exponents_adder(x, y) -> Operator:
         which represents the correctly biased exponent sum for BF16 arithmetic.
     """
     return Sub(Add(x, y), BF16_BIAS)
-
