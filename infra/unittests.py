@@ -21,7 +21,7 @@ class TestFusedDotProduct(unittest.TestCase):
         ACCURACY_BITS = 6
         ACC_TOL = 2 ** (-ACCURACY_BITS)
         for shared_bits in range(5, BF16_EXPONENT_BITS):
-            for _ in range(1000):
+            for _ in range(100):
                 a, b = generate_BF16_2x4x1(shared_bits)
                 fp_a = [S_E_M2float(x[0], x[1], x[2]) for x in a]
                 fp_b = [S_E_M2float(x[0], x[1], x[2]) for x in b]

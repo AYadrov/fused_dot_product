@@ -6,20 +6,14 @@ check-python:
 	}
 	@echo "Python found: $$(python3 --version)"
 
-install: check-python
-	@echo "Installing fixedpoint package"
-	@pip install -U fixedpoint
-	@echo "Installation is done"
-
-tests: basic-tests conventional-tests
+tests: basic-tests designs-tests
 
 basic-tests:
 	@echo "Running utils/basics.py..."
 	@cd .. && python -m fused_dot_product.utils.basics
 	@echo "Complete"
 
-conventional-tests:
-	@echo "Running designs/conventional.py..."
-	@cd .. && python -m fused_dot_product.designs.conventional
+designs-tests:
+	@echo "Running infra/unittests.py..."
+	@cd .. && python -m unittest -v fused_dot_product.infra.unittests
 	@echo "Complete"
-
