@@ -48,11 +48,11 @@ class Conventional(CTree):
         
         # Step 2. Multiply mantissas
         M_p = [Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
-        mantissa_length = Lshift(mantissa_length, 1) # 16
+        mantissa_length = Add(mantissa_length, mantissa_length) # 16
         
         # Step 3. Shift mantissas
         # Make room for the right shift first, accuracy requirement is Wf
-        extend_bits = Sub(self.Wf, mantissa_length) # Wf - 16
+        extend_bits = Max(Sub(self.Wf, mantissa_length), 0) # max(0, Wf - 16)
         M_p = [Lshift(M_p[i], extend_bits) for i in range(N)]
         M_p = [Rshift(M_p[i], sh[i]) for i in range(N)] # UQ2.{Wf - 2}
         mantissa_length = self.Wf
@@ -61,7 +61,7 @@ class Conventional(CTree):
         # As a result of adding a sign, integer bits of fixedpoint gets increased by 1 to avoid overflow during conversion
         S_p = [Xor(self.S_a[i], self.S_b[i]) for i in range(N)]
         M_p = [UQ_to_Q(M_p[i], S_p[i], mantissa_length) for i in range(N)] # Q3.{Wf - 2}
-        mantissa_length = Add(1, mantissa_length)
+        mantissa_length = Add(1, mantissa_length) # Wf + 1
         
         ########## ADDER TREE ##############
         

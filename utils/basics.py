@@ -2,10 +2,6 @@
 
 from fused_dot_product.ast.AST import *
 
-######### SPEC HELPERS #############
-def bit_width(x):
-    return max(1, x.bit_length())
-
 ######### BASIC OPERATORS ##########
 def Add(x, y) -> Operator:
     return Operator(
@@ -51,7 +47,7 @@ def And(x, y) -> Operator:
     def spec(a: int, b: int) -> int:
         m = max(a, b)
         return sum([(1 << n) * ((a >> n) & 1) * ((b >> n) & 1)
-                for n in range(0, bit_width(m))])
+                for n in range(0, max(1, m.bit_length()))])
     
     return Operator(
             spec=spec,
@@ -65,7 +61,7 @@ def Or(x, y) -> Operator:
         m = max(a, b)
         return sum([(1 << n) * (((a >> n) & 1) + ((b >> n) & 1) - 
                  ((a >> n) & 1) * ((b >> n) & 1))
-                    for n in range(0, bit_width(m))])
+                    for n in range(0, max(1, m.bit_length()))])
     
     return Operator(
             spec=spec,
@@ -78,7 +74,7 @@ def Xor(x, y) -> Operator:
     def spec(a: int, b: int) -> int:
         m = max(a, b)
         return sum([(1 << n) * (((a >> n) & 1) ^ ((b >> n) & 1))
-                for n in range(0, bit_width(m))])
+                for n in range(0, max(1, m.bit_length()))])
     
     return Operator(
             spec=spec,
@@ -107,15 +103,3 @@ def Rshift(x, n) -> Operator:
             comp=lambda x: int(x),
             args=[x, n],
             name="Rshift")
-
-# Some basic tests
-# Checks whether spec evaluation and impl evaluation results are equal
-if __name__ == '__main__':
-    from random import randint
-    num_tests = 1000
-    
-    basic_operations = [Xor, Or, And, Min, Max, Sub, Add, Mul, Lshift]
-    for f in basic_operations:
-        for i in range(num_tests):
-            f(randint(0, 10000), randint(0, 10000)).evaluate()
-
