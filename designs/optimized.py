@@ -1,4 +1,4 @@
-from fused_dot_product.ast.AST  import CTree, Op, FreeVar
+from fused_dot_product.ast.AST  import CTree, Op, Var
 from fused_dot_product.utils.operators import *
 from fused_dot_product.utils.utils import *
 from fused_dot_product.utils.basics import *
@@ -11,20 +11,20 @@ class Optimized(CTree):
         self.root = self.build_tree()
         
     def define_free_vars(self):
-        self.E_a = [FreeVar("e_a_0"), FreeVar("e_a_1"), FreeVar("e_a_2"), FreeVar("e_a_3")]
-        self.E_b = [FreeVar("e_b_0"), FreeVar("e_b_1"), FreeVar("e_b_2"), FreeVar("e_b_3")]
+        self.E_a = [Var("e_a_0"), Var("e_a_1"), Var("e_a_2"), Var("e_a_3")]
+        self.E_b = [Var("e_b_0"), Var("e_b_1"), Var("e_b_2"), Var("e_b_3")]
         
-        self.M_a = [FreeVar("m_a_0"), FreeVar("m_a_1"), FreeVar("m_a_2"), FreeVar("m_a_3")]
-        self.M_b = [FreeVar("m_b_0"), FreeVar("m_b_1"), FreeVar("m_b_2"), FreeVar("m_b_3")]
+        self.M_a = [Var("m_a_0"), Var("m_a_1"), Var("m_a_2"), Var("m_a_3")]
+        self.M_b = [Var("m_b_0"), Var("m_b_1"), Var("m_b_2"), Var("m_b_3")]
         
-        self.S_a = [FreeVar("s_a_0"), FreeVar("s_a_1"), FreeVar("s_a_2"), FreeVar("s_a_3")]
-        self.S_b = [FreeVar("s_b_0"), FreeVar("s_b_1"), FreeVar("s_b_2"), FreeVar("s_b_3")]
+        self.S_a = [Var("s_a_0"), Var("s_a_1"), Var("s_a_2"), Var("s_a_3")]
+        self.S_b = [Var("s_b_0"), Var("s_b_1"), Var("s_b_2"), Var("s_b_3")]
         
-        self.s = FreeVar("s")
-        self.Wf = FreeVar("Wf")
-        self.bf16_bias = FreeVar("BF16_bias")
-        self.bf16_exponent_bits = FreeVar("BF16_exponent_bits")
-        self.bf16_mantissa_bits = FreeVar("BF16_mantissa_bits")
+        self.s = Var("s")
+        self.Wf = Var("Wf")
+        self.bf16_bias = Var("BF16_bias")
+        self.bf16_exponent_bits = Var("BF16_exponent_bits")
+        self.bf16_mantissa_bits = Var("BF16_mantissa_bits")
         
         return [self.S_a, self.M_a, self.E_a, self.S_b, self.M_b, self.E_b,
                 self.s, self.Wf, self.bf16_bias, self.bf16_exponent_bits, self.bf16_mantissa_bits]

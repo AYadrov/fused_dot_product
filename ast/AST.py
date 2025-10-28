@@ -54,7 +54,7 @@ class Op(Node):
         self.cost = cost
 
     def evaluate(self):
-        vals = [a.evaluate() if isinstance(a, Op) or isinstance(a, FreeVar) else a for a in self.args]
+        vals = [a.evaluate() if isinstance(a, Op) or isinstance(a, Var) else a for a in self.args]
         
         impl_res = self.impl(*vals)
         spec_res = self.spec(*vals)
@@ -81,12 +81,12 @@ class Op(Node):
     def _arg_str(self, arg: Any) -> str:
         if isinstance(arg, Op):
             return arg.name
-        elif isinstance(arg, FreeVar):
+        elif isinstance(arg, Var):
             return arg.name
         else:
             return repr(arg)
         
-class FreeVar(Node):
+class Var(Node):
     def __init__(self, name):
         self.name = name
         self.val = None
