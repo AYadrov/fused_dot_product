@@ -44,7 +44,7 @@ class Optimized(CTree):
         L_shifts = [invert_bits(take_last_n_bits(E_p[i], self.s), self.s) for i in range(N)]
         
         # Step 3. Take leading {9-s} bits for max exponent and a global shift
-        E_lead = [drop_last_n_bits(E_p[i], self.s) for i in range(N)]
+        E_lead = [Rshift(E_p[i], self.s) for i in range(N)]
         
         # Step 4. Take max exponent
         E_max = OPTIMIZED_MAX_EXP4(
