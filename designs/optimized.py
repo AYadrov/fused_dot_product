@@ -7,7 +7,6 @@ from fused_dot_product.utils.basics import *
 
 class Optimized:
     def __init__(self):
-        super().__init__()
         self.free_vars = self.define_free_vars()
         self.root = self.build_tree()
         
