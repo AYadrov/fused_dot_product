@@ -235,7 +235,7 @@ def CSA_ADDER_TREE4(m0: Node | int,
         m2_ = Q_to_signed_UQ(m2, bit_width).evaluate_spec()
         m3_ = Q_to_signed_UQ(m3, bit_width).evaluate_spec()
         sum_ = (m0_ + m1_) + (m2_ + m3_)
-        return UQ_to_Q(abs(sum_), 1 if sum_ < 0 else 0, bit_width + 1).evaluate_spec()
+        return UQ_to_Q(abs(sum_), 1 if sum_ < 0 else 0, bit_width + 2).evaluate_spec()
     
     def CSA(a, b, c):
         sum_  = Xor(Xor(a, b), c)

@@ -32,7 +32,7 @@ class TestFusedDotProduct(unittest.TestCase):
 
                 # --- Conventional path
                 try:
-                    conventional_res = conventional(a, b)
+                    con_res_impl, con_res_spec = conventional(a, b)
                 except Exception as e:
                     if "Overflow" in str(e) or "Underflow" in str(e):
                         continue
@@ -40,26 +40,26 @@ class TestFusedDotProduct(unittest.TestCase):
 
                 # --- Optimized path
                 try:
-                    optimized_res = optimized(a, b)
+                    opt_res_impl, opt_res_spec = optimized(a, b)
                 except Exception as e:
                     if "Overflow" in str(e) or "Underflow" in str(e):
                         continue
                     raise
 
                 # --- Relative error checks
-                rel_err_conv = abs(unfused_res - conventional_res) / max(
+                rel_err_conv = abs(unfused_res - con_res_impl) / max(
                     abs(unfused_res), EPS
                 )
-                rel_err_opt = abs(unfused_res - optimized_res) / max(
+                rel_err_opt = abs(unfused_res - opt_res_impl) / max(
                     abs(unfused_res), EPS
                 )
 
                 msg_conv = (
-                    f"unfused_res={unfused_res}, conventional_res={conventional_res}, "
+                    f"unfused_res={unfused_res}, conventional_res={con_res_impl}, "
                     f"rel_err={rel_err_conv}"
                 )
                 msg_opt = (
-                    f"unfused_res={unfused_res}, optimized_res={optimized_res}, "
+                    f"unfused_res={unfused_res}, optimized_res={opt_res_impl}, "
                     f"rel_err={rel_err_opt}"
                 )
 
@@ -90,14 +90,10 @@ class TestFusedDotProduct(unittest.TestCase):
                     spec_result = op.spec(*args)
                     impl_result = op.impl(*args)
                     
-                    # Comparison through comparison function
-                    comp_spec = op.comp(spec_result)
-                    comp_impl = op.comp(impl_result)
-                    
                     self.assertEqual(
-                        comp_spec, comp_impl,
+                        spec_result, impl_result,
                         msg=f"{func.__name__} failed for inputs {args}: "
-                            f"spec={comp_spec}, impl={comp_impl}"
+                            f"spec={spec_result}, impl={impl_result}"
                     )
 
 
