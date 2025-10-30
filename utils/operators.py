@@ -9,7 +9,7 @@ import math
 
 ########## CUSTOM OPERATORS ########
     
-def signed_UQ_E_to_float(fxp, fraction_bits, exponent) -> Op:
+def signed_UQ_E_to_float(fxp: Node, fraction_bits: Node, exponent: Node) -> Op:
     """
     Convert a signed fixed-point mantissa and exponent into a floating-point value.
 
@@ -37,7 +37,11 @@ def signed_UQ_E_to_float(fxp, fraction_bits, exponent) -> Op:
         name="signed_UQ_E_to_float",
     )
 
-def OPTIMIZED_MAX_EXP4(e0, e1, e2, e3, bit_width) -> Op:
+def OPTIMIZED_MAX_EXP4(e0: Node, 
+                       e1: Node, 
+                       e2: Node,
+                       e3: Node,
+                       bit_width: Node) -> Op:
     """
     Computes the maximum exponent value among four inputs using a bitwise comparison tree.
 
@@ -89,7 +93,7 @@ def OPTIMIZED_MAX_EXP4(e0, e1, e2, e3, bit_width) -> Op:
         name="OPTIMIZED_MAX_EXP4"
     )
 
-def EXP_OVERFLOW_UNDERFLOW_HANDLING(e) -> Op:
+def EXP_OVERFLOW_UNDERFLOW_HANDLING(e: Node) -> Op:
     """
     Handles exponent overflow and underflow conditions by clamping or raising exceptions.
 

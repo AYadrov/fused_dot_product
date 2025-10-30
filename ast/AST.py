@@ -10,7 +10,7 @@ class Composite(Node):
         self, 
         spec: Callable, # specification (mathematical definition)
         impl: Node, # implementation (composite of Op)
-        args: list[Any], # operands
+        args: list[Node], # operands
         name: str, # composite's name
     ):
         self.spec, self.impl, self.args, self.name = spec, impl, args, name
@@ -46,10 +46,7 @@ class Composite(Node):
     def evaluate_spec(self):
         vals = []
         for arg in self.args:
-            if isinstance(arg, Node):
-                vals.append(arg.evaluate()[1])
-            else:
-                vals.append(arg)
+            vals.append(arg.evaluate()[1])
         return self.spec(*vals)
       
 class Op(Node):
@@ -57,7 +54,7 @@ class Op(Node):
         self, 
         spec: Callable[..., Any], # specification (mathematical definition)
         impl: Callable[..., Any], # implementation (actual execution)
-        args: list[Any], # operands
+        args: list[Node], # operands
         name: str, # op's name
         cost: int = 1 # op's cost
     ):
@@ -68,13 +65,9 @@ class Op(Node):
         spec_inputs = []
         impl_inputs = []
         for arg in self.args:
-            if isinstance(arg, Node):
-                impl_, spec_ = arg.evaluate()
-                spec_inputs.append(spec_)
-                impl_inputs.append(impl_)
-            else:
-                spec_inputs.append(arg)
-                impl_inputs.append(arg)
+            impl_, spec_ = arg.evaluate()
+            spec_inputs.append(spec_)
+            impl_inputs.append(impl_)
         
         impl_res = self.impl(*impl_inputs)
         spec_res = self.spec(*spec_inputs)
@@ -103,7 +96,16 @@ class Op(Node):
     #         return arg.name
     #     else:
     #         return repr(arg)
-        
+
+class Const(Node):
+    def __init__(self, val: Any, name: str = None):
+        if name is None:
+            name = str(val)
+        self.name, self.val = name, val
+
+    def evaluate(self):
+        return self.val, self.val
+
 class Var(Node):
     def __init__(self, name: str, val: Any = None):
         self.name, self.val = name, val

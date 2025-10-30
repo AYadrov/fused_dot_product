@@ -20,8 +20,9 @@ class Conventional:
         self.S_a = [Var("s_a_0"), Var("s_a_1"), Var("s_a_2"), Var("s_a_3")]
         self.S_b = [Var("s_b_0"), Var("s_b_1"), Var("s_b_2"), Var("s_b_3")]
         
-        self.Wf = Var("Wf")
-        
+        self.Wf = Const(Wf, "Wf")
+        self.bf16_mantissa_bits = Const(BF16_MANTISSA_BITS, "BF16_MANTISSA_BITS")
+
         return [self.S_a, self.M_a, self.E_a, self.S_b, self.M_b, self.E_b, self.Wf]
     
     def build_tree(self):
@@ -44,7 +45,7 @@ class Conventional:
         # Step 1. Convert mantissas to UQ
         M_a = [bf16_mantissa_to_UQ(self.M_a[i]) for i in range(N)] # UQ1.7
         M_b = [bf16_mantissa_to_UQ(self.M_b[i]) for i in range(N)] # UQ1.7
-        mantissa_length = Add(1, BF16_MANTISSA_BITS) # 1 + 7 = 8
+        mantissa_length = Add(Const(1), self.bf16_mantissa_bits) # 1 + 7 = 8
         
         # Step 2. Multiply mantissas
         M_p = [Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
@@ -52,7 +53,7 @@ class Conventional:
         
         # Step 3. Shift mantissas
         # Make room for the right shift first, accuracy requirement is Wf
-        extend_bits = Max(Sub(self.Wf, mantissa_length), 0) # max(0, Wf - 16)
+        extend_bits = Max(Sub(self.Wf, mantissa_length), Const(0)) # max(0, Wf - 16)
         M_p = [Lshift(M_p[i], extend_bits) for i in range(N)]
         M_p = [Rshift(M_p[i], sh[i]) for i in range(N)] # UQ2.{Wf - 2}
         mantissa_length = self.Wf
@@ -61,19 +62,19 @@ class Conventional:
         # As a result of adding a sign, integer bits of fixedpoint gets increased by 1 to avoid overflow during conversion
         S_p = [Xor(self.S_a[i], self.S_b[i]) for i in range(N)]
         M_p = [UQ_to_Q(M_p[i], S_p[i], mantissa_length) for i in range(N)] # Q3.{Wf - 2}
-        mantissa_length = Add(1, mantissa_length) # Wf + 1
+        mantissa_length = Add(Const(1), mantissa_length) # Wf + 1
         
         ########## ADDER TREE ##############
         
         M_sum = ADDER_TREE4(*M_p, mantissa_length) # Q5.{Wf - 2}
-        mantissa_length = Add(2, mantissa_length) # Wf + 3
+        mantissa_length = Add(Const(2), mantissa_length) # Wf + 3
         
         M_sum = Q_to_signed_UQ(M_sum, mantissa_length) # UQ4.{Wf - 2}
-        mantissa_length = Sub(mantissa_length, 1) # Wf + 2
+        mantissa_length = Sub(mantissa_length, Const(1)) # Wf + 2
         
         ########## RESULT ################## 
         
-        fraction_bits = Sub(self.Wf, 2)
+        fraction_bits = Sub(self.Wf, Const(2))
         root = signed_UQ_E_to_float(M_sum, fraction_bits, E_m)
         return root
         
@@ -82,8 +83,6 @@ class Conventional:
             self.S_a[i].load_val(a[i][0]); self.E_a[i].load_val(a[i][1]); self.M_a[i].load_val(a[i][2]);
             self.S_b[i].load_val(b[i][0]); self.E_b[i].load_val(b[i][1]); self.M_b[i].load_val(b[i][2]);
          
-        self.Wf.load_val(Wf)
-        
         return self.root.evaluate()
 
 if __name__ == '__main__':
