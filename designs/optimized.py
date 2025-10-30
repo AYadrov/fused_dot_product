@@ -7,7 +7,6 @@ from fused_dot_product.utils.basics import *
 
 class Optimized:
     def __init__(self):
-        super().__init__()
         self.free_vars = self.define_free_vars()
         self.root = self.build_tree()
         
@@ -119,6 +118,5 @@ class Optimized:
         
 if __name__ == '__main__':
     design = Optimized()
-    # design.print_tree()
-    # print("Depth =", design.depth())
-    # print("Critical path cost =", design.critical_path_cost())
+    design.root.print_tree()
+
