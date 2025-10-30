@@ -3,6 +3,10 @@ from typing import Any, Callable
 class Node: 
     def evaluate(self) -> tuple[Any, Any]:
         raise NotImplementedError
+        
+    def print_tree(self, prefix: str = "", is_last: bool = True):
+        """Abstract print method for subclasses."""
+        raise NotImplementedError
 
 # Computational tree
 class Composite(Node):
@@ -15,11 +19,19 @@ class Composite(Node):
     ):
         self.spec, self.impl, self.args, self.name = spec, impl, args, name
     
-    # def print_tree(self, prefix: str = "", is_last: bool = True):
-    #     
-    #     self.empty_check()
-    #     self.root.print_tree()
-    
+    def print_tree(self, prefix: str = "", is_last: bool = True):
+        connector = "└── " if is_last else "├── "
+        print(prefix + connector + f"{self.name} [Composite]")
+
+        new_prefix = prefix + ("    " if is_last else "│   ")
+        for i, arg in enumerate(self.args):
+            is_arg_last = i == len(self.args) - 1
+            if isinstance(arg, Node):
+                arg.print_tree(new_prefix, is_arg_last)
+            else:
+                leaf_connector = "└── " if is_arg_last else "├── "
+                print(new_prefix + leaf_connector + repr(arg))
+
     def evaluate(self) -> tuple[Any, Any]:
         # that's dumb, self.args get evaluated twice, for impl and spec
         spec_inputs = []
@@ -62,6 +74,19 @@ class Op(Node):
         cost: int = 1 # op's cost
     ):
         self.spec, self.impl, self.args, self.name, self.cost = spec, impl, args, name, cost
+        
+    def print_tree(self, prefix: str = "", is_last: bool = True):
+        connector = "└── " if is_last else "├── "
+        print(prefix + connector + f"{self.name} [Op]")
+
+        new_prefix = prefix + ("    " if is_last else "│   ")
+        for i, arg in enumerate(self.args):
+            is_arg_last = i == len(self.args) - 1
+            if isinstance(arg, Node):
+                arg.print_tree(new_prefix, is_arg_last)
+            else:
+                leaf_connector = "└── " if is_arg_last else "├── "
+                print(new_prefix + leaf_connector + repr(arg))
 
     # TODO: create a constant node!
     def evaluate(self) -> tuple[Any, Any]:
@@ -80,22 +105,6 @@ class Op(Node):
         spec_res = self.spec(*spec_inputs)
         
         return impl_res, spec_res
-
-    # def print_tree(self, prefix: str = "", is_last: bool = True):
-    #     """Print the AST in a Linux 'tree'-like style with module visualization."""
-    #     connector = "└── " if is_last else "├── "
-    #
-    #     print(prefix + connector + self.name)
-    #     # Prepare new prefix for children
-    #     new_prefix = prefix + ("    " if is_last else "│   ")
-    #     for i, arg in enumerate(self.args):
-    #         is_arg_last = (i == len(self.args) - 1)
-    #         if isinstance(arg, Op):
-    #             arg.print_tree(new_prefix, is_arg_last)
-    #         else:
-    #             leaf_connector = "└── " if is_arg_last else "├── "
-    #             print(new_prefix + leaf_connector + self._arg_str(arg))
-
     # def _arg_str(self, arg: Any) -> str:
     #     if isinstance(arg, Op):
     #         return arg.name
@@ -107,6 +116,11 @@ class Op(Node):
 class Var(Node):
     def __init__(self, name: str, val: Any = None):
         self.name, self.val = name, val
+        
+    def print_tree(self, prefix: str = "", is_last: bool = True):
+        connector = "└── " if is_last else "├── "
+        val_repr = f" = {self.val}" if self.val is not None else ""
+        print(prefix + connector + f"{self.name} [Var]{val_repr}")
     
     def load_val(self, val):
         self.val = val
