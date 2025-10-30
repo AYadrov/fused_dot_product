@@ -36,7 +36,7 @@ def UQ_to_Q(mantissa: Node | int,
         Composite producing sign?mantissa:2**bit_width - mantissa, {bit-width + 1} bits long
     """
     def spec(mantissa: int, sign: int, bit_width: int) -> int:
-        return int(mantissa) if sign == 0 else int(2**bit_width - mantissa)
+        return int(mantissa) if sign == 0 else int(2**(bit_width+1) - mantissa)
     
     full_width = Add(bit_width, 1)
     two_pow = Lshift(1, full_width)
@@ -162,7 +162,12 @@ def ADDER_TREE4(x0: Node | int,
         Each addition step increases the bit width by one to accommodate potential overflow.
     """
     def spec(x0: int, x1: int, x2: int, x3: int, bit_width: int) -> int:
-        return (x0 + x1) + (x2 + x3)
+        return Add_twos_complement(
+                Add_twos_complement(x0, bit_width, x1, bit_width).evaluate_spec(), 
+                bit_width + 1,
+                Add_twos_complement(x2, bit_width, x3, bit_width).evaluate_spec(),
+                bit_width + 1
+               ).evaluate_spec()
     
     res1 = Add_twos_complement(x0, bit_width, x1, bit_width)
     res2 = Add_twos_complement(x2, bit_width, x3, bit_width) 
@@ -192,7 +197,7 @@ def Add_twos_complement(x: Node | int,
         x_ = Q_to_signed_UQ(x, x_bits).evaluate_spec()
         y_ = Q_to_signed_UQ(y, y_bits).evaluate_spec()
         sum_ = x_ + y_
-        return UQ_to_Q(sum_, 1 if sum_ < 0 else 0, max(x_bits, y_bits) + 1).evaluate_spec()
+        return UQ_to_Q(abs(sum_), 1 if sum_ < 0 else 0, max(x_bits-1, y_bits-1) + 1).evaluate_spec()
         
     output_len = Add(Max(x_bits, y_bits), 1)
     x_ = extend_Q(x, x_bits, output_len)
@@ -225,12 +230,12 @@ def CSA_ADDER_TREE4(m0: Node | int,
         Output has {bit_width + 3} bit width.
     """
     def spec(m0: int, m1: int, m2: int, m3: int, bit_width: int) -> int:
-        return Add_twos_complement(
-            Add_twos_complement(m0, bit_width, m1, bit_width).evaluate_spec(), 
-            bit_width + 1,
-            Add_twos_complement(m2, bit_width, m3, bit_width).evaluate_spec(),
-            bit_width + 1
-        ).evaluate_spec()
+        m0_ = Q_to_signed_UQ(m0, bit_width).evaluate_spec()
+        m1_ = Q_to_signed_UQ(m1, bit_width).evaluate_spec()
+        m2_ = Q_to_signed_UQ(m2, bit_width).evaluate_spec()
+        m3_ = Q_to_signed_UQ(m3, bit_width).evaluate_spec()
+        sum_ = (m0_ + m1_) + (m2_ + m3_)
+        return UQ_to_Q(abs(sum_), 1 if sum_ < 0 else 0, bit_width + 1).evaluate_spec()
     
     def CSA(a, b, c):
         sum_  = Xor(Xor(a, b), c)

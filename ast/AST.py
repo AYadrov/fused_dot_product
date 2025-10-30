@@ -42,6 +42,15 @@ class Composite(Node):
             )
 
         return impl_res, composite_spec
+        
+    def evaluate_spec(self):
+        vals = []
+        for arg in self.args:
+            if isinstance(arg, Node):
+                vals.append(arg.evaluate()[1])
+            else:
+                vals.append(arg)
+        return self.spec(*vals)
       
 class Op(Node):
     def __init__(
@@ -71,15 +80,6 @@ class Op(Node):
         spec_res = self.spec(*spec_inputs)
         
         return impl_res, spec_res
-    
-    def evaluate_spec(self):
-        vals = []
-        for arg in self.args:
-            if isinstance(arg, Node):
-                vals.append(arg.evaluate()[1])
-            else:
-                vals.append(arg)
-        return self.spec(*vals)
 
     # def print_tree(self, prefix: str = "", is_last: bool = True):
     #     """Print the AST in a Linux 'tree'-like style with module visualization."""

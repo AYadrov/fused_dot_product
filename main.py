@@ -36,11 +36,11 @@ def main():
     ########## CONV+OPTIMIZED ##########
 
     print("Unfused result of dot-product:\n\t", unfused_res)
-    conventional_res = Conventional()(a, b)
-    print("Absolute difference between conventional/unfused:\n\t", abs(unfused_res-conventional_res))
+    con_res_impl, con_res_spec = Conventional()(a, b)
+    print("Absolute difference between conventional/unfused:\n\t", abs(unfused_res-con_res_impl))
     
-    optimized_res = Optimized()(a, b)
-    print("Absolute difference between conventional/unfused:\n\t", abs(unfused_res-optimized_res))
+    opt_res_impl, opt_res_spec = Optimized()(a, b)
+    print("Absolute difference between optimized/unfused:\n\t", abs(unfused_res-opt_res_impl))
     return 0
   
 if __name__ == "__main__":

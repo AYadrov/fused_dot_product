@@ -1,12 +1,12 @@
-from fused_dot_product.ast.AST import CTree, Op, Var
+from fused_dot_product.ast.AST import *
 from fused_dot_product.utils.operators import *
+from fused_dot_product.utils.composites import *
 from fused_dot_product.utils.utils import *
 from fused_dot_product.utils.basics import *
 
 
-class Conventional(CTree):
+class Conventional:
     def __init__(self):
-        super().__init__()
         self.free_vars = self.define_free_vars()
         self.root = self.build_tree()
     
@@ -88,7 +88,7 @@ class Conventional(CTree):
 
 if __name__ == '__main__':
     design = Conventional()
-    design.print_tree()
-    print("Depth =", design.depth())
-    print("Critical path cost =", design.critical_path_cost())
+    #design.print_tree()
+    #print("Depth =", design.depth())
+    #print("Critical path cost =", design.critical_path_cost())
 

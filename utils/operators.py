@@ -33,7 +33,6 @@ def signed_UQ_E_to_float(fxp, fraction_bits, exponent) -> Op:
     return Op(
         spec=spec,
         impl=impl,
-        comp=lambda x: x,
         args=[fxp, fraction_bits, exponent],
         name="signed_UQ_E_to_float",
     )
@@ -86,12 +85,9 @@ def OPTIMIZED_MAX_EXP4(e0, e1, e2, e3, bit_width) -> Op:
     return Op(
         spec=spec,
         impl=impl,
-        comp=lambda x: x,
         args=[e0, e1, e2, e3, bit_width],
         name="OPTIMIZED_MAX_EXP4"
     )
-
-
 
 def EXP_OVERFLOW_UNDERFLOW_HANDLING(e) -> Op:
     """
@@ -118,7 +114,6 @@ def EXP_OVERFLOW_UNDERFLOW_HANDLING(e) -> Op:
     return Op(
         spec=spec,
         impl=impl,
-        comp=lambda x: x,
         args=[e],
         name="EXP_OVERFLOW_UNDERFLOW_HANDLING"
     )
