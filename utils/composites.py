@@ -304,4 +304,29 @@ def exponents_adder(x: Node | int, y: Node | int) -> Composite:
     impl = Sub(Add(x, y), BF16_BIAS)
     
     return Composite(spec, impl, [x, y], "exponents_adder")
+    
+if __name__ == '__main__':
+    import inspect
+    import sys
+    
+    def get_local_functions():
+        current_module = sys.modules[__name__]
+        funcs = inspect.getmembers(current_module, inspect.isfunction)
 
+        local_funcs = [
+            (name, func)
+            for name, func in funcs
+            if func.__module__ == current_module.__name__
+        ]
+        
+        return local_funcs
+    
+        
+    local_functions = get_local_functions()
+    for name, func in local_functions:
+        sig = inspect.signature(func)
+        composite_inputs = [Var(name) for name, _ in sig.parameters.items()]
+        print(f"{name} -> {sig}")
+        func(*composite_inputs).print_tree(depth=1)
+        print("\n")
+        

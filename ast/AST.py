@@ -4,7 +4,7 @@ class Node:
     def evaluate(self) -> tuple[Any, Any]:
         raise NotImplementedError
         
-    def print_tree(self, prefix: str = "", is_last: bool = True):
+    def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         """Abstract print method for subclasses."""
         raise NotImplementedError
 
@@ -19,18 +19,26 @@ class Composite(Node):
     ):
         self.spec, self.impl, self.args, self.name = spec, impl, args, name
     
-    def print_tree(self, prefix: str = "", is_last: bool = True):
+    def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.name} [Composite]")
 
         new_prefix = prefix + ("    " if is_last else "│   ")
-        for i, arg in enumerate(self.args):
-            is_arg_last = i == len(self.args) - 1
-            if isinstance(arg, Node):
-                arg.print_tree(new_prefix, is_arg_last)
-            else:
-                leaf_connector = "└── " if is_arg_last else "├── "
-                print(new_prefix + leaf_connector + repr(arg))
+
+        # If depth > 0, print Impl and skip Args
+        if depth > 0:
+            print(new_prefix + "└── Impl:")
+            self.impl.print_tree(new_prefix + "    ", True, depth - 1)
+        else:
+            # Otherwise, print Args as before
+            for i, arg in enumerate(self.args):
+                is_arg_last = i == len(self.args) - 1
+                if isinstance(arg, Node):
+                    arg.print_tree(new_prefix, is_arg_last, depth)
+                else:
+                    leaf_connector = "└── " if is_arg_last else "├── "
+                    print(new_prefix + leaf_connector + repr(arg))
+
 
     def evaluate(self) -> tuple[Any, Any]:
         # that's dumb, self.args get evaluated twice, for impl and spec
@@ -75,15 +83,14 @@ class Op(Node):
     ):
         self.spec, self.impl, self.args, self.name, self.cost = spec, impl, args, name, cost
         
-    def print_tree(self, prefix: str = "", is_last: bool = True):
+    def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.name} [Op]")
-
         new_prefix = prefix + ("    " if is_last else "│   ")
         for i, arg in enumerate(self.args):
             is_arg_last = i == len(self.args) - 1
             if isinstance(arg, Node):
-                arg.print_tree(new_prefix, is_arg_last)
+                arg.print_tree(new_prefix, is_arg_last, depth)
             else:
                 leaf_connector = "└── " if is_arg_last else "├── "
                 print(new_prefix + leaf_connector + repr(arg))
@@ -117,7 +124,7 @@ class Var(Node):
     def __init__(self, name: str, val: Any = None):
         self.name, self.val = name, val
         
-    def print_tree(self, prefix: str = "", is_last: bool = True):
+    def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         val_repr = f" = {self.val}" if self.val is not None else ""
         print(prefix + connector + f"{self.name} [Var]{val_repr}")
