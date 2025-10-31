@@ -9,9 +9,12 @@ def Add(x, y) -> Op:
         val_ = x.val + y.val
         width_ = max(x.width, y.width) + 1
         return Int(val_, width_)
-        
+       
+    def spec(x: int, y: int) -> int:
+        return x + y
+
     return Op(
-            spec=lambda x, y: x + y,
+            spec=spec,
             impl=impl,
             args=[x, y],
             name="Add")
@@ -21,9 +24,12 @@ def Sub(x, y) -> Op:
         val_ = x.val - y.val
         width_ = max(x.width, y.width) + 1
         return Int(val_, width_)
-        
+    
+    def spec(x: int, y: int) -> int:
+        return x - y
+
     return Op(
-            spec=lambda x, y: x - y,
+            spec=spec,
             impl=impl,
             args=[x, y],
             name="Sub")
@@ -34,8 +40,11 @@ def Mul(x, y) -> Op:
         width_ = x.width + y.width
         return Int(val_, width_)
 
+    def spec(x: int, y: int) -> int:
+        return x * y
+
     return Op(
-            spec=lambda x, y: x * y,
+            spec=spec,
             impl=impl,
             args=[x, y],
             name="Mul")
@@ -85,6 +94,11 @@ def Min(x, y) -> Op:
             name="Min")
 
 def And(x, y) -> Op:
+    def impl(a: Int, b: Int) -> Int:
+        val_ = a.val & b.val
+        width_ = max(a.width, b.width)
+        return Int(val_, width_)
+
     def spec(a: int, b: int) -> int:
         m = max(a, b)
         return sum([(1 << n) * ((a >> n) & 1) * ((b >> n) & 1)
@@ -92,11 +106,16 @@ def And(x, y) -> Op:
     
     return Op(
             spec=spec,
-            impl=lambda a, b: a & b,
+            impl=impl,
             args=[x, y],
             name="And")
 
 def Or(x, y) -> Op:
+    def impl(a: Int, b: Int) -> Int:
+        val_ = a.val | b.val
+        width_ = max(a.width, b.width)
+        return Int(val_, width_)
+
     def spec(a: int, b: int) -> int:
         m = max(a, b)
         return sum([(1 << n) * (((a >> n) & 1) + ((b >> n) & 1) - 
@@ -105,11 +124,16 @@ def Or(x, y) -> Op:
     
     return Op(
             spec=spec,
-            impl=lambda a, b: a | b,
+            impl=impl,
             args=[x, y],
             name="Or")
 
 def Xor(x, y) -> Op:
+    def impl(a: Int, b: Int) -> Int:
+        val_ = a.val ^ b.val
+        width_ = max(a.width, b.width)
+        return Int(val_, width_)
+
     def spec(a: int, b: int) -> int:
         m = max(a, b)
         return sum([(1 << n) * (((a >> n) & 1) ^ ((b >> n) & 1))
@@ -117,25 +141,40 @@ def Xor(x, y) -> Op:
     
     return Op(
             spec=spec,
-            impl=lambda a, b: a ^ b,
+            impl=impl,
             args=[x, y],
             name="Xor")
 
 def Lshift(x, n) -> Op:
+    def impl(x: Int, n: Int) -> Int:
+        assert n.val >= 0, f"Shift amount should be non-negative, {n.val} is provided"
+        val_ = x.val << n.val
+        width_ = x.width + n.val
+        return Int(val_, width_)
+
     def spec(x: int, n: int) -> int:
         return x * 2 ** n
+    
     return Op(
             spec=spec,
-            impl=lambda x, n: x << n,
+            impl=impl,
             args=[x, n],
             name="Lshift")
             
 def Rshift(x, n) -> Op:
+    def impl(x: Int, n: Int) -> Int:
+        assert n.val >= 0, f"Shift amount should be non-negative, {n.val} is provided"
+        val_ = x.val >> n.val
+        width_ = max(x.width - n.val, 1)
+        return Int(val_, width_)
+
     # Right shift operates stricly over integers
     def spec(x: int, n: int) -> int:
         return int(x / 2 ** n)
+
     return Op(
             spec=spec,
-            impl=lambda x, n: x >> n,
+            impl=impl,
             args=[x, n],
             name="Rshift")
+
