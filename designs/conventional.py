@@ -20,8 +20,8 @@ class Conventional:
         self.S_a = [Var("s_a_0"), Var("s_a_1"), Var("s_a_2"), Var("s_a_3")]
         self.S_b = [Var("s_b_0"), Var("s_b_1"), Var("s_b_2"), Var("s_b_3")]
         
-        self.Wf = Const(Wf, "Wf")
-        self.bf16_mantissa_bits = Const(BF16_MANTISSA_BITS, "BF16_MANTISSA_BITS")
+        self.Wf = Const(Int(val=Wf), "Wf")
+        self.bf16_mantissa_bits = Const(Int(val=BF16_MANTISSA_BITS), "BF16_MANTISSA_BITS")
 
         return [self.S_a, self.M_a, self.E_a, self.S_b, self.M_b, self.E_b, self.Wf]
     
@@ -80,8 +80,16 @@ class Conventional:
         
     def __call__(self, a, b):
         for i in range(N):
-            self.S_a[i].load_val(a[i][0]); self.E_a[i].load_val(a[i][1]); self.M_a[i].load_val(a[i][2]);
-            self.S_b[i].load_val(b[i][0]); self.E_b[i].load_val(b[i][1]); self.M_b[i].load_val(b[i][2]);
+            s_a = Int(s_a, 1)
+            m_a = Int(m_a, BF16_MANTISSA_BITS)
+            e_a = Int(e_a, BF16_EXPONENT_BITS)
+            
+            s_b = Int(s_b, 1)
+            m_b = Int(m_b, BF16_MANTISSA_BITS)
+            e_b = Int(e_b, BF16_EXPONENT_BITS)
+            
+            self.S_a[i].load_val(s_a); self.E_a[i].load_val(m_a); self.M_a[i].load_val(e_a);
+            self.S_b[i].load_val(s_b); self.E_b[i].load_val(m_b); self.M_b[i].load_val(e_b);
          
         return self.root.evaluate()
 

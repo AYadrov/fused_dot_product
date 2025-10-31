@@ -1,4 +1,5 @@
 from fused_dot_product.ast.AST import *
+from fused_dot_product.ast.types import *
 from fused_dot_product.config import *
 from fused_dot_product.utils.basics import *
 
