@@ -1,14 +1,14 @@
+from fused_dot_product.ast.AST import *
+
 class Type:
     """Base class for numerical types."""
-    pass
-
     def to_spec(self):
         raise NotImplementedError
 
 class Q(Type):
     """Signed fixed-point type."""
     def __init__(self, val: int, int_bits: int, frac_bits: int):
-        self.val, int_bits, frac_bits = val, int_bits, frac_bits
+        self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
         
         total_bits = int_bits + frac_bits
         min_val = -(1 << (total_bits - 1))
@@ -35,7 +35,7 @@ class Q(Type):
 class UQ(Type):
     """Unsigned fixed-point type."""
     def __init__(self, val: int, int_bits: int, frac_bits: int):
-        self.val, int_bits, frac_bits = val, int_bits, frac_bits
+        self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
         
         assert int_bits >= 0, f"int bits can not be negative, {int_bits} is provided"
         assert frac_bits >= 0, f"frac bits can not be negative, {frac_bits} is provided"
@@ -61,6 +61,9 @@ class Int(Type):
         assert self.width > 0, f"Integer width can not be less than zero, {self.width} is provided"
         assert max(1, val.bit_length()) <= self.width, \
                 f"Value {val} needs {max(1, val.bit_length())} bits, but width={self.width} is too small"
+                
+    def to_spec(self):
+        return self.val
 
 # TODO: loss of accuracy can happen here
 def Int_to_UQ(x: Node, int_bits: Node, frac_bits: Node) -> Op:
@@ -70,7 +73,7 @@ def Int_to_UQ(x: Node, int_bits: Node, frac_bits: Node) -> Op:
     def impl(x: Int, int_bits: Int, frac_bits: Int) -> UQ:
         total_bits = int_bits.val + frac_bits.val
         assert total_bits >= x.width
-        return UQ(x.val, int_bits, frac_bits)
+        return UQ(x.val, int_bits.val, frac_bits.val)
 
     return Op(
             spec=spec,
@@ -82,7 +85,7 @@ def UQ_to_Q(x: Node) -> Op:
     def spec(x: float) -> float:
         return x
     
-    def impl(x: UQ):
+    def impl(x: UQ) -> Q:
         return Q(x.val, x.int_bits + 1, x.frac_bits)
     
     return Op(
@@ -110,6 +113,12 @@ def Q_sign_bit(x: Node) -> Op:
         res = x.val >> (total_width - 1)
         assert res == 1 or res == 0
         return Int(res)
+        
+    return Op(
+            spec=spec,
+            impl=impl,
+            args=[x],
+            name="Q_sign_bit")
 
 def Q_negate(x: Node) -> Op:
     def spec(x: float) -> float:
@@ -121,7 +130,7 @@ def Q_negate(x: Node) -> Op:
 
         # Two’s complement negation: invert bits, add 1, mask back to width
         neg_val = (~x.val + 1) & mask
-        return Q(neg, x.int_bits, x.frac_bits)
+        return Q(neg_val, x.int_bits, x.frac_bits)
 
     return Op(
             spec=spec,
