@@ -17,10 +17,12 @@ def bf16_mantissa_to_UQ(mantissa: Node) -> Composite:
     def spec(mantissa: int) -> int:
         return int(2 ** BF16_MANTISSA_BITS + mantissa)
         
-    impl = Or(mantissa, Lshift(Const(1), BF16_MANTISSA_BITS))
+    def impl(mantissa: Int) -> UQ:
+        result = Or(mantissa, Lshift(Const(1), BF16_MANTISSA_BITS))
+        return Int_to_UQ(result, Const(Int(1)), Const(Int(7)))
     
     return Composite(spec, impl, [mantissa], "bf16_mantissa_to_UQ")
-    
+
 def UQ_to_Q(mantissa: Node,
             sign: Node,
             bit_width: Node) -> Composite:
@@ -48,25 +50,6 @@ def UQ_to_Q(mantissa: Node,
     impl = Add(Mul(Sub(Const(1), sign), pos), Mul(sign, neg))
     
     return Composite(spec, impl, [mantissa, sign, bit_width], "UQ_to_Q")
-    
-def Q_sign_bit(mantissa: Node, 
-               bit_width: Node) -> Composite:
-    """
-    Extracts the sign bit (MSB) from a two's complement integer.
-
-    Args:
-        mantissa: Two's complement integer value.
-        bit_width: Total bit width of the integer.
-
-    Returns:
-        Composite producing 0 for non-negative values and 1 for negative values.
-    """
-    def spec(mantissa: int, bit_width: int) -> int:
-        return int(mantissa / 2**(bit_width - 1))
-    
-    impl = Rshift(mantissa, Sub(bit_width, Const(1)))
-    
-    return Composite(spec, impl, [mantissa, bit_width], "Q_sign_bit")
     
 def Q_to_signed_UQ(mantissa: Node, 
                    bit_width: Node) -> Composite:
