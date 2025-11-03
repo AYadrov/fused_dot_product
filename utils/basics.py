@@ -4,7 +4,7 @@ from fused_dot_product.ast.AST import *
 from fused_dot_product.ast.types import *
 
 ######### BASIC OPERATORS ##########
-def Add(x, y) -> Op:
+def Add(x: Node, y: Node) -> Op:
     def impl(x: Int, y: Int) -> Int:
         val_ = x.val + y.val
         width_ = max(x.width, y.width) + 1
@@ -19,7 +19,7 @@ def Add(x, y) -> Op:
             args=[x, y],
             name="Add")
 
-def Sub(x, y) -> Op:
+def Sub(x: Node, y: Node) -> Op:
     def impl(x: Int, y: Int) -> Int:
         val_ = x.val - y.val
         width_ = max(x.width, y.width) + 1
@@ -34,7 +34,7 @@ def Sub(x, y) -> Op:
             args=[x, y],
             name="Sub")
 
-def Mul(x, y) -> Op:
+def Mul(x: Node, y: Node) -> Op:
     def impl(x: Int, y: Int) -> Int:
         val_ = x.val * y.val
         width_ = x.width + y.width
@@ -49,7 +49,7 @@ def Mul(x, y) -> Op:
             args=[x, y],
             name="Mul")
 
-def Max(x, y) -> Op:
+def Max(x: Node, y: Node) -> Op:
     def impl(x: Int, y: Int) -> Int:
         val_ = max(x.val, y.val)
         
@@ -71,7 +71,7 @@ def Max(x, y) -> Op:
             args=[x, y],
             name="Max")
 
-def Min(x, y) -> Op:
+def Min(x: Node, y: Node) -> Op:
     def impl(x: Int, y: Int) -> Int:
         val_ = min(x.val, y.val)
         
@@ -93,7 +93,7 @@ def Min(x, y) -> Op:
             args=[x, y],
             name="Min")
 
-def And(x, y) -> Op:
+def And(x: Node, y: Node) -> Op:
     def impl(a: Int, b: Int) -> Int:
         val_ = a.val & b.val
         width_ = max(a.width, b.width)
@@ -110,7 +110,7 @@ def And(x, y) -> Op:
             args=[x, y],
             name="And")
 
-def Or(x, y) -> Op:
+def Or(x: Node, y: Node) -> Op:
     def impl(a: Int, b: Int) -> Int:
         val_ = a.val | b.val
         width_ = max(a.width, b.width)
@@ -128,7 +128,7 @@ def Or(x, y) -> Op:
             args=[x, y],
             name="Or")
 
-def Xor(x, y) -> Op:
+def Xor(x: Node, y: Node) -> Op:
     def impl(a: Int, b: Int) -> Int:
         val_ = a.val ^ b.val
         width_ = max(a.width, b.width)
@@ -145,7 +145,7 @@ def Xor(x, y) -> Op:
             args=[x, y],
             name="Xor")
 
-def Lshift(x, n) -> Op:
+def Lshift(x: Node, n: Node) -> Op:
     def impl(x: Int, n: Int) -> Int:
         assert n.val >= 0, f"Shift amount should be non-negative, {n.val} is provided"
         val_ = x.val << n.val
@@ -161,7 +161,7 @@ def Lshift(x, n) -> Op:
             args=[x, n],
             name="Lshift")
             
-def Rshift(x, n) -> Op:
+def Rshift(x: Node, n: Node) -> Op:
     def impl(x: Int, n: Int) -> Int:
         assert n.val >= 0, f"Shift amount should be non-negative, {n.val} is provided"
         val_ = x.val >> n.val

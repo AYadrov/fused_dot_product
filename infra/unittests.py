@@ -6,6 +6,7 @@ import importlib
 from ..designs.optimized import Optimized
 from ..designs.conventional import Conventional
 from ..ast.AST import *
+from ..ast.types import *
 from ..utils.utils import *
 from ..utils.basics import *
 
@@ -83,15 +84,15 @@ class TestFusedDotProduct(unittest.TestCase):
                 for _ in range(num_tests):
                     args = []
                     for i in range(N_inputs):
-                        args.append(random.randint(0, 1000))
+                        args.append(Int(random.randint(0, 1000)))
                     op = func(*args)
                     
                     # Evaluate using spec and impl
-                    spec_result = op.spec(*args)
+                    spec_result = op.spec(*[x.val for x in args])
                     impl_result = op.impl(*args)
                     
                     self.assertEqual(
-                        spec_result, impl_result,
+                        spec_result, impl_result.val,
                         msg=f"{func.__name__} failed for inputs {args}: "
                             f"spec={spec_result}, impl={impl_result}"
                     )

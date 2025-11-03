@@ -35,6 +35,7 @@ class Int(Type):
             self.width = max(1, val.bit_length())
         else:
             self.width = width
-            
+        
+        assert self.width > 0, f"Integer width can not be less than zero, {self.width} is provided"
         assert max(1, val.bit_length()) <= self.width, \
                 f"Value {val} needs {max(1, val.bit_length())} bits, but width={self.width} is too small"
