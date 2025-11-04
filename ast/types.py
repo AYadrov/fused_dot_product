@@ -7,6 +7,10 @@ class Type:
     """Base class for numerical types."""
     def to_spec(self):
         raise NotImplementedError
+        
+    def __str__(self):
+        raise NotImplementedError
+
 
 class Q(Type):
     """Signed fixed-point type."""
@@ -23,20 +27,24 @@ class Q(Type):
             f"Value {val} doesn't fit in signed {total_bits}-bit range "
             f"({min_val}..{max_val})"
         )
+        
+    def __str__(self):
+        return f"Q{self.int_bits}.{self.frac_bits} " + str(self.to_spec())
 
     def sign_bit(self):
         return self.val >> (self.frac_bits + self.int_bits - 1)
 
-    def sign_extend(self, n: int) -> Q:
+    @staticmethod
+    def sign_extend(x, n: int):
         assert n >= 0, f"Extend bits can not be negative, {n} is provided"
-        total_bits = self.int_bits + self.frac_bits
-        sign = self.sign_bit()
+        total_bits = x.int_bits + x.frac_bits
+        sign = x.sign_bit()
         upper_bits = (sign << n) - sign
-        res = self.val | (upper_bits << total_bits)
-        return Q(res, self.int_bits + n, self.frac_bits)
+        res = x.val | (upper_bits << total_bits)
+        return Q(res, x.int_bits + n, x.frac_bits)
         
     @staticmethod
-    def align(x: Q, y: Q) -> Tuple[Q, Q]:
+    def align(x, y):
         # Step 1. Align fractional bits
         if x.frac_bits > y.frac_bits:
             shift = x.frac_bits - y.frac_bits
@@ -47,9 +55,9 @@ class Q(Type):
 
         # Step 2. Align integer bits
         if x.int_bits > y.int_bits:
-            y = y.sign_extend(x.int_bits - y.int_bits)
+            y = Q.sign_extend(y, x.int_bits - y.int_bits)
         elif x.int_bits < y.int_bits:
-            x = x.sign_extend(y.int_bits - x.int_bits)
+            x = Q.sign_extend(x, y.int_bits - x.int_bits)
         
         return x, y
 
@@ -72,6 +80,9 @@ class UQ(Type):
             f"Value {val} requires {max(1, val.bit_length())} bits, "
             f"but only {total_bits} provided ({int_bits}+{frac_bits})"
         )
+        
+    def __str__(self):
+        return f"UQ{self.int_bits}.{self.frac_bits} " + str(self.to_spec())
     
     def to_spec(self):
         return float(self.val) / (2 ** self.frac_bits)
@@ -89,8 +100,47 @@ class Int(Type):
         assert max(1, val.bit_length()) <= self.width, \
                 f"Value {val} needs {max(1, val.bit_length())} bits, but width={self.width} is too small"
                 
+    def __str__(self):
+        return str(self.val)
+    
     def to_spec(self):
         return self.val
+        
+# TODO: SUBNORMALS, ENCODINGS
+class Float(Type):
+    """Single-precision floating-point format, IEEE754-1985"""
+    mantissa_bits = 23
+    exponent_bits = 8
+    exponent_bias = 127
+        
+    def __init__(self, sign: int, mantissa: int, exponent: int):
+        assert sign in (0, 1), f"Invalid sign: {sign}"
+        assert mantissa >= 0, f"Mantissa must be non-negative, got {mantissa}"
+        assert exponent >= 0, f"Exponent must be non-negative, got {exponent}"
+        assert mantissa.bit_length() <= self.mantissa_bits, \
+            f"Mantissa too large: needs {mantissa.bit_length()} bits (max {self.mantissa_bits})"
+        assert exponent.bit_length() <= self.exponent_bits, \
+            f"Exponent too large: needs {exponent.bit_length()} bits (max {self.exponent_bits})"
+
+        self.sign = sign
+        self.mantissa = mantissa
+        self.exponent = exponent
+       
+    def __str__(self):
+        return str(self.to_spec())
+    
+    def to_spec(self):
+        """Converts to actual floating-point value (IEEE754-style)."""
+        if self.exponent == 0:
+            # Subnormal numbers (no implicit 1)
+            frac = self.mantissa / (2 ** self.mantissa_bits)
+            exp_val = 1 - self.exponent_bias
+        else:
+            frac = 1.0 + self.mantissa / (2 ** self.mantissa_bits)
+            exp_val = self.exponent - self.exponent_bias
+
+        value = (-1) ** self.sign * frac * (2 ** exp_val)
+        return float(value)
         
 
 # TODO: loss of accuracy can happen here
@@ -147,7 +197,7 @@ def Q_sign_bit(x: Node) -> Op:
             args=[x],
             name="Q_sign_bit")
 
-def Q_negate(x: Node) -> Op:
+def Q_Negate(x: Node) -> Op:
     def spec(x: float) -> float:
         return (-1) * x
 
@@ -163,7 +213,7 @@ def Q_negate(x: Node) -> Op:
             spec=spec,
             impl=impl,
             args=[x],
-            name="Q_negate")
+            name="Q_Negate")
             
 def Q_Add(x: Node, y: Node) -> Op:
     def spec(x: float, y: float) -> float:
@@ -172,8 +222,8 @@ def Q_Add(x: Node, y: Node) -> Op:
     def impl(x: Q, y: Q) -> Q:
         x_adj, y_adj = Q.align(x, y)
         
-        x_ext = x_adj.sign_extend(1)  # Extending to avoid overflow
-        y_ext = y_adj.sign_extend(1)
+        x_ext = Q.sign_extend(x_adj, 1)  # Extending to avoid overflow
+        y_ext = Q.sign_extend(y_adj, 1)
         
         return Q(x_ext.val + y_ext.val, x_ext.int_bits, x_ext.frac_bits)
     
@@ -181,7 +231,7 @@ def Q_Add(x: Node, y: Node) -> Op:
         spec=spec,
         impl=impl,
         args=[x, y],
-        name="Q_add"
+        name="Q_Add"
     )
     
 def Q_Xor(x: Node, y: Node) -> Op:

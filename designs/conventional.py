@@ -45,7 +45,6 @@ class Conventional:
         # Step 1. Convert mantissas to UQ
         M_a = [bf16_mantissa_to_UQ(self.M_a[i]) for i in range(N)] # UQ1.7
         M_b = [bf16_mantissa_to_UQ(self.M_b[i]) for i in range(N)] # UQ1.7
-        mantissa_length = Add(Const(1), self.bf16_mantissa_bits) # 1 + 7 = 8
         
         # Step 2. Multiply mantissas
         M_p = [Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
@@ -75,7 +74,7 @@ class Conventional:
         ########## RESULT ################## 
         
         fraction_bits = Sub(self.Wf, Const(2))
-        root = signed_UQ_E_to_float(M_sum, fraction_bits, E_m)
+        root = Q_E_encode_float(M_sum, E_m)
         return root
         
     def __call__(self, a, b):

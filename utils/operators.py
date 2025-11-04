@@ -9,32 +9,46 @@ import math
 
 ########## CUSTOM OPERATORS ########
     
-def signed_UQ_E_to_float(fxp: Node, fraction_bits: Node, exponent: Node) -> Op:
-    """
-    Convert a signed fixed-point mantissa and exponent into a floating-point value.
-
-    Args:
-        fxp: Fixed-point mantissa (signed integer).
-        fraction_bits: Number of fractional bits in the mantissa.
-        exponent: Exponent value.
-
-    Returns:
-        Operator encoding float = mantissa * 2^(exponent - BF16_BIAS - fraction_bits)
-    """
-
-    def spec(m: int, frac_bits: int, e: int) -> float:
+def Q_E_encode_float(fxp: Node, exponent: Node) -> Op:
+    def spec(m: float, e: int) -> float:
         """Mathematical reference implementation."""
-        return float(m) * 2.0 ** (e - BF16_BIAS - frac_bits)
+        return float(m) * 2.0 ** (e - BF16_BIAS)
 
     # implementation matches spec; can differ if optimized later
-    def impl(m: int, frac_bits: int, e: int) -> float:
-        return float(m) * 2.0 ** (e - BF16_BIAS - frac_bits)
+    def impl(m: Q, e: Int) -> Float:
+        frac_bits = m.frac_bits
+        total_bits = m.int_bits + frac_bits
+
+        sign = m.sign_bit()
+        mantissa_val = m.val
+        if sign:
+            mantissa_val = ((~mantissa_val) + 1) & ((1 << total_bits) - 1)
+
+        exponent_val = e.val
+        
+        if mantissa_val == 0:
+            return Float(sign=0, mantissa=0, exponent=0)
+        
+        # Normalize so that the integer part is 1.xxxxx
+        while (mantissa_val >> frac_bits) == 0:
+            mantissa_val <<= 1
+            exponent_val -= 1
+
+        while (mantissa_val >> (frac_bits + 1)) > 0:
+            mantissa_val >>= 1
+            exponent_val += 1
+
+        # Strip implicit leading 1 for Float mantissa
+        mantissa_field = mantissa_val & ((1 << frac_bits) - 1)
+
+        # Construct Float
+        return Float(sign=sign, mantissa=mantissa_field, exponent=exponent_val)
 
     return Op(
         spec=spec,
         impl=impl,
-        args=[fxp, fraction_bits, exponent],
-        name="signed_UQ_E_to_float",
+        args=[fxp, exponent],
+        name="Q_E_encode_float",
     )
 
 def OPTIMIZED_MAX_EXP4(e0: Node, 

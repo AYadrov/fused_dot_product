@@ -7,9 +7,8 @@ def bf16_mantissa_to_UQ(mantissa: Node) -> Composite:
     def spec(mantissa: int) -> float:
         return float(mantissa) / (2 ** BF16_MANTISSA_BITS) + 1.0
         
-    def impl(mantissa: Int) -> UQ:
-        result = Or(mantissa, Lshift(Const(1), BF16_MANTISSA_BITS))
-        return Int_to_UQ(result, Const(Int(1)), Const(Int(7)))
+    mantissa_ = Or(mantissa, Lshift(Const(Int(1)), Const(Int(BF16_MANTISSA_BITS), "BF16_MANTISSA_BITS")))
+    impl = Int_to_UQ(mantissa_, Const(Int(1)), Const(Int(7)))
     
     return Composite(spec, impl, [mantissa], "bf16_mantissa_to_UQ")
 
@@ -17,10 +16,10 @@ def Q_add_sign(mantissa: Node, sign: Node) -> Composite:
     def spec(mantissa: float, sign: int) -> int:
         return ((-1) ** sign) * mantissa
 
-    neg = Q_negate(mantissa)
+    neg = Q_Negate(mantissa)
     pos = mantissa
     # Select one using sign mask: result = pos*(1-sign) + neg*sign
-    impl = Add(Mul(Sub(Const(1), sign), pos), Mul(sign, neg))
+    impl = Add(Mul(Sub(Const(Int(1)), sign), pos), Mul(sign, neg))
     
     return Composite(spec, impl, [mantissa, sign], "Q_add_sign")
 
@@ -48,9 +47,9 @@ def ADDER_TREE4(x0: Node, x1: Node, x2: Node, x3: Node) -> Composite:
     def spec(x0: float, x1: float, x2: float, x3: float) -> float:
         return x0 + x1 + x2 + x3
     
-    res1 = Q_add(x0, x1)
-    res2 = Q_add(x2, x3)
-    impl = Q_add(res1, res2)
+    res1 = Q_Add(x0, x1)
+    res2 = Q_Add(x2, x3)
+    impl = Q_Add(res1, res2)
     
     return Composite(spec, impl, [x0, x1, x2, x3], "ADDER_TREE4")
     
@@ -77,7 +76,7 @@ def CSA_ADDER_TREE4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
     def CSA(a, b, c):
         sum_  = Q_Xor(Q_Xor(a, b), c)
         carry = Q_Or(Q_Or(Q_And(a, b), Q_And(a, c)), Q_And(b, c))
-        return  sum_, Q_Lshift(carry, Const(1))
+        return  sum_, Q_Lshift(carry, Const(Int(1)))
     
     s1, c1 = CSA(m0, m1, m2)
     s2, c2 = CSA(m3, s1, c1)
@@ -98,7 +97,7 @@ def take_last_n_bits(x: Node, n: Node) -> Composite:
         effectively masking all but the lowest n bits.
     """
     spec = lambda x, n: x % (2 ** n)
-    impl = And(x, (Sub(Lshift(Const(1), n), Const(1))))
+    impl = And(x, (Sub(Lshift(Const(Int(1)), n), Const(Int(1)))))
     
     return Composite(spec, impl, [x, n], "take_last_n_bits")
     
@@ -119,7 +118,7 @@ def invert_bits(x: Node, s: Node) -> Composite:
         invert_bits(0, 2) -> 3   # 0b00 -> 0b11
     """
     spec = lambda x, s: (2**s - 1) - x
-    impl = Sub(Sub(Lshift(Const(1), s), Const(1)), x)
+    impl = Sub(Sub(Lshift(Const(Int(1)), s), Const(Int(1))), x)
     
     return Composite(spec, impl, [x, s], "invert_bits")
     
@@ -136,7 +135,7 @@ def exponents_adder(x: Node, y: Node) -> Composite:
         which represents the correctly biased exponent sum for BF16 arithmetic.
     """
     spec = lambda x, y: x + y - BF16_BIAS
-    impl = Sub(Add(x, y), Const(BF16_BIAS, "BF16_BIAS"))
+    impl = Sub(Add(x, y), Const(Int(BF16_BIAS), "BF16_BIAS"))
     
     return Composite(spec, impl, [x, y], "exponents_adder")
     

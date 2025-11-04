@@ -1,5 +1,7 @@
 from typing import Any, Callable
 
+from fused_dot_product.ast.types import *
+
 class Node: 
     def evaluate(self) -> tuple[Any, Any]:
         raise NotImplementedError
@@ -114,11 +116,17 @@ class Op(Node):
     #         return repr(arg)
 
 class Const(Node):
-    def __init__(self, val: Any, name: str = None):
+    def __init__(self, val: Type, name: str = None):
+        assert isinstance(val, Type), f"Const val must be a Type, {val} is provided"
         if name is None:
             name = str(val)
         self.name, self.val = name, val
-
+        
+    def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
+        connector = "└── " if is_last else "├── "
+        val_repr = f" = {str(self.val)}" if self.val is not None else ""
+        print(prefix + connector + f"{val_repr} [Const]")
+        
     def evaluate(self):
         return self.val, self.val
 
