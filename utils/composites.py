@@ -75,15 +75,13 @@ def CSA_ADDER_TREE4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
         return m0 + m1 + m2 + m3
     
     def CSA(a, b, c):
-        sum_  = Xor(Xor(a, b), c)
-        carry = Or(Or(And(a, b), And(a, c)), And(b, c))
-        return  sum_, Lshift(carry, Const(1))
+        sum_  = Q_Xor(Q_Xor(a, b), c)
+        carry = Q_Or(Q_Or(Q_And(a, b), Q_And(a, c)), Q_And(b, c))
+        return  sum_, Q_Lshift(carry, Const(1))
     
     s1, c1 = CSA(m0, m1, m2)
-    m3_ = extend_Q(m3, bit_width, Add(Const(1), bit_width))
-    s1_ = extend_Q(s1, bit_width, Add(Const(1), bit_width))
-    s2, c2 = CSA(m3_, s1_, c1)
-    impl = Add_twos_complement(s2, Add(Const(1), bit_width), c2, Add(Const(2), bit_width))
+    s2, c2 = CSA(m3, s1, c1)
+    impl = Q_Add(s2, c2)
     
     return Composite(spec, impl, [m0, m1, m2, m3], "CSA_ADDER_TREE4")
 

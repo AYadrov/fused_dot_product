@@ -1,4 +1,5 @@
 from typing import Tuple
+from struct import pack, unpack
 
 from fused_dot_product.ast.AST import *
 
@@ -33,21 +34,21 @@ class Q(Type):
         upper_bits = (sign << n) - sign
         res = self.val | (upper_bits << total_bits)
         return Q(res, self.int_bits + n, self.frac_bits)
-    
+        
     @staticmethod
     def align(x: Q, y: Q) -> Tuple[Q, Q]:
         # Step 1. Align fractional bits
         if x.frac_bits > y.frac_bits:
             shift = x.frac_bits - y.frac_bits
             y = Q(y.val << shift, y.int_bits, x.frac_bits)
-        else:
+        elif x.frac_bits < y.frac_bits:
             shift = y.frac_bits - x.frac_bits
             x = Q(x.val << shift, x.int_bits, y.frac_bits)
 
         # Step 2. Align integer bits
         if x.int_bits > y.int_bits:
             y = y.sign_extend(x.int_bits - y.int_bits)
-        else:
+        elif x.int_bits < y.int_bits:
             x = x.sign_extend(y.int_bits - x.int_bits)
         
         return x, y
@@ -164,7 +165,7 @@ def Q_negate(x: Node) -> Op:
             args=[x],
             name="Q_negate")
             
-def Q_add(x: Node, y: Node) -> Op:
+def Q_Add(x: Node, y: Node) -> Op:
     def spec(x: float, y: float) -> float:
         return x + y
         
@@ -181,5 +182,74 @@ def Q_add(x: Node, y: Node) -> Op:
         impl=impl,
         args=[x, y],
         name="Q_add"
+    )
+    
+def Q_Xor(x: Node, y: Node) -> Op:
+    # https://stackoverflow.com/questions/14461011/xor-between-floats-in-python
+    def spec(x: float, y: float) -> float:
+        f1 = int.from_bytes(struct.pack('>d', x), 'big')
+        f2 = int.from_bytes(struct.pack('>d', y), 'big')
+        orv = f1 ^ f2
+        return struct.unpack('>d', orv.to_bytes(8, 'big'))[0]
+        
+    def impl(x: Q, y: Q) -> Q:
+        x_adj, y_adj = Q.align(x, y)
+        return Q(x_adj.val ^ y_adj.val, x_adj.int_bits, x_adj.frac_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        args=[x, y],
+        name="Q_Xor"
+    )
+    
+def Q_And(x: Node, y: Node) -> Op:
+    def spec(x: float, y: float) -> float:
+        f1 = int.from_bytes(struct.pack('>d', x), 'big')
+        f2 = int.from_bytes(struct.pack('>d', y), 'big')
+        orv = f1 & f2
+        return struct.unpack('>d', orv.to_bytes(8, 'big'))[0]
+        
+    def impl(x: Q, y: Q) -> Q:
+        x_adj, y_adj = Q.align(x, y)
+        return Q(x_adj.val & y_adj.val, x_adj.int_bits, x_adj.frac_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        args=[x, y],
+        name="Q_And"
+    )
+    
+def Q_Or(x: Node, y: Node) -> Op:
+    def spec(x: float, y: float) -> float:
+        f1 = int.from_bytes(struct.pack('>d', x), 'big')
+        f2 = int.from_bytes(struct.pack('>d', y), 'big')
+        orv = f1 | f2
+        return struct.unpack('>d', orv.to_bytes(8, 'big'))[0]
+        
+    def impl(x: Q, y: Q) -> Q:
+        x_adj, y_adj = Q.align(x, y)
+        return Q(x_adj.val | y_adj.val, x_adj.int_bits, x_adj.frac_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        args=[x, y],
+        name="Q_Or"
+    )
+    
+def Q_Lshift(x: Node, n: Node) -> Op:
+    def spec(x: float, n: int) -> float:
+        return x * 2**n
+        
+    def impl(x: Q, n: Int) -> Q:
+        return Q(x.val << n.val, x.int_bits + n.val, x.frac_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        args=[x, n],
+        name="Q_Lshift"
     )
 

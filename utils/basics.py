@@ -117,10 +117,9 @@ def Or(x: Node, y: Node) -> Op:
         return Int(val_, width_)
 
     def spec(a: int, b: int) -> int:
-        m = max(a, b)
         return sum([(1 << n) * (((a >> n) & 1) + ((b >> n) & 1) - 
                  ((a >> n) & 1) * ((b >> n) & 1))
-                    for n in range(0, max(1, m.bit_length()))])
+                    for n in range(0, max(1, max(a, b).bit_length()))])
     
     return Op(
             spec=spec,
@@ -135,9 +134,8 @@ def Xor(x: Node, y: Node) -> Op:
         return Int(val_, width_)
 
     def spec(a: int, b: int) -> int:
-        m = max(a, b)
-        return sum([(1 << n) * (((a >> n) & 1) ^ ((b >> n) & 1))
-                for n in range(0, max(1, m.bit_length()))])
+        return sum([(2**n) * (((a // 2**n) + (b // 2**n)) % 2)
+                for n in range(0, max(1, max(a, b).bit_length()))])
     
     return Op(
             spec=spec,
