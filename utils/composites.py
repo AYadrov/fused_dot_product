@@ -4,18 +4,8 @@ from fused_dot_product.config import *
 from fused_dot_product.utils.basics import *
 
 def bf16_mantissa_to_UQ(mantissa: Node) -> Composite:
-    """
-    Converts the fractional part of a BF16 mantissa into an unsigned fixed-point mantissa
-    by restoring the implicit leading 1 bit.
-
-    Args:
-        mantissa: Fractional bits of the BF16 mantissa (without the hidden leading 1).
-
-    Returns:
-        Composite producing mantissa | (1 << BF16_MANTISSA_BITS) {BF16_MANTISSA_BITS + 1} bits long
-    """
-    def spec(mantissa: int) -> int:
-        return int(2 ** BF16_MANTISSA_BITS + mantissa)
+    def spec(mantissa: int) -> float:
+        return float(mantissa) / (2 ** BF16_MANTISSA_BITS) + 1.0
         
     def impl(mantissa: Int) -> UQ:
         result = Or(mantissa, Lshift(Const(1), BF16_MANTISSA_BITS))
@@ -23,90 +13,18 @@ def bf16_mantissa_to_UQ(mantissa: Node) -> Composite:
     
     return Composite(spec, impl, [mantissa], "bf16_mantissa_to_UQ")
 
-def UQ_to_Q(mantissa: Node,
-            sign: Node,
-            bit_width: Node) -> Composite:
-    """
-    Converts unsigned fixed-point mantissa into a signed fixed-point
-    using twos complements.
-    
-    Args:
-        mantissa (int): unsinged fixed point
-        sign (int): sign bit
-        bit_width (int): bit width of mantissa
-    
-    Returns:
-        Composite producing sign?mantissa:2**bit_width - mantissa, {bit-width + 1} bits long
-    """
-    def spec(mantissa: int, sign: int, bit_width: int) -> int:
-        return int(mantissa) if sign == 0 else int(2**(bit_width+1) - mantissa)
-    
-    full_width = Add(bit_width, Const(1))
-    two_pow = Lshift(Const(1), full_width)
-    # Compute both candidates
-    neg = Sub(two_pow, mantissa)  # 2^(bit_width+1) - mantissa
+def Q_add_sign(mantissa: Node, sign: Node) -> Composite:
+    def spec(mantissa: float, sign: int) -> int:
+        return ((-1) ** sign) * mantissa
+
+    neg = Q_negate(mantissa)
     pos = mantissa
     # Select one using sign mask: result = pos*(1-sign) + neg*sign
     impl = Add(Mul(Sub(Const(1), sign), pos), Mul(sign, neg))
     
-    return Composite(spec, impl, [mantissa, sign, bit_width], "UQ_to_Q")
-    
-def Q_to_signed_UQ(mantissa: Node, 
-                   bit_width: Node) -> Composite:
-    """
-    Converts a two's complement encoded integer into a signed value.
+    return Composite(spec, impl, [mantissa, sign], "Q_add_sign")
 
-    Args:
-        mantissa: The two's complement encoded integer value.
-        bit_width: The total bit width of the two's complement representation.
-
-    Returns:
-        Composite producing mantissa - (sign_bit << bit_width), {bit_width - 1} bits long.
-    """
-    def spec(mantissa: int, bit_width: int) -> int:
-        sign_bit = Q_sign_bit(Const(mantissa), Const(bit_width)).evaluate_spec()
-        return int(mantissa - sign_bit * 2 ** bit_width)
-
-    impl = Sub(
-        mantissa,
-        Lshift(Q_sign_bit(mantissa, bit_width), bit_width)
-    )
-    
-    return Composite(spec, impl, [mantissa, bit_width], "Q_to_signed_UQ")
-    
-def extend_Q(mantissa: Node, 
-             bit_width: Node, 
-             bit_width_new: Node) -> Composite:
-    """
-    Extends a two's complement integer to a larger bit width.
-
-    Args:
-        mantissa: The original two's complement encoded integer value.
-        bit_width: The current bit width of the input value.
-        bit_width_new: The target bit width after extension.
-
-    Returns:
-        Composite producing a new two's complement value of width bit_width_new,
-        where the sign bit is replicated into the extended upper bits.
-    """
-    def spec(mantissa: int, bit_width: int, bit_width_new: int) -> int:
-        sign = (mantissa >> (bit_width - 1)) & 1
-        if sign == 0:
-            return mantissa
-        else:
-            return mantissa | (((1 << (bit_width_new - bit_width)) - 1) << bit_width)
-
-    extend_bits = Sub(bit_width_new, bit_width)
-    sign = Q_sign_bit(mantissa, bit_width)
-    upper_bits = Sub(Lshift(sign, extend_bits), sign)
-    impl = Or(mantissa, Lshift(upper_bits, bit_width))
-    
-    return Composite(spec, impl, [mantissa, bit_width, bit_width_new], "extend_Q")
-
-def MAX_EXPONENT4(e0: Node,
-                  e1: Node,
-                  e2: Node,
-                  e3: Node) -> Composite:
+def MAX_EXPONENT4(e0: Node, e1: Node, e2: Node, e3: Node) -> Composite:
     """
     Computes the maximum exponent value among four inputs using pairwise comparison.
 
@@ -126,79 +44,20 @@ def MAX_EXPONENT4(e0: Node,
     
     return Composite(spec, impl, [e0, e1, e2, e3], "MAX_EXPONENT4")
     
-def ADDER_TREE4(x0: Node,
-                x1: Node,
-                x2: Node,
-                x3: Node,
-                bit_width: Node) -> Composite:
-    """
-    Performs a two-level addition of four two's complement operands using an adder tree structure.
-
-    Args:
-        x0: First two's complement operand.
-        x1: Second two's complement operand.
-        x2: Third two's complement operand.
-        x3: Fourth two's complement operand.
-        bit_width: Bit width of each input operand.
-
-    Returns:
-        Composite producing the summed result of all four operands.
-        Each addition step increases the bit width by one to accommodate potential overflow.
-    """
-    def spec(x0: int, x1: int, x2: int, x3: int, bit_width: int) -> int:
-        return Add_twos_complement(
-                Add_twos_complement(Const(x0), Const(bit_width), Const(x1), Const(bit_width)).evaluate_spec(), 
-                Const(bit_width + 1),
-                Add_twos_complement(Const(x2), Const(bit_width), Const(x3), Const(bit_width)).evaluate_spec(),
-                Const(bit_width + 1)
-               ).evaluate_spec()
+def ADDER_TREE4(x0: Node, x1: Node, x2: Node, x3: Node) -> Composite:
+    def spec(x0: float, x1: float, x2: float, x3: float) -> float:
+        return x0 + x1 + x2 + x3
     
-    res1 = Add_twos_complement(x0, bit_width, x1, bit_width)
-    res2 = Add_twos_complement(x2, bit_width, x3, bit_width) 
-    bit_width_ = Add(Const(1), bit_width)
-    impl = Add_twos_complement(res1, bit_width_, res2, bit_width_)
+    res1 = Q_add(x0, x1)
+    res2 = Q_add(x2, x3)
+    impl = Q_add(res1, res2)
     
-    return Composite(spec, impl, [x0, x1, x2, x3, bit_width], "ADDER_TREE4")
-    
-def Add_twos_complement(x: Node,
-                        x_bits: Node, 
-                        y: Node, 
-                        y_bits: Node) -> Composite:
-    """
-    Adds two two's complement integers of potentially different bit widths.
-
-    Args:
-        x: First two's complement operand.
-        x_bits: Bit width of the first operand.
-        y: Second two's complement operand.
-        y_bits: Bit width of the second operand.
-
-    Returns:
-        Composite producing the two's complement sum of x and y.
-        Output has {max(x_bits, y_bits) + 1} bit width.
-    """
-    def spec(x: int, x_bits: int, y: int, y_bits: int) -> int:
-        x_ = Q_to_signed_UQ(Const(x), Const(x_bits)).evaluate_spec()
-        y_ = Q_to_signed_UQ(Const(y), Const(y_bits)).evaluate_spec()
-        sum_ = x_ + y_
-        return UQ_to_Q(abs(sum_), 1 if sum_ < 0 else 0, max(x_bits-1, y_bits-1) + 1).evaluate_spec()
-        
-    output_len = Add(Max(x_bits, y_bits), Const(1))
-    x_ = extend_Q(x, x_bits, output_len)
-    y_ = extend_Q(y, y_bits, output_len)
-    mask = Sub(Lshift(Const(1), output_len), Const(1))
-    impl = And(Add(x_, y_), mask)
-    
-    return Composite(spec, impl, [x, x_bits, y, y_bits], "Add_twos_complement")
+    return Composite(spec, impl, [x0, x1, x2, x3], "ADDER_TREE4")
     
 # It is important to call CSA only on fixed points with equal lengths!
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
-def CSA_ADDER_TREE4(m0: Node,
-                    m1: Node, 
-                    m2: Node, 
-                    m3: Node, 
-                    bit_width: Node) -> Composite:
+def CSA_ADDER_TREE4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
     """
     Performs a four-operand addition using a carry-save adder (CSA) tree structure.
 
@@ -207,19 +66,13 @@ def CSA_ADDER_TREE4(m0: Node,
         m1: Second two's complement operand.
         m2: Third two's complement operand.
         m3: Fourth two's complement operand.
-        bit_width: Bit width of each input operand.
 
     Returns:
         Composite producing the sum of the four operands using a two-level CSA tree.
         Output has {bit_width + 3} bit width.
     """
-    def spec(m0: int, m1: int, m2: int, m3: int, bit_width: int) -> int:
-        m0_ = Q_to_signed_UQ(Const(m0), Const(bit_width)).evaluate_spec()
-        m1_ = Q_to_signed_UQ(Const(m1), Const(bit_width)).evaluate_spec()
-        m2_ = Q_to_signed_UQ(Const(m2), Const(bit_width)).evaluate_spec()
-        m3_ = Q_to_signed_UQ(Const(m3), Const(bit_width)).evaluate_spec()
-        sum_ = (m0_ + m1_) + (m2_ + m3_)
-        return UQ_to_Q(Const(abs(sum_)), Const(1 if sum_ < 0 else 0), Const(bit_width + 2)).evaluate_spec()
+    def spec(m0: float, m1: float, m2: float, m3: float) -> float:
+        return m0 + m1 + m2 + m3
     
     def CSA(a, b, c):
         sum_  = Xor(Xor(a, b), c)
@@ -232,7 +85,7 @@ def CSA_ADDER_TREE4(m0: Node,
     s2, c2 = CSA(m3_, s1_, c1)
     impl = Add_twos_complement(s2, Add(Const(1), bit_width), c2, Add(Const(2), bit_width))
     
-    return Composite(spec, impl, [m0, m1, m2, m3, bit_width], "CSA_ADDER_TREE4")
+    return Composite(spec, impl, [m0, m1, m2, m3], "CSA_ADDER_TREE4")
 
 def take_last_n_bits(x: Node, n: Node) -> Composite:
     """

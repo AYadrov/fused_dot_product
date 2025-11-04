@@ -20,6 +20,10 @@ class Q(Type):
             f"Value {val} doesn't fit in signed {total_bits}-bit range "
             f"({min_val}..{max_val})"
         )
+        
+    def sign_bit(self):
+        total_width = self.frac_bits + self.int_bits
+        return x.val >> (total_width - 1)
 
     def to_spec(self):
         total_bits = self.int_bits + self.frac_bits
@@ -64,6 +68,7 @@ class Int(Type):
                 
     def to_spec(self):
         return self.val
+        
 
 # TODO: loss of accuracy can happen here
 def Int_to_UQ(x: Node, int_bits: Node, frac_bits: Node) -> Op:
@@ -109,8 +114,7 @@ def Q_sign_bit(x: Node) -> Op:
         return 1 if x < 0 else 0
     
     def impl(x: Q) -> Int:
-        total_width = x.frac_bits + x.int_bits
-        res = x.val >> (total_width - 1)
+        res = x.sign_bit()
         assert res == 1 or res == 0
         return Int(res)
         
@@ -137,3 +141,89 @@ def Q_negate(x: Node) -> Op:
             impl=impl,
             args=[x],
             name="Q_negate")
+            
+def Q_extend_frac_bits(x: Node, n: Int) -> Op:
+    def spec(x: float, n: int) -> float:
+        return x  # extending doesn't change numeric value
+    
+    def impl(x: Q, n: Int) -> Q:
+        assert n.val >= 0, f"Extend bits can not be negative, {n.val} is provided"
+        res = x.val << n.val
+        return Q(res, x.int_bits, x.frac_bits + n.val)
+        
+    return Op(
+            spec=spec,
+            impl=impl,
+            args=[x, n],
+            name="Q_extend_frac_bits")
+            
+def Q_extend_int_bits(x: Node, n: Int) -> Op:
+    def spec(x: float, n: int) -> float:
+        return x  # extending doesn't change numeric value
+    
+    def impl(x: Q, n: Int) -> Q:
+        assert n.val >= 0, f"Extend bits can not be negative, {n.val} is provided"
+        total_bits = x.int_bits + x.frac_bits
+        sign = x.sign_bit()
+        upper_bits = (sign << n.val) - sign
+        res = x.val | (upper_bits << total_bits)
+        return Q(res, x.int_bits + n.val, x.frac_bits)
+    
+    return Op(
+            spec=spec,
+            impl=impl,
+            args=[x, n],
+            name="Q_extend_int_bits")
+            
+def Q_add(x: Node, y: Node) -> Op:
+    def spec(x: float, y: float) -> float:
+        return x + y
+        
+    def impl(x: Q, y: Q) -> Q:
+        # Step 1. Align fractional bits (binary point)
+        if x.frac_bits > y.frac_bits:
+            shift = x.frac_bits - y.frac_bits
+            y_val = y.val << shift
+            f_common = x.frac_bits
+            x_val = x.val
+        elif y.frac_bits > x.frac_bits:
+            shift = y.frac_bits - x.frac_bits
+            x_val = x.val << shift
+            f_common = y.frac_bits
+            y_val = y.val
+        else:
+            x_val, y_val = x.val, y.val
+            f_common = x.frac_bits
+
+        # Step 2. Align integer widths (sign extend)
+        total_bits_x = x.int_bits + f_common
+        total_bits_y = y.int_bits + f_common
+        total_bits_common = max(total_bits_x, total_bits_y) + 1  # for potential overflow
+
+        def sign_extend(val, old_bits, new_bits):
+            sign = (val >> (old_bits - 1)) & 1
+            if sign:
+                mask = ((1 << (new_bits - old_bits)) - 1) << old_bits
+                return val | mask
+            else:
+                return val
+
+        x_ext = sign_extend(x_val, total_bits_x, total_bits_common)
+        y_ext = sign_extend(y_val, total_bits_y, total_bits_common)
+
+        # Step 3. Add and mask
+        sum_val = x_ext + y_ext
+        mask = (1 << total_bits_common) - 1
+        sum_val &= mask  # stay within bit width
+
+        # Step 4. Construct result
+        int_bits = total_bits_common - f_common
+        return Q(sum_val, int_bits, f_common)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        args=[x, y],
+        name="Q_add"
+    )
+
