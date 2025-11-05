@@ -18,15 +18,13 @@ class Q(Type):
         self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
         
         total_bits = int_bits + frac_bits
-        min_val = -(1 << (total_bits - 1))
-        max_val = (1 << (total_bits - 1)) - 1
         
         assert int_bits >= 0, f"int bits can not be negative, {int_bits} is provided"
         assert frac_bits >= 0, f"frac bits can not be negative, {frac_bits} is provided"
         assert val >= 0, f"signed fixed-point can not be negative, {val} is provided"
-        assert min_val <= val <= max_val, (
-            f"Value {val} doesn't fit in signed {total_bits}-bit range "
-            f"({min_val}..{max_val})"
+        assert max(1, val.bit_length()) <= total_bits, (
+            f"Value {val} requires {max(1, val.bit_length())} bits, "
+            f"but only {total_bits} provided ({int_bits}+{frac_bits})"
         )
         
     def __str__(self):
@@ -268,11 +266,10 @@ def Q_Add(x: Node, y: Node) -> Op:
         
     def impl(x: Q, y: Q) -> Q:
         x_adj, y_adj = Q.align(x, y)
-        
-        x_ext = Q.sign_extend(x_adj, 1)  # Extending to avoid overflow
-        y_ext = Q.sign_extend(y_adj, 1)
-        
-        return Q(x_ext.val + y_ext.val, x_ext.int_bits, x_ext.frac_bits)
+        # Mask for handling overflow
+        mask = (1 << (x_adj.int_bits + x_adj.frac_bits)) - 1
+        sum_ = (x_adj.val + y_adj.val) & mask
+        return Q(sum_, x_adj.int_bits + 1, x_adj.frac_bits)
     
     return Op(
         spec=spec,
@@ -350,3 +347,21 @@ def Q_Lshift(x: Node, n: Node) -> Op:
         name="Q_Lshift"
     )
 
+def Q_add_sign(x: Node, sign: Node) -> Op:
+    def spec(x: float, sign: int) -> float:
+        return ((-1) ** sign) * x
+
+    def impl(x: Q, sign: Int) -> Q:
+        if sign.val == 1:
+            total_width = x.int_bits + x.frac_bits
+            mask = (1 << total_width) - 1
+            neg_val = (~x.val + 1) & mask
+            return Q(neg_val, x.int_bits, x.frac_bits)
+        else:
+            return Q(x.val, x.int_bits, x.frac_bits)
+    
+    return Op(
+            spec=spec, 
+            impl=impl, 
+            args=[x, sign], 
+            name="Q_add_sign")

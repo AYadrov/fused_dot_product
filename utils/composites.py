@@ -5,23 +5,13 @@ from fused_dot_product.utils.basics import *
 
 def bf16_mantissa_to_UQ(mantissa: Node) -> Composite:
     def spec(mantissa: int) -> float:
-        return float(mantissa) / (2 ** BF16_MANTISSA_BITS) + 1.0
+        return (float(mantissa) / (2 ** BF16_MANTISSA_BITS)) + 1.0
         
     mantissa_ = Or(mantissa, Lshift(Const(Int(1)), Const(Int(BF16_MANTISSA_BITS), "BF16_MANTISSA_BITS")))
     impl = Int_to_UQ(mantissa_, Const(Int(1)), Const(Int(7)))
     
     return Composite(spec, impl, [mantissa], "bf16_mantissa_to_UQ")
 
-def Q_add_sign(mantissa: Node, sign: Node) -> Composite:
-    def spec(mantissa: float, sign: int) -> int:
-        return ((-1) ** sign) * mantissa
-
-    neg = Q_Negate(mantissa)
-    pos = mantissa
-    # Select one using sign mask: result = pos*(1-sign) + neg*sign
-    impl = Add(Mul(Sub(Const(Int(1)), sign), pos), Mul(sign, neg))
-    
-    return Composite(spec, impl, [mantissa, sign], "Q_add_sign")
 
 def MAX_EXPONENT4(e0: Node, e1: Node, e2: Node, e3: Node) -> Composite:
     """

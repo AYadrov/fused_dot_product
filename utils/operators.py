@@ -20,10 +20,10 @@ def Q_E_encode_float(m: Node, e: Node) -> Op:
         total_bits = m.int_bits + frac_bits
 
         sign = m.sign_bit()
-        mantissa_val = m.val
         if sign:
-            mantissa_val = ((~mantissa_val) + 1) & ((1 << total_bits) - 1)
-
+            mantissa_val = ((~m.val) + 1) & ((1 << total_bits) - 1)
+        else:
+            mantissa_val = m.val
         exponent_val = e.val
         
         if mantissa_val == 0:
@@ -40,6 +40,11 @@ def Q_E_encode_float(m: Node, e: Node) -> Op:
 
         # Strip implicit leading 1 for Float mantissa
         mantissa_field = mantissa_val & ((1 << frac_bits) - 1)
+        
+        # Truncate mantissa to 23 bits
+        current_width = max(1, mantissa_field.bit_length())
+        bits_to_truncate = max(0, current_width - 23)
+        mantissa_field = mantissa_field >> bits_to_truncate
 
         # Construct Float
         return Float(sign=sign, mantissa=mantissa_field, exponent=exponent_val)

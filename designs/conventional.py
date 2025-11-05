@@ -24,6 +24,7 @@ class Conventional:
         self.bf16_mantissa_bits = Const(Int(val=BF16_MANTISSA_BITS), "BF16_MANTISSA_BITS")
 
         return [self.S_a, self.M_a, self.E_a, self.S_b, self.M_b, self.E_b, self.Wf]
+        
     
     def build_tree(self):
         ########## EXPONENTS ###############
@@ -64,13 +65,12 @@ class Conventional:
         
         M_sum = ADDER_TREE4(*M_p) # Q5.{Wf - 2}
         
-        ########## RESULT ################## 
+        ########## RESULT ##################
         
         root = Q_E_encode_float(M_sum, E_m)
         return root
         
     def __call__(self, a, b):
-        
         for i in range(N):
             s_a = Int(a[i][0], 1)
             e_a = Int(a[i][1], BF16_EXPONENT_BITS)
@@ -80,12 +80,20 @@ class Conventional:
             e_b = Int(b[i][1], BF16_EXPONENT_BITS)
             m_b = Int(b[i][2], BF16_MANTISSA_BITS)
             
-            self.S_a[i].load_val(s_a); self.E_a[i].load_val(m_a); self.M_a[i].load_val(e_a);
-            self.S_b[i].load_val(s_b); self.E_b[i].load_val(m_b); self.M_b[i].load_val(e_b);
+            self.S_a[i].load_val(s_a); self.E_a[i].load_val(e_a); self.M_a[i].load_val(m_a);
+            self.S_b[i].load_val(s_b); self.E_b[i].load_val(e_b); self.M_b[i].load_val(m_b);
          
         return self.root.evaluate()
 
 if __name__ == '__main__':
+    import random
+    random.seed(25)
     design = Conventional()
     design.root.print_tree()
-    print(design(*generate_BF16_2x4x1(5)))
+    
+    a, b = generate_BF16_2x4x1(5)
+    fp_a = [S_E_M2float(x[0], x[1], x[2]) for x in a]
+    fp_b = [S_E_M2float(x[0], x[1], x[2]) for x in b]
+    
+    print(design(a, b))
+    print(unfused_dot_product(fp_a, fp_b))
