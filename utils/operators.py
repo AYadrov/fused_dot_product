@@ -1,18 +1,20 @@
 # File defines custom user-defined Operators
 
 from fused_dot_product.ast.AST import *
-from fused_dot_product.utils.utils import *
-from fused_dot_product.utils.basics import *
 from fused_dot_product.config import *
+
+from fused_dot_product.types.Int import *
+from fused_dot_product.types.Float import *
+from fused_dot_product.types.Q import *
 
 import math
 
 ########## CUSTOM OPERATORS ########
     
-def Q_E_encode_float(m: Node, e: Node) -> Op:
+def Q_E_encode_Float(m: Node, e: Node) -> Op:
     def spec(m: float, e: int) -> float:
         """Mathematical reference implementation."""
-        return float(m) * 2.0 ** (e - BF16_BIAS)
+        return float(m) * 2.0 ** (e - Float.exponent_bias)
 
     # implementation matches spec; can differ if optimized later
     def impl(m: Q, e: Int) -> Float:
@@ -101,7 +103,7 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
                 res = not ((maxexp[i-1] and (not ep_bits[j][i-1])) or smaller[j][i-1])
                 smaller[j][i] = not res
                 data_for_or_tree.append(ep_bits[j][i] and res)
-            maxexp[i] = OR_tree(data_for_or_tree)
+            maxexp[i] = int(any(data_for_or_tree))  # Or-tree
         
         return int(''.join(map(str, map(int, maxexp))), 2)
     

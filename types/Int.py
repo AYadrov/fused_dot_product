@@ -1,9 +1,23 @@
-# File defines basic operators for floating-point evaluations
-
+from fused_dot_product.types.types import *
 from fused_dot_product.ast.AST import *
-from fused_dot_product.ast.types import *
+     
+        
+# TODO: loss of accuracy can happen here
+def Int_to_UQ(x: Node, int_bits: Node, frac_bits: Node) -> Op:
+    def spec(x: int, int_bits: int, frac_bits: int) -> float:
+        return x / 2 ** frac_bits
 
-######### BASIC OPERATORS ##########
+    def impl(x: Int, int_bits: Int, frac_bits: Int) -> UQ:
+        total_bits = int_bits.val + frac_bits.val
+        assert total_bits >= x.width
+        return UQ(x.val, int_bits.val, frac_bits.val)
+
+    return Op(
+            spec=spec,
+            impl=impl,
+            args=[x, int_bits, frac_bits],
+            name="Int_to_UQ")
+
 def Add(x: Node, y: Node) -> Op:
     def impl(x: Int, y: Int) -> Int:
         val_ = x.val + y.val
@@ -175,4 +189,3 @@ def Rshift(x: Node, n: Node) -> Op:
             impl=impl,
             args=[x, n],
             name="Rshift")
-

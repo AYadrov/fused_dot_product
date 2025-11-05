@@ -1,5 +1,4 @@
 from fused_dot_product.config import *
-from fused_dot_product.ast import *
 
 from random import getrandbits
 
@@ -32,6 +31,3 @@ def unfused_dot_product(FP_xs: list[float], FP_ys: list[float]) -> list[float]:
     for i in range(len(FP_xs)):
         out += FP_xs[i] * FP_ys[i]
     return out
-
-def OR_tree(bits: list[int]) -> int:
-    return int(any(bits))

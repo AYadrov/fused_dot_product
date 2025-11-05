@@ -1,17 +1,9 @@
 from fused_dot_product.ast.AST import *
-from fused_dot_product.ast.types import *
 from fused_dot_product.config import *
-from fused_dot_product.utils.basics import *
 
-def bf16_mantissa_to_UQ(mantissa: Node) -> Composite:
-    def spec(mantissa: int) -> float:
-        return (float(mantissa) / (2 ** BF16_MANTISSA_BITS)) + 1.0
-        
-    mantissa_ = Or(mantissa, Lshift(Const(Int(1)), Const(Int(BF16_MANTISSA_BITS), "BF16_MANTISSA_BITS")))
-    impl = Int_to_UQ(mantissa_, Const(Int(1)), Const(Int(7)))
-    
-    return Composite(spec, impl, [mantissa], "bf16_mantissa_to_UQ")
-
+from fused_dot_product.types.types import *
+from fused_dot_product.types.Int import *
+from fused_dot_product.types.Q import *
 
 def MAX_EXPONENT4(e0: Node, e1: Node, e2: Node, e3: Node) -> Composite:
     """
@@ -28,7 +20,7 @@ def MAX_EXPONENT4(e0: Node, e1: Node, e2: Node, e3: Node) -> Composite:
     """
     def spec(e0: int, e1: int, e2: int, e3: int) -> int:
         return max(max(e0, e1), max(e2, e3))
-        
+    
     impl = Max(Max(e0, e1), Max(e2, e3))
     
     return Composite(spec, impl, [e0, e1, e2, e3], "MAX_EXPONENT4")
@@ -102,7 +94,7 @@ def invert_bits(x: Node, s: Node) -> Composite:
     Returns:
         Composite producing (2^s - 1) - x,
         effectively flipping all bits.
-        
+    
     Example:
         invert_bits(3, 2) -> 0   # 0b11 -> 0b00
         invert_bits(0, 2) -> 3   # 0b00 -> 0b11
@@ -148,6 +140,8 @@ if __name__ == '__main__':
         
     local_functions = get_local_functions()
     for name, func in local_functions:
+        if name == "get_local_functions":
+            continue
         sig = inspect.signature(func)
         composite_inputs = [Var(name) for name, _ in sig.parameters.items()]
         print(f"{name} -> {sig}")

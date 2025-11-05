@@ -1,4 +1,5 @@
 from typing import Any, Callable
+from fused_dot_product.types.types import Type
 
 # from fused_dot_product.ast.types import *
 
@@ -110,9 +111,9 @@ class Op(Node):
 
 class Const(Node):
     def __init__(self, 
-                 val: Any, # Type, 
+                 val: Type, 
                  name: str = None):
-        # assert isinstance(val, Type), f"Const val must be a Type, {val} is provided"
+        assert isinstance(val, Type), f"Const's val must be a Type, {val} is provided"
         self.name, self.val = name, val
         
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
@@ -130,7 +131,8 @@ class Var(Node):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.name} [Var]")
         
-    def load_val(self, val):
+    def load_val(self, val: Type):
+        assert isinstance(val, Type), f"Var's val must be a Type, {val} is provided"
         self.val = val
         
     def evaluate(self) -> tuple[Any, Any]:

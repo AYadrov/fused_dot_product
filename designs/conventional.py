@@ -2,7 +2,11 @@ from fused_dot_product.ast.AST import *
 from fused_dot_product.utils.operators import *
 from fused_dot_product.utils.composites import *
 from fused_dot_product.utils.utils import *
-from fused_dot_product.utils.basics import *
+
+from fused_dot_product.types.Int import Sub, Int, Xor
+from fused_dot_product.types.UQ import UQ_Mul, UQ_Resize, UQ_Rshift, UQ_to_Q
+from fused_dot_product.types.BFloat16 import BF16_mantissa_to_UQ
+from fused_dot_product.types.Q import Q_add_sign
 
 
 class Conventional:
@@ -44,8 +48,8 @@ class Conventional:
         ########## MANTISSAS ###############
         
         # Step 1. Convert mantissas to UQ
-        M_a = [bf16_mantissa_to_UQ(self.M_a[i]) for i in range(N)] # UQ1.7
-        M_b = [bf16_mantissa_to_UQ(self.M_b[i]) for i in range(N)] # UQ1.7
+        M_a = [BF16_mantissa_to_UQ(self.M_a[i]) for i in range(N)] # UQ1.7
+        M_b = [BF16_mantissa_to_UQ(self.M_b[i]) for i in range(N)] # UQ1.7
         
         # Step 2. Multiply mantissas
         M_p = [UQ_Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
@@ -67,7 +71,7 @@ class Conventional:
         
         ########## RESULT ##################
         
-        root = Q_E_encode_float(M_sum, E_m)
+        root = Q_E_encode_Float(M_sum, E_m)
         return root
         
     def __call__(self, a, b):
