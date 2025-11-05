@@ -47,45 +47,38 @@ class Conventional:
         M_b = [bf16_mantissa_to_UQ(self.M_b[i]) for i in range(N)] # UQ1.7
         
         # Step 2. Multiply mantissas
-        M_p = [Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
-        mantissa_length = Add(mantissa_length, mantissa_length) # 16
+        M_p = [UQ_Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
         
         # Step 3. Shift mantissas
         # Make room for the right shift first, accuracy requirement is Wf
-        extend_bits = Max(Sub(self.Wf, mantissa_length), Const(0)) # max(0, Wf - 16)
-        M_p = [Lshift(M_p[i], extend_bits) for i in range(N)]
-        M_p = [Rshift(M_p[i], sh[i]) for i in range(N)] # UQ2.{Wf - 2}
-        mantissa_length = self.Wf
+        M_p = [UQ_Resize(M_p[i], Const(Int(2)), Sub(self.Wf, Const(Int(2)))) for i in range(N)]
+        M_p = [UQ_Rshift(M_p[i], sh[i]) for i in range(N)] # UQ2.{Wf - 2}
         
         # Step 4. Adjust sign for mantissas using xor operation
         # As a result of adding a sign, integer bits of fixedpoint gets increased by 1 to avoid overflow during conversion
         S_p = [Xor(self.S_a[i], self.S_b[i]) for i in range(N)]
-        M_p = [UQ_to_Q(M_p[i], S_p[i], mantissa_length) for i in range(N)] # Q3.{Wf - 2}
-        mantissa_length = Add(Const(1), mantissa_length) # Wf + 1
+        M_p = [UQ_to_Q(M_p[i]) for i in range(N)] # Q3.{Wf - 2}
+        M_p = [Q_add_sign(M_p[i], S_p[i]) for i in range(N)]
         
         ########## ADDER TREE ##############
         
-        M_sum = ADDER_TREE4(*M_p, mantissa_length) # Q5.{Wf - 2}
-        mantissa_length = Add(Const(2), mantissa_length) # Wf + 3
-        
-        M_sum = Q_to_signed_UQ(M_sum, mantissa_length) # UQ4.{Wf - 2}
-        mantissa_length = Sub(mantissa_length, Const(1)) # Wf + 2
+        M_sum = ADDER_TREE4(*M_p) # Q5.{Wf - 2}
         
         ########## RESULT ################## 
         
-        fraction_bits = Sub(self.Wf, Const(2))
         root = Q_E_encode_float(M_sum, E_m)
         return root
         
     def __call__(self, a, b):
+        
         for i in range(N):
-            s_a = Int(s_a, 1)
-            m_a = Int(m_a, BF16_MANTISSA_BITS)
-            e_a = Int(e_a, BF16_EXPONENT_BITS)
+            s_a = Int(a[i][0], 1)
+            e_a = Int(a[i][1], BF16_EXPONENT_BITS)
+            m_a = Int(a[i][2], BF16_MANTISSA_BITS)
             
-            s_b = Int(s_b, 1)
-            m_b = Int(m_b, BF16_MANTISSA_BITS)
-            e_b = Int(e_b, BF16_EXPONENT_BITS)
+            s_b = Int(b[i][0], 1)
+            e_b = Int(b[i][1], BF16_EXPONENT_BITS)
+            m_b = Int(b[i][2], BF16_MANTISSA_BITS)
             
             self.S_a[i].load_val(s_a); self.E_a[i].load_val(m_a); self.M_a[i].load_val(e_a);
             self.S_b[i].load_val(s_b); self.E_b[i].load_val(m_b); self.M_b[i].load_val(e_b);
@@ -95,4 +88,4 @@ class Conventional:
 if __name__ == '__main__':
     design = Conventional()
     design.root.print_tree()
-
+    print(design(*generate_BF16_2x4x1(5)))

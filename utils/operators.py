@@ -9,7 +9,7 @@ import math
 
 ########## CUSTOM OPERATORS ########
     
-def Q_E_encode_float(fxp: Node, exponent: Node) -> Op:
+def Q_E_encode_float(m: Node, e: Node) -> Op:
     def spec(m: float, e: int) -> float:
         """Mathematical reference implementation."""
         return float(m) * 2.0 ** (e - BF16_BIAS)
@@ -47,7 +47,7 @@ def Q_E_encode_float(fxp: Node, exponent: Node) -> Op:
     return Op(
         spec=spec,
         impl=impl,
-        args=[fxp, exponent],
+        args=[m, e],
         name="Q_E_encode_float",
     )
 
@@ -122,12 +122,13 @@ def EXP_OVERFLOW_UNDERFLOW_HANDLING(e: Node) -> Op:
     """
     def spec(e: int) -> int:
         return min(max(e, 0), 255)
-    def impl(e: int) -> int:
-        if e <= 0:
+        
+    def impl(e: Int) -> Int:
+        if e.val <= 0:
             raise Exception("Underflow")
-        elif e >= 255:
+        elif e.val >= 255:
             raise Exception("Overflow")
-        return min(max(e, 0), 255)
+        return Int(min(max(e.val, 0), 255))
     
     return Op(
         spec=spec,

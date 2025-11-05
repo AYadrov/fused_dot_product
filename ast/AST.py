@@ -1,6 +1,6 @@
 from typing import Any, Callable
 
-from fused_dot_product.ast.types import *
+# from fused_dot_product.ast.types import *
 
 class Node: 
     def evaluate(self) -> tuple[Any, Any]:
@@ -54,7 +54,7 @@ class Composite(Node):
         composite_spec = self.spec(*spec_inputs)
         impl_res, spec_res = self.impl.evaluate()
         
-        if spec_res != impl_res or composite_spec != spec_res:
+        if spec_res != impl_res.to_spec() or composite_spec != spec_res:
             raise AssertionError(
                 f"[{self.name}] mismatch:\n"
                 f"  input: {spec_inputs}\n"
@@ -107,28 +107,20 @@ class Op(Node):
         spec_res = self.spec(*spec_inputs)
         
         return impl_res, spec_res
-    # def _arg_str(self, arg: Any) -> str:
-    #     if isinstance(arg, Op):
-    #         return arg.name
-    #     elif isinstance(arg, Var):
-    #         return arg.name
-    #     else:
-    #         return repr(arg)
 
 class Const(Node):
-    def __init__(self, val: Type, name: str = None):
-        assert isinstance(val, Type), f"Const val must be a Type, {val} is provided"
-        if name is None:
-            name = str(val)
+    def __init__(self, 
+                 val: Any, # Type, 
+                 name: str = None):
+        # assert isinstance(val, Type), f"Const val must be a Type, {val} is provided"
         self.name, self.val = name, val
         
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
-        val_repr = f" = {str(self.val)}" if self.val is not None else ""
-        print(prefix + connector + f"{val_repr} [Const]")
+        print(prefix + connector + f"{self.name if self.name else str(self.val)} [Const]")
         
     def evaluate(self):
-        return self.val, self.val
+        return self.val, self.val.to_spec()
 
 class Var(Node):
     def __init__(self, name: str, val: Any = None):
@@ -136,14 +128,13 @@ class Var(Node):
         
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
-        val_repr = f" = {self.val}" if self.val is not None else ""
-        print(prefix + connector + f"{self.name} [Var]{val_repr}")
-    
+        print(prefix + connector + f"{self.name} [Var]")
+        
     def load_val(self, val):
         self.val = val
         
     def evaluate(self) -> tuple[Any, Any]:
         if self.val is None:
             raise ValueError(f"Variable {self.name} not bound to a value")
-        return self.val, self.val
+        return self.val, self.val.to_spec()
 
