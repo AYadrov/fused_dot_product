@@ -32,7 +32,7 @@ class Q(Type):
         )
         
     def __str__(self):
-        return f"Q{self.int_bits}.{self.frac_bits} " + str(self.to_spec())
+        return f"Q{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
 
     def sign_bit(self):
         return self.val >> (self.frac_bits + self.int_bits - 1)
@@ -86,7 +86,7 @@ class UQ(Type):
         )
         
     def __str__(self):
-        return f"UQ{self.int_bits}.{self.frac_bits} " + str(self.to_spec())
+        return f"UQ{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
     
     def to_spec(self):
         return float(self.val) / (2 ** self.frac_bits)
@@ -106,7 +106,7 @@ class Int(Type):
                 f"Value {val} needs {max(1, val.bit_length())} bits, but width={self.width} is too small"
                 
     def __str__(self):
-        return str(self.val)
+        return f"Int({str(self.val)})"
     
     def to_spec(self):
         return self.val
@@ -133,7 +133,7 @@ class Float(Type):
         self.exponent = exponent
        
     def __str__(self):
-        return str(self.to_spec())
+        return f"Float({str(self.to_spec())})"
     
     def to_spec(self):
         """Converts to actual floating-point value (IEEE754-style)."""
@@ -169,7 +169,7 @@ class BFloat16(Type):
         self.exponent = exponent
        
     def __str__(self):
-        return str(self.to_spec())
+        return f"BFloat16({str(self.to_spec())})"
     
     # TODO: add Subnormals
     def to_spec(self):

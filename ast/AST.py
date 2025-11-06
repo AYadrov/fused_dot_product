@@ -1,10 +1,8 @@
-from typing import Any, Callable
+from typing import Any, Callable, Tuple
 from fused_dot_product.types.types import Type
 
-# from fused_dot_product.ast.types import *
-
 class Node: 
-    def evaluate(self) -> tuple[Any, Any]:
+    def evaluate(self) -> Tuple[Type, Any]:
         raise NotImplementedError
         
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
@@ -42,8 +40,7 @@ class Composite(Node):
                     leaf_connector = "└── " if is_arg_last else "├── "
                     print(new_prefix + leaf_connector + repr(arg))
 
-
-    def evaluate(self) -> tuple[Any, Any]:
+    def evaluate(self) -> Tuple[Type, Any]:
         # that's dumb, self.args get evaluated twice, for impl and spec
         spec_inputs = []
         for arg in self.args:
@@ -96,7 +93,7 @@ class Op(Node):
                 print(new_prefix + leaf_connector + repr(arg))
 
     # TODO: create a constant node!
-    def evaluate(self) -> tuple[Any, Any]:
+    def evaluate(self) -> Tuple[Type, Any]:
         spec_inputs = []
         impl_inputs = []
         for arg in self.args:
@@ -120,7 +117,7 @@ class Const(Node):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.name if self.name else str(self.val)} [Const]")
         
-    def evaluate(self):
+    def evaluate(self) -> Tuple[Type, Any]:
         return self.val, self.val.to_spec()
 
 class Var(Node):
@@ -135,7 +132,7 @@ class Var(Node):
         assert isinstance(val, Type), f"Var's val must be a Type, {val} is provided"
         self.val = val
         
-    def evaluate(self) -> tuple[Any, Any]:
+    def evaluate(self) -> Tuple[Type, Any]:
         if self.val is None:
             raise ValueError(f"Variable {self.name} not bound to a value")
         return self.val, self.val.to_spec()
