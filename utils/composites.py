@@ -27,7 +27,7 @@ def MAX_EXPONENT4(e0: Node, e1: Node, e2: Node, e3: Node) -> Composite:
     
 def ADDER_TREE4(x0: Node, x1: Node, x2: Node, x3: Node) -> Composite:
     def spec(x0: float, x1: float, x2: float, x3: float) -> float:
-        return x0 + x1 + x2 + x3
+        return (x0 + x1) + (x2 + x3)
     
     res1 = Q_Add(x0, x1)
     res2 = Q_Add(x2, x3)

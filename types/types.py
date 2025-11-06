@@ -30,13 +30,15 @@ class Q(Type):
             f"Value {val} requires {max(1, val.bit_length())} bits, "
             f"but only {total_bits} provided ({int_bits}+{frac_bits})"
         )
-        
+    
     def __str__(self):
         return f"Q{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
-
+    
     def sign_bit(self):
-        return self.val >> (self.frac_bits + self.int_bits - 1)
-
+        sign = self.val >> (self.frac_bits + self.int_bits - 1)
+        assert sign in (0, 1)
+        return sign
+    
     @staticmethod
     def sign_extend(x, n: int):
         assert n >= 0, f"Extend bits can not be negative, {n} is provided"
@@ -45,7 +47,7 @@ class Q(Type):
         upper_bits = (sign << n) - sign
         res = x.val | (upper_bits << total_bits)
         return Q(res, x.int_bits + n, x.frac_bits)
-        
+    
     @staticmethod
     def align(x, y):
         # Step 1. Align fractional bits
@@ -63,14 +65,17 @@ class Q(Type):
             x = Q.sign_extend(x, y.int_bits - x.int_bits)
         
         return x, y
-
+    
     def to_spec(self):
         sign_bit = self.sign_bit()
-        total_bits = self.int_bits + self.frac_bits
-        signed_val = self.val - (sign_bit << total_bits)
-        return float(signed_val) / (2 ** self.frac_bits)
-        
-        
+        if sign_bit == 1:
+            total_bits = self.int_bits + self.frac_bits
+            signed_val = self.val - (sign_bit << total_bits)
+            return float(signed_val) / (2 ** self.frac_bits)
+        else:
+            return float(self.val) / (2 ** self.frac_bits)
+
+
 class UQ(Type):
     """Unsigned fixed-point type."""
     def __init__(self, val: int, int_bits: int, frac_bits: int):
@@ -151,9 +156,9 @@ class Float(Type):
         
 class BFloat16(Type):
     """Brain Floating Point 16-bit (bfloat16) format — 1 sign, 8 exponent, 7 mantissa bits."""
-    mantissa_bits = BF16_MANTISSA_BITS
-    exponent_bits = BF16_EXPONENT_BITS
-    exponent_bias = BF16_BIAS
+    mantissa_bits = 7
+    exponent_bits = 8
+    exponent_bias = 127
         
     def __init__(self, sign: int, mantissa: int, exponent: int):
         assert sign in (0, 1), f"Invalid sign: {sign}"
@@ -169,6 +174,12 @@ class BFloat16(Type):
         self.exponent = exponent
        
     def __str__(self):
+        # out = f"BFloat16(\n"
+        # out += f"\tsign={self.sign}\n"
+        # out += f"\tmantissa={self.mantissa}\n"
+        # out += f"\texponent={self.exponent}\n"
+        # out += f"\tval={str(self.to_spec())}\n)"
+        # return out
         return f"BFloat16({str(self.to_spec())})"
     
     # TODO: add Subnormals

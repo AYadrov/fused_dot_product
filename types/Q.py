@@ -43,10 +43,13 @@ def Q_Add(x: Node, y: Node) -> Op:
         
     def impl(x: Q, y: Q) -> Q:
         x_adj, y_adj = Q.align(x, y)
+        x_ext = Q.sign_extend(x_adj, 1)
+        y_ext = Q.sign_extend(y_adj, 1)
+        
         # Mask for handling overflow
-        mask = (1 << (x_adj.int_bits + x_adj.frac_bits)) - 1
-        sum_ = (x_adj.val + y_adj.val) & mask
-        return Q(sum_, x_adj.int_bits + 1, x_adj.frac_bits)
+        mask = (1 << (y_ext.int_bits + y_ext.frac_bits)) - 1
+        sum_ = (y_ext.val + x_ext.val) & mask
+        return Q(sum_, y_ext.int_bits, y_ext.frac_bits)
     
     return Op(
         spec=spec,

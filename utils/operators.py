@@ -1,7 +1,6 @@
 # File defines custom user-defined Operators
 
 from fused_dot_product.ast.AST import *
-from fused_dot_product.config import *
 
 from fused_dot_product.types.Int import *
 from fused_dot_product.types.Float import *

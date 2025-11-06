@@ -34,28 +34,25 @@ class Composite(Node):
             # Otherwise, print Args as before
             for i, arg in enumerate(self.args):
                 is_arg_last = i == len(self.args) - 1
-                if isinstance(arg, Node):
-                    arg.print_tree(new_prefix, is_arg_last, depth)
-                else:
-                    leaf_connector = "└── " if is_arg_last else "├── "
-                    print(new_prefix + leaf_connector + repr(arg))
+                arg.print_tree(new_prefix, is_arg_last, depth)
 
     def evaluate(self) -> Tuple[Type, Any]:
         # that's dumb, self.args get evaluated twice, for impl and spec
         spec_inputs = []
+        impl_inputs = []
         for arg in self.args:
-            if isinstance(arg, Node):
-                _, spec_ = arg.evaluate()
-                spec_inputs.append(spec_)
-            else:
-                spec_inputs.append(arg)
+            impl, spec_ = arg.evaluate()
+            spec_inputs.append(spec_)
+            impl_inputs.append(spec_)
+            
         composite_spec = self.spec(*spec_inputs)
         impl_res, spec_res = self.impl.evaluate()
         
         if spec_res != impl_res.to_spec() or composite_spec != spec_res:
             raise AssertionError(
                 f"[{self.name}] mismatch:\n"
-                f"  input: {spec_inputs}\n"
+                f"  input-spec: {spec_inputs}\n"
+                f"  input-impl: {impl_inputs}\n"
                 f"  impl: {impl_res}\n"
                 f"  spec: {spec_res}\n"
                 f"  composite_spec: {composite_spec}"
@@ -86,11 +83,7 @@ class Op(Node):
         new_prefix = prefix + ("    " if is_last else "│   ")
         for i, arg in enumerate(self.args):
             is_arg_last = i == len(self.args) - 1
-            if isinstance(arg, Node):
-                arg.print_tree(new_prefix, is_arg_last, depth)
-            else:
-                leaf_connector = "└── " if is_arg_last else "├── "
-                print(new_prefix + leaf_connector + repr(arg))
+            arg.print_tree(new_prefix, is_arg_last, depth)
 
     # TODO: create a constant node!
     def evaluate(self) -> Tuple[Type, Any]:
@@ -131,6 +124,9 @@ class Var(Node):
     def load_val(self, val: Type):
         assert isinstance(val, Type), f"Var's val must be a Type, {val} is provided"
         self.val = val
+        
+    def __str__(self):
+        return f"{str(self.val)} [Var]"
         
     def evaluate(self) -> Tuple[Type, Any]:
         if self.val is None:
