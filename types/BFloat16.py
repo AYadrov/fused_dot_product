@@ -21,7 +21,7 @@ def BF16_mantissa(x: Node) -> Op:
             return 0
         exp = math.floor(math.log2(abs(x)))
         frac = abs(x) / (2 ** exp) - 1.0
-        return int(frac * (2 ** BF16_MANTISSA_BITS))
+        return int(frac * (2 ** BFloat16.mantissa_bits))
     
     def impl(x: BFloat16) -> Int:
         return Int(x.mantissa)

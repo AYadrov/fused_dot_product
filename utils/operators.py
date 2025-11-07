@@ -9,22 +9,21 @@ from fused_dot_product.types.Q import *
 import math
 
 ########## CUSTOM OPERATORS ########
-    
+
 def Q_E_encode_Float(m: Node, e: Node) -> Op:
     def spec(m: float, e: int) -> float:
         """Mathematical reference implementation."""
-        return float(m) * 2.0 ** (e - Float.exponent_bias)
+        return m * (2.0 ** (e - Float.exponent_bias))
 
     # implementation matches spec; can differ if optimized later
     def impl(m: Q, e: Int) -> Float:
         frac_bits = m.frac_bits
         total_bits = m.int_bits + frac_bits
-
+        
         sign = m.sign_bit()
         if sign:
-            mantissa_val = ((~m.val) + 1) & ((1 << total_bits) - 1)
-        else:
-            mantissa_val = m.val
+            m = m.negate()
+        mantissa_val = m.val
         exponent_val = e.val
         
         if mantissa_val == 0:
@@ -34,27 +33,42 @@ def Q_E_encode_Float(m: Node, e: Node) -> Op:
         while (mantissa_val >> frac_bits) == 0:
             mantissa_val <<= 1
             exponent_val -= 1
-
-        while (mantissa_val >> (frac_bits + 1)) > 0:
+        
+        while (mantissa_val >> (frac_bits + 1)) != 0:
             mantissa_val >>= 1
             exponent_val += 1
-
+        
         # Strip implicit leading 1 for Float mantissa
         mantissa_field = mantissa_val & ((1 << frac_bits) - 1)
         
-        # Truncate mantissa to 23 bits
-        current_width = max(1, mantissa_field.bit_length())
-        bits_to_truncate = max(0, current_width - 23)
-        mantissa_field = mantissa_field >> bits_to_truncate
-
+        bits_to_truncate = max(0, frac_bits - Float.mantissa_bits)
+        
+        if bits_to_truncate > 0:
+            # Bit positions relative to mantissa_field
+            guard_pos = bits_to_truncate - 1
+            guard_bit = (mantissa_field >> guard_pos) & 1
+            
+            round_pos = bits_to_truncate - 2
+            round_bit = (mantissa_field >> round_pos) & 1 if bits_to_truncate >= 2 else 0
+            
+            sticky_mask = (1 << max(0, bits_to_truncate - 2)) - 1
+            sticky_bit = (mantissa_field & sticky_mask) != 0
+            
+            mantissa_field >>= bits_to_truncate
+            
+            # IEEE-754 round-to-nearest-even
+            lsb = mantissa_field & 1
+            if guard_bit and (round_bit or sticky_bit or lsb):
+                mantissa_field += 1
+        
         # Construct Float
         return Float(sign=sign, mantissa=mantissa_field, exponent=exponent_val)
-
+    
     return Op(
         spec=spec,
         impl=impl,
         args=[m, e],
-        name="Q_E_encode_float",
+        name="Q_E_encode_Float",
     )
 
 def OPTIMIZED_MAX_EXP4(e0: Node, 

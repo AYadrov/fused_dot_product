@@ -39,6 +39,12 @@ class Q(Type):
         assert sign in (0, 1)
         return sign
     
+    def negate(self):
+        total_width = self.int_bits + self.frac_bits
+        mask = (1 << total_width) - 1
+        neg_val = (~self.val + 1) & mask
+        return Q(neg_val, self.int_bits, self.frac_bits)
+    
     @staticmethod
     def sign_extend(x, n: int):
         assert n >= 0, f"Extend bits can not be negative, {n} is provided"
@@ -89,13 +95,13 @@ class UQ(Type):
             f"Value {val} requires {max(1, val.bit_length())} bits, "
             f"but only {total_bits} provided ({int_bits}+{frac_bits})"
         )
-        
+    
     def __str__(self):
         return f"UQ{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
     
     def to_spec(self):
         return float(self.val) / (2 ** self.frac_bits)
-        
+
 
 class Int(Type):
     """Signed integer bits."""
@@ -109,21 +115,21 @@ class Int(Type):
         assert self.width > 0, f"Integer width can not be less than zero, {self.width} is provided"
         assert max(1, val.bit_length()) <= self.width, \
                 f"Value {val} needs {max(1, val.bit_length())} bits, but width={self.width} is too small"
-                
+    
     def __str__(self):
-        return f"Int({str(self.val)})"
+        return f"Int({str(self.to_spec())})"
     
     def to_spec(self):
         return self.val
-        
-        
+
+
 # TODO: SUBNORMALS, ENCODINGS
 class Float(Type):
     """Single-precision floating-point format, IEEE754-1985"""
     mantissa_bits = 23
     exponent_bits = 8
     exponent_bias = 127
-        
+    
     def __init__(self, sign: int, mantissa: int, exponent: int):
         assert sign in (0, 1), f"Invalid sign: {sign}"
         assert mantissa >= 0, f"Mantissa must be non-negative, got {mantissa}"
@@ -136,7 +142,7 @@ class Float(Type):
         self.sign = sign
         self.mantissa = mantissa
         self.exponent = exponent
-       
+    
     def __str__(self):
         return f"Float({str(self.to_spec())})"
     
@@ -152,14 +158,14 @@ class Float(Type):
 
         value = (-1) ** self.sign * frac * (2 ** exp_val)
         return float(value)
-        
-        
+
+
 class BFloat16(Type):
     """Brain Floating Point 16-bit (bfloat16) format — 1 sign, 8 exponent, 7 mantissa bits."""
     mantissa_bits = 7
     exponent_bits = 8
     exponent_bias = 127
-        
+    
     def __init__(self, sign: int, mantissa: int, exponent: int):
         assert sign in (0, 1), f"Invalid sign: {sign}"
         assert mantissa >= 0, f"Mantissa must be non-negative, got {mantissa}"
@@ -172,7 +178,7 @@ class BFloat16(Type):
         self.sign = sign
         self.mantissa = mantissa
         self.exponent = exponent
-       
+    
     def __str__(self):
         # out = f"BFloat16(\n"
         # out += f"\tsign={self.sign}\n"
@@ -205,4 +211,4 @@ class BFloat16(Type):
             exponent = shared_exp + random.getrandbits(unshared_exponent_bits)
             return BFloat16(sign=sign, mantissa=mantissa, exponent=exponent)
         return gen
-        
+

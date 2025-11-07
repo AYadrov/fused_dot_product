@@ -52,7 +52,7 @@ class Composite(Node):
             raise AssertionError(
                 f"[{self.name}] mismatch:\n"
                 f"  input-spec: {spec_inputs}\n"
-                f"  input-impl: {impl_inputs}\n"
+                f"  input-impl: {[str(x) for x in impl_inputs]}\n"
                 f"  impl: {impl_res}\n"
                 f"  spec: {spec_res}\n"
                 f"  composite_spec: {composite_spec}"
@@ -96,6 +96,15 @@ class Op(Node):
         
         impl_res = self.impl(*impl_inputs)
         spec_res = self.spec(*spec_inputs)
+        
+        if spec_res != impl_res.to_spec():
+            raise AssertionError(
+                f"[{self.name}] mismatch:\n"
+                f"  input-spec: {spec_inputs}\n"
+                f"  input-impl: {[str(x) for x in impl_inputs]}\n"
+                f"  impl: {impl_res}\n"
+                f"  spec: {spec_res}\n"
+            )
         
         return impl_res, spec_res
 

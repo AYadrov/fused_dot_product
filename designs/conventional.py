@@ -11,7 +11,7 @@ from fused_dot_product.types.Q import Q_add_sign
 
 def Conventional(a0: Node, a1: Node, a2: Node, a3: Node, 
                  b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
-                 
+    
     def spec(a0: float, a1: float, a2: float, a3: float, 
              b0: float, b1: float, b2: float, b3: float) -> float:
         out = 0
@@ -20,7 +20,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         out += a2 * b2
         out += a3 * b3
         return out
-   
+    
     ########## CONSTANTS ###############
     
     Wf_ = Const(Int(val=Wf), "Wf")
@@ -28,22 +28,29 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     
     ########## EXPONENTS ###############
     
-    # Step 1. Exponents add
-    E_p = [
-        exponents_adder(BF16_exponent(a0), BF16_exponent(b0)),
-        exponents_adder(BF16_exponent(a1), BF16_exponent(b1)),
-        exponents_adder(BF16_exponent(a2), BF16_exponent(b2)),
-        exponents_adder(BF16_exponent(a3), BF16_exponent(b3)),
+    E_a = [
+        BF16_exponent(a0),
+        BF16_exponent(a1),
+        BF16_exponent(a2),
+        BF16_exponent(a3),
     ]
     
-    # UNDERFLOW/OVERFLOW
+    E_b = [
+        BF16_exponent(b0),
+        BF16_exponent(b1),
+        BF16_exponent(b2),
+        BF16_exponent(b3),
+    ]
+    
+    # Step 1. Exponents add
+    E_p = [exponents_adder(E_a[i], E_b[i]) for i in range(N)]
     E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(E_p[i]) for i in range(N)]
     
     # Step 2. Calculate maximum exponent
     E_m = MAX_EXPONENT4(*E_p)
     
     # Step 3. Calculate global shifts
-    sh = [Sub(E_m, E_p[i]) for i in range(N)]
+    Sh_p = [Sub(E_m, E_p[i]) for i in range(N)]
     
     ########## MANTISSAS ###############
     
@@ -68,16 +75,25 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     # Step 3. Shift mantissas
     # Make room for the right shift first, accuracy requirement is Wf
     M_p = [UQ_Resize(M_p[i], Const(Int(2)), Sub(Wf_, Const(Int(2)))) for i in range(N)]
-    M_p = [UQ_Rshift(M_p[i], sh[i]) for i in range(N)] # UQ2.{Wf - 2}
+    M_p = [UQ_Rshift(M_p[i], Sh_p[i]) for i in range(N)]
     
     # Step 4. Adjust sign for mantissas using xor operation
-    # As a result of adding a sign, integer bits of fixedpoint gets increased by 1 to avoid overflow during conversion
-    S_p = [
-        Xor(BF16_sign(a0), BF16_sign(b0)), \
-        Xor(BF16_sign(a1), BF16_sign(b1)), \
-        Xor(BF16_sign(a2), BF16_sign(b2)), \
-        Xor(BF16_sign(a3), BF16_sign(b3)), \
+    
+    S_a = [
+        BF16_sign(a0),
+        BF16_sign(a1),
+        BF16_sign(a2),
+        BF16_sign(a3),
     ]
+    
+    S_b = [
+        BF16_sign(b0),
+        BF16_sign(b1),
+        BF16_sign(b2),
+        BF16_sign(b3),
+    ]
+    
+    S_p = [Xor(S_a[i], S_b[i]) for i in range(N)]
     
     M_p = [UQ_to_Q(M_p[i]) for i in range(N)] # Q3.{Wf - 2}
     M_p = [Q_add_sign(M_p[i], S_p[i]) for i in range(N)]
@@ -97,15 +113,18 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
             name="Conventional")
 
 if __name__ == '__main__':
+    from tqdm import tqdm
+    
+    # Compile design
     a = [Var("a_0"), Var("a_1"), Var("a_2"), Var("a_3")]
     b = [Var("b_0"), Var("b_1"), Var("b_2"), Var("b_3")]
-    
     design = Conventional(*a, *b)
     design.print_tree()
     
+    # Test the design
     random_gen = BFloat16.random_generator(seed=25, shared_exponent_bits=5)
-    for i in range(N):
-        a[i].load_val(random_gen())
-        b[i].load_val(random_gen())
-    
-    print(design.evaluate())
+    for _ in tqdm(range(100)):
+        for i in range(N):
+            a[i].load_val(random_gen())
+            b[i].load_val(random_gen())
+        design.evaluate()
