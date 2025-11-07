@@ -20,64 +20,8 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         out += a2 * b2
         out += a3 * b3
         return out
-    
-    ########## CONSTANTS ###############
-    
-    Wf_ = Const(Int(val=Wf), "Wf")
-    bf16_mantissa_bits = Const(Int(val=BFloat16.mantissa_bits), "BF16_MANTISSA_BITS")
-    
-    ########## EXPONENTS ###############
-    
-    E_a = [
-        BF16_exponent(a0),
-        BF16_exponent(a1),
-        BF16_exponent(a2),
-        BF16_exponent(a3),
-    ]
-    
-    E_b = [
-        BF16_exponent(b0),
-        BF16_exponent(b1),
-        BF16_exponent(b2),
-        BF16_exponent(b3),
-    ]
-    
-    # Step 1. Exponents add
-    E_p = [exponents_adder(E_a[i], E_b[i]) for i in range(N)]
-    E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(E_p[i]) for i in range(N)]
-    
-    # Step 2. Calculate maximum exponent
-    E_m = MAX_EXPONENT4(*E_p)
-    
-    # Step 3. Calculate global shifts
-    Sh_p = [Sub(E_m, E_p[i]) for i in range(N)]
-    
-    ########## MANTISSAS ###############
-    
-    # Step 1. Convert mantissas to UQ1.7
-    M_a = [
-        BF16_mantissa_to_UQ(BF16_mantissa(a0)),
-        BF16_mantissa_to_UQ(BF16_mantissa(a1)),
-        BF16_mantissa_to_UQ(BF16_mantissa(a2)),
-        BF16_mantissa_to_UQ(BF16_mantissa(a3)),
-    ]
-    
-    M_b = [
-        BF16_mantissa_to_UQ(BF16_mantissa(b0)),
-        BF16_mantissa_to_UQ(BF16_mantissa(b1)),
-        BF16_mantissa_to_UQ(BF16_mantissa(b2)),
-        BF16_mantissa_to_UQ(BF16_mantissa(b3)),
-    ]
-    
-    # Step 2. Multiply mantissas
-    M_p = [UQ_Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
-    
-    # Step 3. Shift mantissas
-    # Make room for the right shift first, accuracy requirement is Wf
-    M_p = [UQ_Resize(M_p[i], Const(Int(2)), Sub(Wf_, Const(Int(2)))) for i in range(N)]
-    M_p = [UQ_Rshift(M_p[i], Sh_p[i]) for i in range(N)]
-    
-    # Step 4. Adjust sign for mantissas using xor operation
+        
+    ########## INPUT ###################
     
     S_a = [
         BF16_sign(a0),
@@ -93,13 +37,71 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         BF16_sign(b3),
     ]
     
+    E_a = [
+        BF16_exponent(a0),
+        BF16_exponent(a1),
+        BF16_exponent(a2),
+        BF16_exponent(a3),
+    ]
+    
+    E_b = [
+        BF16_exponent(b0),
+        BF16_exponent(b1),
+        BF16_exponent(b2),
+        BF16_exponent(b3),
+    ]
+    
+    M_a = [
+        BF16_mantissa(a0),
+        BF16_mantissa(a1),
+        BF16_mantissa(a2),
+        BF16_mantissa(a3),
+    ]
+    
+    M_b = [
+        BF16_mantissa(b0),
+        BF16_mantissa(b1),
+        BF16_mantissa(b2),
+        BF16_mantissa(b3),
+    ]
+    
+    ########## CONSTANTS ###############
+    
+    Wf_ = Const(Int(val=Wf), "Wf")
+    
+    ########## EXPONENTS ###############
+    
+    # Step 1. Exponents add
+    E_p = [exponents_adder(E_a[i], E_b[i]) for i in range(N)]
+    E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(E_p[i]) for i in range(N)]
+    
+    # Step 2. Calculate maximum exponent
+    E_m = MAX_EXPONENT4(*E_p)
+    
+    # Step 3. Calculate global shifts
+    Sh_p = [Sub(E_m, E_p[i]) for i in range(N)]
+    
+    ########## MANTISSAS ###############
+    
+    # Step 1. Convert mantissas to UQ1.7
+    M_a = [BF16_mantissa_to_UQ(M_a[i]) for i in range(N)] # UQ1.7
+    M_b = [BF16_mantissa_to_UQ(M_b[i]) for i in range(N)] # UQ1.7
+    
+    # Step 2. Multiply mantissas
+    M_p = [UQ_Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
+    
+    # Step 3. Shift mantissas
+    # Make room for the right shift first, accuracy requirement is Wf
+    M_p = [UQ_Resize(M_p[i], Const(Int(2)), Sub(Wf_, Const(Int(2)))) for i in range(N)]
+    M_p = [UQ_Rshift(M_p[i], Sh_p[i]) for i in range(N)]
+    
+    # Step 4. Adjust sign for mantissas using xor operation
     S_p = [Xor(S_a[i], S_b[i]) for i in range(N)]
     
     M_p = [UQ_to_Q(M_p[i]) for i in range(N)] # Q3.{Wf - 2}
     M_p = [Q_add_sign(M_p[i], S_p[i]) for i in range(N)]
     
-    ########## ADDER TREE ##############
-    
+    # Step 5. Adder tree
     M_sum = ADDER_TREE4(*M_p) # Q5.{Wf - 2}
     
     ########## RESULT ##################

@@ -74,8 +74,7 @@ def Q_E_encode_Float(m: Node, e: Node) -> Op:
 def OPTIMIZED_MAX_EXP4(e0: Node, 
                        e1: Node, 
                        e2: Node,
-                       e3: Node,
-                       bit_width: Node) -> Op:
+                       e3: Node) -> Op:
     """
     Computes the maximum exponent value among four inputs using a bitwise comparison tree.
 
@@ -84,7 +83,6 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
         e1: Second exponent value.
         e2: Third exponent value.
         e3: Fourth exponent value.
-        bit_width: Bit width of each exponent value.
 
     Returns:
         Operator that determines the maximum exponent among the four inputs by performing
@@ -92,12 +90,13 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
         The implementation constructs a logical comparison tree that avoids direct integer
         comparison operations for hardware-efficient synthesis.
     """
-    def spec(e0: int, e1: int, e2: int, e3: int, bit_width: int) -> int:
+    def spec(e0: int, e1: int, e2: int, e3: int) -> int:
         return max(max(e0, e1), max(e2, e3))
     
-    def impl(e0: int, e1: int, e2: int, e3: int, bit_width: int) -> int:
-        assert bit_width > 0
-        exponents = [e0, e1, e2, e3]
+    def impl(e0: Int, e1: Int, e2: Int, e3: Int) -> int:
+        assert e0.width == e1.width and e1.width == e2.width and e2.width == e3.width
+        bit_width = e0.width
+        exponents = [e0.val, e1.val, e2.val, e3.val]
         num_elements = len(exponents)
         
         # Binary representations of exponents, extra element {0} for convenience
@@ -118,12 +117,12 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
                 data_for_or_tree.append(ep_bits[j][i] and res)
             maxexp[i] = int(any(data_for_or_tree))  # Or-tree
         
-        return int(''.join(map(str, map(int, maxexp))), 2)
+        return Int(int(''.join(map(str, map(int, maxexp))), 2), bit_width)
     
     return Op(
         spec=spec,
         impl=impl,
-        args=[e0, e1, e2, e3, bit_width],
+        args=[e0, e1, e2, e3],
         name="OPTIMIZED_MAX_EXP4"
     )
 

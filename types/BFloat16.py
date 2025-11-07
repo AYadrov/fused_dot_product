@@ -24,7 +24,7 @@ def BF16_mantissa(x: Node) -> Op:
         return int(frac * (2 ** BFloat16.mantissa_bits))
     
     def impl(x: BFloat16) -> Int:
-        return Int(x.mantissa)
+        return Int(x.mantissa, BFloat16.mantissa_bits)
     
     return Op(
             spec=spec,
@@ -41,7 +41,7 @@ def BF16_exponent(x: Node) -> Op:
             return math.floor(math.log2(abs(x))) + BFloat16.exponent_bias
     
     def impl(x: BFloat16) -> Int:
-        return Int(x.exponent)
+        return Int(x.exponent, BFloat16.exponent_bits)
     
     return Op(
             spec=spec,
