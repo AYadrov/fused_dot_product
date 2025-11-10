@@ -71,8 +71,8 @@ def Q_E_encode_Float(m: Node, e: Node) -> Op:
         name="Q_E_encode_Float",
     )
 
-def OPTIMIZED_MAX_EXP4(e0: Node, 
-                       e1: Node, 
+def OPTIMIZED_MAX_EXP4(e0: Node,
+                       e1: Node,
                        e2: Node,
                        e3: Node) -> Op:
     """

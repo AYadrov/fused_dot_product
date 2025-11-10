@@ -1,5 +1,6 @@
 from typing import Any, Callable, Tuple
 from fused_dot_product.types.types import Type
+from fused_dot_product.utils.utils import ulp_distance
 
 class Node: 
     def evaluate(self) -> Tuple[Type, Any]:
@@ -47,16 +48,22 @@ class Composite(Node):
             
         composite_spec = self.spec(*spec_inputs)
         impl_res, spec_res = self.impl.evaluate()
+         
+        err_msg = (
+            f"[{self.name}] mismatch:\n"
+            f"  input-spec: {spec_inputs}\n"
+            f"  input-impl: {[str(x) for x in impl_inputs]}\n"
+            f"  impl: {impl_res}\n"
+            f"  spec: {spec_res}\n"
+            f"  composite_spec: {composite_spec}\n"
+            f"  spec/impl ulp: {ulp_distance(impl_res.to_spec(), spec_res)}"
+            f"  composite_spec/impl ulp: {ulp_distance(impl_res.to_spec(), composite_spec)}"
+        )
         
-        if spec_res != impl_res.to_spec() or composite_spec != spec_res:
-            raise AssertionError(
-                f"[{self.name}] mismatch:\n"
-                f"  input-spec: {spec_inputs}\n"
-                f"  input-impl: {[str(x) for x in impl_inputs]}\n"
-                f"  impl: {impl_res}\n"
-                f"  spec: {spec_res}\n"
-                f"  composite_spec: {composite_spec}"
-            )
+        if ulp_distance(composite_spec, spec_res) != 0:
+            raise AssertionError(err_msg)
+        elif ulp_distance(spec_res, impl_res.to_spec()) != 0:
+            raise AssertionError(err_msg)
 
         return impl_res, composite_spec
         
@@ -96,15 +103,17 @@ class Op(Node):
         
         impl_res = self.impl(*impl_inputs)
         spec_res = self.spec(*spec_inputs)
+        err_msg = (
+            f"[{self.name}] mismatch:\n"
+            f"  input-spec: {spec_inputs}\n"
+            f"  input-impl: {[str(x) for x in impl_inputs]}\n"
+            f"  impl: {impl_res}\n"
+            f"  spec: {spec_res}\n"
+            f"  spec/impl ulp: {ulp_distance(impl_res.to_spec(), spec_res)}"
+        )
         
-        if spec_res != impl_res.to_spec():
-            raise AssertionError(
-                f"[{self.name}] mismatch:\n"
-                f"  input-spec: {spec_inputs}\n"
-                f"  input-impl: {[str(x) for x in impl_inputs]}\n"
-                f"  impl: {impl_res}\n"
-                f"  spec: {spec_res}\n"
-            )
+        if ulp_distance(spec_res, impl_res.to_spec()) != 0:
+            raise AssertionError(err_msg)
         
         return impl_res, spec_res
 
