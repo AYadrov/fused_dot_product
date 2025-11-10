@@ -12,6 +12,8 @@ jobs:
           python-version: "3.13"
       - name: "Check Installation"
         run: make check-python
+      - name: "Install dependecies"
+        run: make install
       - name: "Run tests"
         run: make unit-tests
             

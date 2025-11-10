@@ -5,6 +5,10 @@ check-python:
 		exit 1; \
 	}
 	@echo "Python found: $$(python3 --version)"
+	
+install:
+	@echo "Installing dependencies"
+	@command pip install tqdm
 
 unit-tests:
 	@echo "Running infra/unittests.py..."
