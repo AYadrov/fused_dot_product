@@ -9,6 +9,7 @@ check-python:
 install:
 	@echo "Installing dependencies"
 	@command pip install tqdm
+	@command pip install numpy
 
 unit-tests:
 	@echo "Running infra/unittests.py..."
