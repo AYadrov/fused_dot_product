@@ -2,6 +2,21 @@ from fused_dot_product.types.types import *
 from fused_dot_product.ast.AST import *
      
         
+def Int_dim(x: Node) -> Op:
+    """Debugging print statement"""
+    def spec(x: int) -> int:
+        return x
+    
+    def impl(x: Int) -> Int:
+        print(x.val, x.width)
+        return x
+    
+    return Op(
+            spec=spec,
+            impl=impl,
+            args=[x],
+            name="Int_dim")
+        
 # TODO: loss of accuracy can happen here
 def Int_to_UQ(x: Node, int_bits: Node, frac_bits: Node) -> Op:
     def spec(x: int, int_bits: int, frac_bits: int) -> float:
@@ -23,10 +38,10 @@ def Add(x: Node, y: Node) -> Op:
         val_ = x.val + y.val
         width_ = max(x.width, y.width) + 1
         return Int(val_, width_)
-       
+    
     def spec(x: int, y: int) -> int:
         return x + y
-
+    
     return Op(
             spec=spec,
             impl=impl,
@@ -41,7 +56,7 @@ def Sub(x: Node, y: Node) -> Op:
     
     def spec(x: int, y: int) -> int:
         return x - y
-
+    
     return Op(
             spec=spec,
             impl=impl,
@@ -53,10 +68,10 @@ def Mul(x: Node, y: Node) -> Op:
         val_ = x.val * y.val
         width_ = x.width + y.width
         return Int(val_, width_)
-
+    
     def spec(x: int, y: int) -> int:
         return x * y
-
+    
     return Op(
             spec=spec,
             impl=impl,
@@ -73,9 +88,9 @@ def Max(x: Node, y: Node) -> Op:
             width_ = max(x.width, y.width)
         else:
             width_ = y.width
-            
-        return Int(val_, width_)
         
+        return Int(val_, width_)
+    
     def spec(x: int, y: int) -> int:
         return max(x, y)
     

@@ -19,7 +19,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         out += a2 * b2
         out += a3 * b3
         return out
-        
+    
     ########## INPUT ###################
     
     S_a = [
@@ -69,11 +69,12 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     Wf_ = Const(Int(val=Wf), "Wf")
     s_ = Const(Int(val=s), "s")
     pow2s_sub1 = Sub(Lshift(Const(Int(1)), s_), Const(Int(1)))
-
+    
     ########## EXPONENTS ###############
     
     # Step 1. Exponents add
     E_p = [exponents_adder(E_a[i], E_b[i]) for i in range(N)]
+    
     E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(E_p[i]) for i in range(N)]
     
     # Step 2. Estimate local shifts
@@ -92,7 +93,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     E_m = Add(Lshift(E_m, s_), pow2s_sub1)
     
     ########## MANTISSAS ###############
-        
+    
     # Step 1. Convert mantissas to UQ1.7
     M_a = [BF16_mantissa_to_UQ(M_a[i]) for i in range(N)] # UQ1.7
     M_b = [BF16_mantissa_to_UQ(M_b[i]) for i in range(N)] # UQ1.7

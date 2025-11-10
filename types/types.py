@@ -117,7 +117,7 @@ class Int(Type):
                 f"Value {val} needs {max(1, val.bit_length())} bits, but width={self.width} is too small"
     
     def __str__(self):
-        return f"Int({str(self.to_spec())})"
+        return f"Int({str(self.to_spec())}, {self.width})"
     
     def to_spec(self):
         return self.val

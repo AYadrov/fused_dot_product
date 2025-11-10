@@ -47,7 +47,7 @@ def BF16_exponent(x: Node) -> Op:
             spec=spec,
             impl=impl,
             args=[x],
-            name="BF16_unbaised_exponent")
+            name="BF16_exponent")
 
 def BF16_sign(x: Node) -> Op:
     def spec(x: float) -> float:
@@ -57,7 +57,7 @@ def BF16_sign(x: Node) -> Op:
             return 0
     
     def impl(x: BFloat16) -> Int:
-        return Int(x.sign)
+        return Int(x.sign, 1)
     
     return Op(
             spec=spec,

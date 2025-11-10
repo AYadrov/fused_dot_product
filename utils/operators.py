@@ -147,7 +147,7 @@ def EXP_OVERFLOW_UNDERFLOW_HANDLING(e: Node) -> Op:
             raise Exception("Underflow")
         elif e.val >= 255:
             raise Exception("Overflow")
-        return Int(min(max(e.val, 0), 255))
+        return Int(min(max(e.val, 0), 255), e.width)
     
     return Op(
         spec=spec,
