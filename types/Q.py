@@ -53,14 +53,15 @@ def Q_Add(x: Node, y: Node) -> Op:
         name="Q_Add"
     )
 
+# TODO: This specifiation works here - but it is unstable for a general case
 def Q_Xor(x: Node, y: Node) -> Op:
-    # https://stackoverflow.com/questions/14461011/xor-between-floats-in-python
     def spec(x: float, y: float) -> float:
-        f1 = int.from_bytes(struct.pack('>d', x), 'big')
-        f2 = int.from_bytes(struct.pack('>d', y), 'big')
-        orv = f1 ^ f2
-        return struct.unpack('>d', orv.to_bytes(8, 'big'))[0]
-        
+        # Converting to a signed fixed-point
+        x_fixed = int(round(x * 2**31))
+        y_fixed = int(round(y * 2**31))
+        xor_res = x_fixed ^ y_fixed
+        return float(xor_res / 2**31)
+
     def impl(x: Q, y: Q) -> Q:
         x_adj, y_adj = Q.align(x, y)
         return Q(x_adj.val ^ y_adj.val, x_adj.int_bits, x_adj.frac_bits)
@@ -74,10 +75,11 @@ def Q_Xor(x: Node, y: Node) -> Op:
     
 def Q_And(x: Node, y: Node) -> Op:
     def spec(x: float, y: float) -> float:
-        f1 = int.from_bytes(struct.pack('>d', x), 'big')
-        f2 = int.from_bytes(struct.pack('>d', y), 'big')
-        orv = f1 & f2
-        return struct.unpack('>d', orv.to_bytes(8, 'big'))[0]
+        # Converting to a signed fixed-point
+        x_fixed = int(round(x * 2**31))
+        y_fixed = int(round(y * 2**31))
+        and_res = x_fixed & y_fixed
+        return float(and_res / 2**31)
         
     def impl(x: Q, y: Q) -> Q:
         x_adj, y_adj = Q.align(x, y)
@@ -92,11 +94,12 @@ def Q_And(x: Node, y: Node) -> Op:
     
 def Q_Or(x: Node, y: Node) -> Op:
     def spec(x: float, y: float) -> float:
-        f1 = int.from_bytes(struct.pack('>d', x), 'big')
-        f2 = int.from_bytes(struct.pack('>d', y), 'big')
-        orv = f1 | f2
-        return struct.unpack('>d', orv.to_bytes(8, 'big'))[0]
-        
+        # Converting to a signed fixed-point
+        x_fixed = int(round(x * 2**31))
+        y_fixed = int(round(y * 2**31))
+        or_res = x_fixed | y_fixed
+        return float(or_res / 2**31)
+    
     def impl(x: Q, y: Q) -> Q:
         x_adj, y_adj = Q.align(x, y)
         return Q(x_adj.val | y_adj.val, x_adj.int_bits, x_adj.frac_bits)
