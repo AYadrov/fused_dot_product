@@ -7,7 +7,7 @@ import tqdm
 from ..designs.optimized import Optimized
 from ..designs.conventional import Conventional
 from ..ast.AST import *
-from ..types.types import *
+from ..numtypes.numtypes import *
 from ..utils.utils import ulp_distance
 
 EPS = 1e-12  # to avoid divide-by-zero

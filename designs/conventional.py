@@ -3,10 +3,10 @@ from fused_dot_product.config import *
 from fused_dot_product.utils.operators import *
 from fused_dot_product.utils.composites import *
 
-from fused_dot_product.types.Int import Sub, Int, Xor
-from fused_dot_product.types.UQ import UQ_Mul, UQ_Resize, UQ_Rshift, UQ_to_Q
-from fused_dot_product.types.BFloat16 import *
-from fused_dot_product.types.Q import Q_add_sign
+from fused_dot_product.numtypes.Int import Sub, Int, Xor
+from fused_dot_product.numtypes.UQ import UQ_Mul, UQ_Resize, UQ_Rshift, UQ_to_Q
+from fused_dot_product.numtypes.BFloat16 import *
+from fused_dot_product.numtypes.Q import Q_add_sign
 
 
 def Conventional(a0: Node, a1: Node, a2: Node, a3: Node, 

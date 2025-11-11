@@ -2,9 +2,9 @@
 
 from fused_dot_product.ast.AST import *
 
-from fused_dot_product.types.Int import *
-from fused_dot_product.types.Float import *
-from fused_dot_product.types.Q import *
+from fused_dot_product.numtypes.Int import *
+from fused_dot_product.numtypes.Float import *
+from fused_dot_product.numtypes.Q import *
 
 import math
 

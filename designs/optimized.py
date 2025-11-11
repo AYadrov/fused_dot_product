@@ -3,10 +3,10 @@ from fused_dot_product.config import *
 from fused_dot_product.utils.operators import *
 from fused_dot_product.utils.composites import *
 
-from fused_dot_product.types.Int import *
-from fused_dot_product.types.UQ import *
-from fused_dot_product.types.BFloat16 import *
-from fused_dot_product.types.Q import *
+from fused_dot_product.numtypes.Int import *
+from fused_dot_product.numtypes.UQ import *
+from fused_dot_product.numtypes.BFloat16 import *
+from fused_dot_product.numtypes.Q import *
 
 def Optimized(a0: Node, a1: Node, a2: Node, a3: Node, 
               b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:

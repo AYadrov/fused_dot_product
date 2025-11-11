@@ -1,9 +1,9 @@
 from typing import Any, Callable, Tuple
-from fused_dot_product.types.types import Type
+from fused_dot_product.numtypes.numtypes import NumType
 from fused_dot_product.utils.utils import ulp_distance
 
 class Node: 
-    def evaluate(self) -> Tuple[Type, Any]:
+    def evaluate(self) -> Tuple[NumType, Any]:
         raise NotImplementedError
         
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
@@ -37,7 +37,7 @@ class Composite(Node):
                 is_arg_last = i == len(self.args) - 1
                 arg.print_tree(new_prefix, is_arg_last, depth)
 
-    def evaluate(self) -> Tuple[Type, Any]:
+    def evaluate(self) -> Tuple[NumType, Any]:
         # that's dumb, self.args get evaluated twice, for impl and spec
         spec_inputs = []
         impl_inputs = []
@@ -93,7 +93,7 @@ class Op(Node):
             arg.print_tree(new_prefix, is_arg_last, depth)
 
     # TODO: create a constant node!
-    def evaluate(self) -> Tuple[Type, Any]:
+    def evaluate(self) -> Tuple[NumType, Any]:
         spec_inputs = []
         impl_inputs = []
         for arg in self.args:
@@ -119,16 +119,16 @@ class Op(Node):
 
 class Const(Node):
     def __init__(self, 
-                 val: Type, 
+                 val: NumType, 
                  name: str = None):
-        assert isinstance(val, Type), f"Const's val must be a Type, {val} is provided"
+        assert isinstance(val, NumType), f"Const's val must be a NumType, {val} is provided"
         self.name, self.val = name, val
         
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.name if self.name else str(self.val)} [Const]")
         
-    def evaluate(self) -> Tuple[Type, Any]:
+    def evaluate(self) -> Tuple[NumType, Any]:
         return self.val, self.val.to_spec()
 
 class Var(Node):
@@ -139,14 +139,14 @@ class Var(Node):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.name} [Var]")
         
-    def load_val(self, val: Type):
-        assert isinstance(val, Type), f"Var's val must be a Type, {val} is provided"
+    def load_val(self, val: NumType):
+        assert isinstance(val, NumType), f"Var's val must be a NumType, {val} is provided"
         self.val = val
         
     def __str__(self):
         return f"{str(self.val)} [Var]"
         
-    def evaluate(self) -> Tuple[Type, Any]:
+    def evaluate(self) -> Tuple[NumType, Any]:
         if self.val is None:
             raise ValueError(f"Variable {self.name} not bound to a value")
         return self.val, self.val.to_spec()

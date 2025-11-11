@@ -3,7 +3,7 @@ import time
 
 from fused_dot_product.config import *
 
-class Type:
+class NumType:
     """Base class for numerical types."""
     def to_spec(self):
         raise NotImplementedError
@@ -16,7 +16,7 @@ class Type:
         raise NotImplementedError
         
         
-class Q(Type):
+class Q(NumType):
     """Signed fixed-point type."""
     def __init__(self, val: int, int_bits: int, frac_bits: int):
         self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
@@ -82,7 +82,7 @@ class Q(Type):
             return float(self.val) / (2 ** self.frac_bits)
 
 
-class UQ(Type):
+class UQ(NumType):
     """Unsigned fixed-point type."""
     def __init__(self, val: int, int_bits: int, frac_bits: int):
         self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
@@ -103,7 +103,7 @@ class UQ(Type):
         return float(self.val) / (2 ** self.frac_bits)
 
 
-class Int(Type):
+class Int(NumType):
     """Signed integer bits."""
     def __init__(self, val: int, width: int = None):
         self.val = val
@@ -124,7 +124,7 @@ class Int(Type):
 
 
 # TODO: SUBNORMALS, ENCODINGS
-class Float(Type):
+class Float(NumType):
     """Single-precision floating-point format, IEEE754-1985"""
     mantissa_bits = 23
     exponent_bits = 8
@@ -160,7 +160,7 @@ class Float(Type):
         return float(value)
 
 
-class BFloat16(Type):
+class BFloat16(NumType):
     """Brain Floating Point 16-bit (bfloat16) format — 1 sign, 8 exponent, 7 mantissa bits."""
     mantissa_bits = 7
     exponent_bits = 8

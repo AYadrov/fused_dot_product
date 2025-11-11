@@ -2,8 +2,8 @@ import time
 import random
 import math
 
-from fused_dot_product.types.types import *
-from fused_dot_product.types.Int import *
+from fused_dot_product.numtypes.numtypes import *
+from fused_dot_product.numtypes.Int import *
 from fused_dot_product.ast.AST import *
 
 def BF16_mantissa_to_UQ(mantissa: Node) -> Composite:

@@ -5,7 +5,7 @@ import random
 from fused_dot_product.config import *
 from fused_dot_product.designs.optimized import Optimized
 from fused_dot_product.designs.conventional import Conventional
-from fused_dot_product.types.types import *
+from fused_dot_product.numtypes.numtypes import *
 from fused_dot_product.ast.AST import *
 
 

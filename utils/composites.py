@@ -1,9 +1,9 @@
 from fused_dot_product.ast.AST import *
 from fused_dot_product.config import *
 
-from fused_dot_product.types.types import *
-from fused_dot_product.types.Int import *
-from fused_dot_product.types.Q import *
+from fused_dot_product.numtypes.numtypes import *
+from fused_dot_product.numtypes.Int import *
+from fused_dot_product.numtypes.Q import *
 
 def MAX_EXPONENT4(e0: Node, e1: Node, e2: Node, e3: Node) -> Composite:
     """
