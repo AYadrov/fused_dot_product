@@ -1,21 +1,5 @@
 from fused_dot_product.types.types import *
 from fused_dot_product.ast.AST import *
-     
-        
-def Int_dim(x: Node) -> Op:
-    """Debugging print statement"""
-    def spec(x: int) -> int:
-        return x
-    
-    def impl(x: Int) -> Int:
-        print(x.val, x.width)
-        return x
-    
-    return Op(
-            spec=spec,
-            impl=impl,
-            args=[x],
-            name="Int_dim")
         
 # TODO: loss of accuracy can happen here
 def Int_to_UQ(x: Node, int_bits: Node, frac_bits: Node) -> Op:

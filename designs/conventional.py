@@ -116,16 +116,18 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
 
 if __name__ == '__main__':
     from tqdm import tqdm
+    from time import time
     
     # Compile design
     a = [Var("a_0"), Var("a_1"), Var("a_2"), Var("a_3")]
     b = [Var("b_0"), Var("b_1"), Var("b_2"), Var("b_3")]
     design = Conventional(*a, *b)
-    design.print_tree()
+    design.print_tree(depth=1)
     
     # Test the design
-    random_gen = BFloat16.random_generator(seed=25, shared_exponent_bits=5)
-    for _ in tqdm(range(100)):
+    random_gen, exp_reshuffle = BFloat16.random_generator(seed=int(time()), shared_exponent_bits=5)
+    for _ in tqdm(range(100), desc=f"Quick tests of the design"):
+        exp_reshuffle()
         for i in range(N):
             a[i].load_val(random_gen())
             b[i].load_val(random_gen())

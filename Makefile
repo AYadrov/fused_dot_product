@@ -8,8 +8,7 @@ check-python:
 	
 install:
 	@echo "Installing dependencies"
-	@command pip install tqdm
-	@command pip install numpy
+	@command python -m pip install -r requirements.txt
 
 unit-tests:
 	@echo "Running infra/unittests.py..."

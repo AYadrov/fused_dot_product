@@ -42,9 +42,9 @@ class Composite(Node):
         spec_inputs = []
         impl_inputs = []
         for arg in self.args:
-            impl, spec_ = arg.evaluate()
+            impl_, spec_ = arg.evaluate()
             spec_inputs.append(spec_)
-            impl_inputs.append(spec_)
+            impl_inputs.append(impl_)
             
         composite_spec = self.spec(*spec_inputs)
         impl_res, spec_res = self.impl.evaluate()

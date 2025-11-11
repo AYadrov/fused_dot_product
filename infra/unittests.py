@@ -26,10 +26,10 @@ class TestFusedDotProduct(unittest.TestCase):
         conventional = Conventional(*a, *b)
         optimized = Optimized(*a, *b)
         
-        for shared_bits in range(4, BFloat16.exponent_bits+1):
-            random_gen = BFloat16.random_generator(seed=25, shared_exponent_bits=5)
-            print(f"Testing designs with {shared_bits} bits of shared exponent")
-            for _ in tqdm.tqdm(range(100)):
+        for shared_bits in range(5, BFloat16.exponent_bits+1):
+            random_gen, exp_reshuffle = BFloat16.random_generator(seed=25, shared_exponent_bits=shared_bits)
+            exp_reshuffle()
+            for _ in tqdm.tqdm(range(100), desc=f"Testing designs with {shared_bits} bits of shared exponent"):
                 for i in range(N):
                     a[i].load_val(random_gen())
                     b[i].load_val(random_gen())

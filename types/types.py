@@ -117,7 +117,7 @@ class Int(Type):
                 f"Value {val} needs {max(1, val.bit_length())} bits, but width={self.width} is too small"
     
     def __str__(self):
-        return f"Int({str(self.to_spec())}, {self.width})"
+        return f"Int({str(self.to_spec())}, width={self.width})"
     
     def to_spec(self):
         return self.val
@@ -197,18 +197,21 @@ class BFloat16(Type):
         value = (-1) ** self.sign * frac * (2 ** exp_val)
         return float(value)
     
-    @classmethod   
-    def random_generator(cls, seed=int(time.time()), shared_exponent_bits=0):
-        random.seed(seed)
-        
+    @classmethod
+    def random_generator(cls, seed: int = int(time.time()), shared_exponent_bits: int = 0):
         assert 0 <=  shared_exponent_bits < (1 << cls.exponent_bits)
+    
+        rnd = random.Random(seed)
         unshared_exponent_bits = cls.exponent_bits - shared_exponent_bits
-        shared_exp = random.getrandbits(shared_exponent_bits) << unshared_exponent_bits
+        shared_exp = rnd.getrandbits(shared_exponent_bits) << unshared_exponent_bits
         
         def gen():
-            sign = random.getrandbits(1)
-            mantissa = random.getrandbits(cls.mantissa_bits)
-            exponent = shared_exp + random.getrandbits(unshared_exponent_bits)
+            sign = rnd.getrandbits(1)
+            mantissa = rnd.getrandbits(cls.mantissa_bits)
+            exponent = shared_exp + rnd.getrandbits(unshared_exponent_bits)
             return BFloat16(sign=sign, mantissa=mantissa, exponent=exponent)
-        return gen
+        def gen_shared_exp():
+            shared_exp = rnd.getrandbits(shared_exponent_bits) << unshared_exponent_bits
+            return shared_exp
+        return gen, gen_shared_exp
 

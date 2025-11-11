@@ -28,7 +28,7 @@ def main():
     opt = Optimized(*a, *b)
 
     # Test the design
-    random_gen = BFloat16.random_generator(seed=args.seed, shared_exponent_bits=args.shared_exponent)
+    random_gen, _ = BFloat16.random_generator(seed=args.seed, shared_exponent_bits=args.shared_exponent)
     for i in range(N):
         a[i].load_val(random_gen())
         b[i].load_val(random_gen())
