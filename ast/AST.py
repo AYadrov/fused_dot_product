@@ -1,7 +1,9 @@
-from typing import Any, Callable
+from typing import Any, Callable, Tuple
+from fused_dot_product.numtypes.numtypes import NumType
+from fused_dot_product.utils.utils import ulp_distance
 
 class Node: 
-    def evaluate(self) -> tuple[Any, Any]:
+    def evaluate(self) -> Tuple[NumType, Any]:
         raise NotImplementedError
         
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
@@ -14,7 +16,7 @@ class Composite(Node):
         self, 
         spec: Callable, # specification (mathematical definition)
         impl: Node, # implementation (composite of Op)
-        args: list[Any], # operands
+        args: list[Node], # operands
         name: str, # composite's name
     ):
         self.spec, self.impl, self.args, self.name = spec, impl, args, name
@@ -33,43 +35,42 @@ class Composite(Node):
             # Otherwise, print Args as before
             for i, arg in enumerate(self.args):
                 is_arg_last = i == len(self.args) - 1
-                if isinstance(arg, Node):
-                    arg.print_tree(new_prefix, is_arg_last, depth)
-                else:
-                    leaf_connector = "└── " if is_arg_last else "├── "
-                    print(new_prefix + leaf_connector + repr(arg))
+                arg.print_tree(new_prefix, is_arg_last, depth)
 
-
-    def evaluate(self) -> tuple[Any, Any]:
+    def evaluate(self) -> Tuple[NumType, Any]:
         # that's dumb, self.args get evaluated twice, for impl and spec
         spec_inputs = []
+        impl_inputs = []
         for arg in self.args:
-            if isinstance(arg, Node):
-                _, spec_ = arg.evaluate()
-                spec_inputs.append(spec_)
-            else:
-                spec_inputs.append(arg)
+            impl_, spec_ = arg.evaluate()
+            spec_inputs.append(spec_)
+            impl_inputs.append(impl_)
+            
         composite_spec = self.spec(*spec_inputs)
         impl_res, spec_res = self.impl.evaluate()
+         
+        err_msg = (
+            f"[{self.name}] mismatch:\n"
+            f"  input-spec: {spec_inputs}\n"
+            f"  input-impl: {[str(x) for x in impl_inputs]}\n"
+            f"  impl: {impl_res}\n"
+            f"  spec: {spec_res}\n"
+            f"  composite_spec: {composite_spec}\n"
+            f"  spec/impl ulp: {ulp_distance(impl_res.to_spec(), spec_res)}"
+            f"  composite_spec/impl ulp: {ulp_distance(impl_res.to_spec(), composite_spec)}"
+        )
         
-        if spec_res != impl_res or composite_spec != spec_res:
-            raise AssertionError(
-                f"[{self.name}] mismatch:\n"
-                f"  input: {spec_inputs}\n"
-                f"  impl: {impl_res}\n"
-                f"  spec: {spec_res}\n"
-                f"  composite_spec: {composite_spec}"
-            )
+        if ulp_distance(composite_spec, spec_res) != 0:
+            raise AssertionError(err_msg)
+        elif ulp_distance(spec_res, impl_res.to_spec()) != 0:
+            raise AssertionError(err_msg)
 
         return impl_res, composite_spec
         
     def evaluate_spec(self):
         vals = []
         for arg in self.args:
-            if isinstance(arg, Node):
-                vals.append(arg.evaluate()[1])
-            else:
-                vals.append(arg)
+            vals.append(arg.evaluate()[1])
         return self.spec(*vals)
       
 class Op(Node):
@@ -77,7 +78,7 @@ class Op(Node):
         self, 
         spec: Callable[..., Any], # specification (mathematical definition)
         impl: Callable[..., Any], # implementation (actual execution)
-        args: list[Any], # operands
+        args: list[Node], # operands
         name: str, # op's name
         cost: int = 1 # op's cost
     ):
@@ -89,51 +90,64 @@ class Op(Node):
         new_prefix = prefix + ("    " if is_last else "│   ")
         for i, arg in enumerate(self.args):
             is_arg_last = i == len(self.args) - 1
-            if isinstance(arg, Node):
-                arg.print_tree(new_prefix, is_arg_last, depth)
-            else:
-                leaf_connector = "└── " if is_arg_last else "├── "
-                print(new_prefix + leaf_connector + repr(arg))
+            arg.print_tree(new_prefix, is_arg_last, depth)
 
     # TODO: create a constant node!
-    def evaluate(self) -> tuple[Any, Any]:
+    def evaluate(self) -> Tuple[NumType, Any]:
         spec_inputs = []
         impl_inputs = []
         for arg in self.args:
-            if isinstance(arg, Node):
-                impl_, spec_ = arg.evaluate()
-                spec_inputs.append(spec_)
-                impl_inputs.append(impl_)
-            else:
-                spec_inputs.append(arg)
-                impl_inputs.append(arg)
+            impl_, spec_ = arg.evaluate()
+            spec_inputs.append(spec_)
+            impl_inputs.append(impl_)
         
         impl_res = self.impl(*impl_inputs)
         spec_res = self.spec(*spec_inputs)
+        err_msg = (
+            f"[{self.name}] mismatch:\n"
+            f"  input-spec: {spec_inputs}\n"
+            f"  input-impl: {[str(x) for x in impl_inputs]}\n"
+            f"  impl: {impl_res}\n"
+            f"  spec: {spec_res}\n"
+            f"  spec/impl ulp: {ulp_distance(impl_res.to_spec(), spec_res)}"
+        )
+        
+        if ulp_distance(spec_res, impl_res.to_spec()) != 0:
+            raise AssertionError(err_msg)
         
         return impl_res, spec_res
-    # def _arg_str(self, arg: Any) -> str:
-    #     if isinstance(arg, Op):
-    #         return arg.name
-    #     elif isinstance(arg, Var):
-    #         return arg.name
-    #     else:
-    #         return repr(arg)
+
+class Const(Node):
+    def __init__(self, 
+                 val: NumType, 
+                 name: str = None):
+        assert isinstance(val, NumType), f"Const's val must be a NumType, {val} is provided"
+        self.name, self.val = name, val
         
+    def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
+        connector = "└── " if is_last else "├── "
+        print(prefix + connector + f"{self.name if self.name else str(self.val)} [Const]")
+        
+    def evaluate(self) -> Tuple[NumType, Any]:
+        return self.val, self.val.to_spec()
+
 class Var(Node):
     def __init__(self, name: str, val: Any = None):
         self.name, self.val = name, val
         
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
-        val_repr = f" = {self.val}" if self.val is not None else ""
-        print(prefix + connector + f"{self.name} [Var]{val_repr}")
-    
-    def load_val(self, val):
+        print(prefix + connector + f"{self.name} [Var]")
+        
+    def load_val(self, val: NumType):
+        assert isinstance(val, NumType), f"Var's val must be a NumType, {val} is provided"
         self.val = val
         
-    def evaluate(self) -> tuple[Any, Any]:
+    def __str__(self):
+        return f"{str(self.val)} [Var]"
+        
+    def evaluate(self) -> Tuple[NumType, Any]:
         if self.val is None:
             raise ValueError(f"Variable {self.name} not bound to a value")
-        return self.val, self.val
+        return self.val, self.val.to_spec()
 

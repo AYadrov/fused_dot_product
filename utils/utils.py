@@ -1,37 +1,22 @@
-from fused_dot_product.config import *
-from fused_dot_product.ast import *
+import struct
+import math
+import numpy as np
 
-from random import getrandbits
+def float_to_bits32(f):
+    # pack float32 → 4 bytes, then unpack to unsigned int
+    [bits] = struct.unpack('>I', struct.pack('>f', np.float32(f)))
+    # Convert to lexicographically ordered integer space
+    return bits ^ ((bits >> 31) & 0x7FFFFFFF)
 
+def ulp_distance(x, y):
+    if isinstance(x, float) and isinstance(y, float):
+        if math.isnan(x) or math.isnan(y):
+            return float('nan')
+        if math.isinf(x) or math.isinf(y):
+            return float('inf') if x != y else 0
+        return abs(float_to_bits32(x) - float_to_bits32(y))
+    elif isinstance(x, int) and isinstance(y, int):
+        return abs(x - y)
+    else:
+        raise TypeError(f"Arguments are expected to have the same type, given {x} and {y}")
 
-def generate_BF16_2x4x1(shared_exponent_bits: int):
-    unshared_exponent_bits = BF16_EXPONENT_BITS - shared_exponent_bits
-    assert shared_exponent_bits < (1 << BF16_EXPONENT_BITS)
-    assert shared_exponent_bits >= 0
-
-    # Generating input data of type: 
-    #   List[(sign, exponent, mantissa)]
-    shared_exp = getrandbits(shared_exponent_bits) << unshared_exponent_bits
-    a = [(getrandbits(1), shared_exp + getrandbits(unshared_exponent_bits), getrandbits(BF16_MANTISSA_BITS)) for _ in range(1, N+1)]
-    b = [(getrandbits(1), shared_exp + getrandbits(unshared_exponent_bits), getrandbits(BF16_MANTISSA_BITS)) for _ in range(1, N+1)]
-    return a, b
-
-# Function encodes floating-point given sign, exponent and mantissa
-def S_E_M2float(s: int,  e: int, m: int) -> float:
-    assert e.bit_length() <= BF16_EXPONENT_BITS
-    assert m.bit_length() <= BF16_MANTISSA_BITS
-    assert s == 0 or s == 1
-
-    m_ = 1.0 + m / (2 ** BF16_MANTISSA_BITS)
-    return (-1) ** s * m_ * 2 ** (e - BF16_BIAS)
-
-def unfused_dot_product(FP_xs: list[float], FP_ys: list[float]) -> list[float]:
-    assert len(FP_xs) == len(FP_ys)
-
-    out = 0
-    for i in range(len(FP_xs)):
-        out += FP_xs[i] * FP_ys[i]
-    return out
-
-def OR_tree(bits: list[int]) -> int:
-    return int(any(bits))

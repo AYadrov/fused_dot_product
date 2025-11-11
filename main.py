@@ -3,45 +3,53 @@ import time
 import random
 
 from fused_dot_product.config import *
-from fused_dot_product.utils.utils import unfused_dot_product, generate_BF16_2x4x1, S_E_M2float
 from fused_dot_product.designs.optimized import Optimized
 from fused_dot_product.designs.conventional import Conventional
+from fused_dot_product.numtypes.numtypes import *
+from fused_dot_product.ast.AST import *
 
 
 def main():
     parser = argparse.ArgumentParser(description="Fused dot product, Kaul et al. (2019)")
-    parser.add_argument("-s", "--seed", help="RANDOM SEED", default=int(time.time()))
+    parser.add_argument("-s", "--seed", help="RANDOM SEED", default=int(time.time()), type=int)
     parser.add_argument("-v", "--verbose", help="0 (no verbose) or 1 (yes verbose)", default=0)
-    parser.add_argument("-sh", "--shared-exponent", help=f"shared exponent bits (less than {BF16_EXPONENT_BITS})", default=SHARED_EXPONENT_BITS, type=int)
+    parser.add_argument("-sh", "--shared-exponent", help=f"shared exponent bits (less than {BFloat16.exponent_bits})", default=SHARED_EXPONENT_BITS, type=int)
     
     args = parser.parse_args()
     print(args)
 
-    ######### GENERATING DATA ##########
-    
     random.seed(args.seed)
-    a, b = generate_BF16_2x4x1(args.shared_exponent)
-
-    ########### GROUND TRUTH ###########
     
-    # Unfused dot-product
-    fp_a = [S_E_M2float(x[0], x[1], x[2]) for x in a]
-    fp_b = [S_E_M2float(x[0], x[1], x[2]) for x in b]
-    unfused_res = unfused_dot_product(fp_a, fp_b)
+    # Compile designs
+    a = [Var("a_0"), Var("a_1"), Var("a_2"), Var("a_3")]
+    b = [Var("b_0"), Var("b_1"), Var("b_2"), Var("b_3")]
+    
+    conv = Conventional(*a, *b)
+    opt = Optimized(*a, *b)
 
+    # Test the design
+    random_gen, _ = BFloat16.random_generator(seed=args.seed, shared_exponent_bits=args.shared_exponent)
+    for i in range(N):
+        a[i].load_val(random_gen())
+        b[i].load_val(random_gen())
+    
     if args.verbose:
-        print("x =", fp_a)
-        print("y =", fp_b)
-
-    ########## CONV+OPTIMIZED ##########
-
-    print("Unfused result of dot-product:\n\t", unfused_res)
-    con_res_impl, con_res_spec = Conventional()(a, b)
-    print("Absolute difference between conventional/unfused:\n\t", abs(unfused_res-con_res_impl))
+        print("x =", a)
+        print("y =", b)
     
-    opt_res_impl, opt_res_spec = Optimized()(a, b)
-    print("Absolute difference between optimized/unfused:\n\t", abs(unfused_res-opt_res_impl))
+    conv_res_impl, conv_res_spec = conv.evaluate()
+    opt_res_impl, opt_res_spec = opt.evaluate()
+
+    print("Result of conventional fused dot-product:")
+    print("\tImpl:", conv_res_impl)
+    print("\tSpec:", conv_res_spec)
+    
+    print("Result of optimized fused dot-product:")
+    print("\tImpl:", opt_res_impl)
+    print("\tSpec:", opt_res_spec)
+    
+    print("Absolute difference between optimized/conventional:\n\t", abs(conv_res_impl.to_spec() - opt_res_impl.to_spec()))
     return 0
-  
+
 if __name__ == "__main__":
     main()

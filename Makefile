@@ -5,6 +5,10 @@ check-python:
 		exit 1; \
 	}
 	@echo "Python found: $$(python3 --version)"
+	
+install:
+	@echo "Installing dependencies"
+	@command python -m pip install -r requirements.txt
 
 unit-tests:
 	@echo "Running infra/unittests.py..."

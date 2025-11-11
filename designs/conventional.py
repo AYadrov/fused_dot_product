@@ -1,92 +1,134 @@
 from fused_dot_product.ast.AST import *
+from fused_dot_product.config import *
 from fused_dot_product.utils.operators import *
 from fused_dot_product.utils.composites import *
-from fused_dot_product.utils.utils import *
-from fused_dot_product.utils.basics import *
+
+from fused_dot_product.numtypes.Int import Sub, Int, Xor
+from fused_dot_product.numtypes.UQ import UQ_Mul, UQ_Resize, UQ_Rshift, UQ_to_Q
+from fused_dot_product.numtypes.BFloat16 import *
+from fused_dot_product.numtypes.Q import Q_add_sign
 
 
-class Conventional:
-    def __init__(self):
-        self.free_vars = self.define_free_vars()
-        self.root = self.build_tree()
+def Conventional(a0: Node, a1: Node, a2: Node, a3: Node, 
+                 b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
     
-    def define_free_vars(self):
-        self.E_a = [Var("e_a_0"), Var("e_a_1"), Var("e_a_2"), Var("e_a_3")]
-        self.E_b = [Var("e_b_0"), Var("e_b_1"), Var("e_b_2"), Var("e_b_3")]
+    def spec(a0: float, a1: float, a2: float, a3: float, 
+             b0: float, b1: float, b2: float, b3: float) -> float:
+        out = 0
+        out += a0 * b0
+        out += a1 * b1
+        out += a2 * b2
+        out += a3 * b3
+        return out
         
-        self.M_a = [Var("m_a_0"), Var("m_a_1"), Var("m_a_2"), Var("m_a_3")]
-        self.M_b = [Var("m_b_0"), Var("m_b_1"), Var("m_b_2"), Var("m_b_3")]
-        
-        self.S_a = [Var("s_a_0"), Var("s_a_1"), Var("s_a_2"), Var("s_a_3")]
-        self.S_b = [Var("s_b_0"), Var("s_b_1"), Var("s_b_2"), Var("s_b_3")]
-        
-        self.Wf = Var("Wf")
-        
-        return [self.S_a, self.M_a, self.E_a, self.S_b, self.M_b, self.E_b, self.Wf]
+    ########## INPUT ###################
     
-    def build_tree(self):
-        ########## EXPONENTS ###############
-        
-        # Step 1. Exponents add
-        E_p = [exponents_adder(self.E_a[i], self.E_b[i]) for i in range(N)]
-        
-        # UNDERFLOW/OVERFLOW
-        E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(e) for e in E_p]
-        
-        # Step 2. Calculate maximum exponent
-        E_m = MAX_EXPONENT4(*E_p)
-        
-        # Step 3. Calculate global shifts
-        sh = [Sub(E_m, E_p[i]) for i in range(N)]
-        
-        ########## MANTISSAS ###############
-        
-        # Step 1. Convert mantissas to UQ
-        M_a = [bf16_mantissa_to_UQ(self.M_a[i]) for i in range(N)] # UQ1.7
-        M_b = [bf16_mantissa_to_UQ(self.M_b[i]) for i in range(N)] # UQ1.7
-        mantissa_length = Add(1, BF16_MANTISSA_BITS) # 1 + 7 = 8
-        
-        # Step 2. Multiply mantissas
-        M_p = [Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
-        mantissa_length = Add(mantissa_length, mantissa_length) # 16
-        
-        # Step 3. Shift mantissas
-        # Make room for the right shift first, accuracy requirement is Wf
-        extend_bits = Max(Sub(self.Wf, mantissa_length), 0) # max(0, Wf - 16)
-        M_p = [Lshift(M_p[i], extend_bits) for i in range(N)]
-        M_p = [Rshift(M_p[i], sh[i]) for i in range(N)] # UQ2.{Wf - 2}
-        mantissa_length = self.Wf
-        
-        # Step 4. Adjust sign for mantissas using xor operation
-        # As a result of adding a sign, integer bits of fixedpoint gets increased by 1 to avoid overflow during conversion
-        S_p = [Xor(self.S_a[i], self.S_b[i]) for i in range(N)]
-        M_p = [UQ_to_Q(M_p[i], S_p[i], mantissa_length) for i in range(N)] # Q3.{Wf - 2}
-        mantissa_length = Add(1, mantissa_length) # Wf + 1
-        
-        ########## ADDER TREE ##############
-        
-        M_sum = ADDER_TREE4(*M_p, mantissa_length) # Q5.{Wf - 2}
-        mantissa_length = Add(2, mantissa_length) # Wf + 3
-        
-        M_sum = Q_to_signed_UQ(M_sum, mantissa_length) # UQ4.{Wf - 2}
-        mantissa_length = Sub(mantissa_length, 1) # Wf + 2
-        
-        ########## RESULT ################## 
-        
-        fraction_bits = Sub(self.Wf, 2)
-        root = signed_UQ_E_to_float(M_sum, fraction_bits, E_m)
-        return root
-        
-    def __call__(self, a, b):
-        for i in range(N):
-            self.S_a[i].load_val(a[i][0]); self.E_a[i].load_val(a[i][1]); self.M_a[i].load_val(a[i][2]);
-            self.S_b[i].load_val(b[i][0]); self.E_b[i].load_val(b[i][1]); self.M_b[i].load_val(b[i][2]);
-         
-        self.Wf.load_val(Wf)
-        
-        return self.root.evaluate()
+    S_a = [
+        BF16_sign(a0),
+        BF16_sign(a1),
+        BF16_sign(a2),
+        BF16_sign(a3),
+    ]
+    
+    S_b = [
+        BF16_sign(b0),
+        BF16_sign(b1),
+        BF16_sign(b2),
+        BF16_sign(b3),
+    ]
+    
+    E_a = [
+        BF16_exponent(a0),
+        BF16_exponent(a1),
+        BF16_exponent(a2),
+        BF16_exponent(a3),
+    ]
+    
+    E_b = [
+        BF16_exponent(b0),
+        BF16_exponent(b1),
+        BF16_exponent(b2),
+        BF16_exponent(b3),
+    ]
+    
+    M_a = [
+        BF16_mantissa(a0),
+        BF16_mantissa(a1),
+        BF16_mantissa(a2),
+        BF16_mantissa(a3),
+    ]
+    
+    M_b = [
+        BF16_mantissa(b0),
+        BF16_mantissa(b1),
+        BF16_mantissa(b2),
+        BF16_mantissa(b3),
+    ]
+    
+    ########## CONSTANTS ###############
+    
+    Wf_ = Const(Int(val=Wf), "Wf")
+    
+    ########## EXPONENTS ###############
+    
+    # Step 1. Exponents add
+    E_p = [exponents_adder(E_a[i], E_b[i]) for i in range(N)]
+    E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(E_p[i]) for i in range(N)]
+    
+    # Step 2. Calculate maximum exponent
+    E_m = MAX_EXPONENT4(*E_p)
+    
+    # Step 3. Calculate global shifts
+    Sh_p = [Sub(E_m, E_p[i]) for i in range(N)]
+    
+    ########## MANTISSAS ###############
+    
+    # Step 1. Convert mantissas to UQ1.7
+    M_a = [BF16_mantissa_to_UQ(M_a[i]) for i in range(N)] # UQ1.7
+    M_b = [BF16_mantissa_to_UQ(M_b[i]) for i in range(N)] # UQ1.7
+    
+    # Step 2. Multiply mantissas
+    M_p = [UQ_Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
+    
+    # Step 3. Shift mantissas
+    # Make room for the right shift first, accuracy requirement is Wf
+    M_p = [UQ_Resize(M_p[i], Const(Int(2)), Sub(Wf_, Const(Int(2)))) for i in range(N)]
+    M_p = [UQ_Rshift(M_p[i], Sh_p[i]) for i in range(N)]
+    
+    # Step 4. Adjust sign for mantissas using xor operation
+    S_p = [Xor(S_a[i], S_b[i]) for i in range(N)]
+    
+    M_p = [UQ_to_Q(M_p[i]) for i in range(N)] # Q3.{Wf - 2}
+    M_p = [Q_add_sign(M_p[i], S_p[i]) for i in range(N)]
+    
+    # Step 5. Adder tree
+    M_sum = ADDER_TREE4(*M_p) # Q5.{Wf - 2}
+    
+    ########## RESULT ##################
+    
+    root = Q_E_encode_Float(M_sum, E_m)
+    return Composite(
+            spec=spec, \
+            impl=root, \
+            args=[a0, a1, a2, a3, \
+                  b0, b1, b2, b3], \
+            name="Conventional")
 
 if __name__ == '__main__':
-    design = Conventional()
-    design.root.print_tree()
-
+    from tqdm import tqdm
+    from time import time
+    
+    # Compile design
+    a = [Var("a_0"), Var("a_1"), Var("a_2"), Var("a_3")]
+    b = [Var("b_0"), Var("b_1"), Var("b_2"), Var("b_3")]
+    design = Conventional(*a, *b)
+    design.print_tree(depth=1)
+    
+    # Test the design
+    random_gen, exp_reshuffle = BFloat16.random_generator(seed=int(time()), shared_exponent_bits=5)
+    for _ in tqdm(range(100), desc=f"Quick tests of the design"):
+        exp_reshuffle()
+        for i in range(N):
+            a[i].load_val(random_gen())
+            b[i].load_val(random_gen())
+        design.evaluate()
