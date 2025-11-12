@@ -2,20 +2,21 @@ import random
 import time
 
 from fused_dot_product.config import *
+from fused_dot_product.utils.utils import *
 
 class NumType:
     """Base class for numerical types."""
     def to_spec(self):
         raise NotImplementedError
-        
+    
     def __str__(self):
         raise NotImplementedError
     
     @classmethod
     def random_generator(cls):
         raise NotImplementedError
-        
-        
+
+
 class Q(NumType):
     """Signed fixed-point type."""
     def __init__(self, val: int, int_bits: int, frac_bits: int):
@@ -41,8 +42,7 @@ class Q(NumType):
     
     def negate(self):
         total_width = self.int_bits + self.frac_bits
-        mask = (1 << total_width) - 1
-        neg_val = (~self.val + 1) & mask
+        neg_val = mask((~self.val + 1), total_width)
         return Q(neg_val, self.int_bits, self.frac_bits)
     
     @staticmethod
@@ -63,7 +63,7 @@ class Q(NumType):
         elif x.frac_bits < y.frac_bits:
             shift = y.frac_bits - x.frac_bits
             x = Q(x.val << shift, x.int_bits, y.frac_bits)
-
+        
         # Step 2. Align integer bits
         if x.int_bits > y.int_bits:
             y = Q.sign_extend(y, x.int_bits - y.int_bits)
@@ -123,12 +123,15 @@ class Int(NumType):
         return self.val
 
 
-# TODO: SUBNORMALS, ENCODINGS
 class Float(NumType):
     """Single-precision floating-point format, IEEE754-1985"""
     mantissa_bits = 23
     exponent_bits = 8
     exponent_bias = 127
+    inf_code = 255
+    sub_code = 0
+    nan_code = 255  
+    zero_code = 0
     
     def __init__(self, sign: int, mantissa: int, exponent: int):
         assert sign in (0, 1), f"Invalid sign: {sign}"
@@ -138,7 +141,7 @@ class Float(NumType):
             f"Mantissa too large: needs {mantissa.bit_length()} bits (max {self.mantissa_bits})"
         assert exponent.bit_length() <= self.exponent_bits, \
             f"Exponent too large: needs {exponent.bit_length()} bits (max {self.exponent_bits})"
-
+        
         self.sign = sign
         self.mantissa = mantissa
         self.exponent = exponent
@@ -148,16 +151,43 @@ class Float(NumType):
     
     def to_spec(self):
         """Converts to actual floating-point value (IEEE754-style)."""
-        if self.exponent == 0:
+        # Infinity
+        if self.exponent == self.inf_code and self.mantissa == 0:
+            return float('-inf') if self.sign == 1 else float('inf')
+        # NaN
+        elif self.exponent == self.nan_code and self.mantissa != 0:
+            return float('nan')
+        # Zero/subnormal
+        elif self.exponent == 0:
             # Subnormal numbers (no implicit 1)
             frac = self.mantissa / (2 ** self.mantissa_bits)
             exp_val = 1 - self.exponent_bias
+            return float((-1) ** self.sign * frac * (2 ** exp_val))
+        # Normal
         else:
             frac = 1.0 + self.mantissa / (2 ** self.mantissa_bits)
             exp_val = self.exponent - self.exponent_bias
-
-        value = (-1) ** self.sign * frac * (2 ** exp_val)
-        return float(value)
+            return float((-1) ** self.sign * frac * (2 ** exp_val))
+    
+    @classmethod
+    def nInf(cls):
+        return cls(1, 0, cls.inf_code)
+    
+    @classmethod
+    def Inf(cls):
+        return cls(0, 0, cls.inf_code)
+    
+    @classmethod
+    def nZero(cls):
+        return cls(1, 0, self.zero_code)
+    
+    @classmethod
+    def Zero(cls):
+        return cls(0, 0, self.zero_code)
+    
+    @classmethod
+    def NaN(cls):
+        return cls(0, 1, self.nan_code)
 
 
 class BFloat16(NumType):
@@ -174,7 +204,7 @@ class BFloat16(NumType):
             f"Mantissa too large: needs {mantissa.bit_length()} bits (max {self.mantissa_bits})"
         assert exponent.bit_length() <= self.exponent_bits, \
             f"Exponent too large: needs {exponent.bit_length()} bits (max {self.exponent_bits})"
-
+        
         self.sign = sign
         self.mantissa = mantissa
         self.exponent = exponent
@@ -193,14 +223,14 @@ class BFloat16(NumType):
         """Converts to IEEE754-style float value."""
         frac = 1.0 + self.mantissa / (2 ** self.mantissa_bits)
         exp_val = self.exponent - self.exponent_bias
-
+        
         value = (-1) ** self.sign * frac * (2 ** exp_val)
         return float(value)
     
     @classmethod
     def random_generator(cls, seed: int = int(time.time()), shared_exponent_bits: int = 0):
         assert 0 <=  shared_exponent_bits < (1 << cls.exponent_bits)
-    
+        
         rnd = random.Random(seed)
         unshared_exponent_bits = cls.exponent_bits - shared_exponent_bits
         shared_exp = rnd.getrandbits(shared_exponent_bits) << unshared_exponent_bits
@@ -211,6 +241,7 @@ class BFloat16(NumType):
             exponent = shared_exp + rnd.getrandbits(unshared_exponent_bits)
             return BFloat16(sign=sign, mantissa=mantissa, exponent=exponent)
         def gen_shared_exp():
+            nonlocal shared_exp
             shared_exp = rnd.getrandbits(shared_exponent_bits) << unshared_exponent_bits
             return shared_exp
         return gen, gen_shared_exp

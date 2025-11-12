@@ -8,6 +8,8 @@ from fused_dot_product.numtypes.UQ import UQ_Mul, UQ_Resize, UQ_Rshift, UQ_to_Q
 from fused_dot_product.numtypes.BFloat16 import *
 from fused_dot_product.numtypes.Q import Q_add_sign
 
+import numpy as np
+
 
 def Conventional(a0: Node, a1: Node, a2: Node, a3: Node, 
                  b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
@@ -19,8 +21,8 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         out += a1 * b1
         out += a2 * b2
         out += a3 * b3
-        return out
-        
+        return float(np.float32(out))
+    
     ########## INPUT ###################
     
     S_a = [
@@ -68,12 +70,12 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     ########## CONSTANTS ###############
     
     Wf_ = Const(Int(val=Wf), "Wf")
+    bf16_bias = Const(Int(val=BFloat16.exponent_bias), "BFloat16.exponent_bias")
     
     ########## EXPONENTS ###############
     
-    # Step 1. Exponents add
-    E_p = [exponents_adder(E_a[i], E_b[i]) for i in range(N)]
-    E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(E_p[i]) for i in range(N)]
+    # Step 1. Exponents add. Each E_p is shifted by bias twice!
+    E_p = [Add(E_a[i], E_b[i]) for i in range(N)]
     
     # Step 2. Calculate maximum exponent
     E_m = MAX_EXPONENT4(*E_p)
@@ -105,8 +107,10 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     M_sum = ADDER_TREE4(*M_p) # Q5.{Wf - 2}
     
     ########## RESULT ##################
+    E_m = Sub(E_m, bf16_bias)  # E_m may end up being negative!
     
     root = Q_E_encode_Float(M_sum, E_m)
+    
     return Composite(
             spec=spec, \
             impl=root, \
@@ -131,4 +135,4 @@ if __name__ == '__main__':
         for i in range(N):
             a[i].load_val(random_gen())
             b[i].load_val(random_gen())
-        design.evaluate()
+        print(design.evaluate())

@@ -1,68 +1,94 @@
 # File defines custom user-defined Operators
 
 from fused_dot_product.ast.AST import *
+from fused_dot_product.utils.utils import *
 
 from fused_dot_product.numtypes.Int import *
 from fused_dot_product.numtypes.Float import *
 from fused_dot_product.numtypes.Q import *
 
 import math
+import numpy as np
 
 ########## CUSTOM OPERATORS ########
 
+# TODO: loss of accuracy, NaNs
 def Q_E_encode_Float(m: Node, e: Node) -> Op:
     def spec(m: float, e: int) -> float:
         """Mathematical reference implementation."""
-        return m * (2.0 ** (e - Float.exponent_bias))
+        return float(np.float32(m * (2.0 ** (e - Float.exponent_bias))))
 
     # implementation matches spec; can differ if optimized later
     def impl(m: Q, e: Int) -> Float:
+        
+        def normalize_to_1_xxx(m, e, frac_bits):
+            # Normalize so that mantissa is 1.xxxxx
+            while (m >> frac_bits) == 0:
+                m <<= 1
+                e -= 1
+            
+            while (m >> (frac_bits + 1)) != 0:
+                m >>= 1
+                e += 1
+            return m, e
+        
         frac_bits = m.frac_bits
         total_bits = m.int_bits + frac_bits
         
         sign = m.sign_bit()
         if sign:
             m = m.negate()
-        mantissa_val = m.val
-        exponent_val = e.val
+        mantissa = m.val
+        exponent = e.val
         
-        if mantissa_val == 0:
-            return Float(sign=0, mantissa=0, exponent=0)
+        # 0.0 * 2^e = 0.0
+        if mantissa == 0:
+            return Float.nZero() if sign == 1 else Float.Zero()
         
-        # Normalize so that the integer part is 1.xxxxx
-        while (mantissa_val >> frac_bits) == 0:
-            mantissa_val <<= 1
-            exponent_val -= 1
+        mantissa, exponent = normalize_to_1_xxx(mantissa, exponent, frac_bits)
         
-        while (mantissa_val >> (frac_bits + 1)) != 0:
-            mantissa_val >>= 1
-            exponent_val += 1
+        # Infinity
+        if exponent >= Float.inf_code:
+            return Float.nInf() if sign == 1 else Float.Inf()
         
-        # Strip implicit leading 1 for Float mantissa
-        mantissa_field = mantissa_val & ((1 << frac_bits) - 1)
-        
-        bits_to_truncate = max(0, frac_bits - Float.mantissa_bits)
-        
-        if bits_to_truncate > 0:
-            # Bit positions relative to mantissa_field
-            guard_pos = bits_to_truncate - 1
-            guard_bit = (mantissa_field >> guard_pos) & 1
+        # Subnormal/zero
+        elif exponent <= 0:
+            # Shifting to 0.00000xxxx until exponent is 1 (subnormal)
+            while (mantissa != 0) and exponent < 1:
+                mantissa >>= 1
+                exponent += 1
             
-            round_pos = bits_to_truncate - 2
-            round_bit = (mantissa_field >> round_pos) & 1 if bits_to_truncate >= 2 else 0
+            # Zero
+            if mantissa == 0:
+                return Float.nZero() if sign == 1 else Float.Zero()
             
-            sticky_mask = (1 << max(0, bits_to_truncate - 2)) - 1
-            sticky_bit = (mantissa_field & sticky_mask) != 0
-            
-            mantissa_field >>= bits_to_truncate
-            
-            # IEEE-754 round-to-nearest-even
-            lsb = mantissa_field & 1
-            if guard_bit and (round_bit or sticky_bit or lsb):
-                mantissa_field += 1
+            # Subnormal
+            else:
+                mantissa = round_to_the_nearest_even(mantissa, frac_bits, Float.mantissa_bits)
+                
+                # Handle rounding overflow
+                if mantissa >> Float.mantissa_bits:
+                    # Normal (rare case), drop implicit bit, exponent = 1
+                    mantissa = mask(mantissa, Float.mantissa_bits)
+                    return Float(sign, mantissa, exponent)
+                else:
+                    return Float(sign, mantissa, Float.sub_code) # Subnormal
         
-        # Construct Float
-        return Float(sign=sign, mantissa=mantissa_field, exponent=exponent_val)
+        # Normal value
+        else:
+            # Strip implicit leading 1 for Float mantissa
+            mantissa = mask(mantissa, frac_bits)
+            mantissa = round_to_the_nearest_even(mantissa, frac_bits, Float.mantissa_bits)
+            
+            # Handle rounding overflow
+            if mantissa >> Float.mantissa_bits:
+                mantissa = mask(mantissa, Float.mantissa_bits)
+                exponent += 1
+                # Infinity
+                if exponent >= Float.inf_code:
+                    return Float.nInf() if sign == 1 else Float.Inf()
+            
+            return Float(sign=sign, mantissa=mantissa, exponent=exponent)
     
     return Op(
         spec=spec,
@@ -126,32 +152,4 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
         name="OPTIMIZED_MAX_EXP4"
     )
 
-def EXP_OVERFLOW_UNDERFLOW_HANDLING(e: Node) -> Op:
-    """
-    Handles exponent overflow and underflow conditions by clamping or raising exceptions.
 
-    Args:
-        e: Exponent value to be checked.
-
-    Returns:
-        Operator that:
-            - In the spec function, clamps e to the range [0, 255].
-            - In the impl function, raises an exception on underflow (e <= 0)
-              or overflow (e >= 255), otherwise returns e clamped to [0, 255].
-    """
-    def spec(e: int) -> int:
-        return min(max(e, 0), 255)
-        
-    def impl(e: Int) -> Int:
-        if e.val <= 0:
-            raise Exception("Underflow")
-        elif e.val >= 255:
-            raise Exception("Overflow")
-        return Int(min(max(e.val, 0), 255), e.width)
-    
-    return Op(
-        spec=spec,
-        impl=impl,
-        args=[e],
-        name="EXP_OVERFLOW_UNDERFLOW_HANDLING"
-    )

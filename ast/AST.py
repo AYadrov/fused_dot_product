@@ -92,7 +92,6 @@ class Op(Node):
             is_arg_last = i == len(self.args) - 1
             arg.print_tree(new_prefix, is_arg_last, depth)
 
-    # TODO: create a constant node!
     def evaluate(self) -> Tuple[NumType, Any]:
         spec_inputs = []
         impl_inputs = []
@@ -126,7 +125,10 @@ class Const(Node):
         
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
-        print(prefix + connector + f"{self.name if self.name else str(self.val)} [Const]")
+        print(prefix + connector + self.__str__())
+        
+    def __str__(self):
+        return f"{self.name if self.name else str(self.val)} [Const]"
         
     def evaluate(self) -> Tuple[NumType, Any]:
         return self.val, self.val.to_spec()

@@ -10,10 +10,6 @@ from ..ast.AST import *
 from ..numtypes.numtypes import *
 from ..utils.utils import ulp_distance
 
-EPS = 1e-12  # to avoid divide-by-zero
-ACCURACY_BITS = 6
-ACC_TOL = 2 ** (-ACCURACY_BITS)
-
 random.seed(0)
 
 
@@ -29,46 +25,30 @@ class TestFusedDotProduct(unittest.TestCase):
         for shared_bits in range(5, BFloat16.exponent_bits+1):
             random_gen, exp_reshuffle = BFloat16.random_generator(seed=25, shared_exponent_bits=shared_bits)
             exp_reshuffle()
-            for _ in tqdm.tqdm(range(100), desc=f"Testing designs with {shared_bits} bits of shared exponent"):
+            for _ in tqdm.tqdm(range(1000), desc=f"Testing designs with {shared_bits} bits of shared exponent"):
                 for i in range(N):
                     a[i].load_val(random_gen())
                     b[i].load_val(random_gen())
 
-                # --- Conventional path
-                try:
-                    con_res_impl, con_res_spec = conventional.evaluate()
-                except Exception as e:
-                    if "Overflow" in str(e) or "Underflow" in str(e):
-                        continue
-                    raise
-
-                # --- Optimized path
-                try:
-                    opt_res_impl, opt_res_spec = optimized.evaluate()
-                except Exception as e:
-                    if "Overflow" in str(e) or "Underflow" in str(e):
-                        continue
-                    raise
+                con_res_impl, con_res_spec = conventional.evaluate()
+                opt_res_impl, opt_res_spec = optimized.evaluate()
 
                 # --- Relative error checks
-                rel_err_conv = abs(con_res_spec - con_res_impl.to_spec()) / max(
-                    abs(con_res_spec), EPS
-                )
-                rel_err_opt = abs(opt_res_spec - opt_res_impl.to_spec()) / max(
-                    abs(opt_res_spec), EPS
-                )
+                ulp_err_conv = ulp_distance(con_res_spec, con_res_impl.to_spec())
+                ulp_err_opt = ulp_distance(opt_res_spec, opt_res_impl.to_spec())
 
                 msg_conv = (
                     f"conventional spec={con_res_spec}, conventional impl={con_res_impl}, "
-                    f"rel_err={rel_err_conv}"
+                    f"ulp_err={ulp_err_conv}"
                 )
                 msg_opt = (
                     f"optimized spec={opt_res_spec}, optimized impl={opt_res_impl}, "
-                    f"rel_err={rel_err_opt}"
+                    f"ulp_err={ulp_err_opt}"
                 )
                 msg_spec = f"optimized spec={opt_res_spec}, conventional spec={con_res_spec}"
-                self.assertTrue(rel_err_conv < ACC_TOL, msg=msg_conv)
-                self.assertTrue(rel_err_opt < ACC_TOL, msg=msg_opt)
+                
+                self.assertTrue(ulp_err_conv == 0, msg=msg_conv)
+                self.assertTrue(ulp_err_opt == 0, msg=msg_opt)
                 self.assertTrue(opt_res_spec == con_res_spec, msg=msg_spec)
     
 if __name__ == "__main__":
