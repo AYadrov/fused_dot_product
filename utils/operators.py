@@ -20,7 +20,7 @@ def Q_E_encode_Float(m: Node, e: Node) -> Op:
 
     # implementation matches spec; can differ if optimized later
     def impl(m: Q, e: Int) -> Float:
-    
+        
         def normalize_to_1_xxx(m, e, frac_bits):
             # Normalize so that mantissa is 1.xxxxx
             while (m >> frac_bits) == 0:
@@ -31,7 +31,7 @@ def Q_E_encode_Float(m: Node, e: Node) -> Op:
                 m >>= 1
                 e += 1
             return m, e
-            
+        
         frac_bits = m.frac_bits
         total_bits = m.int_bits + frac_bits
         
@@ -53,10 +53,6 @@ def Q_E_encode_Float(m: Node, e: Node) -> Op:
         
         # Subnormal/zero
         elif exponent <= 0:
-            # Normalize so that mantissa is 0.xxxxx
-            mantissa >>= 1
-            exponent += 1
-            
             # Shifting to 0.00000xxxx until exponent is 1 (subnormal)
             while (mantissa != 0) and exponent < 1:
                 mantissa >>= 1
@@ -65,7 +61,7 @@ def Q_E_encode_Float(m: Node, e: Node) -> Op:
             # Zero
             if mantissa == 0:
                 return Float.nZero() if sign == 1 else Float.Zero()
-                
+            
             # Subnormal
             else:
                 mantissa = round_to_the_nearest_even(mantissa, frac_bits, Float.mantissa_bits)
@@ -73,7 +69,7 @@ def Q_E_encode_Float(m: Node, e: Node) -> Op:
                 # Handle rounding overflow
                 if mantissa >> Float.mantissa_bits:
                     # Normal (rare case), drop implicit bit, exponent = 1
-                    mantissa = mantissa & ((1 << Float.mantissa_bits) - 1)
+                    mantissa = mask(mantissa, Float.mantissa_bits)
                     return Float(sign, mantissa, exponent)
                 else:
                     return Float(sign, mantissa, Float.sub_code) # Subnormal
@@ -81,17 +77,17 @@ def Q_E_encode_Float(m: Node, e: Node) -> Op:
         # Normal value
         else:
             # Strip implicit leading 1 for Float mantissa
-            mantissa = mantissa & ((1 << frac_bits) - 1)
+            mantissa = mask(mantissa, frac_bits)
             mantissa = round_to_the_nearest_even(mantissa, frac_bits, Float.mantissa_bits)
             
             # Handle rounding overflow
             if mantissa >> Float.mantissa_bits:
-                mantissa >>= 1
+                mantissa = mask(mantissa, Float.mantissa_bits)
                 exponent += 1
                 # Infinity
                 if exponent >= Float.inf_code:
                     return Float.nInf() if sign == 1 else Float.Inf()
-                
+            
             return Float(sign=sign, mantissa=mantissa, exponent=exponent)
     
     return Op(

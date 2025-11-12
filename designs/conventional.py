@@ -22,7 +22,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         out += a2 * b2
         out += a3 * b3
         return float(np.float32(out))
-        
+    
     ########## INPUT ###################
     
     S_a = [

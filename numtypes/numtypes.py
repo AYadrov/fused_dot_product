@@ -7,15 +7,15 @@ class NumType:
     """Base class for numerical types."""
     def to_spec(self):
         raise NotImplementedError
-        
+    
     def __str__(self):
         raise NotImplementedError
     
     @classmethod
     def random_generator(cls):
         raise NotImplementedError
-        
-        
+
+
 class Q(NumType):
     """Signed fixed-point type."""
     def __init__(self, val: int, int_bits: int, frac_bits: int):
@@ -63,7 +63,7 @@ class Q(NumType):
         elif x.frac_bits < y.frac_bits:
             shift = y.frac_bits - x.frac_bits
             x = Q(x.val << shift, x.int_bits, y.frac_bits)
-
+        
         # Step 2. Align integer bits
         if x.int_bits > y.int_bits:
             y = Q.sign_extend(y, x.int_bits - y.int_bits)
@@ -131,7 +131,8 @@ class Float(NumType):
     inf_code = 255
     sub_code = 0
     nan_code = 255  
-        
+    zero_code = 0
+    
     def __init__(self, sign: int, mantissa: int, exponent: int):
         assert sign in (0, 1), f"Invalid sign: {sign}"
         assert mantissa >= 0, f"Mantissa must be non-negative, got {mantissa}"
@@ -140,7 +141,7 @@ class Float(NumType):
             f"Mantissa too large: needs {mantissa.bit_length()} bits (max {self.mantissa_bits})"
         assert exponent.bit_length() <= self.exponent_bits, \
             f"Exponent too large: needs {exponent.bit_length()} bits (max {self.exponent_bits})"
-
+        
         self.sign = sign
         self.mantissa = mantissa
         self.exponent = exponent
@@ -178,11 +179,15 @@ class Float(NumType):
     
     @classmethod
     def nZero(cls):
-        return cls(1, 0, 0)
+        return cls(1, 0, self.zero_code)
     
     @classmethod
     def Zero(cls):
-        return cls(0, 0, 0)
+        return cls(0, 0, self.zero_code)
+    
+    @classmethod
+    def NaN(cls):
+        return cls(0, 1, self.nan_code)
 
 
 class BFloat16(NumType):
