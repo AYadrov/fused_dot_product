@@ -42,8 +42,7 @@ def Q_Add(x: Node, y: Node) -> Op:
         y_ext = Q.sign_extend(y_adj, 1)
         
         # Mask for handling overflow
-        mask = (1 << (y_ext.int_bits + y_ext.frac_bits)) - 1
-        sum_ = (y_ext.val + x_ext.val) & mask
+        sum_ = mask(y_ext.val + x_ext.val, y_ext.int_bits + y_ext.frac_bits)
         return Q(sum_, y_ext.int_bits, y_ext.frac_bits)
     
     return Op(
@@ -132,8 +131,7 @@ def Q_add_sign(x: Node, sign: Node) -> Op:
     def impl(x: Q, sign: Int) -> Q:
         if sign.val == 1:
             total_width = x.int_bits + x.frac_bits
-            mask = (1 << total_width) - 1
-            neg_val = (~x.val + 1) & mask
+            neg_val = mask(~x.val + 1, total_width)
             return Q(neg_val, x.int_bits, x.frac_bits)
         else:
             return Q(x.val, x.int_bits, x.frac_bits)

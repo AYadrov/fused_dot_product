@@ -2,6 +2,7 @@ import random
 import time
 
 from fused_dot_product.config import *
+from fused_dot_product.utils.utils import *
 
 class NumType:
     """Base class for numerical types."""
@@ -41,8 +42,7 @@ class Q(NumType):
     
     def negate(self):
         total_width = self.int_bits + self.frac_bits
-        mask = (1 << total_width) - 1
-        neg_val = (~self.val + 1) & mask
+        neg_val = mask((~self.val + 1), total_width)
         return Q(neg_val, self.int_bits, self.frac_bits)
     
     @staticmethod
