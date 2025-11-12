@@ -104,22 +104,6 @@ def invert_bits(x: Node, s: Node) -> Composite:
     
     return Composite(spec, impl, [x, s], "invert_bits")
     
-def exponents_adder(x: Node, y: Node) -> Composite:
-    """
-    Adds two exponent values and adjusts the result by subtracting the BF16 bias.
-
-    Args:
-        x: First exponent value.
-        y: Second exponent value.
-
-    Returns:
-        Composite producing (x + y - BF16_BIAS),
-        which represents the correctly biased exponent sum for BF16 arithmetic.
-    """
-    spec = lambda x, y: x + y - BFloat16.exponent_bias
-    impl = Sub(Add(x, y), Const(Int(BFloat16.exponent_bias), "BF16_BIAS"))
-    
-    return Composite(spec, impl, [x, y], "exponents_adder")
  
 if __name__ == '__main__':
     import inspect

@@ -73,7 +73,7 @@ def Q_E_encode_Float(m: Node, e: Node) -> Op:
                 # Handle rounding overflow
                 if mantissa >> Float.mantissa_bits:
                     # Normal (rare case), drop implicit bit, exponent = 1
-                    mantissa = mantissa & ((1 << Float.frac_bits) - 1)
+                    mantissa = mantissa & ((1 << Float.mantissa_bits) - 1)
                     return Float(sign, mantissa, exponent)
                 else:
                     return Float(sign, mantissa, Float.sub_code) # Subnormal

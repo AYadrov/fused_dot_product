@@ -123,7 +123,6 @@ class Int(NumType):
         return self.val
 
 
-# TODO: SUBNORMALS, ENCODINGS
 class Float(NumType):
     """Single-precision floating-point format, IEEE754-1985"""
     mantissa_bits = 23
@@ -131,7 +130,8 @@ class Float(NumType):
     exponent_bias = 127
     inf_code = 255
     sub_code = 0
-    
+    nan_code = 255  
+        
     def __init__(self, sign: int, mantissa: int, exponent: int):
         assert sign in (0, 1), f"Invalid sign: {sign}"
         assert mantissa >= 0, f"Mantissa must be non-negative, got {mantissa}"
@@ -153,6 +153,9 @@ class Float(NumType):
         # Infinity
         if self.exponent == self.inf_code and self.mantissa == 0:
             return float('-inf') if self.sign == 1 else float('inf')
+        # NaN
+        elif self.exponent == self.nan_code and self.mantissa != 0:
+            return float('nan')
         # Zero/subnormal
         elif self.exponent == 0:
             # Subnormal numbers (no implicit 1)
@@ -168,20 +171,18 @@ class Float(NumType):
     @classmethod
     def nInf(cls):
         return cls(1, 0, cls.inf_code)
-
+    
     @classmethod
     def Inf(cls):
         return cls(0, 0, cls.inf_code)
-
+    
     @classmethod
     def nZero(cls):
         return cls(1, 0, 0)
-
+    
     @classmethod
     def Zero(cls):
         return cls(0, 0, 0)
-
-        
 
 
 class BFloat16(NumType):
@@ -198,7 +199,7 @@ class BFloat16(NumType):
             f"Mantissa too large: needs {mantissa.bit_length()} bits (max {self.mantissa_bits})"
         assert exponent.bit_length() <= self.exponent_bits, \
             f"Exponent too large: needs {exponent.bit_length()} bits (max {self.exponent_bits})"
-
+        
         self.sign = sign
         self.mantissa = mantissa
         self.exponent = exponent
@@ -217,14 +218,14 @@ class BFloat16(NumType):
         """Converts to IEEE754-style float value."""
         frac = 1.0 + self.mantissa / (2 ** self.mantissa_bits)
         exp_val = self.exponent - self.exponent_bias
-
+        
         value = (-1) ** self.sign * frac * (2 ** exp_val)
         return float(value)
     
     @classmethod
     def random_generator(cls, seed: int = int(time.time()), shared_exponent_bits: int = 0):
         assert 0 <=  shared_exponent_bits < (1 << cls.exponent_bits)
-    
+        
         rnd = random.Random(seed)
         unshared_exponent_bits = cls.exponent_bits - shared_exponent_bits
         shared_exp = rnd.getrandbits(shared_exponent_bits) << unshared_exponent_bits

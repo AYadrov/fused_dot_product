@@ -70,12 +70,13 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     
     Wf_ = Const(Int(val=Wf), "Wf")
     s_ = Const(Int(val=s), "s")
+    bf16_bias = Const(Int(val=BFloat16.exponent_bias), "BFloat16.exponent_bias")
     pow2s_sub1 = Sub(Lshift(Const(Int(1)), s_), Const(Int(1)))
     
     ########## EXPONENTS ###############
     
-    # Step 1. Exponents add
-    E_p = [exponents_adder(E_a[i], E_b[i]) for i in range(N)]
+    # Step 1. Exponents add. Each E_p is shifted by bias twice!
+    E_p = [Add(E_a[i], E_b[i]) for i in range(N)]
     
     # Step 2. Estimate local shifts
     L_shifts = [invert_bits(take_last_n_bits(E_p[i], s_), s_) for i in range(N)]
@@ -125,6 +126,9 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     # Adder tree
     M_sum = CSA_ADDER_TREE4(*M_p) # Q6.{Wf + (2**s - 1) - 2}
     
+    ########## RESULT ##################
+    E_m = Sub(E_m, bf16_bias)
+    
     root = Q_E_encode_Float(M_sum, E_m)
     
     return Composite(
@@ -134,10 +138,10 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
                   b0, b1, b2, b3],
             name="Optimized")
 
-        
+
 if __name__ == '__main__':
     from tqdm import tqdm
-    import time
+    from time import time
 
     # Compile design
     a = [Var("a_0"), Var("a_1"), Var("a_2"), Var("a_3")]
@@ -146,7 +150,8 @@ if __name__ == '__main__':
     design.print_tree(depth=1)
     
     # Test the design
-    random_gen, exp_reshuffle = BFloat16.random_generator(seed=int(time.time()), shared_exponent_bits=5)
+    # Test the design
+    random_gen, exp_reshuffle = BFloat16.random_generator(seed=int(time()), shared_exponent_bits=5)
     for _ in tqdm(range(100), desc=f"Quick tests of the design"):
         exp_reshuffle()
         for i in range(N):
