@@ -129,6 +129,8 @@ class Float(NumType):
     mantissa_bits = 23
     exponent_bits = 8
     exponent_bias = 127
+    inf_code = 255
+    sub_code = 0
     
     def __init__(self, sign: int, mantissa: int, exponent: int):
         assert sign in (0, 1), f"Invalid sign: {sign}"
@@ -148,16 +150,38 @@ class Float(NumType):
     
     def to_spec(self):
         """Converts to actual floating-point value (IEEE754-style)."""
-        if self.exponent == 0:
+        # Infinity
+        if self.exponent == self.inf_code and self.mantissa == 0:
+            return float('-inf') if self.sign == 1 else float('inf')
+        # Zero/subnormal
+        elif self.exponent == 0:
             # Subnormal numbers (no implicit 1)
             frac = self.mantissa / (2 ** self.mantissa_bits)
             exp_val = 1 - self.exponent_bias
+            return float((-1) ** self.sign * frac * (2 ** exp_val))
+        # Normal
         else:
             frac = 1.0 + self.mantissa / (2 ** self.mantissa_bits)
             exp_val = self.exponent - self.exponent_bias
+            return float((-1) ** self.sign * frac * (2 ** exp_val))
+    
+    @classmethod
+    def nInf(cls):
+        return cls(1, 0, cls.inf_code)
 
-        value = (-1) ** self.sign * frac * (2 ** exp_val)
-        return float(value)
+    @classmethod
+    def Inf(cls):
+        return cls(0, 0, cls.inf_code)
+
+    @classmethod
+    def nZero(cls):
+        return cls(1, 0, 0)
+
+    @classmethod
+    def Zero(cls):
+        return cls(0, 0, 0)
+
+        
 
 
 class BFloat16(NumType):
@@ -211,6 +235,7 @@ class BFloat16(NumType):
             exponent = shared_exp + rnd.getrandbits(unshared_exponent_bits)
             return BFloat16(sign=sign, mantissa=mantissa, exponent=exponent)
         def gen_shared_exp():
+            nonlocal shared_exp
             shared_exp = rnd.getrandbits(shared_exponent_bits) << unshared_exponent_bits
             return shared_exp
         return gen, gen_shared_exp

@@ -19,4 +19,26 @@ def ulp_distance(x, y):
         return abs(x - y)
     else:
         raise TypeError(f"Arguments are expected to have the same type, given {x} and {y}")
+        
+def round_to_the_nearest_even(x: int, x_len: int, target_len: int) -> int:
+    bits_to_truncate = max(0, x_len - target_len)
+            
+    if bits_to_truncate > 0:
+        # Bit positions relative to x
+        guard_pos = bits_to_truncate - 1
+        guard_bit = (x >> guard_pos) & 1
+        
+        round_pos = bits_to_truncate - 2
+        round_bit = (x >> round_pos) & 1 if bits_to_truncate >= 2 else 0
+        
+        sticky_mask = (1 << max(0, bits_to_truncate - 2)) - 1
+        sticky_bit = (x & sticky_mask) != 0
+        
+        x >>= bits_to_truncate
+        
+        # IEEE-754 round-to-nearest-even
+        lsb = x & 1
+        if guard_bit and (round_bit or sticky_bit or lsb):
+            x += 1
+    return x
 

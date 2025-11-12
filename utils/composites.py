@@ -120,7 +120,7 @@ def exponents_adder(x: Node, y: Node) -> Composite:
     impl = Sub(Add(x, y), Const(Int(BFloat16.exponent_bias), "BF16_BIAS"))
     
     return Composite(spec, impl, [x, y], "exponents_adder")
-    
+ 
 if __name__ == '__main__':
     import inspect
     import sys
@@ -147,4 +147,5 @@ if __name__ == '__main__':
         print(f"{name} -> {sig}")
         func(*composite_inputs).print_tree(depth=1)
         print("\n")
-        
+
+ 

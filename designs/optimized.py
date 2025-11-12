@@ -8,6 +8,8 @@ from fused_dot_product.numtypes.UQ import *
 from fused_dot_product.numtypes.BFloat16 import *
 from fused_dot_product.numtypes.Q import *
 
+import numpy as np
+
 def Optimized(a0: Node, a1: Node, a2: Node, a3: Node, 
               b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
     
@@ -18,7 +20,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         out += a1 * b1
         out += a2 * b2
         out += a3 * b3
-        return out
+        return float(np.float32(out))
     
     ########## INPUT ###################
     
@@ -74,8 +76,6 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     
     # Step 1. Exponents add
     E_p = [exponents_adder(E_a[i], E_b[i]) for i in range(N)]
-    
-    E_p = [EXP_OVERFLOW_UNDERFLOW_HANDLING(E_p[i]) for i in range(N)]
     
     # Step 2. Estimate local shifts
     L_shifts = [invert_bits(take_last_n_bits(E_p[i], s_), s_) for i in range(N)]
