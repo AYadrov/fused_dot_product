@@ -1,7 +1,7 @@
 from fused_dot_product.ast.AST import *
 from fused_dot_product.config import *
 
-from fused_dot_product.numtypes.numtypes import *
+from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.Int import *
 from fused_dot_product.numtypes.Q import *
 

@@ -4,8 +4,7 @@ import time
 from fused_dot_product.config import *
 from fused_dot_product.utils.utils import *
 
-class NumType:
-    """Base class for numerical types."""
+class RuntimeType:
     def to_spec(self):
         raise NotImplementedError
     
@@ -17,7 +16,7 @@ class NumType:
         raise NotImplementedError
 
 
-class Q(NumType):
+class Q(RuntimeType):
     """Signed fixed-point type."""
     def __init__(self, val: int, int_bits: int, frac_bits: int):
         self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
@@ -82,7 +81,7 @@ class Q(NumType):
             return float(self.val) / (2 ** self.frac_bits)
 
 
-class UQ(NumType):
+class UQ(RuntimeType):
     """Unsigned fixed-point type."""
     def __init__(self, val: int, int_bits: int, frac_bits: int):
         self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
@@ -103,7 +102,7 @@ class UQ(NumType):
         return float(self.val) / (2 ** self.frac_bits)
 
 
-class Int(NumType):
+class Int(RuntimeType):
     """Signed integer bits."""
     def __init__(self, val: int, width: int = None):
         self.val = val
@@ -123,14 +122,14 @@ class Int(NumType):
         return self.val
 
 
-class Float(NumType):
+class Float(RuntimeType):
     """Single-precision floating-point format, IEEE754-1985"""
     mantissa_bits = 23
     exponent_bits = 8
     exponent_bias = 127
     inf_code = 255
     sub_code = 0
-    nan_code = 255  
+    nan_code = 255
     zero_code = 0
     
     def __init__(self, sign: int, mantissa: int, exponent: int):
@@ -179,18 +178,18 @@ class Float(NumType):
     
     @classmethod
     def nZero(cls):
-        return cls(1, 0, self.zero_code)
+        return cls(1, 0, cls.zero_code)
     
     @classmethod
     def Zero(cls):
-        return cls(0, 0, self.zero_code)
+        return cls(0, 0, cls.zero_code)
     
     @classmethod
     def NaN(cls):
-        return cls(0, 1, self.nan_code)
+        return cls(0, 1, cls.nan_code)
 
 
-class BFloat16(NumType):
+class BFloat16(RuntimeType):
     """Brain Floating Point 16-bit (bfloat16) format — 1 sign, 8 exponent, 7 mantissa bits."""
     mantissa_bits = 7
     exponent_bits = 8
@@ -240,9 +239,11 @@ class BFloat16(NumType):
             mantissa = rnd.getrandbits(cls.mantissa_bits)
             exponent = shared_exp + rnd.getrandbits(unshared_exponent_bits)
             return BFloat16(sign=sign, mantissa=mantissa, exponent=exponent)
+        
         def gen_shared_exp():
             nonlocal shared_exp
             shared_exp = rnd.getrandbits(shared_exponent_bits) << unshared_exponent_bits
             return shared_exp
+        
         return gen, gen_shared_exp
 

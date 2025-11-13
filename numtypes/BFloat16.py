@@ -2,7 +2,7 @@ import time
 import random
 import math
 
-from fused_dot_product.numtypes.numtypes import *
+from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.Int import *
 from fused_dot_product.ast.AST import *
 
