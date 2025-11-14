@@ -7,7 +7,7 @@ import tqdm
 from ..designs.optimized import Optimized
 from ..designs.conventional import Conventional
 from ..ast.AST import *
-from ..numtypes.numtypes import *
+from ..numtypes.RuntimeTypes import *
 from ..utils.utils import ulp_distance
 
 random.seed(0)

@@ -129,7 +129,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     ########## RESULT ##################
     E_m = Sub(E_m, bf16_bias)
     
-    root = Q_E_encode_Float(M_sum, E_m)
+    root = Q_E_encode_Float32(M_sum, E_m)
     
     return Composite(
             spec=spec,

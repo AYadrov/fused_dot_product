@@ -4,7 +4,6 @@ from fused_dot_product.ast.AST import *
 from fused_dot_product.utils.utils import *
 
 from fused_dot_product.numtypes.Int import *
-from fused_dot_product.numtypes.Float import *
 from fused_dot_product.numtypes.Q import *
 
 import math
@@ -13,13 +12,13 @@ import numpy as np
 ########## CUSTOM OPERATORS ########
 
 # TODO: loss of accuracy, NaNs
-def Q_E_encode_Float(m: Node, e: Node) -> Op:
+def Q_E_encode_Float32(m: Node, e: Node) -> Op:
     def spec(m: float, e: int) -> float:
         """Mathematical reference implementation."""
-        return float(np.float32(m * (2.0 ** (e - Float.exponent_bias))))
+        return float(np.float32(m * (2.0 ** (e - Float32.exponent_bias))))
 
     # implementation matches spec; can differ if optimized later
-    def impl(m: Q, e: Int) -> Float:
+    def impl(m: Q, e: Int) -> Float32:
         
         def normalize_to_1_xxx(m, e, frac_bits):
             # Normalize so that mantissa is 1.xxxxx
@@ -43,13 +42,13 @@ def Q_E_encode_Float(m: Node, e: Node) -> Op:
         
         # 0.0 * 2^e = 0.0
         if mantissa == 0:
-            return Float.nZero() if sign == 1 else Float.Zero()
+            return Float32.nZero() if sign == 1 else Float32.Zero()
         
         mantissa, exponent = normalize_to_1_xxx(mantissa, exponent, frac_bits)
         
         # Infinity
-        if exponent >= Float.inf_code:
-            return Float.nInf() if sign == 1 else Float.Inf()
+        if exponent >= Float32.inf_code:
+            return Float32.nInf() if sign == 1 else Float32.Inf()
         
         # Subnormal/zero
         elif exponent <= 0:
@@ -60,41 +59,41 @@ def Q_E_encode_Float(m: Node, e: Node) -> Op:
             
             # Zero
             if mantissa == 0:
-                return Float.nZero() if sign == 1 else Float.Zero()
+                return Float32.nZero() if sign == 1 else Float32.Zero()
             
             # Subnormal
             else:
-                mantissa = round_to_the_nearest_even(mantissa, frac_bits, Float.mantissa_bits)
+                mantissa = round_to_the_nearest_even(mantissa, frac_bits, Float32.mantissa_bits)
                 
                 # Handle rounding overflow
-                if mantissa >> Float.mantissa_bits:
+                if mantissa >> Float32.mantissa_bits:
                     # Normal (rare case), drop implicit bit, exponent = 1
-                    mantissa = mask(mantissa, Float.mantissa_bits)
-                    return Float(sign, mantissa, exponent)
+                    mantissa = mask(mantissa, Float32.mantissa_bits)
+                    return Float32(sign, mantissa, exponent)
                 else:
-                    return Float(sign, mantissa, Float.sub_code) # Subnormal
+                    return Float32(sign, mantissa, Float32.sub_code) # Subnormal
         
         # Normal value
         else:
-            # Strip implicit leading 1 for Float mantissa
+            # Strip implicit leading 1 for Float32 mantissa
             mantissa = mask(mantissa, frac_bits)
-            mantissa = round_to_the_nearest_even(mantissa, frac_bits, Float.mantissa_bits)
+            mantissa = round_to_the_nearest_even(mantissa, frac_bits, Float32.mantissa_bits)
             
             # Handle rounding overflow
-            if mantissa >> Float.mantissa_bits:
-                mantissa = mask(mantissa, Float.mantissa_bits)
+            if mantissa >> Float32.mantissa_bits:
+                mantissa = mask(mantissa, Float32.mantissa_bits)
                 exponent += 1
                 # Infinity
-                if exponent >= Float.inf_code:
-                    return Float.nInf() if sign == 1 else Float.Inf()
+                if exponent >= Float32.inf_code:
+                    return Float32.nInf() if sign == 1 else Float32.Inf()
             
-            return Float(sign=sign, mantissa=mantissa, exponent=exponent)
+            return Float32(sign=sign, mantissa=mantissa, exponent=exponent)
     
     return Op(
         spec=spec,
         impl=impl,
         args=[m, e],
-        name="Q_E_encode_Float",
+        name="Q_E_encode_Float32",
     )
 
 def OPTIMIZED_MAX_EXP4(e0: Node,

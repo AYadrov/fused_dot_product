@@ -122,7 +122,7 @@ class Int(RuntimeType):
         return self.val
 
 
-class Float(RuntimeType):
+class Float32(RuntimeType):
     """Single-precision floating-point format, IEEE754-1985"""
     mantissa_bits = 23
     exponent_bits = 8
