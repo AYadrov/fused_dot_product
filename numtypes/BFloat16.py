@@ -21,10 +21,10 @@ def BF16_mantissa(x: Node) -> Op:
             return 0
         exp = math.floor(math.log2(abs(x)))
         frac = abs(x) / (2 ** exp) - 1.0
-        return int(frac * (2 ** BFloat16.mantissa_bits))
+        return int(frac * (2 ** 7))
     
     def impl(x: BFloat16) -> Int:
-        return Int(x.mantissa, BFloat16.mantissa_bits)
+        return Int(x.mantissa, 7)
     
     def sign(X: BFloat16T) -> IntT:
         return IntT(7)
@@ -42,13 +42,13 @@ def BF16_exponent(x: Node) -> Op:
         if x == 0:
             return 0
         else:
-            return math.floor(math.log2(abs(x))) + BFloat16.exponent_bias
+            return math.floor(math.log2(abs(x))) + 127
     
     def impl(x: BFloat16) -> Int:
-        return Int(x.exponent, BFloat16.exponent_bits)
+        return Int(x.exponent, 8)
     
     def sign(x: BFloat16T) -> IntT:
-        return IntT(BFloat16.exponent_bits)
+        return IntT(8)
 
     return Op(
             spec=spec,

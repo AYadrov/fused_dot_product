@@ -4,7 +4,7 @@ from fused_dot_product.numtypes.RuntimeTypes import *
 
 class StaticType:
     def __init__(self):
-        runtime_val = None
+        self.runtime_val = None
     
     @property
     def total_bits(self):

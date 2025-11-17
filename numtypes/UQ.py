@@ -3,31 +3,41 @@ from fused_dot_product.ast.AST import *
 
 
 def UQ_to_Q(x: Node) -> Op:
+    def impl(x: UQ) -> Q:
+        return Q(x.val, x.int_bits + 1, x.frac_bits)
+        
     def spec(x: float) -> float:
         return x
     
-    def impl(x: UQ) -> Q:
-        return Q(x.val, x.int_bits + 1, x.frac_bits)
+    def sign(x: UQT) -> QT:
+        return QT(x.int_bits + 1, x.frac_bits)
     
     return Op(
             spec=spec,
             impl=impl,
+            signature=sign,
             args=[x],
             name="UQ_to_Q")
 
 def UQ_Mul(x: Node, y: Node) -> Op:
-    def spec(x: float, y: float) -> float:
-        return x * y
-    
     def impl(x: UQ, y: UQ) -> UQ:
         val_ = x.val * y.val
         int_bits_ = x.int_bits + y.int_bits
         frac_bits_ = x.frac_bits + y.frac_bits
         return UQ(val_, int_bits_, frac_bits_)
+        
+    def spec(x: float, y: float) -> float:
+        return x * y
+    
+    def sign(x: UQT, y: UQT) -> UQT:
+        int_bits = x.int_bits + y.int_bits
+        frac_bits = x.frac_bits + y.frac_bits
+        return UQT(int_bits, frac_bits)
     
     return Op(
             spec=spec,
             impl=impl,
+            signature=sign,
             args=[x, y],
             name="UQ_Mul")
 
@@ -41,23 +51,56 @@ def UQ_Resize(x: Node, new_int_bits: Node, new_frac_bits: Node) -> Op:
         
         return UQ(x.val << (new_frac_bits.val - x.frac_bits), new_int_bits.val, new_frac_bits.val)
     
+    def sign(x: UQT, new_int_bits: IntT, new_frac_bits: IntT) -> UQT:
+        if new_int_bits.runtime_val and new_frac_bits.runtime_val:
+            return UQT(new_int_bits.runtime_val.val, new_frac_bits.runtime_val.val)
+        else:
+            raise TypeError("UQ_Resize depends on a variable. Impossible to typecheck")
+    
     return Op(
             spec=spec,
             impl=impl,
+            signature=sign,
             args=[x, new_int_bits, new_frac_bits],
             name="UQ_Resize")
 
 # TODO: spec does not match impl (I guess as it should)
 def UQ_Rshift(x: Node, amount: Node) -> Op:
-    def spec(x: float, amount: int) -> float:
-        return x / (2 ** amount)
-        
     def impl(x: UQ, amount: Int) -> UQ:
         return UQ(x.val >> amount.val, x.int_bits, x.frac_bits)
+        
+    def spec(x: float, amount: int) -> float:
+        return x / (2 ** amount)
+   
+    def sign(x: UQT, amount: IntT) -> UQT:
+        if amount.runtime_val:
+            int_bits = max(x.int_bits - amount.runtime_val.val, 0)
+            frac_bits = x.frac_bits + amount.runtime_val.val
+            return UQT(int_bits, frac_bits)
     
     return Op(
             spec=spec,
             impl=impl,
+            signature=sign,
             args=[x, amount],
             name="UQ_Rshift")
  
+ 
+if __name__ == '__main__':
+    assert UQ_to_Q(
+                Const(UQ(val=100, int_bits=12, frac_bits=34)) 
+            ).typecheck() == QT(13, 34)
+    assert UQ_Mul(
+                Const(UQ(val=100, int_bits=12, frac_bits=34)),
+                Const(UQ(val=100, int_bits=34, frac_bits=12))
+            ).typecheck() == UQT(46, 46)
+    assert UQ_Resize(
+                Const(UQ(val=100, int_bits=12, frac_bits=34)), 
+                Const(Int(100)),
+                Const(Int(150)),
+            ).typecheck() == UQT(100, 150)
+    assert UQ_Rshift(
+                Const(UQ(val=100, int_bits=12, frac_bits=34)), 
+                Const(Int(8)),
+            ).typecheck() == UQT(4, 42)
+

@@ -12,7 +12,10 @@ def Int_to_UQ(x: Node, int_bits: Node, frac_bits: Node) -> Op:
         return UQ(x.val, int_bits.val, frac_bits.val)
         
     def sign(x: IntT, int_bits: IntT, frac_bits: IntT) -> UQT:
-        return UQT(int_bits, frac_bits)
+        if int_bits.runtime_val and frac_bits.runtime_val:
+            return UQT(int_bits.runtime_val.val, frac_bits.runtime_val.val)
+        else:
+            raise TypeError("Int_to_UQ depends on a variable. Impossible to typecheck")
 
     return Op(
             spec=spec,
@@ -216,10 +219,26 @@ def Rshift(x: Node, n: Node) -> Op:
         if y.runtime_val is None:
             raise TypeError("Amount of Rshift depends on a variable. Impossible to typecheck")
         else:
-            return IntT(x.total_bits - y.runtime_val.val, 1)
+            return IntT(max(x.total_bits - y.runtime_val.val, 1))
 
     return Op(
             spec=spec,
             impl=impl,
+            signature=sign,
             args=[x, n],
             name="Rshift")
+            
+
+if __name__ == '__main__':
+    assert Add(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(8)
+    assert Sub(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(8)
+    assert Mul(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(10)
+    assert Max(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(7)
+    assert Min(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(7)
+    assert And(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(3)
+    assert Or(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(7)
+    assert Xor(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(7)
+    assert Lshift(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(103)
+    assert Rshift(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(1)
+    assert Int_to_UQ(Var(name='x', signature=IntT(10)), Const(Int(val=2, width=3)), Const(Int(val=2, width=3))).typecheck() == UQT(2, 2)
+    
