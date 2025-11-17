@@ -26,9 +26,13 @@ def BF16_mantissa(x: Node) -> Op:
     def impl(x: BFloat16) -> Int:
         return Int(x.mantissa, BFloat16.mantissa_bits)
     
+    def sign(X: BFloat16T) -> IntT:
+        return IntT(7)
+
     return Op(
             spec=spec,
             impl=impl,
+            signature=sign,
             args=[x],
             name="BF16_mantissa")
 
@@ -43,9 +47,13 @@ def BF16_exponent(x: Node) -> Op:
     def impl(x: BFloat16) -> Int:
         return Int(x.exponent, BFloat16.exponent_bits)
     
+    def sign(x: BFloat16T) -> IntT:
+        return IntT(BFloat16.exponent_bits)
+
     return Op(
             spec=spec,
             impl=impl,
+            signature=sign,
             args=[x],
             name="BF16_exponent")
 
@@ -59,8 +67,13 @@ def BF16_sign(x: Node) -> Op:
     def impl(x: BFloat16) -> Int:
         return Int(x.sign, 1)
     
+    def sign(x: BFloat16T) -> IntT:
+        return IntT(1)
+
     return Op(
             spec=spec,
             impl=impl,
+            signature=sign,
             args=[x],
             name="BF16_sign")
+

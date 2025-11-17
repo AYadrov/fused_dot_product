@@ -69,8 +69,8 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     
     ########## CONSTANTS ###############
     
-    Wf_ = Const(Int(val=Wf), "Wf")
-    bf16_bias = Const(Int(val=BFloat16.exponent_bias), "BFloat16.exponent_bias")
+    Wf_ = Const(val=Int(Wf), name="Wf")
+    bf16_bias = Const(val=Int(BFloat16.exponent_bias), name="BFloat16.exponent_bias")
     
     ########## EXPONENTS ###############
     
@@ -118,13 +118,26 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
                   b0, b1, b2, b3], \
             name="Conventional")
 
+
 if __name__ == '__main__':
     from tqdm import tqdm
     from time import time
     
     # Compile design
-    a = [Var("a_0"), Var("a_1"), Var("a_2"), Var("a_3")]
-    b = [Var("b_0"), Var("b_1"), Var("b_2"), Var("b_3")]
+    a = [
+        Var(name="a_0", signature=BFloat16T()),
+        Var(name="a_1", signature=BFloat16T()),
+        Var(name="a_2", signature=BFloat16T()),
+        Var(name="a_3", signature=BFloat16T()),
+    ]
+    
+    b = [
+        Var(name="b_0", signature=BFloat16T()),
+        Var(name="b_1", signature=BFloat16T()),
+        Var(name="b_2", signature=BFloat16T()),
+        Var(name="b_3", signature=BFloat16T()),
+    ]
+    
     design = Conventional(*a, *b)
     design.print_tree(depth=1)
     

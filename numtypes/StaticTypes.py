@@ -3,6 +3,9 @@ from dataclasses import dataclass
 from fused_dot_product.numtypes.RuntimeTypes import *
 
 class StaticType:
+    def __init__(self):
+        runtime_val = None
+    
     @property
     def total_bits(self):
         raise NotImplementedError
@@ -14,14 +17,12 @@ class StaticType:
         raise NotImplementedError
 
 
-@dataclass(frozen=True)
 class QT(StaticType):
-    int_bits: int
-    frac_bits: int
-    
-    def __post_init__(self):
-        assert self.int_bits >= 0 and self.frac_bits >= 0
-        assert self.int_bits + self.frac_bits >= 1
+    def __init__(self, int_bits: int, frac_bits: int):
+        super().__init__()
+        assert int_bits >= 0 and frac_bits >= 0
+        assert int_bits + frac_bits >= 1
+        self.int_bits, self.frac_bits = int_bits, frac_bits
     
     @property
     def total_bits(self):
@@ -38,14 +39,12 @@ class QT(StaticType):
         )
 
 
-@dataclass(frozen=True)
 class UQT(StaticType):
-    int_bits: int
-    frac_bits: int
-    
-    def __post_init__(self):
-        assert self.int_bits >= 0 and self.frac_bits >= 0
-        assert self.int_bits + self.frac_bits >= 1
+    def __init__(self, int_bits: int, frac_bits: int):
+        super().__init__()
+        assert int_bits >= 0 and frac_bits >= 0
+        assert int_bits + frac_bits >= 1
+        self.int_bits, self.frac_bits = int_bits, frac_bits
     
     @property
     def total_bits(self):
@@ -62,12 +61,11 @@ class UQT(StaticType):
         )
 
 
-@dataclass(frozen=True)
 class IntT(StaticType):
-    bits: int
-    
-    def __post_init__(self):
-        assert self.bits >= 1
+    def __init__(self, bits: int):
+        super().__init__()
+        assert bits >= 1, f"IntT must have a least 1 bit, given {bits}"
+        self.bits = bits
     
     @property
     def total_bits(self):
@@ -83,12 +81,12 @@ class IntT(StaticType):
         )
 
 
-@dataclass(frozen=True)
 class Float32T(StaticType):
-    
-    sign_bits = 1
-    mantissa_bits = 23
-    exponent_bits = 8
+    def __init__(self):
+        super().__init__()
+        self.sign_bits = 1
+        self.mantissa_bits = 23
+        self.exponent_bits = 8
     
     @property
     def total_bits(self):
@@ -98,15 +96,20 @@ class Float32T(StaticType):
         return f"Float<32>"
     
     def __eq__(self, other):
-        return isinstance(other, Float32T)
+        return (
+            isinstance(other, Float32T)
+            and self.sign_bits == other.sign_bits
+            and self.mantissa_bits == other.mantissa_bits
+            and self.exponent_bits == other.exponent_bits
+        )
 
 
-@dataclass(frozen=True)
 class BFloat16T(StaticType):
-    
-    sign_bits = 1
-    mantissa_bits = 7
-    exponent_bits = 8
+    def __init__(self):
+        super().__init__()
+        self.sign_bits = 1
+        self.mantissa_bits = 7
+        self.exponent_bits = 8
     
     @property
     def total_bits(self):
@@ -116,7 +119,12 @@ class BFloat16T(StaticType):
         return f"BFloat<16>"
     
     def __eq__(self, other):
-        return isinstance(other, BFloat16T)
+        return (
+            isinstance(other, BFloat16T)
+            and self.sign_bits == other.sign_bits
+            and self.mantissa_bits == other.mantissa_bits
+            and self.exponent_bits == other.exponent_bits
+        )
 
 
 if __name__ == '__main__':

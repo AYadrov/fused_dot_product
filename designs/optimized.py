@@ -144,12 +144,23 @@ if __name__ == '__main__':
     from time import time
 
     # Compile design
-    a = [Var("a_0"), Var("a_1"), Var("a_2"), Var("a_3")]
-    b = [Var("b_0"), Var("b_1"), Var("b_2"), Var("b_3")]
+    a = [
+        Var(name="a_0", signature=BFloat16T()),
+        Var(name="a_1", signature=BFloat16T()),
+        Var(name="a_2", signature=BFloat16T()),
+        Var(name="a_3", signature=BFloat16T()),
+    ]
+    
+    b = [
+        Var(name="b_0", signature=BFloat16T()),
+        Var(name="b_1", signature=BFloat16T()),
+        Var(name="b_2", signature=BFloat16T()),
+        Var(name="b_3", signature=BFloat16T()),
+    ]
+    
     design = Optimized(*a, *b)
     design.print_tree(depth=1)
     
-    # Test the design
     # Test the design
     random_gen, exp_reshuffle = BFloat16.random_generator(seed=int(time()), shared_exponent_bits=5)
     for _ in tqdm(range(100), desc=f"Quick tests of the design"):

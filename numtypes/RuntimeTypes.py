@@ -3,6 +3,7 @@ import time
 
 from fused_dot_product.config import *
 from fused_dot_product.utils.utils import *
+from fused_dot_product.numtypes.StaticTypes import *
 
 class RuntimeType:
     def to_spec(self):
@@ -13,6 +14,9 @@ class RuntimeType:
     
     @classmethod
     def random_generator(cls):
+        raise NotImplementedError
+    
+    def static_type(self):
         raise NotImplementedError
 
 
@@ -79,6 +83,9 @@ class Q(RuntimeType):
             return float(signed_val) / (2 ** self.frac_bits)
         else:
             return float(self.val) / (2 ** self.frac_bits)
+    
+    def static_type(self):
+        return QT(self.int_bits, self.frac_bits)
 
 
 class UQ(RuntimeType):
@@ -100,6 +107,9 @@ class UQ(RuntimeType):
     
     def to_spec(self):
         return float(self.val) / (2 ** self.frac_bits)
+        
+    def static_type(self):
+        return UQT(self.int_bits, self.frac_bits)
 
 
 class Int(RuntimeType):
@@ -120,6 +130,9 @@ class Int(RuntimeType):
     
     def to_spec(self):
         return self.val
+    
+    def static_type(self):
+        return IntT(self.width)
 
 
 class Float32(RuntimeType):
@@ -167,6 +180,9 @@ class Float32(RuntimeType):
             frac = 1.0 + self.mantissa / (2 ** self.mantissa_bits)
             exp_val = self.exponent - self.exponent_bias
             return float((-1) ** self.sign * frac * (2 ** exp_val))
+            
+    def static_type(self):
+        return Float32T()
     
     @classmethod
     def nInf(cls):
@@ -225,6 +241,9 @@ class BFloat16(RuntimeType):
         
         value = (-1) ** self.sign * frac * (2 ** exp_val)
         return float(value)
+        
+    def static_type(self):
+        return BFloat16T()
     
     @classmethod
     def random_generator(cls, seed: int = int(time.time()), shared_exponent_bits: int = 0):
