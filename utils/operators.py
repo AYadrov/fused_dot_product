@@ -16,6 +16,9 @@ def Q_E_encode_Float32(m: Node, e: Node) -> Op:
     def spec(m: float, e: int) -> float:
         """Mathematical reference implementation."""
         return float(np.float32(m * (2.0 ** (e - Float32.exponent_bias))))
+        
+    def signature(m: QT, e: IntT) -> Float32T:
+        return Float32T()
 
     # implementation matches spec; can differ if optimized later
     def impl(m: Q, e: Int) -> Float32:
@@ -92,6 +95,7 @@ def Q_E_encode_Float32(m: Node, e: Node) -> Op:
     return Op(
         spec=spec,
         impl=impl,
+        signature=signature,
         args=[m, e],
         name="Q_E_encode_Float32",
     )
@@ -117,6 +121,13 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
     """
     def spec(e0: int, e1: int, e2: int, e3: int) -> int:
         return max(max(e0, e1), max(e2, e3))
+        
+    def signature(e0: IntT, e1: IntT, e2: IntT, e3: IntT) -> IntT:
+        assert \
+            e0.total_bits == e1.total_bits and \
+            e1.total_bits == e2.total_bits and \
+            e2.total_bits == e3.total_bits
+        return IntT(e0.total_bits)
     
     def impl(e0: Int, e1: Int, e2: Int, e3: Int) -> int:
         assert e0.width == e1.width and e1.width == e2.width and e2.width == e3.width
@@ -147,6 +158,7 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
     return Op(
         spec=spec,
         impl=impl,
+        signature=signature,
         args=[e0, e1, e2, e3],
         name="OPTIMIZED_MAX_EXP4"
     )

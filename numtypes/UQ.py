@@ -68,15 +68,12 @@ def UQ_Resize(x: Node, new_int_bits: Node, new_frac_bits: Node) -> Op:
 def UQ_Rshift(x: Node, amount: Node) -> Op:
     def impl(x: UQ, amount: Int) -> UQ:
         return UQ(x.val >> amount.val, x.int_bits, x.frac_bits)
-        
+    
     def spec(x: float, amount: int) -> float:
         return x / (2 ** amount)
-   
+    
     def sign(x: UQT, amount: IntT) -> UQT:
-        if amount.runtime_val:
-            int_bits = max(x.int_bits - amount.runtime_val.val, 0)
-            frac_bits = x.frac_bits + amount.runtime_val.val
-            return UQT(int_bits, frac_bits)
+        return UQT(x.int_bits, x.frac_bits)
     
     return Op(
             spec=spec,

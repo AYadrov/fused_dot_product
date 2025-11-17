@@ -17,8 +17,20 @@ class TestFusedDotProduct(unittest.TestCase):
     def test_designs_difference(self):
         """Ensure the unfused, conventional and optimized dot products produce similar results."""
         # Compile design
-        a = [Var("a_0"), Var("a_1"), Var("a_2"), Var("a_3")]
-        b = [Var("b_0"), Var("b_1"), Var("b_2"), Var("b_3")]
+        a = [
+            Var(name="a_0", signature=BFloat16T()),
+            Var(name="a_1", signature=BFloat16T()),
+            Var(name="a_2", signature=BFloat16T()),
+            Var(name="a_3", signature=BFloat16T()),
+        ]
+        
+        b = [
+            Var(name="b_0", signature=BFloat16T()),
+            Var(name="b_1", signature=BFloat16T()),
+            Var(name="b_2", signature=BFloat16T()),
+            Var(name="b_3", signature=BFloat16T()),
+        ]
+    
         conventional = Conventional(*a, *b)
         optimized = Optimized(*a, *b)
         
