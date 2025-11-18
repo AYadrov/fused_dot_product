@@ -159,7 +159,7 @@ if __name__ == '__main__':
     ]
     
     design = Optimized(*a, *b)
-    design.typecheck()
+    design.static_typecheck()
     design.print_tree(depth=1)
     
     # Test the design
