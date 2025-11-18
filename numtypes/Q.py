@@ -211,7 +211,7 @@ if __name__ == '__main__':
     assert Q_Lshift(
             Const(Q(val=100, int_bits=12, frac_bits=34)), 
             Const(Int(4))
-        ).typecheck() == QT(16, 30)
+        ).typecheck() == QT(16, 34)
     assert Q_add_sign(
             Const(Q(val=100, int_bits=12, frac_bits=34)), 
             Const(Int(1))

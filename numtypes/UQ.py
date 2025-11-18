@@ -99,5 +99,5 @@ if __name__ == '__main__':
     assert UQ_Rshift(
                 Const(UQ(val=100, int_bits=12, frac_bits=34)), 
                 Const(Int(8)),
-            ).typecheck() == UQT(4, 42)
+            ).typecheck() == UQT(12, 34)
 

@@ -5,14 +5,14 @@ import random
 from fused_dot_product.config import *
 from fused_dot_product.designs.optimized import Optimized
 from fused_dot_product.designs.conventional import Conventional
-from fused_dot_product.numtypes.numtypes import *
+from fused_dot_product.numtypes.StaticTypes import *
+from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.ast.AST import *
 
 
 def main():
     parser = argparse.ArgumentParser(description="Fused dot product, Kaul et al. (2019)")
     parser.add_argument("-s", "--seed", help="RANDOM SEED", default=int(time.time()), type=int)
-    parser.add_argument("-v", "--verbose", help="0 (no verbose) or 1 (yes verbose)", default=0)
     parser.add_argument("-sh", "--shared-exponent", help=f"shared exponent bits (less than {BFloat16.exponent_bits})", default=SHARED_EXPONENT_BITS, type=int)
     
     args = parser.parse_args()
@@ -45,22 +45,26 @@ def main():
         a[i].load_val(random_gen())
         b[i].load_val(random_gen())
     
-    if args.verbose:
-        print("x =", a)
-        print("y =", b)
-    
-    conv_res_impl, conv_res_spec = conv.evaluate()
+    con_res_impl, con_res_spec = conv.evaluate()
     opt_res_impl, opt_res_spec = opt.evaluate()
 
-    print("Result of conventional fused dot-product:")
-    print("\tImpl:", conv_res_impl)
-    print("\tSpec:", conv_res_spec)
+    # --- ULP error checks
+    ulp_err_conv = ulp_distance(con_res_spec, con_res_impl.to_spec())
+    ulp_err_opt = ulp_distance(opt_res_spec, opt_res_impl.to_spec())
+
+    msg_conv = (
+        f"conventional spec={con_res_spec}, conventional impl={con_res_impl}, "
+        f"ulp_err={ulp_err_conv}"
+    )
+    msg_opt = (
+        f"optimized spec={opt_res_spec}, optimized impl={opt_res_impl}, "
+        f"ulp_err={ulp_err_opt}"
+    )
+    msg_spec = f"optimized spec={opt_res_spec}, conventional spec={con_res_spec}"
     
-    print("Result of optimized fused dot-product:")
-    print("\tImpl:", opt_res_impl)
-    print("\tSpec:", opt_res_spec)
-    
-    print("Absolute difference between optimized/conventional:\n\t", abs(conv_res_impl.to_spec() - opt_res_impl.to_spec()))
+    assert ulp_err_conv == 0, msg_conv
+    assert ulp_err_opt == 0, msg_opt
+    assert opt_res_spec == con_res_spec, msg_spec
     return 0
 
 if __name__ == "__main__":

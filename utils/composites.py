@@ -103,8 +103,8 @@ def invert_bits(x: Node, s: Node) -> Composite:
     impl = Sub(Sub(Lshift(Const(Int(1)), s), Const(Int(1))), x)
     
     return Composite(spec, impl, [x, s], "invert_bits")
-    
- 
+
+'''
 if __name__ == '__main__':
     import inspect
     import sys
@@ -127,9 +127,10 @@ if __name__ == '__main__':
         if name == "get_local_functions":
             continue
         sig = inspect.signature(func)
-        composite_inputs = [Var(name) for name, _ in sig.parameters.items()]
+        composite_inputs = [Var(name=name) for name, _ in sig.parameters.items()]
         print(f"{name} -> {sig}")
         func(*composite_inputs).print_tree(depth=1)
         print("\n")
+'''
 
  

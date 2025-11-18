@@ -45,7 +45,7 @@ class TestFusedDotProduct(unittest.TestCase):
                 con_res_impl, con_res_spec = conventional.evaluate()
                 opt_res_impl, opt_res_spec = optimized.evaluate()
 
-                # --- Relative error checks
+                # --- ULP error checks
                 ulp_err_conv = ulp_distance(con_res_spec, con_res_impl.to_spec())
                 ulp_err_opt = ulp_distance(opt_res_spec, opt_res_impl.to_spec())
 
