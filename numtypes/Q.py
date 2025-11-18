@@ -104,7 +104,7 @@ def Q_And(x: Node, y: Node) -> Op:
         
     def sign(x: QT, y: QT) -> QT:
         frac_bits = max(x.frac_bits, y.frac_bits)
-        int_bits = min(x.int_bits, y.int_bits)
+        int_bits = max(x.int_bits, y.int_bits)
         return QT(int_bits, frac_bits)
     
     return Op(
