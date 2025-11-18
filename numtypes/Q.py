@@ -94,7 +94,7 @@ def Q_Xor(x: Node, y: Node) -> Op:
 def Q_And(x: Node, y: Node) -> Op:  
     def impl(x: Q, y: Q) -> Q:
         x_adj, y_adj = Q.align(x, y)
-        return Q(x_adj.val & y_adj.val, min(x.int_bits, y.int_bits), x_adj.frac_bits)
+        return Q(x_adj.val & y_adj.val, x_adj.int_bits, x_adj.frac_bits)
         
     def spec(x: float, y: float) -> float:
         x_fixed = int(round(x * 2**31))
@@ -142,7 +142,7 @@ def Q_Or(x: Node, y: Node) -> Op:
     
 def Q_Lshift(x: Node, n: Node) -> Op:
     def impl(x: Q, n: Int) -> Q:
-        return Q(x.val << n.val, x.int_bits + n.val, max(x.frac_bits - n.val, 0))
+        return Q(x.val << n.val, x.int_bits + n.val, x.frac_bits)
         
     def spec(x: float, n: int) -> float:
         return x * 2**n
@@ -152,7 +152,7 @@ def Q_Lshift(x: Node, n: Node) -> Op:
             raise TypeError("Amount of Q_Lshift depends on a variable. Impossible to typecheck")
         else:
             int_bits = x.int_bits + n.runtime_val.val
-            frac_bits = max(x.frac_bits - n.runtime_val.val, 0)
+            frac_bits = x.frac_bits
             return QT(int_bits, frac_bits)
     
     return Op(

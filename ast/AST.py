@@ -27,11 +27,11 @@ class Composite(Node):
         name: str,
     ):
         self.spec, self.impl, self.args, self.name = spec, impl, args, name
-        self.signature = self.impl.typecheck()
+        self.node_type = self.typecheck()
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
-        print(prefix + connector + f"{self.name} [Composite]")
+        print(prefix + connector + f"{self.node_type}: {self.name} [Composite]")
 
         new_prefix = prefix + ("    " if is_last else "│   ")
 
@@ -75,7 +75,7 @@ class Composite(Node):
         return impl_res, composite_spec
         
     def typecheck(self):
-        return self.signature
+        return self.impl.typecheck()
 
       
 class Op(Node):
@@ -89,10 +89,11 @@ class Op(Node):
     ):
         self.spec, self.impl, self.signature, self.args, self.name = spec, impl, signature, args, name
         self.signature_check()
+        self.node_type = self.typecheck()
         
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
-        print(prefix + connector + f"{self.name} [Op]")
+        print(prefix + connector + f"{self.node_type}: {self.name} [Op]")
         new_prefix = prefix + ("    " if is_last else "│   ")
         for i, arg in enumerate(self.args):
             is_arg_last = i == len(self.args) - 1
@@ -163,7 +164,7 @@ class Op(Node):
         for param in sign.parameters.values():
             assert issubclass(param.annotation, StaticType), err_msg
         assert issubclass(sign.return_annotation, StaticType), err_msg
-        
+
 
 class Const(Node):
     def __init__(self, 
@@ -173,22 +174,23 @@ class Const(Node):
         self.val, self.name = val, name
         self.signature = val.static_type()
         self.signature_check()
-        
+        self.node_type = self.typecheck()
+    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + self.__str__())
-        
+    
     def __str__(self):
-        return f"{self.name if self.name else str(self.val)} [Const]"
-        
+        return f"{self.node_type}: {self.name if self.name else str(self.val)} [Const]"
+    
     def evaluate(self) -> Tuple[RuntimeType, Any]:
         return self.val, self.val.to_spec()
-        
+    
     def typecheck(self):
         node_type = self.signature
         node_type.runtime_val = self.val  # Useful at static typechecking
         return node_type
-        
+    
     def signature_check(self):
         assert isinstance(self.signature, StaticType), f"Const node value is not an instance of StaticType {self.val}"
 
@@ -197,17 +199,18 @@ class Var(Node):
     def __init__(self, name: str, signature: StaticType, val: Any = None):
         self.name, self.signature, self.val = name, signature, val
         self.signature_check()
+        self.node_type = self.typecheck()
         
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
-        print(prefix + connector + f"{self.name} [Var]")
+        print(prefix + connector + f"{self.node_type}: {self.name} [Var]")
         
     def load_val(self, val: RuntimeType):
         assert isinstance(val, RuntimeType), f"Var's val must be a NumType, {val} is provided"
         self.val = val
         
     def __str__(self):
-        return f"{str(self.val)} [Var]"
+        return f"{self.node_type}: {self.name} [Var]"
         
     def evaluate(self) -> Tuple[RuntimeType, Any]:
         if self.val is None:
