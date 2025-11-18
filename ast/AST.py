@@ -70,6 +70,14 @@ class Composite(Node):
             raise AssertionError(err_msg)
         elif ulp_distance(spec_res, impl_res.to_spec()) != 0:
             raise AssertionError(err_msg)
+        ####### DYNAMIC TYPECHECK ######
+        err_msg = (
+            f"Produced value does not match signature at Composite:{self.name}:\n"
+            f"  impl: {impl_res}\n"
+            f"  impl-type: {impl_res.static_type()}\n"
+            f"  expected-type: {self.node_type}"
+        )
+        assert impl_res.static_type() == self.node_type, err_msg
         ################################
 
         return impl_res, composite_spec
@@ -121,6 +129,14 @@ class Op(Node):
         )
         if ulp_distance(spec_res, impl_res.to_spec()) != 0:
             raise AssertionError(err_msg)
+        ####### DYNAMIC TYPECHECK ######
+        err_msg = (
+            f"Produced value does not match signature at Op:{self.name}:\n"
+            f"  impl: {impl_res}\n"
+            f"  impl-type: {impl_res.static_type()}\n"
+            f"  expected-type: {self.node_type}"
+        )
+        assert impl_res.static_type() == self.node_type, err_msg
         ################################
         
         return impl_res, spec_res
