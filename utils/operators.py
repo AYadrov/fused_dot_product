@@ -106,13 +106,13 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
                        e3: Node) -> Op:
     """
     Computes the maximum exponent value among four inputs using a bitwise comparison tree.
-
+    
     Args:
         e0: First exponent value.
         e1: Second exponent value.
         e2: Third exponent value.
         e3: Fourth exponent value.
-
+    
     Returns:
         Operator that determines the maximum exponent among the four inputs by performing
         bitwise comparison from the most significant bit (MSB) to the least significant bit (LSB).
@@ -121,7 +121,7 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
     """
     def spec(e0: int, e1: int, e2: int, e3: int) -> int:
         return max(max(e0, e1), max(e2, e3))
-        
+    
     def signature(e0: IntT, e1: IntT, e2: IntT, e3: IntT) -> IntT:
         assert \
             e0.total_bits == e1.total_bits and \

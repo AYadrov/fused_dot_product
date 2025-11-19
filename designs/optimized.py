@@ -21,6 +21,10 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         out += a2 * b2
         out += a3 * b3
         return float(np.float32(out))
+        
+    def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T, 
+             b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
+        return Float32T()
     
     ########## INPUT ###################
     
@@ -79,7 +83,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     E_p = [Add(E_a[i], E_b[i]) for i in range(N)]
     
     # Step 2. Estimate local shifts
-    L_shifts = [invert_bits(take_last_n_bits(E_p[i], s_), s_) for i in range(N)]
+    L_shifts = [Invert(Select(E_p[i], Sub(s_, Const(Int(1))), Const(Int(0))), s_) for i in range(N)]
     
     # Step 3. Take leading {9-s} bits for max exponent and a global shift
     E_lead = [Rshift(E_p[i], s_) for i in range(N)]
@@ -134,6 +138,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     return Composite(
             spec=spec,
             impl=root,
+            sign=sign,
             args=[a0, a1, a2, a3,
                   b0, b1, b2, b3],
             name="Optimized")
@@ -169,5 +174,5 @@ if __name__ == '__main__':
         for i in range(N):
             a[i].load_val(random_gen())
             b[i].load_val(random_gen())
-        print(design.evaluate())
+        tqdm.write(str(design.evaluate()[0]))
 
