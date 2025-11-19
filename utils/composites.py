@@ -22,7 +22,7 @@ def MAX_EXPONENT4(e0: Node, e1: Node, e2: Node, e3: Node) -> Composite:
         return max(max(e0, e1), max(e2, e3))
     
     def sign(e0: IntT, e1: IntT, e2: IntT, e3: IntT) -> IntT:
-        return IntT(e0.total_bits)
+        return IntT(max(max(e0.total_bits, e1.total_bits), max(e2.total_bits, e3.total_bits)))
     
     impl = Max(Max(e0, e1), Max(e2, e3))
     

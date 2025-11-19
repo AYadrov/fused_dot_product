@@ -123,15 +123,10 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
         return max(max(e0, e1), max(e2, e3))
     
     def signature(e0: IntT, e1: IntT, e2: IntT, e3: IntT) -> IntT:
-        assert \
-            e0.total_bits == e1.total_bits and \
-            e1.total_bits == e2.total_bits and \
-            e2.total_bits == e3.total_bits
-        return IntT(e0.total_bits)
+        return IntT(max(max(e0.total_bits, e1.total_bits), max(e2.total_bits, e3.total_bits)))
     
     def impl(e0: Int, e1: Int, e2: Int, e3: Int) -> int:
-        assert e0.width == e1.width and e1.width == e2.width and e2.width == e3.width
-        bit_width = e0.width
+        bit_width = max(max(e0.width, e1.width), max(e2.width, e3.width))
         exponents = [e0.val, e1.val, e2.val, e3.val]
         num_elements = len(exponents)
         
@@ -162,5 +157,4 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
         args=[e0, e1, e2, e3],
         name="OPTIMIZED_MAX_EXP4"
     )
-
 
