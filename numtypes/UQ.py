@@ -86,18 +86,18 @@ def UQ_Rshift(x: Node, amount: Node) -> Op:
 if __name__ == '__main__':
     assert UQ_to_Q(
                 Const(UQ(val=100, int_bits=12, frac_bits=34)) 
-            ).typecheck() == QT(13, 34)
+            ).static_typecheck() == QT(13, 34)
     assert UQ_Mul(
                 Const(UQ(val=100, int_bits=12, frac_bits=34)),
                 Const(UQ(val=100, int_bits=34, frac_bits=12))
-            ).typecheck() == UQT(46, 46)
+            ).static_typecheck() == UQT(46, 46)
     assert UQ_Resize(
                 Const(UQ(val=100, int_bits=12, frac_bits=34)), 
                 Const(Int(100)),
                 Const(Int(150)),
-            ).typecheck() == UQT(100, 150)
+            ).static_typecheck() == UQT(100, 150)
     assert UQ_Rshift(
                 Const(UQ(val=100, int_bits=12, frac_bits=34)), 
                 Const(Int(8)),
-            ).typecheck() == UQT(12, 34)
+            ).static_typecheck() == UQT(12, 34)
 

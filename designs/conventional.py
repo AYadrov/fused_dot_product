@@ -149,4 +149,5 @@ if __name__ == '__main__':
         for i in range(N):
             a[i].load_val(random_gen())
             b[i].load_val(random_gen())
-        design.evaluate()
+        print(design.evaluate())
+

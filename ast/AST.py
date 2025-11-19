@@ -5,7 +5,8 @@ from fused_dot_product.numtypes.StaticTypes import StaticType
 from fused_dot_product.utils.utils import ulp_distance
 
 
-# TODO: Static typechecking of input arguments
+# TODO: Static typechecking of input arguments.
+# So, signature should contain also input types
 class Node:
     def __init__(self, spec: Callable[..., Any],
                        impl: Callable[..., RuntimeType],
@@ -45,23 +46,25 @@ class Node:
         ################################
         return impl_res, spec_res
     
-    def static_typecheck(self):
-        args_types = [x.node_type for x in self.args]
+    def static_typecheck(self, locally=True):
+        args_types = [x.node_type if locally else x.static_typecheck() for x in self.args]
         self.node_type = self.signature(*args_types)
         
         for t in args_types:
             assert isinstance(t, StaticType), \
-                "Argument to {self.name} has a type that is not an instance of StaticType: {t}"
+                f"Argument to {self.name} has a type that is not an instance of StaticType: {t}"
         assert isinstance(self.node_type, StaticType), \
-                "Output of {self.name} has a type that is not an instance of StaticType: {self.node_type}"
+                f"Output of {self.name} has a type that is not an instance of StaticType: {self.node_type}"
         
         ####### CONSTANT FOLDING #######
         runtime_vals = [arg.runtime_val for arg in args_types]
-        if all(runtime_vals) and runtime_vals != []:
+        if all([val is not None for val in runtime_vals]) and runtime_vals != []:
             constant_fold = self.impl(*runtime_vals)
             self.dynamic_typecheck(constant_fold)
             self.node_type.runtime_val = constant_fold
         ################################
+        
+        return self.node_type
         
     def dynamic_typecheck(self, impl_res):
         err_msg = (
@@ -83,6 +86,7 @@ class Composite(Node):
                        name: str):
         self.impl_pt = impl
         
+        # TODO: impl gets evaluated twice!
         def impl_(*args):
             return self.impl_pt.evaluate()[0]  # drop spec evaluation as Composite has its own spec
         
@@ -199,3 +203,4 @@ class Var(Node):
         
     def __str__(self):
         return f"{self.node_type}: {self.name} [Var]"
+

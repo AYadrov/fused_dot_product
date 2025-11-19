@@ -230,15 +230,15 @@ def Rshift(x: Node, n: Node) -> Op:
             
 
 if __name__ == '__main__':
-    assert Add(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(8)
-    assert Sub(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(8)
-    assert Mul(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(10)
-    assert Max(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(7)
-    assert Min(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(7)
-    assert And(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(3)
-    assert Or(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(7)
-    assert Xor(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(7)
-    assert Lshift(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(103)
-    assert Rshift(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).typecheck() == IntT(1)
-    assert Int_to_UQ(Var(name='x', signature=IntT(10)), Const(Int(val=2, width=3)), Const(Int(val=2, width=3))).typecheck() == UQT(2, 2)
+    assert Add(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).static_typecheck() == IntT(8)
+    assert Sub(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).static_typecheck() == IntT(8)
+    assert Mul(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).static_typecheck() == IntT(10)
+    assert Max(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).static_typecheck() == IntT(7)
+    assert Min(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).static_typecheck() == IntT(7)
+    assert And(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).static_typecheck() == IntT(3)
+    assert Or(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).static_typecheck() == IntT(7)
+    assert Xor(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).static_typecheck() == IntT(7)
+    assert Lshift(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).static_typecheck() == IntT(103)
+    assert Rshift(Const(Int(val=2, width=3)), Const(Int(val=100, width=7))).static_typecheck() == IntT(1)
+    assert Int_to_UQ(Var(name='x', signature=IntT(10)), Const(Int(val=2, width=3)), Const(Int(val=2, width=3))).static_typecheck() == UQT(2, 2)
     

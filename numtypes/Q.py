@@ -188,32 +188,32 @@ def Q_add_sign(x: Node, s: Node) -> Op:
 if __name__ == '__main__':
     assert Q_sign_bit(
             Const(Q(val=100, int_bits=12, frac_bits=34)) 
-        ).typecheck() == IntT(1)
+        ).static_typecheck() == IntT(1)
     assert Q_Negate(
             Const(Q(val=100, int_bits=12, frac_bits=34))
-        ).typecheck() == QT(12, 34)
+        ).static_typecheck() == QT(12, 34)
     assert Q_Add(
             Const(Q(val=100, int_bits=12, frac_bits=34)), 
             Const(Q(val=100, int_bits=34, frac_bits=12))
-        ).typecheck() == QT(35, 34)
+        ).static_typecheck() == QT(35, 34)
     assert Q_Xor(
             Const(Q(val=100, int_bits=12, frac_bits=34)), 
             Const(Q(val=100, int_bits=34, frac_bits=12))
-        ).typecheck() == QT(34, 34)
+        ).static_typecheck() == QT(34, 34)
     assert Q_And(
             Const(Q(val=100, int_bits=12, frac_bits=34)), 
             Const(Q(val=100, int_bits=34, frac_bits=12))
-        ).typecheck() == QT(12, 34)
+        ).static_typecheck() == QT(34, 34)
     assert Q_Or(
             Const(Q(val=100, int_bits=12, frac_bits=34)), 
             Const(Q(val=100, int_bits=34, frac_bits=12))
-        ).typecheck() == QT(34, 34)
+        ).static_typecheck() == QT(34, 34)
     assert Q_Lshift(
             Const(Q(val=100, int_bits=12, frac_bits=34)), 
             Const(Int(4))
-        ).typecheck() == QT(16, 34)
+        ).static_typecheck() == QT(16, 34)
     assert Q_add_sign(
             Const(Q(val=100, int_bits=12, frac_bits=34)), 
             Const(Int(1))
-        ).typecheck() == QT(12, 34)
+        ).static_typecheck() == QT(12, 34)
 
