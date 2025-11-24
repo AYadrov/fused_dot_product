@@ -163,6 +163,8 @@ class Composite(Node):
                        sign: Callable[..., StaticType],
                        args: list[Node],
                        name: str):
+                       
+        self.impl_pt = impl
         
         def impl_wrapper(impl):
             # Build signature: (arg0: RuntimeType, arg1: RuntimeType, ...) -> tuple[RuntimeType, ...]

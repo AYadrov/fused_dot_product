@@ -2,7 +2,7 @@ import struct
 import math
 import numpy as np
 import inspect
-from typing import Callable, Tuple, Any, Union
+from typing import Callable, Tuple, Any, Union, get_origin
 
 def float_to_bits32(f):
     # pack float32 → 4 bytes, then unpack to unsigned int
@@ -45,6 +45,15 @@ def round_to_the_nearest_even(x: int, x_len: int, target_len: int) -> int:
     return x
 
 def wrap_return_tuple(f: Callable[..., Union[Any, Tuple[Any, ...]]]) -> Callable[..., Tuple[Any, ...]]:
+    orig_ret = f.__annotations__.get("return", inspect.Signature.empty)
+    origin = get_origin(orig_ret)
+
+    # --- check if the return annotation is already a Tuple ---
+    if origin is tuple or origin is Tuple \
+        or orig_ret is tuple \
+        or orig_ret is Tuple:
+        return f
+    
     def wrapped(*args) -> Tuple[Any, ...]:
         out = f(*args)
         if isinstance(out, tuple):

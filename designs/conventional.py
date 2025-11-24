@@ -28,8 +28,9 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         return Float32T()
     
     ########## INPUT ###################
-    
+    # a0 = BF16_decode(a0)
     S_a = [
+        # a0[0],
         BF16_sign(a0),
         BF16_sign(a1),
         BF16_sign(a2),
@@ -44,6 +45,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     ]
     
     E_a = [
+        # a0[2],
         BF16_exponent(a0),
         BF16_exponent(a1),
         BF16_exponent(a2),
@@ -58,6 +60,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     ]
     
     M_a = [
+        # a0[1],
         BF16_mantissa(a0),
         BF16_mantissa(a1),
         BF16_mantissa(a2),
