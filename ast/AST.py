@@ -53,7 +53,7 @@ class Node:
                 f"[{self.name}] mismatch:\n"
                 f"  input-spec: {spec_inputs}\n"
                 f"  input-impl: {[str(x) for x in impl_inputs]}\n"
-                f"  impl: {impl_res}\n"
+                f"  impl: {tuple([str(x) for x in impl_res])}\n"
                 f"  spec: {spec_res}\n"
                 f"  spec/impl ulp: {ulp_distance(impl.to_spec(), spec)}"
             )
@@ -74,7 +74,7 @@ class Node:
                 raise TypeError(f"{self.name}: Flexible arity is not allowed")
             if len(params) != len(self.args):
                 raise TypeError(err_msg)
-            
+        
         arity(self.spec)
         arity(self.impl)
         arity(self.signature)
@@ -164,15 +164,13 @@ class Composite(Node):
                        args: list[Node],
                        name: str):
         
-        self.impl_pt = impl
-             
-        def make_impl(impl):
+        def impl_wrapper(impl):
             # Build signature: (arg0: RuntimeType, arg1: RuntimeType, ...) -> tuple[RuntimeType, ...]
             n = len(args)
             params = [
                 inspect.Parameter(
-                    f"arg{i}", 
-                    inspect.Parameter.POSITIONAL_ONLY, 
+                    f"arg{i}",
+                    inspect.Parameter.POSITIONAL_ONLY,
                     annotation=RuntimeType,
                 )
                 for i in range(n)
@@ -181,17 +179,17 @@ class Composite(Node):
                 parameters=params,
                 return_annotation=tuple[RuntimeType, ...],
             )
-
+            
             def impl_(*call_args):
                 if len(call_args) != n:
                     raise TypeError(f"{name} arity mismatch: should accept {n} arguments, {len(call_args)} is given")
                 return impl.evaluate()[0]
-
+            
             impl_.__signature__ = sig  # make introspection accurate
             return impl_
         
         super().__init__(spec=spec,
-                         impl=make_impl(impl),
+                         impl=impl_wrapper(impl),
                          sign=sign,
                          args=args,
                          name=name)
@@ -300,3 +298,4 @@ class Var(Node):
     
     def __str__(self):
         return f"{self.node_type}: {self.name} [Var]"
+

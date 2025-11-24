@@ -36,8 +36,8 @@ class TestFusedDotProduct(unittest.TestCase):
         
         for shared_bits in range(5, BFloat16.exponent_bits+1):
             random_gen, exp_reshuffle = BFloat16.random_generator(seed=25, shared_exponent_bits=shared_bits)
-            exp_reshuffle()
             for _ in tqdm.tqdm(range(1000), desc=f"Testing designs with {shared_bits} bits of shared exponent"):
+                exp_reshuffle()
                 for i in range(N):
                     a[i].load_val(random_gen())
                     b[i].load_val(random_gen())
@@ -46,22 +46,22 @@ class TestFusedDotProduct(unittest.TestCase):
                 opt_res_impl, opt_res_spec = optimized.evaluate()
 
                 # --- ULP error checks
-                ulp_err_conv = ulp_distance(con_res_spec, con_res_impl.to_spec())
-                ulp_err_opt = ulp_distance(opt_res_spec, opt_res_impl.to_spec())
+                ulp_err_conv = max([ulp_distance(c_spec, c_impl.to_spec()) for c_spec, c_impl in zip(con_res_spec, con_res_impl)])
+                ulp_err_opt = max([ulp_distance(o_spec, o_impl.to_spec()) for o_spec, o_impl in zip(opt_res_spec, opt_res_impl)])
 
                 msg_conv = (
-                    f"conventional spec={con_res_spec}, conventional impl={con_res_impl}, "
+                    f"conventional spec={con_res_spec}, conventional impl={tuple([str(x) for x in con_res_impl])}, "
                     f"ulp_err={ulp_err_conv}"
                 )
                 msg_opt = (
-                    f"optimized spec={opt_res_spec}, optimized impl={opt_res_impl}, "
+                    f"optimized spec={opt_res_spec}, optimized impl={tuple([str(x) for x in opt_res_impl])}, "
                     f"ulp_err={ulp_err_opt}"
                 )
                 msg_spec = f"optimized spec={opt_res_spec}, conventional spec={con_res_spec}"
                 
                 self.assertTrue(ulp_err_conv == 0, msg=msg_conv)
                 self.assertTrue(ulp_err_opt == 0, msg=msg_opt)
-                self.assertTrue(opt_res_spec == con_res_spec, msg=msg_spec)
+                self.assertTrue(opt_res_spec== con_res_spec, msg=msg_spec)
     
 if __name__ == "__main__":
     unittest.main()
