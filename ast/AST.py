@@ -1,55 +1,61 @@
 import inspect
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Tuple, Union, get_args
 
 from fused_dot_product.numtypes.RuntimeTypes import RuntimeType
 from fused_dot_product.numtypes.StaticTypes import StaticType
-from fused_dot_product.utils.utils import ulp_distance
+from fused_dot_product.utils.utils import ulp_distance, wrap_return_tuple, flatten
 
 
 class Node:
-    def __init__(self, spec: Callable[..., Any],
-                       impl: Callable[..., RuntimeType],
-                       sign: Callable[..., StaticType],
+    def __init__(self, spec: Callable[..., Union[Any, Tuple[Any, ...]]],
+                       impl: Callable[..., Union[RuntimeType, Tuple[RuntimeType, ...]]],
+                       sign: Callable[..., Union[StaticType, Tuple[StaticType, ...]]],
                        args: list["Node"],
                        name: str):
-        self.spec = spec
-        self.impl = impl
-        self.signature = sign
+        self.spec = wrap_return_tuple(spec)  # Callable[..., Tuple[Any, ...]],
+        self.impl = wrap_return_tuple(impl)  # Callable[..., Tuple[RuntimeType, ...]],
+        self.signature = wrap_return_tuple(sign)  # Callable[..., Tuple[StaticType, ...]],
         self.args = args
         self.name = name
         
         self.static_typecheck()
     
-    def evaluate(self) -> Tuple[RuntimeType, Any]:
-        spec_inputs = []
-        impl_inputs = []
+    def evaluate(self) -> tuple[tuple[RuntimeType], tuple[Any]]:
+        spec_inputs = []  # List[Tuple[Any, ...]]
+        impl_inputs = []  # List[Tuple[RuntimeType, ...]]
         for arg in self.args:
             impl_, spec_ = arg.evaluate()
             spec_inputs.append(spec_)
             impl_inputs.append(impl_)
+        impl_inputs = flatten(impl_inputs)   # List[RuntimeType, ...]
+        spec_inputs = flatten(spec_inputs)   # List[Any, ...]
         
-        impl_res = self.impl(*impl_inputs)
-        spec_res = self.spec(*spec_inputs)
+        impl_res = self.impl(*impl_inputs)  # Tuple[RuntimeType, ...]
+        spec_res = self.spec(*spec_inputs)  # Tuple[Any, ...]
         
         ########## CHECK BLOCK #########
         self.dynamic_typecheck(args=impl_inputs, out=impl_res)
-        err_msg = (
-            f"[{self.name}] mismatch:\n"
-            f"  input-spec: {spec_inputs}\n"
-            f"  input-impl: {[str(x) for x in impl_inputs]}\n"
-            f"  impl: {impl_res}\n"
-            f"  spec: {spec_res}\n"
-            f"  spec/impl ulp: {ulp_distance(impl_res.to_spec(), spec_res)}"
-        )
-        assert ulp_distance(spec_res, impl_res.to_spec()) == 0, err_msg
+        
+        for spec, impl in zip(spec_res, impl_res):
+            err_msg = (
+                f"[{self.name}] mismatch:\n"
+                f"  input-spec: {spec_inputs}\n"
+                f"  input-impl: {[str(x) for x in impl_inputs]}\n"
+                f"  impl: {impl_res}\n"
+                f"  spec: {spec_res}\n"
+                f"  spec/impl ulp: {ulp_distance(impl.to_spec(), spec)}"
+            )
+            assert ulp_distance(spec, impl.to_spec()) == 0, err_msg
         ################################
         return impl_res, spec_res
     
-    def static_typecheck(self, verify=False):
+    def static_typecheck(self, verify=False) -> tuple[StaticType]:
         # Checks that signature's annotations are StaticType
         self.primitive_signature_check()
         
-        self.args_types = [x.static_typecheck() if verify else x.node_type for x in self.args]
+        # List[StaticType, ...]
+        self.args_types = flatten([x.static_typecheck() if verify else x.node_type for x in self.args])
+        # Tuple[StaticType, ...]
         self.node_type = self.signature(*self.args_types)
         
         # Checks that signature does match with received args_types and node_type
@@ -58,14 +64,15 @@ class Node:
         ####### CONSTANT FOLDING #######
         runtime_vals = [arg.runtime_val for arg in self.args_types]
         if all([val is not None for val in runtime_vals]) and runtime_vals != []:
-            constant_fold = self.impl(*runtime_vals)
+            constant_fold = self.impl(*runtime_vals) # Tuple[RuntimeType, ...]
             self.dynamic_typecheck(args=runtime_vals, out=constant_fold)
-            self.node_type.runtime_val = constant_fold
+            for val, type_ in zip(constant_fold, self.node_type):
+                type_.runtime_val = val
         ################################
         
         return self.node_type
-        
-    def dynamic_typecheck(self, args: list[RuntimeType], out: RuntimeType):
+    
+    def dynamic_typecheck(self, args: list[RuntimeType], out: tuple[RuntimeType]):
         err_msg = (
             f"Arguments do not match Node's signature at {self.name}:\n"
             f"  Given: {[x.static_type() for x in args]}\n"
@@ -77,11 +84,12 @@ class Node:
         err_msg = (
             f"Output does not match Node's signature at {self.name}:\n"
             f"  impl: {out}\n"
-            f"  impl-type: {out.static_type()}\n"
+            f"  impl-type: {[o.static_type() for o in out]}\n"
             f"  expected-type: {self.node_type}\n"
         )
-        assert out.static_type() == self.node_type, err_msg
-        
+        for val, type_ in zip(out, self.node_type):
+            assert val.static_type() == type_, err_msg
+    
     def primitive_signature_check(self):
         sign = inspect.signature(self.signature)
         err_msg = (
@@ -90,9 +98,11 @@ class Node:
         )
         for param in sign.parameters.values():
             assert issubclass(param.annotation, StaticType), err_msg
-        assert issubclass(sign.return_annotation, StaticType), err_msg
+        
+        return_annotation = get_args(sign.return_annotation)[0]
+        assert issubclass(return_annotation, StaticType), err_msg
     
-    def signature_match(self, args: list[StaticType], out: StaticType):
+    def signature_match(self, args: list[StaticType], out: tuple[StaticType, ...]):
         sign = inspect.signature(self.signature)
         args_msg = (
             f"Arguments to {self.name} do not match its signature\n"
@@ -101,13 +111,18 @@ class Node:
         )
         for param, arg_type in zip(sign.parameters.values(), args):
             assert isinstance(arg_type, param.annotation), args_msg
+        
+        return_annotation = get_args(sign.return_annotation)[0]
+        
         output_msg = (
             f"Output from {self.name} does not match its signature\n"
             f"Given: {out}\n"
-            f"Required: {sign.return_annotation}"
+            f"Required: Tuple[{return_annotation}, ...]"
         )
-        assert isinstance(out, sign.return_annotation), output_msg
         
+        for val in out:
+            assert isinstance(val, return_annotation), output_msg
+    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         raise NotImplementedError
 

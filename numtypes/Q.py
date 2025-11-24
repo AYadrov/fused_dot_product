@@ -26,13 +26,13 @@ def Q_sign_bit(x: Node) -> Op:
 def Q_Negate(x: Node) -> Op:
     def impl(x: Q) -> Q:
         return x.negate()
-        
+    
     def spec(x: float) -> float:
         return (-1) * x
-        
+    
     def sign(x: QT) -> QT:
         return QT(x.int_bits, x.frac_bits)
-
+    
     return Op(
             spec=spec,
             impl=impl,
@@ -49,10 +49,10 @@ def Q_Add(x: Node, y: Node) -> Op:
         # Mask for handling overflow
         sum_ = mask(y_ext.val + x_ext.val, y_ext.int_bits + y_ext.frac_bits)
         return Q(sum_, y_ext.int_bits, y_ext.frac_bits)
-        
+    
     def spec(x: float, y: float) -> float:
         return x + y
-        
+    
     def sign(x: QT, y: QT) -> QT:
         frac_bits = max(x.frac_bits, y.frac_bits)
         int_bits = max(x.int_bits, y.int_bits) + 1
@@ -77,7 +77,7 @@ def Q_Xor(x: Node, y: Node) -> Op:
         y_fixed = int(round(y * 2**31))
         xor_res = x_fixed ^ y_fixed
         return float(xor_res / 2**31)
-
+    
     def sign(x: QT, y: QT) -> QT:
         frac_bits = max(x.frac_bits, y.frac_bits)
         int_bits = max(x.int_bits, y.int_bits)
@@ -95,13 +95,13 @@ def Q_And(x: Node, y: Node) -> Op:
     def impl(x: Q, y: Q) -> Q:
         x_adj, y_adj = Q.align(x, y)
         return Q(x_adj.val & y_adj.val, x_adj.int_bits, x_adj.frac_bits)
-        
+    
     def spec(x: float, y: float) -> float:
         x_fixed = int(round(x * 2**31))
         y_fixed = int(round(y * 2**31))
         and_res = x_fixed & y_fixed
         return float(and_res / 2**31)
-        
+    
     def sign(x: QT, y: QT) -> QT:
         frac_bits = max(x.frac_bits, y.frac_bits)
         int_bits = max(x.int_bits, y.int_bits)
@@ -119,14 +119,14 @@ def Q_Or(x: Node, y: Node) -> Op:
     def impl(x: Q, y: Q) -> Q:
         x_adj, y_adj = Q.align(x, y)
         return Q(x_adj.val | y_adj.val, x_adj.int_bits, x_adj.frac_bits)
-        
+    
     def spec(x: float, y: float) -> float:
         # Converting to a signed fixed-point
         x_fixed = int(round(x * 2**31))
         y_fixed = int(round(y * 2**31))
         or_res = x_fixed | y_fixed
         return float(or_res / 2**31)
-        
+    
     def sign(x: QT, y: QT) -> QT:
         frac_bits = max(x.frac_bits, y.frac_bits)
         int_bits = max(x.int_bits, y.int_bits)
@@ -143,10 +143,10 @@ def Q_Or(x: Node, y: Node) -> Op:
 def Q_Lshift(x: Node, n: Node) -> Op:
     def impl(x: Q, n: Int) -> Q:
         return Q(x.val << n.val, x.int_bits + n.val, x.frac_bits)
-        
+    
     def spec(x: float, n: int) -> float:
         return x * 2**n
-        
+    
     def sign(x: QT, n: IntT) -> QT:
         if n.runtime_val is None:
             raise TypeError("Amount of Q_Lshift depends on a variable. Impossible to typecheck")
@@ -171,10 +171,10 @@ def Q_add_sign(x: Node, s: Node) -> Op:
             return Q(neg_val, x.int_bits, x.frac_bits)
         else:
             return Q(x.val, x.int_bits, x.frac_bits)
-            
+    
     def spec(x: float, s: int) -> float:
         return ((-1) ** s) * x
-            
+    
     def sign(x: QT, n: IntT) -> QT:
         return QT(x.int_bits, x.frac_bits)
     

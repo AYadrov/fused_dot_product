@@ -260,7 +260,7 @@ def Invert(x: Node, s: Node) -> Op:
         return (2**s - 1) - x
     
     def impl(x: Int, s: Int) -> Int:
-        assert s.val == x.width, "Oops, s can not be greater than x.width in this implementation"
+        assert s.val == x.width, f"Oops, s ({s.val}) is not the same size as x.width ({x.width}). Not allowed in this implementation"
         val = ((1 << x.width) - 1) - x.val
         width = x.width
         return Int(val, width)

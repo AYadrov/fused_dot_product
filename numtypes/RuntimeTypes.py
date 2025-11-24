@@ -107,7 +107,7 @@ class UQ(RuntimeType):
     
     def to_spec(self):
         return float(self.val) / (2 ** self.frac_bits)
-        
+    
     def static_type(self):
         return UQT(self.int_bits, self.frac_bits)
 
@@ -180,7 +180,7 @@ class Float32(RuntimeType):
             frac = 1.0 + self.mantissa / (2 ** self.mantissa_bits)
             exp_val = self.exponent - self.exponent_bias
             return float((-1) ** self.sign * frac * (2 ** exp_val))
-            
+    
     def static_type(self):
         return Float32T()
     
@@ -241,7 +241,7 @@ class BFloat16(RuntimeType):
         
         value = (-1) ** self.sign * frac * (2 ** exp_val)
         return float(value)
-        
+    
     def static_type(self):
         return BFloat16T()
     

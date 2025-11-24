@@ -16,10 +16,10 @@ def BF16_mantissa_to_UQ(mantissa: Node) -> Composite:
     mantissa_ = Or(mantissa, Lshift(Const(Int(1)), Const(Int(BFloat16.mantissa_bits), "BF16_MANTISSA_BITS")))
     impl = Int_to_UQ(mantissa_, Const(Int(1)), Const(Int(BFloat16.mantissa_bits), "BF16_MANTISSA_BITS"))
     
-    return Composite(spec=spec, 
-                     impl=impl, 
+    return Composite(spec=spec,
+                     impl=impl,
                      sign=sign,
-                     args=[mantissa], 
+                     args=[mantissa],
                      name="BF16_mantissa_to_UQ")
 
 def BF16_mantissa(x: Node) -> Op:

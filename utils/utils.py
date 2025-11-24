@@ -1,6 +1,8 @@
 import struct
 import math
 import numpy as np
+import inspect
+from typing import Callable, Tuple, Any, Union
 
 def float_to_bits32(f):
     # pack float32 → 4 bytes, then unpack to unsigned int
@@ -41,6 +43,33 @@ def round_to_the_nearest_even(x: int, x_len: int, target_len: int) -> int:
         if guard_bit and (round_bit or sticky_bit or lsb):
             x += 1
     return x
+
+def wrap_return_tuple(f: Callable[..., Union[Any, Tuple[Any, ...]]]) -> Callable[..., Tuple[Any, ...]]:
+    def wrapped(*args) -> Tuple[Any, ...]:
+        out = f(*args)
+        if isinstance(out, tuple):
+            return out
+        return (out,)
+
+    wrapped.__annotations__ = dict(f.__annotations__)
+    ret = wrapped.__annotations__.get("return", Any)
+    wrapped.__annotations__["return"] = Tuple[ret, ...]
+
+    sig = inspect.signature(f)
+    params = list(sig.parameters.values())
+    # New signature with updated return annotation
+    wrapped.__signature__ = sig.replace(
+        return_annotation=Tuple[sig.return_annotation, ...])
+
+    # Mirror metadata
+    wrapped.__name__ = f.__name__
+    wrapped.__doc__ = f.__doc__
+    wrapped.__qualname__ = f.__qualname__
+
+    return wrapped
+    
+def flatten(lst: list[tuple[Any, ...]]) -> list[Any]:
+    return [x for t in lst for x in t]
     
 def mask(x, n):
     return x & ((1 << n) - 1)
