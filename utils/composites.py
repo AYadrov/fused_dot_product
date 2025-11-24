@@ -26,10 +26,10 @@ def MAX_EXPONENT4(e0: Node, e1: Node, e2: Node, e3: Node) -> Composite:
     
     impl = Max(Max(e0, e1), Max(e2, e3))
     
-    return Composite(spec=spec, 
-                     impl=impl, 
+    return Composite(spec=spec,
+                     impl=impl,
                      sign=sign,
-                     args=[e0, e1, e2, e3], 
+                     args=[e0, e1, e2, e3],
                      name="MAX_EXPONENT4")
 
 def ADDER_TREE4(x0: Node, x1: Node, x2: Node, x3: Node) -> Composite:
@@ -45,10 +45,10 @@ def ADDER_TREE4(x0: Node, x1: Node, x2: Node, x3: Node) -> Composite:
     res2 = Q_Add(x2, x3)
     impl = Q_Add(res1, res2)
     
-    return Composite(spec=spec, 
+    return Composite(spec=spec,
                      impl=impl,
-                     sign=sign, 
-                     args=[x0, x1, x2, x3], 
+                     sign=sign,
+                     args=[x0, x1, x2, x3],
                      name="ADDER_TREE4")
 
 # It is important to call CSA only on fixed points with equal lengths!

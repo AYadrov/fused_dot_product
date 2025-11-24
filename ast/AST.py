@@ -1,9 +1,20 @@
 import inspect
-from typing import Any, Callable, Tuple, Union, get_args
+from typing import (
+    Any,
+    Callable,
+    Tuple,
+    Union,
+    get_args,
+    get_origin,
+)
 
 from fused_dot_product.numtypes.RuntimeTypes import RuntimeType
 from fused_dot_product.numtypes.StaticTypes import StaticType
-from fused_dot_product.utils.utils import ulp_distance, wrap_return_tuple, flatten
+from fused_dot_product.utils.utils import (
+    ulp_distance,
+    wrap_return_tuple,
+    flatten,
+)
 
 
 class Node:
@@ -18,6 +29,7 @@ class Node:
         self.args = args
         self.name = name
         
+        self.arity_check()
         self.static_typecheck()
     
     def evaluate(self) -> tuple[tuple[RuntimeType], tuple[Any]]:
@@ -27,8 +39,8 @@ class Node:
             impl_, spec_ = arg.evaluate()
             spec_inputs.append(spec_)
             impl_inputs.append(impl_)
-        impl_inputs = flatten(impl_inputs)   # List[RuntimeType, ...]
-        spec_inputs = flatten(spec_inputs)   # List[Any, ...]
+        impl_inputs = flatten(impl_inputs)  # List[RuntimeType, ...]
+        spec_inputs = flatten(spec_inputs)  # List[Any, ...]
         
         impl_res = self.impl(*impl_inputs)  # Tuple[RuntimeType, ...]
         spec_res = self.spec(*spec_inputs)  # Tuple[Any, ...]
@@ -48,6 +60,24 @@ class Node:
             assert ulp_distance(spec, impl.to_spec()) == 0, err_msg
         ################################
         return impl_res, spec_res
+    
+    def arity_check(self):
+        err_msg = (
+            f"Arity mismatch at {self.name}: "
+            f"spec/impl/sign must take {len(self.args)} arguments"
+        )
+        
+        def arity(f):
+            sig = inspect.signature(f)
+            params = list(sig.parameters.values())
+            if any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in params):
+                raise TypeError(f"{self.name}: Flexible arity is not allowed")
+            if len(params) != len(self.args):
+                raise TypeError(err_msg)
+            
+        arity(self.spec)
+        arity(self.impl)
+        arity(self.signature)
     
     def static_typecheck(self, verify=False) -> tuple[StaticType]:
         # Checks that signature's annotations are StaticType
@@ -133,14 +163,35 @@ class Composite(Node):
                        sign: Callable[..., StaticType],
                        args: list[Node],
                        name: str):
-        self.impl_pt = impl
         
-        # TODO: impl gets evaluated twice!
-        def impl_(*args):
-            return self.impl_pt.evaluate()[0]  # drop spec evaluation as Composite has its own spec
+        self.impl_pt = impl
+             
+        def make_impl(impl):
+            # Build signature: (arg0: RuntimeType, arg1: RuntimeType, ...) -> tuple[RuntimeType, ...]
+            n = len(args)
+            params = [
+                inspect.Parameter(
+                    f"arg{i}", 
+                    inspect.Parameter.POSITIONAL_ONLY, 
+                    annotation=RuntimeType,
+                )
+                for i in range(n)
+            ]
+            sig = inspect.Signature(
+                parameters=params,
+                return_annotation=tuple[RuntimeType, ...],
+            )
+
+            def impl_(*call_args):
+                if len(call_args) != n:
+                    raise TypeError(f"{name} arity mismatch: should accept {n} arguments, {len(call_args)} is given")
+                return impl.evaluate()[0]
+
+            impl_.__signature__ = sig  # make introspection accurate
+            return impl_
         
         super().__init__(spec=spec,
-                         impl=impl_,
+                         impl=make_impl(impl),
                          sign=sign,
                          args=args,
                          name=name)
@@ -249,4 +300,3 @@ class Var(Node):
     
     def __str__(self):
         return f"{self.node_type}: {self.name} [Var]"
-
