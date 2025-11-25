@@ -1,15 +1,15 @@
 import inspect
-from typing import Any, Callable, Tuple
+import typing as tp
 
-from fused_dot_product.numtypes.RuntimeTypes import RuntimeType
-from fused_dot_product.numtypes.StaticTypes import StaticType
+from fused_dot_product.numtypes.RuntimeTypes import *
+from fused_dot_product.numtypes.StaticTypes import *
 from fused_dot_product.utils.utils import ulp_distance
 
 
 class Node:
-    def __init__(self, spec: Callable[..., Any],
-                       impl: Callable[..., RuntimeType],
-                       sign: Callable[..., StaticType],
+    def __init__(self, spec: tp.Callable[..., tp.Any],
+                       impl: tp.Callable[..., RuntimeType],
+                       sign: tp.Callable[..., StaticType],
                        args: list["Node"],
                        name: str):
         self.spec = spec
@@ -20,7 +20,10 @@ class Node:
         
         self.static_typecheck()
     
-    def evaluate(self) -> Tuple[RuntimeType, Any]:
+    def __getitem__(self, idx):
+        return Tuple_get_item(self, Const(Int(idx)))
+    
+    def evaluate(self) -> tp.Tuple[RuntimeType, tp.Any]:
         spec_inputs = []
         impl_inputs = []
         for arg in self.args:
@@ -113,9 +116,9 @@ class Node:
 
 
 class Composite(Node):
-    def __init__(self, spec: Callable[..., Any],
+    def __init__(self, spec: tp.Callable[..., tp.Any],
                        impl: Node,
-                       sign: Callable[..., StaticType],
+                       sign: tp.Callable[..., StaticType],
                        args: list[Node],
                        name: str):
         self.impl_pt = impl
@@ -148,9 +151,9 @@ class Composite(Node):
 class Op(Node):
     def __init__(
         self,
-        spec: Callable[..., Any],
-        impl: Callable[..., RuntimeType],
-        signature: Callable[..., StaticType],
+        spec: tp.Callable[..., tp.Any],
+        impl: tp.Callable[..., RuntimeType],
+        signature: tp.Callable[..., StaticType],
         args: list[Node],
         name: str,
     ):
@@ -234,4 +237,30 @@ class Var(Node):
     
     def __str__(self):
         return f"{self.node_type}: {self.name} [Var]"
+
+
+# TODO: to be moved somewhere, it's here due to loading cycles
+def Tuple_get_item(x: Node, idx: Node) -> Op:
+    def sign(x: TupleT, idx: IntT) -> StaticType:
+        if not isinstance(x, TupleT):
+            raise TypeError(f"{x} is not an instance of TupleT to iterate over it")
+        if idx.runtime_val:
+            return x.args[idx.runtime_val.val]
+        else:
+            raise TypeError("Tuple_get_item depends on a variable. Impossible to typecheck")
+
+    def impl(x: Tuple, idx: Int) -> RuntimeType:
+        if idx.val >= len(x.args) or idx.val < 0:
+            raise ValueError(f"Index is out of range for tuple {str(x)}, given {str(idx)}")
+        return x.args[idx.val]
+
+    def spec(x: tuple, idx: int):
+        return x[idx]
+
+    return Op(
+        spec=spec,
+        impl=impl,
+        signature=sign,
+        args=[x, idx],
+        name="Tuple_get_item")
 

@@ -15,8 +15,13 @@ def ulp_distance(x, y):
         if math.isinf(x) or math.isinf(y):
             return float('inf') if x != y else 0
         return abs(float_to_bits32(x) - float_to_bits32(y))
+    
     elif isinstance(x, int) and isinstance(y, int):
         return abs(x - y)
+        
+    elif isinstance(x, tuple) and isinstance(y, tuple):
+        return max([ulp_distance(x_, y_) for x_, y_ in zip(x, y)])
+    
     else:
         raise TypeError(f"Arguments are expected to have the same type, given {x} and {y}")
         

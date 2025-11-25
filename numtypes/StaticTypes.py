@@ -126,6 +126,27 @@ class BFloat16T(StaticType):
             and self.exponent_bits == other.exponent_bits
         )
 
+class TupleT(StaticType):
+    def __init__(self, *args: StaticType):
+        super().__init__()
+        for x in args:
+            assert isinstance(x, StaticType), f"TupleT can not contain non-StaticType, given: {x}"
+        self.args = args
+    
+    @property
+    def total_bits(self):
+        return sum([x.total_bits for x in self.args])
+    
+    def __repr__(self):
+        return f"Tuple<{', '.join([repr(x) for x in self.args])}>"
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, TupleT)
+            and len(self.args) == len(other.args)
+            and all([arg1 == arg2 for arg1, arg2 in zip(self.args, other.args)])
+        )
+
 
 if __name__ == '__main__':
     print(QT(1,3))
@@ -133,4 +154,7 @@ if __name__ == '__main__':
     print(IntT(1))
     print(Float32T())
     print(BFloat16T())
+    print(TupleT(IntT(2)))
+    print(TupleT(IntT(2), QT(1,3)))
+
 
