@@ -28,47 +28,18 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     
     ########## INPUT ###################
     
-    S_a = [
-        BF16_sign(a0),
-        BF16_sign(a1),
-        BF16_sign(a2),
-        BF16_sign(a3),
-    ]
+    S_a, M_a, E_a = [0] * N, [0] * N, [0] * N
+    S_b, M_b, E_b = [0] * N, [0] * N, [0] * N
     
-    S_b = [
-        BF16_sign(b0),
-        BF16_sign(b1),
-        BF16_sign(b2),
-        BF16_sign(b3),
-    ]
+    S_a[0], M_a[0], E_a[0] = BF16_decode(a0)
+    S_a[1], M_a[1], E_a[1] = BF16_decode(a1)
+    S_a[2], M_a[2], E_a[2] = BF16_decode(a2)
+    S_a[3], M_a[3], E_a[3] = BF16_decode(a3)
     
-    E_a = [
-        BF16_exponent(a0),
-        BF16_exponent(a1),
-        BF16_exponent(a2),
-        BF16_exponent(a3),
-    ]
-    
-    E_b = [
-        BF16_exponent(b0),
-        BF16_exponent(b1),
-        BF16_exponent(b2),
-        BF16_exponent(b3),
-    ]
-    
-    M_a = [
-        BF16_mantissa(a0),
-        BF16_mantissa(a1),
-        BF16_mantissa(a2),
-        BF16_mantissa(a3),
-    ]
-    
-    M_b = [
-        BF16_mantissa(b0),
-        BF16_mantissa(b1),
-        BF16_mantissa(b2),
-        BF16_mantissa(b3),
-    ]
+    S_b[0], M_b[0], E_b[0] = BF16_decode(b0)
+    S_b[1], M_b[1], E_b[1] = BF16_decode(b1)
+    S_b[2], M_b[2], E_b[2] = BF16_decode(b2)
+    S_b[3], M_b[3], E_b[3] = BF16_decode(b3)
     
     ########## CONSTANTS ###############
     

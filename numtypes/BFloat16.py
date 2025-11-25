@@ -9,7 +9,7 @@ from fused_dot_product.ast.AST import *
 def BF16_mantissa_to_UQ(mantissa: Node) -> Composite:
     def spec(mantissa: int) -> float:
         return (float(mantissa) / (2 ** 7)) + 1.0
-        
+    
     def sign(mantissa: IntT) -> UQT:
         return UQT(1, 7)
     
@@ -23,20 +23,20 @@ def BF16_mantissa_to_UQ(mantissa: Node) -> Composite:
                      name="BF16_mantissa_to_UQ")
 
 def BF16_decode(x: Node) -> Op:
-    def spec(x: int) -> Tuple[int, int, int]:
+    def spec(x: int) -> tuple[int]:
         def sign(x):
             if x < 0:
                 return 1
             else:
                 return 0
-
+        
         def mantissa(x):
             if x == 0.0:
                 return 0
             exp = math.floor(math.log2(abs(x)))
             frac = abs(x) / (2 ** exp) - 1.0
             return int(frac * (2 ** 7))
-
+        
         def exponent(x):
             if x == 0:
                 return 0
@@ -47,21 +47,21 @@ def BF16_decode(x: Node) -> Op:
             mantissa(x),
             exponent(x),
         )
-
+    
     def impl(x: BFloat16) -> Tuple:
         return Tuple(
             Int(x.sign, 1),
             Int(x.mantissa, 7),
             Int(x.exponent, 8),
         )
-
+    
     def signature(x: BFloat16T) -> TupleT:
         return TupleT(
             IntT(1),
             IntT(7),
             IntT(8),
         )
-
+    
     return Op(
         spec=spec,
         impl=impl,
@@ -82,7 +82,7 @@ def BF16_mantissa(x: Node) -> Op:
     
     def sign(x: BFloat16T) -> IntT:
         return IntT(7)
-
+    
     return Op(
             spec=spec,
             impl=impl,
@@ -103,7 +103,7 @@ def BF16_exponent(x: Node) -> Op:
     
     def sign(x: BFloat16T) -> IntT:
         return IntT(8)
-
+    
     return Op(
             spec=spec,
             impl=impl,
@@ -123,7 +123,7 @@ def BF16_sign(x: Node) -> Op:
     
     def sign(x: BFloat16T) -> IntT:
         return IntT(1)
-
+    
     return Op(
             spec=spec,
             impl=impl,
