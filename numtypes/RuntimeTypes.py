@@ -20,6 +20,25 @@ class RuntimeType:
         raise NotImplementedError
 
 
+class Tuple(RuntimeType):
+    def __init__(self, *args: RuntimeType):
+        if not args:
+            raise TypeError("Tuple cannot be empty")
+        for x in args:
+            if not isinstance(x, RuntimeType):
+                raise TypeError("Tuple must contain RuntimeType instances")
+        self.args = args
+    
+    def to_spec(self):
+        return tuple(x.to_spec() for x in self.args)
+    
+    def __str__(self):
+        return f"Tuple[{', '.join([str(x) for x in self.args])}]"
+    
+    def static_type(self):
+        return TupleT(*[x.static_type() for x in self.args])
+
+
 class Q(RuntimeType):
     """Signed fixed-point type."""
     def __init__(self, val: int, int_bits: int, frac_bits: int):
@@ -107,7 +126,7 @@ class UQ(RuntimeType):
     
     def to_spec(self):
         return float(self.val) / (2 ** self.frac_bits)
-        
+    
     def static_type(self):
         return UQT(self.int_bits, self.frac_bits)
 
@@ -180,7 +199,7 @@ class Float32(RuntimeType):
             frac = 1.0 + self.mantissa / (2 ** self.mantissa_bits)
             exp_val = self.exponent - self.exponent_bias
             return float((-1) ** self.sign * frac * (2 ** exp_val))
-            
+    
     def static_type(self):
         return Float32T()
     
@@ -241,7 +260,7 @@ class BFloat16(RuntimeType):
         
         value = (-1) ** self.sign * frac * (2 ** exp_val)
         return float(value)
-        
+    
     def static_type(self):
         return BFloat16T()
     
@@ -266,3 +285,9 @@ class BFloat16(RuntimeType):
         
         return gen, gen_shared_exp
 
+if __name__ == '__main__':
+    s = Tuple(Int(2), Q(2, 2, 3))
+    print(s)
+    print(s.to_spec())
+    print(s.static_type())
+    

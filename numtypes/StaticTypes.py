@@ -127,7 +127,7 @@ class BFloat16T(StaticType):
         )
 
 class TupleT(StaticType):
-    def __init__(self, *args):
+    def __init__(self, *args: StaticType):
         super().__init__()
         for x in args:
             assert isinstance(x, StaticType), f"TupleT can not contain non-StaticType, given: {x}"

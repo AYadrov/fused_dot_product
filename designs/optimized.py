@@ -83,7 +83,9 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     E_p = [Add(E_a[i], E_b[i]) for i in range(N)]
     
     # Step 2. Estimate local shifts
-    L_shifts = [Invert(Select(E_p[i], Sub(s_, Const(Int(1))), Const(Int(0))), s_) for i in range(N)]
+    start = Max(Sub(s_, Const(Int(1))), Const(Int(0)))
+    end = Const(Int(0))
+    L_shifts = [Invert(Select(E_p[i], start, end), s_) for i in range(N)]
     
     # Step 3. Take leading {9-s} bits for max exponent and a global shift
     E_lead = [Rshift(E_p[i], s_) for i in range(N)]
