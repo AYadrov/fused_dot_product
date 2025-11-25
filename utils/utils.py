@@ -69,13 +69,31 @@ def wrap_return_tuple(f: Callable[..., Union[Any, Tuple[Any, ...]]]) -> Callable
     # New signature with updated return annotation
     wrapped.__signature__ = sig.replace(
         return_annotation=Tuple[sig.return_annotation, ...])
-
+    
     # Mirror metadata
     wrapped.__name__ = f.__name__
     wrapped.__doc__ = f.__doc__
     wrapped.__qualname__ = f.__qualname__
-
+    
     return wrapped
+
+def add_types_to_signature(f, default_type, N):
+    # Build signature: (arg0: default_type, arg1: default_type, ...) -> tuple[default_type, ...]
+    params = [
+        inspect.Parameter(
+            f"arg{i}",
+            inspect.Parameter.POSITIONAL_ONLY,
+            annotation=default_type,
+        )
+        for i in range(N)
+    ]
+    sig = inspect.Signature(
+        parameters=params,
+        return_annotation=tuple[default_type, ...],
+    )
+    
+    f.__signature__ = sig  # make introspection accurate
+    return f
     
 def flatten(lst: list[tuple[Any, ...]]) -> list[Any]:
     return [x for t in lst for x in t]

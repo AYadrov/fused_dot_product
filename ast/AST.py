@@ -14,6 +14,7 @@ from fused_dot_product.utils.utils import (
     ulp_distance,
     wrap_return_tuple,
     flatten,
+    add_types_to_signature,
 )
 
 
@@ -63,7 +64,7 @@ class Node:
     
     def arity_check(self):
         err_msg = (
-            f"Arity mismatch at {self.name}: "
+            f"Arity mismatch at {self.name}: \n"
             f"spec/impl/sign must take {len(self.args)} arguments"
         )
         
@@ -142,7 +143,7 @@ class Node:
         for param, arg_type in zip(sign.parameters.values(), args):
             assert isinstance(arg_type, param.annotation), args_msg
         
-        return_annotation = get_args(sign.return_annotation)[0]
+        return_annotation = get_args(sign.return_annotation)[0]  # TODO: Check for Ellipsoid, etc
         
         output_msg = (
             f"Output from {self.name} does not match its signature\n"
@@ -157,41 +158,33 @@ class Node:
         raise NotImplementedError
 
 
+class Tuple(Node):
+    def __init__(self, spec: Callable[..., Any],
+                       impl: Node,
+                       sign: Callable[..., StaticType],
+                       args: list[Node],
+                       name: str):
+        def spec(*args):
+            return tuple(args)
+        
+
+
 class Composite(Node):
     def __init__(self, spec: Callable[..., Any],
                        impl: Node,
                        sign: Callable[..., StaticType],
                        args: list[Node],
                        name: str):
-                       
-        self.impl_pt = impl
         
-        def impl_wrapper(impl):
-            # Build signature: (arg0: RuntimeType, arg1: RuntimeType, ...) -> tuple[RuntimeType, ...]
-            n = len(args)
-            params = [
-                inspect.Parameter(
-                    f"arg{i}",
-                    inspect.Parameter.POSITIONAL_ONLY,
-                    annotation=RuntimeType,
-                )
-                for i in range(n)
-            ]
-            sig = inspect.Signature(
-                parameters=params,
-                return_annotation=tuple[RuntimeType, ...],
-            )
-            
-            def impl_(*call_args):
-                if len(call_args) != n:
-                    raise TypeError(f"{name} arity mismatch: should accept {n} arguments, {len(call_args)} is given")
-                return impl.evaluate()[0]
-            
-            impl_.__signature__ = sig  # make introspection accurate
-            return impl_
+        self.impl_pt = impl  # Preserve pointer for future printing
+        
+        def impl_(*call_args):
+            if len(call_args) != len(args):
+                raise TypeError(f"{name} arity mismatch")
+            return impl.evaluate()[0]
         
         super().__init__(spec=spec,
-                         impl=impl_wrapper(impl),
+                         impl=add_types_to_signature(impl_, RuntimeType, len(args)),
                          sign=sign,
                          args=args,
                          name=name)
