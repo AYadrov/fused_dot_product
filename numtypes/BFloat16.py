@@ -17,10 +17,10 @@ def BF16_mantissa_to_UQ(mantissa: Node) -> Composite:
     mantissa_ = Or(mantissa, Lshift(Const(Int(1)), Const(Int(BFloat16.mantissa_bits), "BF16_MANTISSA_BITS")))
     impl = Int_to_UQ(mantissa_, Const(Int(1)), Const(Int(BFloat16.mantissa_bits), "BF16_MANTISSA_BITS"))
     
-    return Composite(spec=spec, 
-                     impl=impl, 
+    return Composite(spec=spec,
+                     impl=impl,
                      sign=sign,
-                     args=[mantissa], 
+                     args=[mantissa],
                      name="BF16_mantissa_to_UQ")
 
 def BF16_decode(x: Node) -> Composite:
@@ -37,7 +37,7 @@ def BF16_decode(x: Node) -> Composite:
         
         def exponent(x):
             return 0.0 if x == 0 else float(math.floor(math.log2(abs(x))) + 127)
-            
+        
         return sign(x), mantissa(x), exponent(x)
     
     def signature(x: BFloat16T) -> TupleT:

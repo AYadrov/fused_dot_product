@@ -2,6 +2,121 @@ from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.ast.AST import *
 
 
+# TODO: this should be a static method of UQ class
+def _uq_aligner(x: Node, y: Node) -> Op:
+    def spec(x, y):
+        return x, y
+    
+    def sign(x: UQT, y: UQT) -> TupleT:
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        x_ = UQT(x.int_bits, frac_bits)
+        y_ = UQT(y.int_bits, frac_bits)
+        return TupleT(x_, y_)
+    
+    def impl(x: UQ, y: UQ) -> Tuple:
+        if x.frac_bits > y.frac_bits:
+            shift = x.frac_bits - y.frac_bits
+            y = UQ(y.val << shift, y.int_bits, x.frac_bits)
+            x = UQ(x.val, x.int_bits, x.frac_bits)
+        elif x.frac_bits < y.frac_bits:
+            shift = y.frac_bits - x.frac_bits
+            x = UQ(x.val << shift, x.int_bits, y.frac_bits)
+            y = UQ(y.val, y.int_bits, y.frac_bits)
+        return Tuple(x, y)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        signature=sign,
+        args=[x, y],
+        name="_uq_aligner")
+
+ 
+# TODO: this should be a static method of UQ class
+def _uq_adder(x: Node, y: Node) -> Op:
+    def spec(x: float, y: float) -> float:
+        return x + y
+    
+    def sign(x: UQT, y: UQT) -> UQT:
+        int_bits = max(x.int_bits, y.int_bits) + 1
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQT(int_bits, frac_bits)
+    
+    def impl(x: UQ, y: UQ) -> UQ:
+        int_bits = max(x.int_bits, y.int_bits) + 1
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQ(x.val + y.val, int_bits, frac_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        signature=sign,
+        args=[x, y],
+        name="_uq_adder")
+
+
+# TODO: does it actually increases int_bits? interenet says so...
+def _uq_subtracter(x: Node, y: Node) -> Op:
+    def spec(x: float, y: float) -> float:
+        return x - y
+    
+    def sign(x: UQT, y: UQT) -> UQT:
+        int_bits = max(x.int_bits, y.int_bits) + 1
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQT(int_bits, frac_bits)
+    
+    def impl(x: UQ, y: UQ) -> UQ:
+        int_bits = max(x.int_bits, y.int_bits) + 1
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQ(x.val - y.val, int_bits, frac_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        signature=sign,
+        args=[x, y],
+        name="_uq_subtracter")
+
+
+def UQ_Add(x: Node, y: Node) -> Op:
+    def spec(x: float, y: float) -> float:
+        return x + y
+    
+    def sign(x: UQT, y: UQT) -> UQT:
+        int_bits = max(x.int_bits, y.int_bits) + 1
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQT(int_bits, frac_bits)
+    
+    x, y = _uq_aligner(x, y)
+    impl = _uq_adder(x, y)
+    return Composite(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="UQ_Add")
+
+
+def UQ_Sub(x: Node, y: Node) -> Op:
+    def spec(x: float, y: float) -> float:
+        return x - y
+    
+    def sign(x: UQT, y: UQT) -> UQT:
+        int_bits = max(x.int_bits, y.int_bits) + 1
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQT(int_bits, frac_bits)
+    
+    x, y = _uq_aligner(x, y)
+    impl = _uq_subtracter(x, y)
+    return Composite(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="UQ_Sub")
+
+
+
 def UQ_to_Q(x: Node) -> Op:
     def impl(x: UQ) -> Q:
         return Q(x.val, x.int_bits + 1, x.frac_bits)

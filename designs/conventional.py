@@ -4,7 +4,7 @@ from fused_dot_product.utils.operators import *
 from fused_dot_product.utils.composites import *
 
 from fused_dot_product.numtypes.Int import Sub, Int, Xor
-from fused_dot_product.numtypes.UQ import UQ_Mul, UQ_Resize, UQ_Rshift, UQ_to_Q
+from fused_dot_product.numtypes.UQ import *
 from fused_dot_product.numtypes.BFloat16 import *
 from fused_dot_product.numtypes.Q import Q_add_sign
 
@@ -50,7 +50,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     ########## EXPONENTS ###############
     
     # Step 1. Exponents add. Each E_p is shifted by bias twice!
-    E_p = [Add(E_a[i], E_b[i]) for i in range(N)]
+    E_p = [UQ_Add(E_a[i], E_b[i]) for i in range(N)]
     
     # Step 2. Calculate maximum exponent
     E_m = MAX_EXPONENT4(*E_p)
