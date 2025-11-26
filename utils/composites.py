@@ -4,6 +4,40 @@ from fused_dot_product.config import *
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.Int import *
 from fused_dot_product.numtypes.Q import *
+from fused_dot_product.numtypes.UQ import *
+
+
+def mantissa_add_implicit_bit(x: Node) -> Composite:
+    def sign(x: float) -> float:
+        return (float(mantissa) / (2 ** 7)) + 1.0
+    
+    def sign(mantissa: IntT) -> UQT:
+        assert mantissa.frac_bits == 0
+        return UQT(1, mantissa.int_bits)
+    
+    n = Const(UQ(7, 3, 0))  # 7
+    x = UQ_Resize(x, n, n)  # xxxxxxx.0000000
+    x = UQ_Rshift(x, n)  # 0000000.xxxxxxx
+    x = UQ_Resize(x, Const(UQ(1, 1, 0)), n)  # 0.xxxxxxx
+    one = Const(UQ(1, 1, 0))  # 1.0000000
+    x = UQ_Or(x, one)  # 1.xxxxxxx
+    return x
+
+def BF16_mantissa_to_UQ(mantissa: Node) -> Composite:
+    def spec(mantissa: int) -> float:
+        return (float(mantissa) / (2 ** 7)) + 1.0
+    
+    def sign(mantissa: IntT) -> UQT:
+        return UQT(1, 7)
+    
+    mantissa_ = Or(mantissa, Lshift(Const(Int(1)), Const(Int(BFloat16.mantissa_bits), "BF16_MANTISSA_BITS")))
+    impl = Int_to_UQ(mantissa_, Const(Int(1)), Const(Int(BFloat16.mantissa_bits), "BF16_MANTISSA_BITS"))
+    
+    return Composite(spec=spec,
+                     impl=impl,
+                     sign=sign,
+                     args=[mantissa],
+                     name="BF16_mantissa_to_UQ")
 
 def MAX_EXPONENT4(e0: Node, e1: Node, e2: Node, e3: Node) -> Composite:
     """
@@ -18,18 +52,20 @@ def MAX_EXPONENT4(e0: Node, e1: Node, e2: Node, e3: Node) -> Composite:
     Returns:
         The maximum value among e0, e1, e2, and e3.
     """
-    def spec(e0: int, e1: int, e2: int, e3: int) -> int:
+    def spec(e0: float, e1: float, e2: float, e3: float) -> float:
         return max(max(e0, e1), max(e2, e3))
     
-    def sign(e0: IntT, e1: IntT, e2: IntT, e3: IntT) -> IntT:
-        return IntT(max(max(e0.total_bits, e1.total_bits), max(e2.total_bits, e3.total_bits)))
+    def sign(e0: UQT, e1: UQT, e2: UQT, e3: UQT) -> UQT:
+        int_bits = max(max(e0.int_bits, e1.int_bits), max(e2.int_bits, e3.int_bits))
+        frac_bits = max(max(e0.frac_bits, e1.frac_bits), max(e2.frac_bits, e3.frac_bits))
+        return UQT(int_bits, frac_bits)
     
-    impl = Max(Max(e0, e1), Max(e2, e3))
+    impl = UQ_Max(UQ_Max(e0, e1), UQ_Max(e2, e3))
     
-    return Composite(spec=spec, 
-                     impl=impl, 
+    return Composite(spec=spec,
+                     impl=impl,
                      sign=sign,
-                     args=[e0, e1, e2, e3], 
+                     args=[e0, e1, e2, e3],
                      name="MAX_EXPONENT4")
 
 def ADDER_TREE4(x0: Node, x1: Node, x2: Node, x3: Node) -> Composite:

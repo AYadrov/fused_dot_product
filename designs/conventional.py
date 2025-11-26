@@ -11,10 +11,10 @@ from fused_dot_product.numtypes.Q import Q_add_sign
 import numpy as np
 
 
-def Conventional(a0: Node, a1: Node, a2: Node, a3: Node, 
+def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
                  b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
     
-    def spec(a0: float, a1: float, a2: float, a3: float, 
+    def spec(a0: float, a1: float, a2: float, a3: float,
              b0: float, b1: float, b2: float, b3: float) -> float:
         out = 0
         out += a0 * b0
@@ -56,13 +56,13 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     E_m = MAX_EXPONENT4(*E_p)
     
     # Step 3. Calculate global shifts
-    Sh_p = [Sub(E_m, E_p[i]) for i in range(N)]
+    Sh_p = [UQ_Sub(E_m, E_p[i]) for i in range(N)]
     
     ########## MANTISSAS ###############
     
     # Step 1. Convert mantissas to UQ1.7
-    M_a = [BF16_mantissa_to_UQ(M_a[i]) for i in range(N)] # UQ1.7
-    M_b = [BF16_mantissa_to_UQ(M_b[i]) for i in range(N)] # UQ1.7
+    M_a = [mantissa_add_implicit_bit(M_a[i]) for i in range(N)] # UQ1.7
+    M_b = [mantissa_add_implicit_bit(M_b[i]) for i in range(N)] # UQ1.7
     
     # Step 2. Multiply mantissas
     M_p = [UQ_Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
