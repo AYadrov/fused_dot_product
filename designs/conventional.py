@@ -44,8 +44,14 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     
     ########## CONSTANTS ###############
     
-    Wf_ = Const(val=Int(Wf), name="Wf")
-    bf16_bias = Const(val=Int(BFloat16.exponent_bias), name="BFloat16.exponent_bias")
+    Wf_ = Const(
+        val=UQ(Wf, max(1, Wf.bit_length()), 0),
+        name="Wf"
+    )
+    bf16_bias = Const(
+        val=UQ(BFloat16.exponent_bias, max(1, BFloat16.exponent_bias.bit_length()), 0),
+        name="BFloat16.exponent_bias"
+    )
     
     ########## EXPONENTS ###############
     
@@ -69,11 +75,12 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     
     # Step 3. Shift mantissas
     # Make room for the right shift first, accuracy requirement is Wf
-    M_p = [UQ_Resize(M_p[i], Const(Int(2)), Sub(Wf_, Const(Int(2)))) for i in range(N)]
+    two = Const(UQ(2, 3, 0))
+    M_p = [UQ_Resize(M_p[i], two, UQ_Sub(Wf_, two)) for i in range(N)]
     M_p = [UQ_Rshift(M_p[i], Sh_p[i]) for i in range(N)]
     
     # Step 4. Adjust sign for mantissas using xor operation
-    S_p = [Xor(S_a[i], S_b[i]) for i in range(N)]
+    S_p = [UQ_Xor(S_a[i], S_b[i]) for i in range(N)]
     
     M_p = [UQ_to_Q(M_p[i]) for i in range(N)] # Q3.{Wf - 2}
     M_p = [Q_add_sign(M_p[i], S_p[i]) for i in range(N)]
@@ -82,7 +89,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     M_sum = ADDER_TREE4(*M_p) # Q5.{Wf - 2}
     
     ########## RESULT ##################
-    E_m = Sub(E_m, bf16_bias)  # E_m may end up being negative!
+    E_m = UQ_Sub(E_m, bf16_bias)  # E_m may end up being negative!
     
     root = Q_E_encode_Float32(M_sum, E_m)
     

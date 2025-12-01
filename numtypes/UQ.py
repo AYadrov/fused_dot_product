@@ -125,7 +125,31 @@ def _uq_orer(x: Node, y: Node) -> Op:
         args=[x, y],
         name="_uq_orer")
 
-def UQ_Add(x: Node, y: Node) -> Op:
+def _uq_xorer(x: Node, y: Node) -> Op:
+    def spec(x: float, y: float) -> float:
+        x_fixed = int(round(x * 2**31))
+        y_fixed = int(round(y * 2**31))
+        or_res = x_fixed ^ y_fixed
+        return float(or_res / 2**31)
+    
+    def sign(x: UQT, y: UQT) -> UQT:
+        int_bits = max(x.int_bits, y.int_bits)
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQT(int_bits, frac_bits)
+    
+    def impl(x: UQ, y: UQ) -> UQ:
+        int_bits = max(x.int_bits, y.int_bits)
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQ(x.val ^ y.val, int_bits, frac_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        signature=sign,
+        args=[x, y],
+        name="_uq_xorer")
+
+def UQ_Add(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
         return x + y
     
@@ -144,7 +168,7 @@ def UQ_Add(x: Node, y: Node) -> Op:
         name="UQ_Add")
 
 
-def UQ_Sub(x: Node, y: Node) -> Op:
+def UQ_Sub(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
         return x - y
     
@@ -163,7 +187,7 @@ def UQ_Sub(x: Node, y: Node) -> Op:
         name="UQ_Sub")
 
 
-def UQ_Or(x: Node, y: Node) -> Op:
+def UQ_Or(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
         x_fixed = int(round(x * 2**31))
         y_fixed = int(round(y * 2**31))
@@ -183,7 +207,28 @@ def UQ_Or(x: Node, y: Node) -> Op:
         sign=sign,
         args=[x, y],
         name="UQ_Or")
-
+        
+        
+def UQ_Xor(x: Node, y: Node) -> Composite:
+    def spec(x: float, y: float) -> float:
+        x_fixed = int(round(x * 2**31))
+        y_fixed = int(round(y * 2**31))
+        or_res = x_fixed ^ y_fixed
+        return float(or_res / 2**31)
+    
+    def sign(x: UQT, y: UQT) -> UQT:
+        int_bits = max(x.int_bits, y.int_bits)
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQT(int_bits, frac_bits)
+    
+    x, y = _uq_aligner(x, y)
+    impl = _uq_xorer(x, y)
+    return Composite(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="UQ_Xor")
 
 
 def UQ_Max(x: Node, y: Node) -> Op:

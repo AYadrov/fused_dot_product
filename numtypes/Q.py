@@ -164,7 +164,8 @@ def Q_Lshift(x: Node, n: Node) -> Op:
     )
     
 def Q_add_sign(x: Node, s: Node) -> Op:
-    def impl(x: Q, s: Int) -> Q:
+    def impl(x: Q, s: UQ) -> Q:
+        assert s.val in (0, 1)
         if s.val == 1:
             total_width = x.int_bits + x.frac_bits
             neg_val = mask(~x.val + 1, total_width)
@@ -175,7 +176,7 @@ def Q_add_sign(x: Node, s: Node) -> Op:
     def spec(x: float, s: int) -> float:
         return ((-1) ** s) * x
             
-    def sign(x: QT, n: IntT) -> QT:
+    def sign(x: QT, n: UQT) -> QT:
         return QT(x.int_bits, x.frac_bits)
     
     return Op(

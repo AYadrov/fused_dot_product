@@ -17,11 +17,11 @@ def Q_E_encode_Float32(m: Node, e: Node) -> Op:
         """Mathematical reference implementation."""
         return float(np.float32(m * (2.0 ** (e - Float32.exponent_bias))))
         
-    def signature(m: QT, e: IntT) -> Float32T:
+    def signature(m: QT, e: UQT) -> Float32T:
         return Float32T()
 
     # implementation matches spec; can differ if optimized later
-    def impl(m: Q, e: Int) -> Float32:
+    def impl(m: Q, e: UQ) -> Float32:
         
         def normalize_to_1_xxx(m, e, frac_bits):
             # Normalize so that mantissa is 1.xxxxx

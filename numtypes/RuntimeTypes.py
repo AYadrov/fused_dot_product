@@ -165,14 +165,13 @@ class Float32(RuntimeType):
     zero_code = 0
     
     def __init__(self, sign: int, mantissa: int, exponent: int):
-        assert sign in (0, 1), f"Invalid sign: {sign}"
-        assert mantissa >= 0, f"Mantissa must be non-negative, got {mantissa}"
-        assert exponent >= 0, f"Exponent must be non-negative, got {exponent}"
-        assert mantissa.bit_length() <= self.mantissa_bits, \
-            f"Mantissa too large: needs {mantissa.bit_length()} bits (max {self.mantissa_bits})"
-        assert exponent.bit_length() <= self.exponent_bits, \
-            f"Exponent too large: needs {exponent.bit_length()} bits (max {self.exponent_bits})"
+        assert sign in (0, 1)
+        assert 0 <= mantissa < (1 << self.mantissa_bits)
+        assert 0 <= exponent < (1 << self.exponent_bits)
         
+        self.val = (sign << (self.exponent_bits + self.mantissa_bits)) \
+                 | (exponent << self.mantissa_bits) \
+                 | mantissa
         self.sign = sign
         self.mantissa = mantissa
         self.exponent = exponent
@@ -233,12 +232,15 @@ class BFloat16(RuntimeType):
     def __init__(self, sign: int, mantissa: int, exponent: int):
         assert sign in (0, 1), f"Invalid sign: {sign}"
         assert mantissa >= 0, f"Mantissa must be non-negative, got {mantissa}"
-        assert exponent >= 0, f"Exponent must be non-negative, got {exponent}"
+        assert exponent >= 0, f"Exponent must be non-negative (biased), got {exponent}"
         assert mantissa.bit_length() <= self.mantissa_bits, \
             f"Mantissa too large: needs {mantissa.bit_length()} bits (max {self.mantissa_bits})"
         assert exponent.bit_length() <= self.exponent_bits, \
             f"Exponent too large: needs {exponent.bit_length()} bits (max {self.exponent_bits})"
         
+        self.val = (sign << (self.exponent_bits + self.mantissa_bits)) \
+                 | (exponent << self.mantissa_bits) \
+                 | mantissa
         self.sign = sign
         self.mantissa = mantissa
         self.exponent = exponent
