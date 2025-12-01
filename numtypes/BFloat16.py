@@ -90,7 +90,7 @@ def BF16_sign(x: Node) -> Op:
         if x < 0:
             return 1.0
         else:
-            return 1.0
+            return 0.0
     
     def impl(x: BFloat16) -> UQ:
         return UQ(x.sign, 1, 0)

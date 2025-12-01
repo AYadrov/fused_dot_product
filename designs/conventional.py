@@ -76,7 +76,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     # Step 3. Shift mantissas
     # Make room for the right shift first, accuracy requirement is Wf
     two = Const(UQ(2, 3, 0))
-    M_p = [UQ_Resize(M_p[i], two, UQ_Sub(Wf_, two)) for i in range(N)]
+    M_p = [uq_resize(M_p[i], two, UQ_Sub(Wf_, two)) for i in range(N)]
     M_p = [UQ_Rshift(M_p[i], Sh_p[i]) for i in range(N)]
     
     # Step 4. Adjust sign for mantissas using xor operation
