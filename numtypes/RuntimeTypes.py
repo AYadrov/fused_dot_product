@@ -73,32 +73,6 @@ class Q(RuntimeType):
         neg_val = mask((~self.val + 1), total_width)
         return Q(neg_val, self.int_bits, self.frac_bits)
     
-    @staticmethod
-    def sign_extend(x, n: int):
-        assert n >= 0, f"Extend bits can not be negative, {n} is provided"
-        sign = x.sign_bit()
-        upper_bits = (sign << n) - sign
-        res = x.val | (upper_bits << self.total_bits())
-        return Q(res, x.int_bits + n, x.frac_bits)
-    
-    @staticmethod
-    def align(x, y):
-        # Step 1. Align fractional bits
-        if x.frac_bits > y.frac_bits:
-            shift = x.frac_bits - y.frac_bits
-            y = Q(y.val << shift, y.int_bits, x.frac_bits)
-        elif x.frac_bits < y.frac_bits:
-            shift = y.frac_bits - x.frac_bits
-            x = Q(x.val << shift, x.int_bits, y.frac_bits)
-        
-        # Step 2. Align integer bits
-        if x.int_bits > y.int_bits:
-            y = Q.sign_extend(y, x.int_bits - y.int_bits)
-        elif x.int_bits < y.int_bits:
-            x = Q.sign_extend(x, y.int_bits - x.int_bits)
-        
-        return x, y
-    
     def to_spec(self):
         sign_bit = self.sign_bit()
         if sign_bit == 1:
@@ -113,7 +87,7 @@ class Q(RuntimeType):
     def copy(self, val=None):
         if val is None:
             val = self.val
-        return Q(self.val, self.int_bits, self.frac_bits)
+        return Q(val, self.int_bits, self.frac_bits)
     
     def total_bits(self):
         return self.int_bits + self.frac_bits

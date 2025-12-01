@@ -1,9 +1,79 @@
 import struct
 
 from fused_dot_product.numtypes.RuntimeTypes import *
+from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
 
+
+def _q_sign_extend(x: Node, n: int) -> Op:
+    def spec(x):
+        return x
+    
+    def sign(x: QT) -> QT:
+        return QT(x.int_bits + n, x.frac_bits)
+     
+    def impl(x: Q) -> Q:
+        assert isinstance(n, int) and n >= 0
+        sign = x.val >> (x.total_bits() - 1)
+        upper_bits = (sign << n) - sign
+        res = x.val | (upper_bits << x.total_bits())
+        return Q(res, x.int_bits + n, x.frac_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        signature=sign,
+        args=[x],
+        name="_q_sign_extend")
+
+
+def _q_aligner(x: Node, y: Node) -> Op:
+    def spec(x, y):
+        return x, y
+    
+    def sign(x: QT, y: QT) -> TupleT:
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        int_bits = max(x.int_bits, y.int_bits)
+        return TupleT(
+            QT(int_bits, frac_bits), 
+            QT(int_bits, frac_bits),
+        )
+    
+    def impl(x: Q, y: Q) -> Tuple:
+        def sign_extend(x, n):
+            assert n >= 0
+            sign = x.val >> (x.total_bits() - 1)
+            upper_bits = (sign << n) - sign
+            res = x.val | (upper_bits << x.total_bits())
+            return Q(res, x.int_bits + n, x.frac_bits)
         
+        int_bits = max(x.int_bits, y.int_bits)
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        
+        # Step 1. Align fractional bits
+        if x.frac_bits > y.frac_bits:
+            shift = x.frac_bits - y.frac_bits
+            y = Q(y.val << shift, y.int_bits, frac_bits)
+        else:
+            shift = y.frac_bits - x.frac_bits
+            x = Q(x.val << shift, x.int_bits, frac_bits)
+        
+        # Step 2. Align integer bits
+        if x.int_bits > y.int_bits:
+            y = sign_extend(y, x.int_bits - y.int_bits)
+        else:
+            x = sign_extend(x, y.int_bits - x.int_bits)
+        
+        return Tuple(x, y)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        signature=sign,
+        args=[x, y],
+        name="_q_aligner")
+
+
 def Q_sign_bit(x: Node) -> Op:
     def impl(x: Q) -> Int:
         res = x.sign_bit()
@@ -23,6 +93,7 @@ def Q_sign_bit(x: Node) -> Op:
             args=[x],
             name="Q_sign_bit")
 
+
 def Q_Negate(x: Node) -> Op:
     def impl(x: Q) -> Q:
         return x.negate()
@@ -40,30 +111,26 @@ def Q_Negate(x: Node) -> Op:
             args=[x],
             name="Q_Negate")
 
-def Q_Add(x: Node, y: Node) -> Op:
-    def impl(x: Q, y: Q) -> Q:
-        x_adj, y_adj = Q.align(x, y)
-        x_ext = Q.sign_extend(x_adj, 1)
-        y_ext = Q.sign_extend(y_adj, 1)
-        
-        # Mask for handling overflow
-        sum_ = mask(y_ext.val + x_ext.val, y_ext.int_bits + y_ext.frac_bits)
-        return Q(sum_, y_ext.int_bits, y_ext.frac_bits)
-        
+def Q_Add(x: Node, y: Node) -> Composite:
+    x_adj, y_adj = _q_aligner(x, y)
+    x_ext = _q_sign_extend(x_adj, 1)
+    y_ext = _q_sign_extend(y_adj, 1)
+    root = basic_adder(x_ext, y_ext)
+    
     def spec(x: float, y: float) -> float:
         return x + y
-        
+    
     def sign(x: QT, y: QT) -> QT:
         frac_bits = max(x.frac_bits, y.frac_bits)
         int_bits = max(x.int_bits, y.int_bits) + 1
         return QT(int_bits, frac_bits)
     
-    return Op(
+    return Composite(
         spec=spec,
-        impl=impl,
-        signature=sign,
+        impl=root,
+        sign=sign,
         args=[x, y],
-        name="Q_Add"
+        name="Q_Add",
     )
 
 # TODO: This specifiation works here - but it is unstable for a general case
