@@ -20,7 +20,7 @@ def mantissa_add_implicit_bit(x: Node) -> Composite:
     x = UQ_Rshift(x, n)  # 0000000.xxxxxxx
     x = uq_resize(x, Const(UQ(1, 1, 0)), n)  # 0.xxxxxxx
     one = Const(UQ(1, 1, 0))  # 1.0000000
-    x = UQ_Or(x, one)  # 1.xxxxxxx
+    x = uq_or(x, one)  # 1.xxxxxxx
     return x
 
 def BF16_mantissa_to_UQ(mantissa: Node) -> Composite:
@@ -60,7 +60,7 @@ def MAX_EXPONENT4(e0: Node, e1: Node, e2: Node, e3: Node) -> Composite:
         frac_bits = max(max(e0.frac_bits, e1.frac_bits), max(e2.frac_bits, e3.frac_bits))
         return UQT(int_bits, frac_bits)
     
-    impl = UQ_Max(UQ_Max(e0, e1), UQ_Max(e2, e3))
+    impl = uq_max(uq_max(e0, e1), uq_max(e2, e3))
     
     return Composite(spec=spec,
                      impl=impl,

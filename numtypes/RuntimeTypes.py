@@ -47,19 +47,21 @@ class Tuple(RuntimeType):
     
     def total_bits(self):
         return sum([x.total_bits() for x in self.args])
+    
+    def copy(self):
+        return Tuple(*[x.copy() for x in self.args])
 
 
 class Q(RuntimeType):
     """Signed fixed-point type."""
     def __init__(self, val: int, int_bits: int, frac_bits: int):
-        total_bits = int_bits + frac_bits
-        assert int_bits >= 0
-        assert frac_bits >= 0
-        assert int_bits > 0 or frac_bits > 0
-        assert 0 <= val < (1 << total_bits)
-        
         self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
-    
+        
+        assert self.int_bits >= 0
+        assert self.frac_bits >= 0
+        assert self.int_bits > 0 or self.frac_bits > 0
+        assert 0 <= self.val < (1 << self.total_bits())
+        
     def __str__(self):
         return f"Q{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
     

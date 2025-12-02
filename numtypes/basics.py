@@ -1,93 +1,80 @@
+import typing as tp
+
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.utils.utils import *
 from fused_dot_product.ast.AST import *
 
 
-def basic_adder(x: Node, y: Node) -> Op:
-    def spec(x, y):
-        return x + y
+############ Constructors ##############
+
+def _binary_operator(op: tp.Callable, x: Node, y: Node, out: Node, name: str) -> Op:
+    def spec(x, y, out):
+        return op(x, y)
     
-    def sign(x: StaticType, y: StaticType) -> StaticType:
-        assert x == y, "input static types mismatch"
-        return x
+    def sign(x: StaticType, y: StaticType, out: StaticType) -> StaticType:
+        return out
     
-    def impl(x: RuntimeType, y: RuntimeType) -> RuntimeType:
-        assert x.static_type() == y.static_type(), "input runtime types mismatch"
-        val = x.val + y.val
-        val = mask(val, x.total_bits())
-        return x.copy(val=val)
+    def impl(x: RuntimeType, y: RuntimeType, out: RuntimeType) -> RuntimeType:
+        val = op(x.val, y.val)
+        # TODO: check for truncation
+        val = mask(val, out.total_bits())
+        # TODO: add a check whether val is in ranges
+        out.val = val
+        return out
     
     return Op(
         spec=spec,
         impl=impl,
         signature=sign,
-        args=[x, y],
-        name="basic_adder")
+        args=[x, y, out],
+        name=name)
 
 
-def basic_subtracter(x: Node, y: Node) -> Op:
-    def spec(x, y):
-        return x - y
-    
-    def sign(x: StaticType, y: StaticType) -> StaticType:
-        assert x == y, f"input static types mismatch"
-        return x
-    
-    def impl(x: RuntimeType, y: RuntimeType) -> RuntimeType:
-        assert x.static_type() == y.static_type(), "input runtime types mismatch"
-        val = x.val - y.val
-        val = mask(val, x.total_bits())
-        return x.copy(val=val)
-    
-    return Op(
-        spec=spec,
-        impl=impl,
-        signature=sign,
-        args=[x, y],
-        name="basic_subtracter")
+########### Binary Operators ###########
 
+def basic_add(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: x + y,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_add"
+    )
 
-def basic_maxer(x: Node, y: Node) -> Op:
-    def spec(x, y):
-        return max(x, y)
-    
-    def sign(x: StaticType, y: StaticType) -> StaticType:
-        assert x == y, "input static types mismatch"
-        return x
-    
-    def impl(x: RuntimeType, y: RuntimeType) -> RuntimeType:
-        assert x.static_type() == y.static_type(), "input runtime types mismatch"
-        val = max(x.val, y.val)
-        val = mask(val, x.total_bits())
-        return x.copy(val=val)
-    
-    return Op(
-        spec=spec,
-        impl=impl,
-        signature=sign,
-        args=[x, y],
-        name="basic_maxer")
+def basic_sub(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: x - y,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_sub"
+    )
 
+def basic_mul(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: x * y,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_mul"
+    )
 
-def basic_miner(x: Node, y: Node) -> Op:
-    def spec(x, y):
-        return min(x, y)
-    
-    def sign(x: StaticType, y: StaticType) -> StaticType:
-        assert x == y, "input static types mismatch"
-        return x
-    
-    def impl(x: RuntimeType, y: RuntimeType) -> RuntimeType:
-        assert x.static_type() == y.static_type(), "input runtime types mismatch"
-        val = min(x.val, y.val)
-        val = mask(val, x.total_bits())
-        return x.copy(val=val)
-    
-    return Op(
-        spec=spec,
-        impl=impl,
-        signature=sign,
-        args=[x, y],
-        name="basic_miner")
+def basic_max(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: max(x, y),
+        x=x,
+        y=y,
+        out=out,
+        name="basic_max"
+    )
+
+def basic_min(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: min(x, y),
+        x=x,
+        y=y,
+        out=out,
+        name="basic_min"
+    )
 
 

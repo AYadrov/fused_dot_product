@@ -1,33 +1,40 @@
+import typing as tp
+
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
 
+########### Private Helpers ############
 
-# TODO: this should be a static method of UQ class
-def _uq_aligner(x: Node, y: Node) -> Op:
+def _uq_aligner(x: Node,
+                y: Node,
+                int_aggr: tp.Callable,
+                frac_aggr: tp.Callable) -> Op:
     def spec(x, y):
         return x, y
     
     def sign(x: UQT, y: UQT) -> TupleT:
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        int_bits = max(x.int_bits, y.int_bits)
+        int_bits = int_aggr(x.int_bits, y.int_bits)
+        frac_bits = frac_aggr(x.frac_bits, y.frac_bits)
+        
         return TupleT(
             UQT(int_bits, frac_bits),
             UQT(int_bits, frac_bits),
         )
     
     def impl(x: UQ, y: UQ) -> Tuple:
-        int_bits = max(x.int_bits, y.int_bits)
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        if x.frac_bits > y.frac_bits:
-            shift = x.frac_bits - y.frac_bits
-            y = UQ(y.val << shift, int_bits, frac_bits)
-            x = UQ(x.val, int_bits, frac_bits)
-        else:
-            shift = y.frac_bits - x.frac_bits
-            x = UQ(x.val << shift, int_bits, frac_bits)
-            y = UQ(y.val, int_bits, frac_bits)
-        return Tuple(x, y)
+        int_bits = int_aggr(x.int_bits, y.int_bits)
+        frac_bits = frac_aggr(x.frac_bits, y.frac_bits)
+        
+        def align(x):
+            if x.frac_bits < frac_bits:
+                shift = frac_bits - x.frac_bits
+                x = UQ(x.val << shift, int_bits, frac_bits)
+            else:
+                x = UQ(x.val, int_bits, frac_bits)
+            return x
+        
+        return Tuple(align(x), align(y))
     
     return Op(
         spec=spec,
@@ -35,7 +42,6 @@ def _uq_aligner(x: Node, y: Node) -> Op:
         signature=sign,
         args=[x, y],
         name="_uq_aligner")
-
 
 def _uq_zero_extend(x: Node, n: int) -> Op:
     assert isinstance(n, int) and n >= 0
@@ -105,7 +111,9 @@ def _uq_xorer(x: Node, y: Node) -> Op:
         name="_uq_xorer")
 
 
-def UQ_Add(x: Node, y: Node) -> Composite:
+############## Public API ##############
+
+def uq_add(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
         return x + y
     
@@ -114,19 +122,27 @@ def UQ_Add(x: Node, y: Node) -> Composite:
         frac_bits = max(x.frac_bits, y.frac_bits)
         return UQT(int_bits, frac_bits)
     
-    x_aln, y_aln = _uq_aligner(x, y)
-    x_ext = _uq_zero_extend(x_aln, 1)
-    y_ext = _uq_zero_extend(y_aln, 1)
-    root = basic_adder(x_ext, y_ext)
+    x_adj, y_adj = _uq_aligner(
+        x=x,
+        y=y,
+        int_aggr=lambda x, y: max(x, y) + 1,
+        frac_aggr=lambda x, y: max(x, y),
+    )
+    root = basic_add(
+        x=x_adj,
+        y=y_adj,
+        out=x_adj.copy(),
+    )
+    
     return Composite(
         spec=spec,
         impl=root,
         sign=sign,
         args=[x, y],
-        name="UQ_Add")
+        name="uq_add")
 
 
-def UQ_Sub(x: Node, y: Node) -> Composite:
+def uq_sub(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
         return x - y
     
@@ -135,19 +151,26 @@ def UQ_Sub(x: Node, y: Node) -> Composite:
         frac_bits = max(x.frac_bits, y.frac_bits)
         return UQT(int_bits, frac_bits)
     
-    x_aln, y_aln = _uq_aligner(x, y)
-    x_ext = _uq_zero_extend(x_aln, 1)
-    y_ext = _uq_zero_extend(y_aln, 1)
-    root = basic_subtracter(x_ext, y_ext)
+    x_adj, y_adj = _uq_aligner(
+        x=x, 
+        y=y, 
+        int_aggr=lambda x, y: max(x, y) + 1, 
+        frac_aggr=lambda x, y: max(x, y),
+    )
+    root = basic_sub(
+        x=x_adj, 
+        y=y_adj,
+        out=x_adj.copy()
+    )
     return Composite(
         spec=spec,
         impl=root,
         sign=sign,
         args=[x, y],
-        name="UQ_Sub")
+        name="uq_sub")
 
 
-def UQ_Or(x: Node, y: Node) -> Composite:
+def uq_or(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
         x_fixed = int(round(x * 2**31))
         y_fixed = int(round(y * 2**31))
@@ -159,17 +182,22 @@ def UQ_Or(x: Node, y: Node) -> Composite:
         frac_bits = max(x.frac_bits, y.frac_bits)
         return UQT(int_bits, frac_bits)
     
-    x_aln, y_aln = _uq_aligner(x, y)
-    impl = _uq_orer(x_aln, y_aln)
+    x_adj, y_adj = _uq_aligner(
+        x=x, 
+        y=y, 
+        int_aggr=lambda x, y: max(x, y), 
+        frac_aggr=lambda x, y: max(x, y),
+    )
+    impl = _uq_orer(x_adj, y_adj)
     return Composite(
         spec=spec,
         impl=impl,
         sign=sign,
         args=[x, y],
-        name="UQ_Or")
+        name="uq_or")
         
         
-def UQ_Xor(x: Node, y: Node) -> Composite:
+def uq_xor(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
         x_fixed = int(round(x * 2**31))
         y_fixed = int(round(y * 2**31))
@@ -181,17 +209,22 @@ def UQ_Xor(x: Node, y: Node) -> Composite:
         frac_bits = max(x.frac_bits, y.frac_bits)
         return UQT(int_bits, frac_bits)
     
-    x_aln, y_aln = _uq_aligner(x, y)
-    root = _uq_xorer(x_aln, y_aln)
+    x_adj, y_adj = _uq_aligner(
+        x=x, 
+        y=y, 
+        int_aggr=lambda x, y: max(x, y), 
+        frac_aggr=lambda x, y: max(x, y),
+    )
+    root = _uq_xorer(x_adj, y_adj)
     return Composite(
         spec=spec,
         impl=root,
         sign=sign,
         args=[x, y],
-        name="UQ_Xor")
+        name="uq_xor")
 
 
-def UQ_Max(x: Node, y: Node) -> Op:
+def uq_max(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
         return max(x, y)
     
@@ -200,18 +233,26 @@ def UQ_Max(x: Node, y: Node) -> Op:
         frac_bits = max(x.frac_bits, y.frac_bits)
         return UQT(int_bits, frac_bits)
     
-    x_aln, y_aln = _uq_aligner(x, y)
-    root = basic_maxer(x_aln, y_aln)
+    x_adj, y_adj = _uq_aligner(
+        x=x, 
+        y=y, 
+        int_aggr=lambda x, y: max(x, y), 
+        frac_aggr=lambda x, y: max(x, y),
+    )
+    root = basic_max(
+        x=x_adj, 
+        y=y_adj,
+        out=x_adj.copy()
+    )
     return Composite(
         spec=spec,
         impl=root,
         sign=sign,
         args=[x, y],
-        name="UQ_Max")
+        name="uq_max")
 
 
-
-def UQ_to_Q(x: Node) -> Op:
+def uq_to_q(x: Node) -> Op:
     def impl(x: UQ) -> Q:
         return Q(x.val, x.int_bits + 1, x.frac_bits)
         
@@ -226,15 +267,9 @@ def UQ_to_Q(x: Node) -> Op:
             impl=impl,
             signature=sign,
             args=[x],
-            name="UQ_to_Q")
+            name="uq_to_q")
 
-def UQ_Mul(x: Node, y: Node) -> Op:
-    def impl(x: UQ, y: UQ) -> UQ:
-        val_ = x.val * y.val
-        int_bits_ = x.int_bits + y.int_bits
-        frac_bits_ = x.frac_bits + y.frac_bits
-        return UQ(val_, int_bits_, frac_bits_)
-    
+def uq_mul(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
         return x * y
     
@@ -243,12 +278,25 @@ def UQ_Mul(x: Node, y: Node) -> Op:
         frac_bits = x.frac_bits + y.frac_bits
         return UQT(int_bits, frac_bits)
     
-    return Op(
+    # Ugly, we need x_adj only for the shape
+    x_adj, _ = _uq_aligner(
+        x=x,
+        y=y,
+        int_aggr=lambda x, y: x + y,
+        frac_aggr=lambda x, y: x + y,
+    )
+    root = basic_mul(
+        x=x,
+        y=y,
+        out=x_adj.copy()
+    )
+    
+    return Composite(
             spec=spec,
-            impl=impl,
-            signature=sign,
+            impl=root,
+            sign=sign,
             args=[x, y],
-            name="UQ_Mul")
+            name="uq_mul")
 
 def uq_resize(x: Node, new_int_bits: Node, new_frac_bits: Node) -> Op:
     def spec(x: float, new_int_bits: float, new_frac_bits: float) -> float:

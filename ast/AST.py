@@ -20,6 +20,9 @@ class Node:
         
         self.static_typecheck()
     
+    def copy(self):
+        return Copy(self)
+    
     def __getitem__(self, idx):
         return Tuple_get_item(self, Const(Int(idx)))
     
@@ -238,6 +241,23 @@ class Var(Node):
     def __str__(self):
         return f"{self.node_type}: {self.name} [Var]"
 
+
+def Copy(x: Node) -> Op:
+    def sign(x: StaticType) -> StaticType:
+        return x
+    
+    def spec(x):
+        return x
+    
+    def impl(x):
+        return x.copy()
+    
+    return Op(
+        spec=spec,
+        signature=sign,
+        impl=impl,
+        args=[x],
+        name="Copy")
 
 # TODO: to be moved somewhere, it's here due to loading cycles
 def Tuple_get_item(x: Node, idx: Node) -> Op:

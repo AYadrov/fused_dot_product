@@ -56,13 +56,13 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     ########## EXPONENTS ###############
     
     # Step 1. Exponents add. Each E_p is shifted by bias twice!
-    E_p = [UQ_Add(E_a[i], E_b[i]) for i in range(N)]
+    E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]
     
     # Step 2. Calculate maximum exponent
     E_m = MAX_EXPONENT4(*E_p)
     
     # Step 3. Calculate global shifts
-    Sh_p = [UQ_Sub(E_m, E_p[i]) for i in range(N)]
+    Sh_p = [uq_sub(E_m, E_p[i]) for i in range(N)]
     
     ########## MANTISSAS ###############
     
@@ -71,25 +71,25 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     M_b = [mantissa_add_implicit_bit(M_b[i]) for i in range(N)] # UQ1.7
     
     # Step 2. Multiply mantissas
-    M_p = [UQ_Mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
+    M_p = [uq_mul(M_a[i], M_b[i]) for i in range(N)] # UQ2.14
     
     # Step 3. Shift mantissas
     # Make room for the right shift first, accuracy requirement is Wf
     two = Const(UQ(2, 3, 0))
-    M_p = [uq_resize(M_p[i], two, UQ_Sub(Wf_, two)) for i in range(N)]
+    M_p = [uq_resize(M_p[i], two, uq_sub(Wf_, two)) for i in range(N)]
     M_p = [UQ_Rshift(M_p[i], Sh_p[i]) for i in range(N)]
     
     # Step 4. Adjust sign for mantissas using xor operation
-    S_p = [UQ_Xor(S_a[i], S_b[i]) for i in range(N)]
+    S_p = [uq_xor(S_a[i], S_b[i]) for i in range(N)]
     
-    M_p = [UQ_to_Q(M_p[i]) for i in range(N)] # Q3.{Wf - 2}
+    M_p = [uq_to_q(M_p[i]) for i in range(N)] # Q3.{Wf - 2}
     M_p = [Q_add_sign(M_p[i], S_p[i]) for i in range(N)]
     
     # Step 5. Adder tree
     M_sum = ADDER_TREE4(*M_p) # Q5.{Wf - 2}
     
     ########## RESULT ##################
-    E_m = UQ_Sub(E_m, bf16_bias)  # E_m may end up being negative!
+    E_m = uq_sub(E_m, bf16_bias)  # E_m may end up being negative!
     
     root = Q_E_encode_Float32(M_sum, E_m)
     
