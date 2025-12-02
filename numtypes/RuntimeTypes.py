@@ -164,7 +164,6 @@ class Float32(RuntimeType):
     mantissa_bits = 23
     exponent_bits = 8
     exponent_bias = 127
-    total_bits = 32
     inf_code = 255
     sub_code = 0
     nan_code = 255
@@ -232,7 +231,7 @@ class Float32(RuntimeType):
         return Float32(self.sign, self.mantissa, self.exponent)
     
     def total_bits(self):
-        return self.total_bits
+        return 32
 
 
 class BFloat16(RuntimeType):
@@ -240,7 +239,6 @@ class BFloat16(RuntimeType):
     mantissa_bits = 7
     exponent_bits = 8
     exponent_bias = 127
-    total_bits = 16
     
     def __init__(self, sign: int, mantissa: int, exponent: int):
         assert sign in (0, 1)
@@ -300,7 +298,7 @@ class BFloat16(RuntimeType):
         return BFloat16(self.sign, self.mantissa, self.exponent)
     
     def total_bits(self):
-        return self.total_bits
+        return 16
         
 if __name__ == '__main__':
     s = Tuple(Int(2), Q(2, 2, 3))

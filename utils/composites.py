@@ -8,7 +8,7 @@ from fused_dot_product.numtypes.UQ import *
 
 
 def mantissa_add_implicit_bit(x: Node) -> Composite:
-    def sign(x: float) -> float:
+    def sign(mantissa: float) -> float:
         return (float(mantissa) / (2 ** 7)) + 1.0
     
     def sign(mantissa: IntT) -> UQT:
@@ -16,9 +16,9 @@ def mantissa_add_implicit_bit(x: Node) -> Composite:
         return UQT(1, mantissa.int_bits)
     
     n = Const(UQ(7, 3, 0))  # 7
-    x = uq_resize(x, n, n)  # xxxxxxx.0000000
+    x = uq_resize(x, 7, 7)  # xxxxxxx.0000000
     x = UQ_Rshift(x, n)  # 0000000.xxxxxxx
-    x = uq_resize(x, Const(UQ(1, 1, 0)), n)  # 0.xxxxxxx
+    x = uq_resize(x, 1, 7)  # 0.xxxxxxx
     one = Const(UQ(1, 1, 0))  # 1.0000000
     x = uq_or(x, one)  # 1.xxxxxxx
     return x
@@ -77,9 +77,9 @@ def ADDER_TREE4(x0: Node, x1: Node, x2: Node, x3: Node) -> Composite:
         int_bits = max(max(x0.int_bits, x1.int_bits), max(x2.int_bits, x3.int_bits)) + 2
         return QT(int_bits, frac_bits)
     
-    res1 = Q_Add(x0, x1)
-    res2 = Q_Add(x2, x3)
-    impl = Q_Add(res1, res2)
+    res1 = q_add(x0, x1)
+    res2 = q_add(x2, x3)
+    impl = q_add(res1, res2)
     
     return Composite(spec=spec, 
                      impl=impl,

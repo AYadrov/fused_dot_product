@@ -43,11 +43,6 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     S_b[3], M_b[3], E_b[3] = BF16_decode(b3)
     
     ########## CONSTANTS ###############
-    
-    Wf_ = Const(
-        val=UQ(Wf, max(1, Wf.bit_length()), 0),
-        name="Wf"
-    )
     bf16_bias = Const(
         val=UQ(BFloat16.exponent_bias, max(1, BFloat16.exponent_bias.bit_length()), 0),
         name="BFloat16.exponent_bias"
@@ -75,8 +70,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     
     # Step 3. Shift mantissas
     # Make room for the right shift first, accuracy requirement is Wf
-    two = Const(UQ(2, 3, 0))
-    M_p = [uq_resize(M_p[i], two, uq_sub(Wf_, two)) for i in range(N)]
+    M_p = [uq_resize(M_p[i], 2, Wf - 2) for i in range(N)]
     M_p = [UQ_Rshift(M_p[i], Sh_p[i]) for i in range(N)]
     
     # Step 4. Adjust sign for mantissas using xor operation

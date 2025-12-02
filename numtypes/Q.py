@@ -102,7 +102,7 @@ def q_neg(x: Node) -> Op:
     def impl(x: Q) -> Q:
         total_width = x.total_bits() 
         val = mask((~x.val + 1), total_width)
-        return Q(val, self.int_bits, self.frac_bits)
+        return Q(val, x.int_bits, x.frac_bits)
     
     def spec(x: float) -> float:
         return (-1) * x
@@ -118,7 +118,7 @@ def q_neg(x: Node) -> Op:
             name="q_neg")
 
 
-def Q_Add(x: Node, y: Node) -> Composite:
+def q_add(x: Node, y: Node) -> Composite:
     x_adj, y_adj = _q_aligner(
         x=x, 
         y=y,
@@ -140,11 +140,38 @@ def Q_Add(x: Node, y: Node) -> Composite:
         impl=root,
         sign=sign,
         args=[x, y],
-        name="Q_Add",
+        name="q_add",
     )
 
+
+def q_sub(x: Node, y: Node) -> Composite:
+    x_adj, y_adj = _q_aligner(
+        x=x, 
+        y=y,
+        int_aggr=lambda x, y: max(x, y) + 1,
+        frac_aggr=lambda x, y: max(x, y),
+    )
+    root = basic_sub(x_adj, y_adj, x_adj.copy())
+    
+    def spec(x: float, y: float) -> float:
+        return x - y
+    
+    def sign(x: QT, y: QT) -> QT:
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        int_bits = max(x.int_bits, y.int_bits) + 1
+        return QT(int_bits, frac_bits)
+    
+    return Composite(
+        spec=spec,
+        impl=root,
+        sign=sign,
+        args=[x, y],
+        name="q_sub",
+    )
+
+
 # TODO: This specifiation works here - but it is unstable for a general case
-def Q_Xor(x: Node, y: Node) -> Op:
+def q_xor(x: Node, y: Node) -> Op:
     def impl(x: Q, y: Q) -> Q:
         x_adj, y_adj = Q.align(x, y)
         return Q(x_adj.val ^ y_adj.val, x_adj.int_bits, x_adj.frac_bits)
@@ -165,10 +192,10 @@ def Q_Xor(x: Node, y: Node) -> Op:
         impl=impl,
         signature=sign,
         args=[x, y],
-        name="Q_Xor"
+        name="q_xor"
     )
     
-def Q_And(x: Node, y: Node) -> Op:  
+def q_and(x: Node, y: Node) -> Op:  
     def impl(x: Q, y: Q) -> Q:
         x_adj, y_adj = Q.align(x, y)
         return Q(x_adj.val & y_adj.val, x_adj.int_bits, x_adj.frac_bits)
@@ -189,10 +216,10 @@ def Q_And(x: Node, y: Node) -> Op:
         impl=impl,
         signature=sign,
         args=[x, y],
-        name="Q_And"
+        name="q_and"
     )
 
-def Q_Or(x: Node, y: Node) -> Op:
+def q_or(x: Node, y: Node) -> Op:
     def impl(x: Q, y: Q) -> Q:
         x_adj, y_adj = Q.align(x, y)
         return Q(x_adj.val | y_adj.val, x_adj.int_bits, x_adj.frac_bits)
@@ -214,7 +241,7 @@ def Q_Or(x: Node, y: Node) -> Op:
         impl=impl,
         signature=sign,
         args=[x, y],
-        name="Q_Or"
+        name="q_or"
     )
     
 def Q_Lshift(x: Node, n: Node) -> Op:

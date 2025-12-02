@@ -249,30 +249,23 @@ def uq_to_q(x: Node) -> Op:
 
 ########### Not Really Good ############
 
-def uq_resize(x: Node, new_int_bits: Node, new_frac_bits: Node) -> Op:
-    def spec(x: float, new_int_bits: float, new_frac_bits: float) -> float:
+def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Op:
+    def spec(x: float) -> float:
         return x
     
-    def impl(x: UQ, new_int_bits: UQ, new_frac_bits: UQ) -> UQ:
-        assert new_int_bits.frac_bits == 0
-        assert new_frac_bits.frac_bits == 0
-        # assert new_int_bits.val >= x.int_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
-        # assert new_frac_bits.val >= x.frac_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
-        
-        
-        return UQ(x.val << (new_frac_bits.val - x.frac_bits), new_int_bits.val, new_frac_bits.val)
+    def impl(x: UQ) -> UQ:
+        assert int_bits >= x.int_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
+        assert frac_bits >= x.frac_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
+        return UQ(x.val << (frac_bits - x.frac_bits), int_bits, frac_bits)
     
-    def sign(x: UQT, new_int_bits: UQT, new_frac_bits: UQT) -> UQT:
-        if new_int_bits.runtime_val and new_frac_bits.runtime_val:
-            return UQT(new_int_bits.runtime_val.val, new_frac_bits.runtime_val.val)
-        else:
-            raise TypeError("uq_resize depends on a variable. Impossible to typecheck")
+    def sign(x: UQT) -> UQT:
+        return UQT(int_bits, frac_bits)
     
     return Op(
             spec=spec,
             impl=impl,
             signature=sign,
-            args=[x, new_int_bits, new_frac_bits],
+            args=[x],
             name="uq_resize")
 
 # TODO: spec does not match impl (I guess as it should)
