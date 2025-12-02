@@ -3,7 +3,6 @@ from fused_dot_product.config import *
 from fused_dot_product.utils.operators import *
 from fused_dot_product.utils.composites import *
 
-from fused_dot_product.numtypes.Int import Sub, Int, Xor
 from fused_dot_product.numtypes.UQ import *
 from fused_dot_product.numtypes.BFloat16 import *
 from fused_dot_product.numtypes.Q import Q_add_sign
@@ -22,7 +21,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         out += a2 * b2
         out += a3 * b3
         return float(np.float32(out))
-        
+    
     def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T, 
              b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
         return Float32T()
@@ -43,6 +42,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     S_b[3], M_b[3], E_b[3] = BF16_decode(b3)
     
     ########## CONSTANTS ###############
+    
     bf16_bias = Const(
         val=Q.from_int(BFloat16.exponent_bias),
         name="BFloat16.exponent_bias"

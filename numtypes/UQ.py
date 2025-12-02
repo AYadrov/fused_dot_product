@@ -62,55 +62,6 @@ def _uq_zero_extend(x: Node, n: int) -> Op:
         args=[x],
         name="_uq_extend_by_one_bit")
         
-def _uq_orer(x: Node, y: Node) -> Op:
-    def spec(x: float, y: float) -> float:
-        x_fixed = int(round(x * 2**31))
-        y_fixed = int(round(y * 2**31))
-        or_res = x_fixed | y_fixed
-        return float(or_res / 2**31)
-    
-    def sign(x: UQT, y: UQT) -> UQT:
-        int_bits = max(x.int_bits, y.int_bits)
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQT(int_bits, frac_bits)
-    
-    def impl(x: UQ, y: UQ) -> UQ:
-        int_bits = max(x.int_bits, y.int_bits)
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQ(x.val | y.val, int_bits, frac_bits)
-    
-    return Op(
-        spec=spec,
-        impl=impl,
-        signature=sign,
-        args=[x, y],
-        name="_uq_orer")
-
-
-def _uq_xorer(x: Node, y: Node) -> Op:
-    def spec(x: float, y: float) -> float:
-        x_fixed = int(round(x * 2**31))
-        y_fixed = int(round(y * 2**31))
-        or_res = x_fixed ^ y_fixed
-        return float(or_res / 2**31)
-    
-    def sign(x: UQT, y: UQT) -> UQT:
-        int_bits = max(x.int_bits, y.int_bits)
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQT(int_bits, frac_bits)
-    
-    def impl(x: UQ, y: UQ) -> UQ:
-        int_bits = max(x.int_bits, y.int_bits)
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQ(x.val ^ y.val, int_bits, frac_bits)
-    
-    return Op(
-        spec=spec,
-        impl=impl,
-        signature=sign,
-        args=[x, y],
-        name="_uq_xorer")
-
 
 ############## Public API ##############
 
@@ -236,19 +187,18 @@ def uq_mul(x: Node, y: Node) -> Composite:
         frac_bits = x.frac_bits + y.frac_bits
         return UQT(int_bits, frac_bits)
     
-    # Ugly, we need x_adj only for the shape
-    x_adj, _ = _uq_aligner(
+    # Ugly
+    out, _ = _uq_aligner(
         x=x,
         y=y,
         int_aggr=lambda x, y: x + y,
         frac_aggr=lambda x, y: x + y,
     )
-    
     # x and y are preserved untouched!! important
     root = basic_mul(
         x=x,
         y=y,
-        out=x_adj.copy()
+        out=out,
     )
     
     return Composite(
@@ -329,6 +279,55 @@ def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Op:
             name="uq_resize")
 
 ########### Not Really Good ############
+
+def _uq_orer(x: Node, y: Node) -> Op:
+    def spec(x: float, y: float) -> float:
+        x_fixed = int(round(x * 2**31))
+        y_fixed = int(round(y * 2**31))
+        or_res = x_fixed | y_fixed
+        return float(or_res / 2**31)
+    
+    def sign(x: UQT, y: UQT) -> UQT:
+        int_bits = max(x.int_bits, y.int_bits)
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQT(int_bits, frac_bits)
+    
+    def impl(x: UQ, y: UQ) -> UQ:
+        int_bits = max(x.int_bits, y.int_bits)
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQ(x.val | y.val, int_bits, frac_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        signature=sign,
+        args=[x, y],
+        name="_uq_orer")
+
+
+def _uq_xorer(x: Node, y: Node) -> Op:
+    def spec(x: float, y: float) -> float:
+        x_fixed = int(round(x * 2**31))
+        y_fixed = int(round(y * 2**31))
+        or_res = x_fixed ^ y_fixed
+        return float(or_res / 2**31)
+    
+    def sign(x: UQT, y: UQT) -> UQT:
+        int_bits = max(x.int_bits, y.int_bits)
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQT(int_bits, frac_bits)
+    
+    def impl(x: UQ, y: UQ) -> UQ:
+        int_bits = max(x.int_bits, y.int_bits)
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQ(x.val ^ y.val, int_bits, frac_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        signature=sign,
+        args=[x, y],
+        name="_uq_xorer")
             
 def uq_or(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
