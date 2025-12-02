@@ -11,7 +11,7 @@ def mantissa_add_implicit_bit(x: Node) -> Composite:
     def sign(mantissa: float) -> float:
         return (float(mantissa) / (2 ** 7)) + 1.0
     
-    def sign(mantissa: IntT) -> UQT:
+    def sign(mantissa: UQT) -> UQT:
         assert mantissa.frac_bits == 0
         return UQT(1, mantissa.int_bits)
     
@@ -22,6 +22,7 @@ def mantissa_add_implicit_bit(x: Node) -> Composite:
     one = Const(UQ(1, 1, 0))  # 1.0000000
     x = uq_or(x, one)  # 1.xxxxxxx
     return x
+
 
 def BF16_mantissa_to_UQ(mantissa: Node) -> Composite:
     def spec(mantissa: int) -> float:
@@ -38,6 +39,7 @@ def BF16_mantissa_to_UQ(mantissa: Node) -> Composite:
                      sign=sign,
                      args=[mantissa],
                      name="BF16_mantissa_to_UQ")
+
 
 def MAX_EXPONENT4(e0: Node, e1: Node, e2: Node, e3: Node) -> Composite:
     """

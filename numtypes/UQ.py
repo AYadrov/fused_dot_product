@@ -300,16 +300,23 @@ def uq_rshift(x: Node, amount: Node) -> Composite:
         name="uq_rshift")
 
 
-########### Not Really Good ############
-
+# TODO: Truncation catch, rounding
 def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Op:
     def spec(x: float) -> float:
         return x
     
     def impl(x: UQ) -> UQ:
-        assert int_bits >= x.int_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
-        assert frac_bits >= x.frac_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
-        return UQ(x.val << (frac_bits - x.frac_bits), int_bits, frac_bits)
+        # assert int_bits >= x.int_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
+        # assert frac_bits >= x.frac_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
+        
+        shift = frac_bits - x.frac_bits
+        if shift >= 0:
+            val_adj = x.val << shift  # Fraction bits extension
+        else:
+            val_adj = x.val >> abs(shift)  # Fraction bits truncation
+        
+        val_masked = mask(val_adj, int_bits + frac_bits)  # Possible int bits Truncation
+        return UQ(val_masked, int_bits, frac_bits)
     
     def sign(x: UQT) -> UQT:
         return UQT(int_bits, frac_bits)
@@ -320,6 +327,8 @@ def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Op:
             signature=sign,
             args=[x],
             name="uq_resize")
+
+########### Not Really Good ############
             
 def uq_or(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
