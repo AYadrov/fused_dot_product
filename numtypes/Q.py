@@ -98,22 +98,24 @@ def Q_sign_bit(x: Node) -> Op:
             name="Q_sign_bit")
 
 
-def Q_Negate(x: Node) -> Op:
+def q_neg(x: Node) -> Op:
     def impl(x: Q) -> Q:
-        return x.negate()
-        
+        total_width = x.total_bits() 
+        val = mask((~x.val + 1), total_width)
+        return Q(val, self.int_bits, self.frac_bits)
+    
     def spec(x: float) -> float:
         return (-1) * x
-        
+    
     def sign(x: QT) -> QT:
         return QT(x.int_bits, x.frac_bits)
-
+    
     return Op(
             spec=spec,
             impl=impl,
             signature=sign,
             args=[x],
-            name="Q_Negate")
+            name="q_neg")
 
 
 def Q_Add(x: Node, y: Node) -> Composite:

@@ -23,6 +23,7 @@ def _uq_aligner(x: Node,
         )
     
     def impl(x: UQ, y: UQ) -> Tuple:
+        # TODO: Truncation
         int_bits = int_aggr(x.int_bits, y.int_bits)
         frac_bits = frac_aggr(x.frac_bits, y.frac_bits)
         
@@ -170,6 +171,130 @@ def uq_sub(x: Node, y: Node) -> Composite:
         name="uq_sub")
 
 
+def uq_max(x: Node, y: Node) -> Composite:
+    def spec(x: float, y: float) -> float:
+        return max(x, y)
+    
+    def sign(x: UQT, y: UQT) -> UQT:
+        int_bits = max(x.int_bits, y.int_bits)
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQT(int_bits, frac_bits)
+    
+    x_adj, y_adj = _uq_aligner(
+        x=x, 
+        y=y, 
+        int_aggr=lambda x, y: max(x, y), 
+        frac_aggr=lambda x, y: max(x, y),
+    )
+    root = basic_max(
+        x=x_adj, 
+        y=y_adj,
+        out=x_adj.copy()
+    )
+    return Composite(
+        spec=spec,
+        impl=root,
+        sign=sign,
+        args=[x, y],
+        name="uq_max")
+
+
+def uq_mul(x: Node, y: Node) -> Composite:
+    def spec(x: float, y: float) -> float:
+        return x * y
+    
+    def sign(x: UQT, y: UQT) -> UQT:
+        int_bits = x.int_bits + y.int_bits
+        frac_bits = x.frac_bits + y.frac_bits
+        return UQT(int_bits, frac_bits)
+    
+    # Ugly, we need x_adj only for the shape
+    x_adj, _ = _uq_aligner(
+        x=x,
+        y=y,
+        int_aggr=lambda x, y: x + y,
+        frac_aggr=lambda x, y: x + y,
+    )
+    root = basic_mul(
+        x=x,
+        y=y,
+        out=x_adj.copy()
+    )
+    
+    return Composite(
+            spec=spec,
+            impl=root,
+            sign=sign,
+            args=[x, y],
+            name="uq_mul")
+
+
+def uq_to_q(x: Node) -> Op:
+    def impl(x: UQ) -> Q:
+        return Q(x.val, x.int_bits + 1, x.frac_bits)
+        
+    def spec(x: float) -> float:
+        return x
+    
+    def sign(x: UQT) -> QT:
+        return QT(x.int_bits + 1, x.frac_bits)
+    
+    return Op(
+            spec=spec,
+            impl=impl,
+            signature=sign,
+            args=[x],
+            name="uq_to_q")
+
+
+########### Not Really Good ############
+
+def uq_resize(x: Node, new_int_bits: Node, new_frac_bits: Node) -> Op:
+    def spec(x: float, new_int_bits: float, new_frac_bits: float) -> float:
+        return x
+    
+    def impl(x: UQ, new_int_bits: UQ, new_frac_bits: UQ) -> UQ:
+        assert new_int_bits.frac_bits == 0
+        assert new_frac_bits.frac_bits == 0
+        # assert new_int_bits.val >= x.int_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
+        # assert new_frac_bits.val >= x.frac_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
+        
+        
+        return UQ(x.val << (new_frac_bits.val - x.frac_bits), new_int_bits.val, new_frac_bits.val)
+    
+    def sign(x: UQT, new_int_bits: UQT, new_frac_bits: UQT) -> UQT:
+        if new_int_bits.runtime_val and new_frac_bits.runtime_val:
+            return UQT(new_int_bits.runtime_val.val, new_frac_bits.runtime_val.val)
+        else:
+            raise TypeError("uq_resize depends on a variable. Impossible to typecheck")
+    
+    return Op(
+            spec=spec,
+            impl=impl,
+            signature=sign,
+            args=[x, new_int_bits, new_frac_bits],
+            name="uq_resize")
+
+# TODO: spec does not match impl (I guess as it should)
+def UQ_Rshift(x: Node, amount: Node) -> Op:
+    def impl(x: UQ, amount: UQ) -> UQ:
+        assert amount.frac_bits == 0
+        return UQ(x.val >> amount.val, x.int_bits, x.frac_bits)
+    
+    def spec(x: float, amount: float) -> float:
+        return x / (2 ** int(amount))
+    
+    def sign(x: UQT, amount: UQT) -> UQT:
+        return UQT(x.int_bits, x.frac_bits)
+    
+    return Op(
+            spec=spec,
+            impl=impl,
+            signature=sign,
+            args=[x, amount],
+            name="UQ_Rshift")
+            
+            
 def uq_or(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
         x_fixed = int(round(x * 2**31))
@@ -222,126 +347,6 @@ def uq_xor(x: Node, y: Node) -> Composite:
         sign=sign,
         args=[x, y],
         name="uq_xor")
-
-
-def uq_max(x: Node, y: Node) -> Composite:
-    def spec(x: float, y: float) -> float:
-        return max(x, y)
-    
-    def sign(x: UQT, y: UQT) -> UQT:
-        int_bits = max(x.int_bits, y.int_bits)
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQT(int_bits, frac_bits)
-    
-    x_adj, y_adj = _uq_aligner(
-        x=x, 
-        y=y, 
-        int_aggr=lambda x, y: max(x, y), 
-        frac_aggr=lambda x, y: max(x, y),
-    )
-    root = basic_max(
-        x=x_adj, 
-        y=y_adj,
-        out=x_adj.copy()
-    )
-    return Composite(
-        spec=spec,
-        impl=root,
-        sign=sign,
-        args=[x, y],
-        name="uq_max")
-
-
-def uq_to_q(x: Node) -> Op:
-    def impl(x: UQ) -> Q:
-        return Q(x.val, x.int_bits + 1, x.frac_bits)
-        
-    def spec(x: float) -> float:
-        return x
-    
-    def sign(x: UQT) -> QT:
-        return QT(x.int_bits + 1, x.frac_bits)
-    
-    return Op(
-            spec=spec,
-            impl=impl,
-            signature=sign,
-            args=[x],
-            name="uq_to_q")
-
-def uq_mul(x: Node, y: Node) -> Composite:
-    def spec(x: float, y: float) -> float:
-        return x * y
-    
-    def sign(x: UQT, y: UQT) -> UQT:
-        int_bits = x.int_bits + y.int_bits
-        frac_bits = x.frac_bits + y.frac_bits
-        return UQT(int_bits, frac_bits)
-    
-    # Ugly, we need x_adj only for the shape
-    x_adj, _ = _uq_aligner(
-        x=x,
-        y=y,
-        int_aggr=lambda x, y: x + y,
-        frac_aggr=lambda x, y: x + y,
-    )
-    root = basic_mul(
-        x=x,
-        y=y,
-        out=x_adj.copy()
-    )
-    
-    return Composite(
-            spec=spec,
-            impl=root,
-            sign=sign,
-            args=[x, y],
-            name="uq_mul")
-
-def uq_resize(x: Node, new_int_bits: Node, new_frac_bits: Node) -> Op:
-    def spec(x: float, new_int_bits: float, new_frac_bits: float) -> float:
-        return x
-    
-    def impl(x: UQ, new_int_bits: UQ, new_frac_bits: UQ) -> UQ:
-        assert new_int_bits.frac_bits == 0
-        assert new_frac_bits.frac_bits == 0
-        # assert new_int_bits.val >= x.int_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
-        # assert new_frac_bits.val >= x.frac_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
-        
-        
-        return UQ(x.val << (new_frac_bits.val - x.frac_bits), new_int_bits.val, new_frac_bits.val)
-    
-    def sign(x: UQT, new_int_bits: UQT, new_frac_bits: UQT) -> UQT:
-        if new_int_bits.runtime_val and new_frac_bits.runtime_val:
-            return UQT(new_int_bits.runtime_val.val, new_frac_bits.runtime_val.val)
-        else:
-            raise TypeError("uq_resize depends on a variable. Impossible to typecheck")
-    
-    return Op(
-            spec=spec,
-            impl=impl,
-            signature=sign,
-            args=[x, new_int_bits, new_frac_bits],
-            name="uq_resize")
-
-# TODO: spec does not match impl (I guess as it should)
-def UQ_Rshift(x: Node, amount: Node) -> Op:
-    def impl(x: UQ, amount: UQ) -> UQ:
-        assert amount.frac_bits == 0
-        return UQ(x.val >> amount.val, x.int_bits, x.frac_bits)
-    
-    def spec(x: float, amount: float) -> float:
-        return x / (2 ** int(amount))
-    
-    def sign(x: UQT, amount: UQT) -> UQT:
-        return UQT(x.int_bits, x.frac_bits)
-    
-    return Op(
-            spec=spec,
-            impl=impl,
-            signature=sign,
-            args=[x, amount],
-            name="UQ_Rshift")
  
 
 if __name__ == '__main__':
