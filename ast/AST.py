@@ -24,7 +24,7 @@ class Node:
         return Copy(self)
     
     def __getitem__(self, idx):
-        return Tuple_get_item(self, Const(Int(idx)))
+        return Tuple_get_item(self, idx)
     
     def evaluate(self) -> tp.Tuple[RuntimeType, tp.Any]:
         spec_inputs = []
@@ -260,27 +260,24 @@ def Copy(x: Node) -> Op:
         name="Copy")
 
 # TODO: to be moved somewhere, it's here due to loading cycles
-def Tuple_get_item(x: Node, idx: Node) -> Op:
-    def sign(x: TupleT, idx: IntT) -> StaticType:
+def Tuple_get_item(x: Node, idx: int) -> Op:
+    def sign(x: TupleT) -> StaticType:
         if not isinstance(x, TupleT):
             raise TypeError(f"{x} is not an instance of TupleT to iterate over it")
-        if idx.runtime_val:
-            return x.args[idx.runtime_val.val]
-        else:
-            raise TypeError("Tuple_get_item depends on a variable. Impossible to typecheck")
+        return x.args[idx]
 
-    def impl(x: Tuple, idx: Int) -> RuntimeType:
-        if idx.val >= len(x.args) or idx.val < 0:
+    def impl(x: Tuple) -> RuntimeType:
+        if idx >= len(x.args) or idx < 0:
             raise ValueError(f"Index is out of range for tuple {str(x)}, given {str(idx)}")
-        return x.args[idx.val]
+        return x.args[idx]
 
-    def spec(x: tuple, idx: int):
+    def spec(x: tuple):
         return x[idx]
 
     return Op(
         spec=spec,
         impl=impl,
         signature=sign,
-        args=[x, idx],
+        args=[x],
         name="Tuple_get_item")
 

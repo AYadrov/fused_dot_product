@@ -65,15 +65,19 @@ class Q(RuntimeType):
     def __str__(self):
         return f"Q{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
     
-    def sign_bit(self):
-        sign = self.val >> (self.total_bits() - 1)
-        assert sign in (0, 1)
-        return sign
+    @staticmethod
+    def from_int(x: int):
+        return Q(x, max(1, x.bit_length()) + 1, 0)
     
     def negate(self):
         total_width = self.total_bits() 
         neg_val = mask((~self.val + 1), total_width)
         return Q(neg_val, self.int_bits, self.frac_bits)
+    
+    def sign_bit(self):
+        sign = self.val >> (self.total_bits() - 1)
+        assert sign in (0, 1)
+        return sign
     
     def to_spec(self):
         sign_bit = self.sign_bit()
@@ -112,6 +116,10 @@ class UQ(RuntimeType):
     
     def __str__(self):
         return f"UQ{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
+    
+    @staticmethod
+    def from_int(x: int):
+        return UQ(x, max(1, x.bit_length()), 0)
     
     def to_spec(self):
         return float(self.val) / (2 ** self.frac_bits)

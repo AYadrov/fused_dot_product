@@ -17,12 +17,20 @@ def Q_E_encode_Float32(m: Node, e: Node) -> Op:
         """Mathematical reference implementation."""
         return float(np.float32(m * (2.0 ** (e - Float32.exponent_bias))))
         
-    def signature(m: QT, e: UQT) -> Float32T:
+    def signature(m: QT, e: QT) -> Float32T:
         return Float32T()
 
     # implementation matches spec; can differ if optimized later
-    def impl(m: Q, e: UQ) -> Float32:
-        
+    def impl(m: Q, e: Q) -> Float32:
+    
+        # Extracts signed bits from a signed fixed point
+        def twos_complement(e: Q):
+            N = e.int_bits + e.frac_bits
+            if e.val & (1 << (N - 1)):   # sign bit is 1
+                return e.val - (1 << N)
+            else:                        # sign bit is 0
+                return  e.val
+                
         def normalize_to_1_xxx(m, e, frac_bits):
             # Normalize so that mantissa is 1.xxxxx
             while (m >> frac_bits) == 0:
@@ -41,7 +49,7 @@ def Q_E_encode_Float32(m: Node, e: Node) -> Op:
         if sign:
             m = m.negate()
         mantissa = m.val
-        exponent = e.val
+        exponent = twos_complement(e)
         
         # 0.0 * 2^e = 0.0
         if mantissa == 0:

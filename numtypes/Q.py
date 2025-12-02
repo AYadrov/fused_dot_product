@@ -63,7 +63,7 @@ def _q_sign_extend(x: Node, n: int) -> Op:
     
     def impl(x: Q) -> Q:
         assert isinstance(n, int) and n >= 0
-        sign = x.val >> (x.total_bits() - 1)
+        sign = x.sign_bit()
         upper_bits = (sign << n) - sign
         res = x.val | (upper_bits << x.total_bits())
         return Q(res, x.int_bits + n, x.frac_bits)

@@ -28,7 +28,7 @@ def ulp_distance(x, y):
         
 def round_to_the_nearest_even(x: int, x_len: int, target_len: int) -> int:
     bits_to_truncate = max(0, x_len - target_len)
-            
+    
     if bits_to_truncate > 0:
         # Bit positions relative to x
         guard_pos = bits_to_truncate - 1

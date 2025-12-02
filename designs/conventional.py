@@ -44,17 +44,17 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     
     ########## CONSTANTS ###############
     bf16_bias = Const(
-        val=UQ(BFloat16.exponent_bias, max(1, BFloat16.exponent_bias.bit_length()), 0),
+        val=Q.from_int(BFloat16.exponent_bias),
         name="BFloat16.exponent_bias"
     )
     
     ########## EXPONENTS ###############
     
     # Step 1. Exponents add. Each E_p is shifted by bias twice!
-    E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]
+    E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]  # UQ9.0
     
     # Step 2. Calculate maximum exponent
-    E_m = MAX_EXPONENT4(*E_p)
+    E_m = MAX_EXPONENT4(*E_p)  # UQ9.0
     
     # Step 3. Calculate global shifts
     Sh_p = [uq_sub(E_m, E_p[i]) for i in range(N)]
@@ -83,8 +83,9 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     M_sum = ADDER_TREE4(*M_p) # Q5.{Wf - 2}
     
     ########## RESULT ##################
-    E_m = uq_sub(E_m, bf16_bias)  # E_m may end up being negative!
-    
+     # Subtract bias that is left! 
+    E_m = uq_to_q(E_m)  # Q10.0
+    E_m = q_sub(E_m, bf16_bias)  # Q11.0
     root = Q_E_encode_Float32(M_sum, E_m)
     
     return Composite(
