@@ -21,7 +21,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         out += a2 * b2
         out += a3 * b3
         return float(np.float32(out))
-        
+    
     def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T, 
              b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
         return Float32T()
@@ -43,20 +43,18 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     
     ########## CONSTANTS ###############
     
-    Wf_ = Const(Int(val=Wf), "Wf")
-    s_ = Const(Int(val=s), "s")
-    bf16_bias = Const(Int(val=BFloat16.exponent_bias), "BFloat16.exponent_bias")
-    pow2s_sub1 = Sub(Lshift(Const(Int(1)), s_), Const(Int(1)))
+    s_ = Const(UQ.from_int(s), "s")
+    bf16_bias = Const(UQ.from_int(BFloat16.exponent_bias), "BFloat16.exponent_bias")
+    pow2s_sub1 = Const(UQ.from_int((1 << s) - 1), "pow2s_sub1")
     
     ########## EXPONENTS ###############
     
     # Step 1. Exponents add. Each E_p is shifted by bias twice!
-    E_p = [Add(E_a[i], E_b[i]) for i in range(N)]
+    E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]
     
     # Step 2. Estimate local shifts
-    start = Max(Sub(s_, Const(Int(1))), Const(Int(0)))
-    end = Const(Int(0))
-    L_shifts = [Invert(Select(E_p[i], start, end), s_) for i in range(N)]
+    trailing_bits = [uq_select(E_p[i], max(s-1, 0), 0) for i in range(N)]
+    L_shifts = [Invert(trailing_bits[i], s_) for i in range(N)]
     
     # Step 3. Take leading {9-s} bits for max exponent and a global shift
     E_lead = [Rshift(E_p[i], s_) for i in range(N)]

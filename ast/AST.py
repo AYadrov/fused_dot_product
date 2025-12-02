@@ -259,6 +259,7 @@ def Copy(x: Node) -> Op:
         args=[x],
         name="Copy")
 
+
 # TODO: to be moved somewhere, it's here due to loading cycles
 def Tuple_get_item(x: Node, idx: int) -> Op:
     def sign(x: TupleT) -> StaticType:
@@ -280,4 +281,5 @@ def Tuple_get_item(x: Node, idx: int) -> Op:
         signature=sign,
         args=[x],
         name="Tuple_get_item")
+
 

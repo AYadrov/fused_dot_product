@@ -60,8 +60,32 @@ def _uq_zero_extend(x: Node, n: int) -> Op:
         impl=impl,
         signature=sign,
         args=[x],
-        name="_uq_extend_by_one_bit")
-        
+        name="_uq_zero_extend")
+
+
+def _uq_select_shape(x: Node, start: int, end: int) -> Op:
+    def spec(x):
+        return x
+    
+    def sign(x: UQT) -> UQT:
+        frac_bits = max(0, min(start, x.frac_bits - 1) - end + 1) if x.frac_bits > 0 else 0
+        width = start - end + 1
+        int_bits = width - frac_bits
+        return UQT(int_bits, frac_bits)
+    
+    def impl(x: UQ) -> UQ:
+        frac_bits = max(0, min(start, x.frac_bits - 1) - end + 1) if x.frac_bits > 0 else 0
+        width = start - end + 1
+        int_bits = width - frac_bits
+        return UQ(0, int_bits, frac_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        signature=sign,
+        args=[x],
+        name="_uq_select_shape")
+
 
 ############## Public API ##############
 
@@ -152,7 +176,7 @@ def uq_max(x: Node, y: Node) -> Composite:
 
 def uq_min(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
-        return max(x, y)
+        return min(x, y)
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = max(x.int_bits, y.int_bits)
@@ -250,6 +274,27 @@ def uq_rshift(x: Node, amount: Node) -> Composite:
         name="uq_rshift")
 
 
+def uq_select(x: Node, start: int, end: int) -> Composite:
+    width = start - end + 1
+    
+    def spec(x: float) -> float:
+        return (x / 2 ** end) % 2 ** width
+    
+    def sign(x: UQT) -> UQT:
+        frac_bits = max(0, min(start, x.frac_bits - 1) - end + 1) if x.frac_bits > 0 else 0
+        int_bits = width - frac_bits
+        return UQT(int_bits, frac_bits)
+    
+    out = _uq_select_shape(x, start, end)
+    root = basic_select(x, start, end, out)
+    return Composite(
+        spec=spec,
+        sign=sign,
+        impl=root,
+        args=[x],
+        name="uq_select")
+
+
 # TODO: Truncation catch, rounding
 def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Op:
     def spec(x: float) -> float:
@@ -272,11 +317,11 @@ def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Op:
         return UQT(int_bits, frac_bits)
     
     return Op(
-            spec=spec,
-            impl=impl,
-            signature=sign,
-            args=[x],
-            name="uq_resize")
+        spec=spec,
+        impl=impl,
+        signature=sign,
+        args=[x],
+        name="uq_resize")
 
 ########### Not Really Good ############
 

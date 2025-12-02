@@ -59,7 +59,7 @@ def basic_add(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        name="basic_add"
+        name="basic_add",
     )
 
 def basic_sub(x: Node, y: Node, out: Node) -> Op:
@@ -68,7 +68,7 @@ def basic_sub(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        name="basic_sub"
+        name="basic_sub",
     )
 
 def basic_mul(x: Node, y: Node, out: Node) -> Op:
@@ -77,7 +77,7 @@ def basic_mul(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        name="basic_mul"
+        name="basic_mul",
     )
 
 def basic_max(x: Node, y: Node, out: Node) -> Op:
@@ -86,7 +86,7 @@ def basic_max(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        name="basic_max"
+        name="basic_max",
     )
 
 def basic_min(x: Node, y: Node, out: Node) -> Op:
@@ -95,16 +95,7 @@ def basic_min(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        name="basic_min"
-    )
-
-def basic_min(x: Node, y: Node, out: Node) -> Op:
-    return _binary_operator(
-        op=lambda x, y: min(x, y),
-        x=x,
-        y=y,
-        out=out,
-        name="basic_min"
+        name="basic_min",
     )
 
 def basic_rshift(x: Node, amount: Node, out: Node) -> Op:
@@ -113,7 +104,18 @@ def basic_rshift(x: Node, amount: Node, out: Node) -> Op:
         x=x,
         y=amount,
         out=out,
-        name="basic_rshift"
+        name="basic_rshift",
+    )
+
+########### Unary Operators ###########
+
+def basic_select(x: Node, start: int, end: int, out: Node) -> Op:
+    assert start >= end and end >= 0, "Bad indexing"
+    return _unary_operator(
+        op=lambda x: mask(x >> end, start - end + 1) if isinstance(x, int) else (x / 2 ** end) % 2 ** (start - end + 1),
+        x=x,
+        out=out,
+        name="basic_select",
     )
 
 
