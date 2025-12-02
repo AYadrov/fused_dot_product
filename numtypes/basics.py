@@ -29,6 +29,27 @@ def _binary_operator(op: tp.Callable, x: Node, y: Node, out: Node, name: str) ->
         args=[x, y, out],
         name=name)
 
+def _unary_operator(op: tp.Callable, x: Node, out: Node, name: str) -> Op:
+    def spec(x, out):
+        return op(x)
+    
+    def sign(x: StaticType, out: StaticType) -> StaticType:
+        return out
+    
+    def impl(x: RuntimeType, out: RuntimeType) -> RuntimeType:
+        val = op(x.val)
+        # TODO: check for truncation
+        val = mask(val, out.total_bits())
+        # TODO: add a check whether val is in ranges
+        out.val = val
+        return out
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        signature=sign,
+        args=[x, out],
+        name=name)
 
 ########### Binary Operators ###########
 
@@ -75,6 +96,24 @@ def basic_min(x: Node, y: Node, out: Node) -> Op:
         y=y,
         out=out,
         name="basic_min"
+    )
+
+def basic_min(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: min(x, y),
+        x=x,
+        y=y,
+        out=out,
+        name="basic_min"
+    )
+
+def basic_rshift(x: Node, amount: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, amount: x >> amount if isinstance(amount, int) else x / 2 ** int(amount),
+        x=x,
+        y=amount,
+        out=out,
+        name="basic_rshift"
     )
 
 

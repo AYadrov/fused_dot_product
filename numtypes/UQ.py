@@ -199,6 +199,34 @@ def uq_max(x: Node, y: Node) -> Composite:
         name="uq_max")
 
 
+def uq_min(x: Node, y: Node) -> Composite:
+    def spec(x: float, y: float) -> float:
+        return max(x, y)
+    
+    def sign(x: UQT, y: UQT) -> UQT:
+        int_bits = max(x.int_bits, y.int_bits)
+        frac_bits = max(x.frac_bits, y.frac_bits)
+        return UQT(int_bits, frac_bits)
+    
+    x_adj, y_adj = _uq_aligner(
+        x=x,
+        y=y,
+        int_aggr=lambda x, y: max(x, y), 
+        frac_aggr=lambda x, y: max(x, y),
+    )
+    root = basic_min(
+        x=x_adj, 
+        y=y_adj,
+        out=x_adj.copy()
+    )
+    return Composite(
+        spec=spec,
+        impl=root,
+        sign=sign,
+        args=[x, y],
+        name="uq_min")
+
+
 def uq_mul(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
         return x * y
@@ -215,6 +243,8 @@ def uq_mul(x: Node, y: Node) -> Composite:
         int_aggr=lambda x, y: x + y,
         frac_aggr=lambda x, y: x + y,
     )
+    
+    # x and y are preserved untouched!! important
     root = basic_mul(
         x=x,
         y=y,
@@ -247,6 +277,29 @@ def uq_to_q(x: Node) -> Op:
             name="uq_to_q")
 
 
+# TODO: spec does not match impl due to truncation
+def uq_rshift(x: Node, amount: Node) -> Composite:
+    root = basic_rshift(
+        x=x,
+        amount=amount,
+        out=x.copy(),
+    )
+    
+    def spec(x: float, amount: float) -> float:
+        return x / (2 ** int(amount))
+    
+    # TODO: Would be nice to not care about amount type, just bits amount
+    def sign(x: UQT, amount: StaticType) -> UQT:
+        return UQT(x.int_bits, x.frac_bits)
+    
+    return Composite(
+        spec=spec,
+        impl=root,
+        sign=sign,
+        args=[x, amount],
+        name="uq_rshift")
+
+
 ########### Not Really Good ############
 
 def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Op:
@@ -267,26 +320,6 @@ def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Op:
             signature=sign,
             args=[x],
             name="uq_resize")
-
-# TODO: spec does not match impl (I guess as it should)
-def UQ_Rshift(x: Node, amount: Node) -> Op:
-    def impl(x: UQ, amount: UQ) -> UQ:
-        assert amount.frac_bits == 0
-        return UQ(x.val >> amount.val, x.int_bits, x.frac_bits)
-    
-    def spec(x: float, amount: float) -> float:
-        return x / (2 ** int(amount))
-    
-    def sign(x: UQT, amount: UQT) -> UQT:
-        return UQT(x.int_bits, x.frac_bits)
-    
-    return Op(
-            spec=spec,
-            impl=impl,
-            signature=sign,
-            args=[x, amount],
-            name="UQ_Rshift")
-            
             
 def uq_or(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:

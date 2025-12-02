@@ -17,7 +17,7 @@ def mantissa_add_implicit_bit(x: Node) -> Composite:
     
     n = Const(UQ(7, 3, 0))  # 7
     x = uq_resize(x, 7, 7)  # xxxxxxx.0000000
-    x = UQ_Rshift(x, n)  # 0000000.xxxxxxx
+    x = uq_rshift(x, n)  # 0000000.xxxxxxx
     x = uq_resize(x, 1, 7)  # 0.xxxxxxx
     one = Const(UQ(1, 1, 0))  # 1.0000000
     x = uq_or(x, one)  # 1.xxxxxxx
