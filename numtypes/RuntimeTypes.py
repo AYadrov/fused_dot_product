@@ -69,6 +69,33 @@ class Q(RuntimeType):
     def from_int(x: int):
         return Q(x, max(1, x.bit_length()) + 1, 0)
     
+    @staticmethod
+    def sign_extend(x, n: int):
+        assert n >= 0, f"Extend bits can not be negative, {n} is provided"
+        total_bits = x.int_bits + x.frac_bits
+        sign = x.sign_bit()
+        upper_bits = (sign << n) - sign
+        res = x.val | (upper_bits << total_bits)
+        return Q(res, x.int_bits + n, x.frac_bits)
+    
+    @staticmethod
+    def align(x, y):
+        # Step 1. Align fractional bits
+        if x.frac_bits > y.frac_bits:
+            shift = x.frac_bits - y.frac_bits
+            y = Q(y.val << shift, y.int_bits, x.frac_bits)
+        elif x.frac_bits < y.frac_bits:
+            shift = y.frac_bits - x.frac_bits
+            x = Q(x.val << shift, x.int_bits, y.frac_bits)
+
+        # Step 2. Align integer bits
+        if x.int_bits > y.int_bits:
+            y = Q.sign_extend(y, x.int_bits - y.int_bits)
+        elif x.int_bits < y.int_bits:
+            x = Q.sign_extend(x, y.int_bits - x.int_bits)
+
+        return x, y
+    
     def negate(self):
         total_width = self.total_bits() 
         neg_val = mask((~self.val + 1), total_width)
@@ -134,37 +161,6 @@ class UQ(RuntimeType):
     
     def total_bits(self):
         return self.int_bits + self.frac_bits
-
-
-class Int(RuntimeType):
-    """Signed integer bits."""
-    def __init__(self, val: int, width: int = None):
-        
-        if width is None:
-            width = max(1, val.bit_length())
-        
-        assert width > 0, f"Integer width can not be less than zero, {self.width} is provided"
-        assert -(1 << width) <= val < (1 << width), \
-                f"Value {val} needs {max(1, val.bit_length())} bits, but width={width} is too small"
-                
-        self.val, self.width = val, width
-    
-    def __str__(self):
-        return f"Int({str(self.to_spec())}, width={self.width})"
-    
-    def to_spec(self):
-        return self.val
-    
-    def static_type(self):
-        return IntT(self.width)
-    
-    def copy(self, val=None):
-        if val is None:
-            val = self.val
-        return Int(val, self.width)
-    
-    def total_bits(self):
-        return self.width
 
 
 class Float32(RuntimeType):

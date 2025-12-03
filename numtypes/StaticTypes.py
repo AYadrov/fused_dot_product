@@ -61,26 +61,6 @@ class UQT(StaticType):
         )
 
 
-class IntT(StaticType):
-    def __init__(self, bits: int):
-        super().__init__()
-        assert bits >= 1, f"IntT must have a least 1 bit, given {bits}"
-        self.bits = bits
-    
-    @property
-    def total_bits(self):
-        return self.bits
-    
-    def __repr__(self):
-        return f"Int<{self.bits}>"
-    
-    def __eq__(self, other):
-        return (
-            isinstance(other, IntT)
-            and self.bits == other.bits
-        )
-
-
 class Float32T(StaticType):
     def __init__(self):
         super().__init__()

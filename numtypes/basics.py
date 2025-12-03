@@ -107,12 +107,21 @@ def basic_rshift(x: Node, amount: Node, out: Node) -> Op:
         name="basic_rshift",
     )
 
+def basic_lshift(x: Node, amount: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, amount: x << amount if isinstance(amount, int) else x * 2 ** int(amount),
+        x=x,
+        y=amount,
+        out=out,
+        name="basic_lshift",
+    )
+
 ########### Unary Operators ###########
 
 def basic_select(x: Node, start: int, end: int, out: Node) -> Op:
     assert start >= end and end >= 0, "Bad indexing"
     return _unary_operator(
-        op=lambda x: mask(x >> end, start - end + 1) if isinstance(x, int) else (x / 2 ** end) % 2 ** (start - end + 1),
+        op=lambda x: mask(x >> end, start - end + 1) if isinstance(x, int) else (x // 2 ** end) % 2 ** (start - end + 1),
         x=x,
         out=out,
         name="basic_select",

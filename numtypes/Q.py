@@ -54,7 +54,10 @@ def _q_aligner(x: Node,
         args=[x, y],
         name="_q_aligner")
 
-def _q_sign_extend(x: Node, n: int) -> Op:
+
+############## Public API ##############
+
+def q_sign_extend(x: Node, n: int) -> Op:
     def spec(x):
         return x
     
@@ -73,29 +76,7 @@ def _q_sign_extend(x: Node, n: int) -> Op:
         impl=impl,
         signature=sign,
         args=[x],
-        name="_q_sign_extend")
-
-
-############## Public API ##############
-
-def Q_sign_bit(x: Node) -> Op:
-    def impl(x: Q) -> Int:
-        res = x.sign_bit()
-        assert res == 1 or res == 0
-        return Int(res)
-        
-    def spec(x: float) -> int:
-        return 1 if x < 0 else 0
-        
-    def sign(x: QT) -> IntT:
-        return IntT(1)
-    
-    return Op(
-            spec=spec,
-            impl=impl,
-            signature=sign,
-            args=[x],
-            name="Q_sign_bit")
+        name="q_sign_extend")
 
 
 def q_neg(x: Node) -> Op:
@@ -119,13 +100,14 @@ def q_neg(x: Node) -> Op:
 
 
 def q_add(x: Node, y: Node) -> Composite:
-    x_adj, y_adj = _q_aligner(
-        x=x, 
-        y=y,
-        int_aggr=lambda x, y: max(x, y) + 1,
-        frac_aggr=lambda x, y: max(x, y),
-    )
-    root = basic_add(x_adj, y_adj, x_adj.copy())
+    def impl(x: Node, y: Node) -> Node:
+        x_adj, y_adj = _q_aligner(
+            x=x, 
+            y=y,
+            int_aggr=lambda x, y: max(x, y) + 1,
+            frac_aggr=lambda x, y: max(x, y),
+        )
+        return basic_add(x_adj, y_adj, x_adj.copy())
     
     def spec(x: float, y: float) -> float:
         return x + y
@@ -137,7 +119,7 @@ def q_add(x: Node, y: Node) -> Composite:
     
     return Composite(
         spec=spec,
-        impl=root,
+        impl=impl,
         sign=sign,
         args=[x, y],
         name="q_add",
@@ -145,13 +127,15 @@ def q_add(x: Node, y: Node) -> Composite:
 
 
 def q_sub(x: Node, y: Node) -> Composite:
-    x_adj, y_adj = _q_aligner(
-        x=x, 
-        y=y,
-        int_aggr=lambda x, y: max(x, y) + 1,
-        frac_aggr=lambda x, y: max(x, y),
-    )
-    root = basic_sub(x_adj, y_adj, x_adj.copy())
+    def impl(x: Node, y: Node) -> Node:
+        x_adj, y_adj = _q_aligner(
+            x=x, 
+            y=y,
+            int_aggr=lambda x, y: max(x, y) + 1,
+            frac_aggr=lambda x, y: max(x, y),
+        )
+        root = basic_sub(x_adj, y_adj, x_adj.copy())
+        return root
     
     def spec(x: float, y: float) -> float:
         return x - y
@@ -163,7 +147,7 @@ def q_sub(x: Node, y: Node) -> Composite:
     
     return Composite(
         spec=spec,
-        impl=root,
+        impl=impl,
         sign=sign,
         args=[x, y],
         name="q_sub",
@@ -192,7 +176,7 @@ def q_xor(x: Node, y: Node) -> Op:
         impl=impl,
         signature=sign,
         args=[x, y],
-        name="q_xor"
+        name="q_xor",
     )
     
 def q_and(x: Node, y: Node) -> Op:  
@@ -216,7 +200,7 @@ def q_and(x: Node, y: Node) -> Op:
         impl=impl,
         signature=sign,
         args=[x, y],
-        name="q_and"
+        name="q_and",
     )
 
 def q_or(x: Node, y: Node) -> Op:
@@ -241,33 +225,33 @@ def q_or(x: Node, y: Node) -> Op:
         impl=impl,
         signature=sign,
         args=[x, y],
-        name="q_or"
+        name="q_or",
     )
     
-def Q_Lshift(x: Node, n: Node) -> Op:
-    def impl(x: Q, n: Int) -> Q:
-        return Q(x.val << n.val, x.int_bits + n.val, x.frac_bits)
+def q_lshift(x: Node, n: Node) -> Composite:
+    def spec(x: float, n: float) -> float:
+        return x * 2**int(n)
         
-    def spec(x: float, n: int) -> float:
-        return x * 2**n
-        
-    def sign(x: QT, n: IntT) -> QT:
-        if n.runtime_val is None:
-            raise TypeError("Amount of Q_Lshift depends on a variable. Impossible to typecheck")
-        else:
-            int_bits = x.int_bits + n.runtime_val.val
-            frac_bits = x.frac_bits
-            return QT(int_bits, frac_bits)
+    def sign(x: QT, n: UQT) -> QT:
+        return QT(x.int_bits , x.frac_bits)
     
-    return Op(
+    def impl(x: Node, n: Node) -> Node:
+        impl = basic_lshift(
+            x=x,
+            amount=n,
+            out=x.copy()
+        )
+        return impl
+    
+    return Composite(
         spec=spec,
         impl=impl,
-        signature=sign,
+        sign=sign,
         args=[x, n],
-        name="Q_Lshift"
+        name="q_lshift",
     )
     
-def Q_add_sign(x: Node, s: Node) -> Op:
+def q_add_sign(x: Node, s: Node) -> Op:
     def impl(x: Q, s: UQ) -> Q:
         assert s.val in (0, 1)
         if s.val == 1:
@@ -288,7 +272,7 @@ def Q_add_sign(x: Node, s: Node) -> Op:
             impl=impl,
             signature=sign,
             args=[x, s], 
-            name="Q_add_sign")
+            name="q_add_sign")
 
 if __name__ == '__main__':
     assert Q_sign_bit(

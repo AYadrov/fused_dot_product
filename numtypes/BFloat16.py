@@ -3,7 +3,6 @@ import random
 import math
 
 from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.numtypes.Int import *
 from fused_dot_product.numtypes.Tuple import *
 from fused_dot_product.ast.AST import *
 
@@ -31,11 +30,13 @@ def BF16_decode(x: Node) -> Composite:
             UQT(8, 0),
         )
     
-    impl = make_Tuple(
-        BF16_sign(x),
-        BF16_mantissa(x),
-        BF16_exponent(x),
-    )
+    def impl(x: Node) -> Node:
+        impl = make_Tuple(
+            BF16_sign(x),
+            BF16_mantissa(x),
+            BF16_exponent(x),
+        )
+        return impl
     
     return Composite(
         spec=spec,
