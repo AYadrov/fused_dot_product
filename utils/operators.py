@@ -127,14 +127,19 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
         The implementation constructs a logical comparison tree that avoids direct integer
         comparison operations for hardware-efficient synthesis.
     """
-    def spec(e0: int, e1: int, e2: int, e3: int) -> int:
+    def spec(e0, e1, e2, e3):
         return max(max(e0, e1), max(e2, e3))
     
-    def signature(e0: IntT, e1: IntT, e2: IntT, e3: IntT) -> IntT:
-        return IntT(max(max(e0.total_bits, e1.total_bits), max(e2.total_bits, e3.total_bits)))
+    def signature(e0: UQT, e1: UQT, e2: UQT, e3: UQT) -> UQT:
+        int_bits = max(max(e0.int_bits, e1.int_bits), max(e2.int_bits, e3.int_bits))
+        frac_bits = max(max(e0.frac_bits, e1.frac_bits), max(e2.frac_bits, e3.frac_bits))
+        return UQT(int_bits, frac_bits)
     
-    def impl(e0: Int, e1: Int, e2: Int, e3: Int) -> int:
-        bit_width = max(max(e0.width, e1.width), max(e2.width, e3.width))
+    def impl(e0: UQ, e1: UQ, e2: UQ, e3: UQ):
+        int_bits = max(max(e0.int_bits, e1.int_bits), max(e2.int_bits, e3.int_bits))
+        frac_bits = max(max(e0.frac_bits, e1.frac_bits), max(e2.frac_bits, e3.frac_bits))
+        bit_width = int_bits + frac_bits
+        
         exponents = [e0.val, e1.val, e2.val, e3.val]
         num_elements = len(exponents)
         
@@ -156,7 +161,7 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
                 data_for_or_tree.append(ep_bits[j][i] and res)
             maxexp[i] = int(any(data_for_or_tree))  # Or-tree
         
-        return Int(int(''.join(map(str, map(int, maxexp))), 2), bit_width)
+        return UQ(int(''.join(map(str, map(int, maxexp))), 2), int_bits, frac_bits)
     
     return Op(
         spec=spec,

@@ -44,6 +44,7 @@ def _uq_aligner(x: Node,
         args=[x, y],
         name="_uq_aligner")
 
+
 def _uq_zero_extend(x: Node, n: int) -> Op:
     assert isinstance(n, int) and n >= 0
     def spec(x):
@@ -324,6 +325,28 @@ def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Op:
         name="uq_resize")
 
 ########### Not Really Good ############
+
+# TODO: n is needed only for spec
+def uq_invert(x: Node, n: int) -> Op:
+    def spec(x):
+        if float(int(x)) != x:
+            raise ValueError("invert operation is not implemented yet for fractions")
+        else:
+            return (2**n - 1) - x
+   
+    def sign(x: UQT) -> UQT:
+        return x
+    
+    def impl(x: UQ) -> UQ:
+        val = ((1 << x.total_bits()) - 1) - x.val
+        return x.copy(val=val)
+    
+    return Op(
+        spec=spec,
+        signature=sign,
+        impl=impl,
+        args=[x],
+        name="uq_invert")
 
 def _uq_orer(x: Node, y: Node) -> Op:
     def spec(x: float, y: float) -> float:

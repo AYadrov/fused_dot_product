@@ -54,16 +54,18 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     
     # Step 2. Estimate local shifts
     trailing_bits = [uq_select(E_p[i], max(s-1, 0), 0) for i in range(N)]
-    L_shifts = [Invert(trailing_bits[i], s_) for i in range(N)]
+    L_shifts = [uq_invert(trailing_bits[i], s) for i in range(N)]
     
     # Step 3. Take leading {9-s} bits for max exponent and a global shift
-    E_lead = [Rshift(E_p[i], s_) for i in range(N)]
+    E_lead = [uq_rshift(E_p[i], s_) for i in range(N)]
+    E_lead = [uq_resize(E_p[i], 9-s, 0) for i in range(N)]
     
     # Step 4. Take max exponent
     E_m = OPTIMIZED_MAX_EXP4(*E_lead)
     
     # Step 5. Calculate global shifts as {(max_exp - exp) * 2**s}
-    G_shifts = [Lshift(Sub(E_m, E_lead[i]), s_) for i in range(N)]
+    G_shifts = [uq_sub(E_m, E_lead[i]) for i in range(N)]
+    G_shifts = [uq_lshift(G_shifts[i], s_) for i in range(N)]
     
     # Step 6. Append {s} 1s at the end of the max exponent for a normalization
     E_m = Add(Lshift(E_m, s_), pow2s_sub1)
