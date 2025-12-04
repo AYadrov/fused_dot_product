@@ -1,6 +1,7 @@
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.utils.utils import *
+import inspect
 
 def make_Tuple(*args: Node) -> Op:
     def spec(*args):

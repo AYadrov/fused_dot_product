@@ -29,7 +29,7 @@ def _q_aligner(x: Node,
             upper_bits = (sign << n) - sign
             res = x.val | (upper_bits << x.total_bits())
             return Q(res, x.int_bits + n, x.frac_bits)
-            
+        
         # TODO: check if aggregation results are less then original ones
         int_bits = int_aggr(x.int_bits, y.int_bits)
         frac_bits = frac_aggr(x.frac_bits, y.frac_bits)
@@ -38,7 +38,7 @@ def _q_aligner(x: Node,
             # Step 1. Align fractional bits
             if x.frac_bits < frac_bits:
                 shift = frac_bits - x.frac_bits
-                x = UQ(x.val << shift, x.int_bits, frac_bits)
+                x = Q(x.val << shift, x.int_bits, frac_bits)
             # Step 2. Align integer bits
             if x.int_bits < int_bits:
                 shift = int_bits - x.int_bits

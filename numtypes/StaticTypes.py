@@ -13,7 +13,7 @@ class StaticType:
     def __repr__(self):
         raise NotImplementedError
     
-    def __eq__(self):
+    def __eq__(self, other):
         raise NotImplementedError
 
 
