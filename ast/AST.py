@@ -129,7 +129,6 @@ class Composite(Node):
         variables = [Var(name=f"arg_{i}", signature=x.node_type) for i, x in enumerate(args)]
         inner_tree = impl(*variables)  # Pointer to the Composite's inner tree
         
-        # TODO: impl gets evaluated twice!
         def impl_(*args):
             for var, arg in zip(variables, args):
                 var.load_val(arg)

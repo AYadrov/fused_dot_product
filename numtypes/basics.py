@@ -116,6 +116,33 @@ def basic_lshift(x: Node, amount: Node, out: Node) -> Op:
         name="basic_lshift",
     )
 
+def basic_or(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: x | y,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_or",
+    )
+ 
+def basic_xor(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: x ^ y,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_xor",
+    )
+
+def basic_and(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: x & y,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_and",
+    )
+
 ########### Unary Operators ###########
 
 def basic_select(x: Node, start: int, end: int, out: Node) -> Op:
