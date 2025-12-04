@@ -1,7 +1,6 @@
 import struct
 import math
 import numpy as np
-import inspect
 
 def float_to_bits32(f):
     # pack float32 → 4 bytes, then unpack to unsigned int
