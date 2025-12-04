@@ -4,9 +4,6 @@ from fused_dot_product.utils.utils import *
 import inspect
 
 def make_Tuple(*args: Node) -> Op:
-    def spec(*args):
-        return tuple(args)
-    
     def impl(*args: RuntimeType) -> Tuple:
         return Tuple(*args)
     
@@ -14,9 +11,8 @@ def make_Tuple(*args: Node) -> Op:
         return TupleT(*args)
     
     return Op(
-        spec=spec,
         impl=_make_fixed_arguments(impl, RuntimeType, len(args)),
-        signature=_make_fixed_arguments(sign, StaticType, len(args)),
+        sign=_make_fixed_arguments(sign, StaticType, len(args)),
         args=args,
         name="Tuple_create")
 

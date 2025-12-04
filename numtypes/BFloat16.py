@@ -23,7 +23,7 @@ def BF16_decode(x: Node) -> Composite:
         
         return sign(x), mantissa(x), exponent(x)
     
-    def signature(x: BFloat16T) -> TupleT:
+    def sign(x: BFloat16T) -> TupleT:
         return TupleT(
             UQT(1, 0),
             UQT(7, 0),
@@ -41,18 +41,11 @@ def BF16_decode(x: Node) -> Composite:
     return Composite(
         spec=spec,
         impl=impl,
-        sign=signature,
+        sign=sign,
         args=[x],
         name="BF16_decode")
 
 def BF16_mantissa(x: Node) -> Op:
-    def spec(x: float) -> float:
-        if x == 0.0:
-            return 0.0
-        exp = math.floor(math.log2(abs(x)))
-        frac = abs(x) / (2 ** exp) - 1.0
-        return float(int(frac * (2 ** 7)))
-    
     def impl(x: BFloat16) -> UQ:
         return UQ(x.mantissa, 7, 0)
     
@@ -60,19 +53,12 @@ def BF16_mantissa(x: Node) -> Op:
         return UQT(7, 0)
     
     return Op(
-            spec=spec,
             impl=impl,
-            signature=sign,
+            sign=sign,
             args=[x],
             name="BF16_mantissa")
 
 def BF16_exponent(x: Node) -> Op:
-    def spec(x: float) -> float:
-        if x == 0:
-            return 1.0
-        else:
-            return float(math.floor(math.log2(abs(x))) + 127)
-    
     def impl(x: BFloat16) -> UQ:
         return UQ(x.exponent, 8, 0)
     
@@ -80,19 +66,12 @@ def BF16_exponent(x: Node) -> Op:
         return UQT(8, 0)
     
     return Op(
-            spec=spec,
             impl=impl,
-            signature=sign,
+            sign=sign,
             args=[x],
             name="BF16_exponent")
 
 def BF16_sign(x: Node) -> Op:
-    def spec(x: float) -> float:
-        if x < 0:
-            return 1.0
-        else:
-            return 0.0
-    
     def impl(x: BFloat16) -> UQ:
         return UQ(x.sign, 1, 0)
     
@@ -100,9 +79,8 @@ def BF16_sign(x: Node) -> Op:
         return UQT(1, 0)
     
     return Op(
-            spec=spec,
             impl=impl,
-            signature=sign,
+            sign=sign,
             args=[x],
             name="BF16_sign")
 

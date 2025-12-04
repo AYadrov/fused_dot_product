@@ -11,9 +11,6 @@ def _q_aligner(x: Node,
                y: Node,
                int_aggr: tp.Callable,
                frac_aggr: tp.Callable) -> Op:
-    def spec(x, y):
-        return x, y
-    
     def sign(x: QT, y: QT) -> TupleT:
         int_bits = int_aggr(x.int_bits, y.int_bits)
         frac_bits = frac_aggr(x.frac_bits, y.frac_bits)
@@ -48,9 +45,8 @@ def _q_aligner(x: Node,
         return Tuple(align(x), align(y))
     
     return Op(
-        spec=spec,
         impl=impl,
-        signature=sign,
+        sign=sign,
         args=[x, y],
         name="_q_aligner")
 
@@ -58,9 +54,6 @@ def _q_aligner(x: Node,
 ############## Public API ##############
 
 def q_sign_extend(x: Node, n: int) -> Op:
-    def spec(x):
-        return x
-    
     def sign(x: QT) -> QT:
         return QT(x.int_bits + n, x.frac_bits)
     
@@ -72,9 +65,8 @@ def q_sign_extend(x: Node, n: int) -> Op:
         return Q(res, x.int_bits + n, x.frac_bits)
     
     return Op(
-        spec=spec,
         impl=impl,
-        signature=sign,
+        sign=sign,
         args=[x],
         name="q_sign_extend")
 
@@ -84,19 +76,15 @@ def q_neg(x: Node) -> Op:
         total_width = x.total_bits() 
         val = mask((~x.val + 1), total_width)
         return Q(val, x.int_bits, x.frac_bits)
-    
-    def spec(x: float) -> float:
-        return (-1) * x
-    
+   
     def sign(x: QT) -> QT:
         return QT(x.int_bits, x.frac_bits)
     
     return Op(
-            spec=spec,
-            impl=impl,
-            signature=sign,
-            args=[x],
-            name="q_neg")
+        impl=impl,
+        sign=sign,
+        args=[x],
+        name="q_neg")
 
 
 def q_add(x: Node, y: Node) -> Composite:
@@ -152,81 +140,6 @@ def q_sub(x: Node, y: Node) -> Composite:
         args=[x, y],
         name="q_sub",
     )
-
-
-# TODO: This specifiation works here - but it is unstable for a general case
-def q_xor(x: Node, y: Node) -> Op:
-    def impl(x: Q, y: Q) -> Q:
-        x_adj, y_adj = Q.align(x, y)
-        return Q(x_adj.val ^ y_adj.val, x_adj.int_bits, x_adj.frac_bits)
-    
-    def spec(x: float, y: float) -> float:
-        x_fixed = int(round(x * 2**31))
-        y_fixed = int(round(y * 2**31))
-        xor_res = x_fixed ^ y_fixed
-        return float(xor_res / 2**31)
-
-    def sign(x: QT, y: QT) -> QT:
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        int_bits = max(x.int_bits, y.int_bits)
-        return QT(int_bits, frac_bits)
-    
-    return Op(
-        spec=spec,
-        impl=impl,
-        signature=sign,
-        args=[x, y],
-        name="q_xor",
-    )
-    
-def q_and(x: Node, y: Node) -> Op:  
-    def impl(x: Q, y: Q) -> Q:
-        x_adj, y_adj = Q.align(x, y)
-        return Q(x_adj.val & y_adj.val, x_adj.int_bits, x_adj.frac_bits)
-    
-    def spec(x: float, y: float) -> float:
-        x_fixed = int(round(x * 2**31))
-        y_fixed = int(round(y * 2**31))
-        and_res = x_fixed & y_fixed
-        return float(and_res / 2**31)
-    
-    def sign(x: QT, y: QT) -> QT:
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        int_bits = max(x.int_bits, y.int_bits)
-        return QT(int_bits, frac_bits)
-    
-    return Op(
-        spec=spec,
-        impl=impl,
-        signature=sign,
-        args=[x, y],
-        name="q_and",
-    )
-
-def q_or(x: Node, y: Node) -> Op:
-    def impl(x: Q, y: Q) -> Q:
-        x_adj, y_adj = Q.align(x, y)
-        return Q(x_adj.val | y_adj.val, x_adj.int_bits, x_adj.frac_bits)
-    
-    def spec(x: float, y: float) -> float:
-        # Converting to a signed fixed-point
-        x_fixed = int(round(x * 2**31))
-        y_fixed = int(round(y * 2**31))
-        or_res = x_fixed | y_fixed
-        return float(or_res / 2**31)
-    
-    def sign(x: QT, y: QT) -> QT:
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        int_bits = max(x.int_bits, y.int_bits)
-        return QT(int_bits, frac_bits)
-    
-    return Op(
-        spec=spec,
-        impl=impl,
-        signature=sign,
-        args=[x, y],
-        name="q_or",
-    )
     
 def q_lshift(x: Node, n: Node) -> Composite:
     def spec(x: float, n: float) -> float:
@@ -261,48 +174,12 @@ def q_add_sign(x: Node, s: Node) -> Op:
         else:
             return Q(x.val, x.int_bits, x.frac_bits)
             
-    def spec(x: float, s: int) -> float:
-        return ((-1) ** s) * x
-            
     def sign(x: QT, n: UQT) -> QT:
         return QT(x.int_bits, x.frac_bits)
     
     return Op(
-            spec=spec, 
             impl=impl,
-            signature=sign,
+            sign=sign,
             args=[x, s], 
             name="q_add_sign")
-
-if __name__ == '__main__':
-    assert Q_sign_bit(
-            Const(Q(val=100, int_bits=12, frac_bits=34)) 
-        ).static_typecheck() == IntT(1)
-    assert Q_Negate(
-            Const(Q(val=100, int_bits=12, frac_bits=34))
-        ).static_typecheck() == QT(12, 34)
-    assert Q_Add(
-            Const(Q(val=100, int_bits=12, frac_bits=34)), 
-            Const(Q(val=100, int_bits=34, frac_bits=12))
-        ).static_typecheck() == QT(35, 34)
-    assert Q_Xor(
-            Const(Q(val=100, int_bits=12, frac_bits=34)), 
-            Const(Q(val=100, int_bits=34, frac_bits=12))
-        ).static_typecheck() == QT(34, 34)
-    assert Q_And(
-            Const(Q(val=100, int_bits=12, frac_bits=34)), 
-            Const(Q(val=100, int_bits=34, frac_bits=12))
-        ).static_typecheck() == QT(34, 34)
-    assert Q_Or(
-            Const(Q(val=100, int_bits=12, frac_bits=34)), 
-            Const(Q(val=100, int_bits=34, frac_bits=12))
-        ).static_typecheck() == QT(34, 34)
-    assert Q_Lshift(
-            Const(Q(val=100, int_bits=12, frac_bits=34)), 
-            Const(Int(4))
-        ).static_typecheck() == QT(16, 34)
-    assert Q_add_sign(
-            Const(Q(val=100, int_bits=12, frac_bits=34)), 
-            Const(Int(1))
-        ).static_typecheck() == QT(12, 34)
 

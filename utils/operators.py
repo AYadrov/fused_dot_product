@@ -12,11 +12,7 @@ import numpy as np
 
 # TODO: loss of accuracy, NaNs
 def Q_E_encode_Float32(m: Node, e: Node) -> Op:
-    def spec(m: float, e: int) -> float:
-        """Mathematical reference implementation."""
-        return float(np.float32(m * (2.0 ** (e - Float32.exponent_bias))))
-        
-    def signature(m: QT, e: QT) -> Float32T:
+    def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
 
     # implementation matches spec; can differ if optimized later
@@ -100,9 +96,8 @@ def Q_E_encode_Float32(m: Node, e: Node) -> Op:
             return Float32(sign=sign, mantissa=mantissa, exponent=exponent)
     
     return Op(
-        spec=spec,
         impl=impl,
-        signature=signature,
+        sign=sign,
         args=[m, e],
         name="Q_E_encode_Float32",
     )
@@ -111,25 +106,7 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
                        e1: Node,
                        e2: Node,
                        e3: Node) -> Op:
-    """
-    Computes the maximum exponent value among four inputs using a bitwise comparison tree.
-    
-    Args:
-        e0: First exponent value.
-        e1: Second exponent value.
-        e2: Third exponent value.
-        e3: Fourth exponent value.
-    
-    Returns:
-        Operator that determines the maximum exponent among the four inputs by performing
-        bitwise comparison from the most significant bit (MSB) to the least significant bit (LSB).
-        The implementation constructs a logical comparison tree that avoids direct integer
-        comparison operations for hardware-efficient synthesis.
-    """
-    def spec(e0, e1, e2, e3):
-        return max(max(e0, e1), max(e2, e3))
-    
-    def signature(e0: UQT, e1: UQT, e2: UQT, e3: UQT) -> UQT:
+    def sign(e0: UQT, e1: UQT, e2: UQT, e3: UQT) -> UQT:
         int_bits = max(max(e0.int_bits, e1.int_bits), max(e2.int_bits, e3.int_bits))
         frac_bits = max(max(e0.frac_bits, e1.frac_bits), max(e2.frac_bits, e3.frac_bits))
         return UQT(int_bits, frac_bits)
@@ -163,9 +140,8 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
         return UQ(int(''.join(map(str, map(int, maxexp))), 2), int_bits, frac_bits)
     
     return Op(
-        spec=spec,
         impl=impl,
-        signature=signature,
+        sign=sign,
         args=[e0, e1, e2, e3],
         name="OPTIMIZED_MAX_EXP4"
     )

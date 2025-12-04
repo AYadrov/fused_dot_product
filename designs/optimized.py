@@ -132,17 +132,17 @@ if __name__ == '__main__':
 
     # Compile design
     a = [
-        Var(name="a_0", signature=BFloat16T()),
-        Var(name="a_1", signature=BFloat16T()),
-        Var(name="a_2", signature=BFloat16T()),
-        Var(name="a_3", signature=BFloat16T()),
+        Var(name="a_0", sign=BFloat16T()),
+        Var(name="a_1", sign=BFloat16T()),
+        Var(name="a_2", sign=BFloat16T()),
+        Var(name="a_3", sign=BFloat16T()),
     ]
     
     b = [
-        Var(name="b_0", signature=BFloat16T()),
-        Var(name="b_1", signature=BFloat16T()),
-        Var(name="b_2", signature=BFloat16T()),
-        Var(name="b_3", signature=BFloat16T()),
+        Var(name="b_0", sign=BFloat16T()),
+        Var(name="b_1", sign=BFloat16T()),
+        Var(name="b_2", sign=BFloat16T()),
+        Var(name="b_3", sign=BFloat16T()),
     ]
     
     design = Optimized(*a, *b)

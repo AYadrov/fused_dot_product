@@ -14,7 +14,7 @@ class Node:
                        name: str):
         self.spec = spec
         self.impl = impl
-        self.signature = sign
+        self.sign = sign
         self.args = args
         self.name = name
         
@@ -27,27 +27,24 @@ class Node:
         return Tuple_get_item(self, idx)
     
     def evaluate(self) -> tp.Tuple[RuntimeType, tp.Any]:
-        spec_inputs = []
-        impl_inputs = []
-        for arg in self.args:
-            impl_, spec_ = arg.evaluate()
-            spec_inputs.append(spec_)
-            impl_inputs.append(impl_)
-        
-        impl_res = self.impl(*impl_inputs)
-        spec_res = self.spec(*spec_inputs)
+        inputs = [arg.evaluate() for x in self.args]
+        out = self.impl(*inputs)
         
         ########## CHECK BLOCK #########
-        self.dynamic_typecheck(args=impl_inputs, out=impl_res)
-        err_msg = (
-            f"[{self.name}] mismatch:\n"
-            f"  input-spec: {spec_inputs}\n"
-            f"  input-impl: {[str(x) for x in impl_inputs]}\n"
-            f"  impl: {impl_res}\n"
-            f"  spec: {spec_res}\n"
-            f"  spec/impl ulp: {ulp_distance(impl_res.to_spec(), spec_res)}"
-        )
-        assert ulp_distance(spec_res, impl_res.to_spec()) == 0, err_msg
+        self.dynamic_typecheck(args=inputs, out=out)
+        
+        if self.spec:
+            spec_inputs = [x.to_spec() for x in inputs]
+            spec_out = self.spec(*spec_inputs)
+            err_msg = (
+                f"[{self.name}] mismatch:\n"
+                f"  input-spec: {spec_inputs}\n"
+                f"  input-impl: {[str(x) for x in inputs]}\n"
+                f"  impl: {out}\n"
+                f"  spec: {spec_out}\n"
+                f"  spec/impl ulp: {ulp_distance(out.to_spec(), spec_out)}"
+            )
+            assert ulp_distance(spec_out, out.to_spec()) == 0, err_msg
         ################################
         return impl_res, spec_res
     
@@ -56,7 +53,7 @@ class Node:
         self.primitive_signature_check()
         
         self.args_types = [x.static_typecheck() if verify else x.node_type for x in self.args]
-        self.node_type = self.signature(*self.args_types)
+        self.node_type = self.sign(*self.args_types)
         
         # Checks that signature does match with received args_types and node_type
         self.signature_match(args=self.args_types, out=self.node_type)
@@ -89,7 +86,7 @@ class Node:
         assert out.static_type() == self.node_type, err_msg
     
     def primitive_signature_check(self):
-        sign = inspect.signature(self.signature)
+        sign = inspect.signature(self.sign)
         err_msg = (
             f"Signature contain types that are not an instance of StaticType!\n"
             f"Given: {sign}\n"
@@ -99,7 +96,7 @@ class Node:
         assert issubclass(sign.return_annotation, StaticType), err_msg
     
     def signature_match(self, args: list[StaticType], out: StaticType):
-        sign = inspect.signature(self.signature)
+        sign = inspect.signature(self.sign)
         args_msg = (
             f"Arguments to {self.name} do not match its signature\n"
             f"Given: {args}\n"
@@ -126,13 +123,13 @@ class Composite(Node):
                        name: str):
         self.impl_pt = impl(*args)  # Pointer to the full tree for traverses/printing
         
-        variables = [Var(name=f"arg_{i}", signature=x.node_type) for i, x in enumerate(args)]
+        variables = [Var(name=f"arg_{i}", sign=x.node_type) for i, x in enumerate(args)]
         inner_tree = impl(*variables)  # Pointer to the Composite's inner tree
         
         def impl_(*args):
             for var, arg in zip(variables, args):
                 var.load_val(arg)
-            return inner_tree.evaluate()[0]  # drop spec evaluation as Composite has its own spec
+            return inner_tree.evaluate()
         
         super().__init__(spec=spec,
                          impl=impl_,
@@ -159,15 +156,14 @@ class Composite(Node):
 class Op(Node):
     def __init__(
         self,
-        spec: tp.Callable[..., tp.Any],
         impl: tp.Callable[..., RuntimeType],
-        signature: tp.Callable[..., StaticType],
+        sign: tp.Callable[..., StaticType],
         args: list[Node],
         name: str,
     ):
-        super().__init__(spec=spec,
+        super().__init__(spec=None,
                          impl=impl,
-                         sign=signature,
+                         sign=sign,
                          args=args,
                          name=name)
     
@@ -215,7 +211,7 @@ class Const(Node):
 
 
 class Var(Node):
-    def __init__(self, name: str, signature: StaticType):
+    def __init__(self, name: str, sign: StaticType):
         self.val = None
         
         def impl():
@@ -226,12 +222,12 @@ class Var(Node):
             assert self.val is not None, f"Variable {self.name} not bound to a value"
             return self.val.to_spec()
         
-        def sign() -> StaticType:
-            return signature
+        def signature() -> StaticType:
+            return sign
         
         super().__init__(spec=spec,
                          impl=impl,
-                         sign=sign,
+                         sign=signature,
                          args=[],
                          name=name)
     
@@ -251,15 +247,11 @@ def Copy(x: Node) -> Op:
     def sign(x: StaticType) -> StaticType:
         return x
     
-    def spec(x):
-        return x
-    
     def impl(x):
         return x.copy()
     
     return Op(
-        spec=spec,
-        signature=sign,
+        sign=sign,
         impl=impl,
         args=[x],
         name="Copy")
@@ -277,13 +269,9 @@ def Tuple_get_item(x: Node, idx: int) -> Op:
             raise ValueError(f"Index is out of range for tuple {str(x)}, given {str(idx)}")
         return x.args[idx]
 
-    def spec(x: tuple):
-        return x[idx]
-
     return Op(
-        spec=spec,
         impl=impl,
-        signature=sign,
+        sign=sign,
         args=[x],
         name="Tuple_get_item")
 
