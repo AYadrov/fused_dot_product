@@ -20,8 +20,11 @@ class Node:
         
         self.static_typecheck()
     
+    def copy(self):
+        return Copy(self)
+    
     def __getitem__(self, idx):
-        return Tuple_get_item(self, Const(Int(idx)))
+        return Tuple_get_item(self, idx)
     
     def evaluate(self) -> tp.Tuple[RuntimeType, tp.Any]:
         spec_inputs = []
@@ -67,7 +70,7 @@ class Node:
         ################################
         
         return self.node_type
-        
+    
     def dynamic_typecheck(self, args: list[RuntimeType], out: RuntimeType):
         err_msg = (
             f"Arguments do not match Node's signature at {self.name}:\n"
@@ -84,7 +87,7 @@ class Node:
             f"  expected-type: {self.node_type}\n"
         )
         assert out.static_type() == self.node_type, err_msg
-        
+    
     def primitive_signature_check(self):
         sign = inspect.signature(self.signature)
         err_msg = (
@@ -110,7 +113,7 @@ class Node:
             f"Required: {sign.return_annotation}"
         )
         assert isinstance(out, sign.return_annotation), output_msg
-        
+    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         raise NotImplementedError
 
@@ -121,18 +124,24 @@ class Composite(Node):
                        sign: tp.Callable[..., StaticType],
                        args: list[Node],
                        name: str):
-        self.impl_pt = impl
+        self.impl_pt = impl(*args)  # Pointer to the full tree for traverses/printing
+        
+        variables = [Var(name=f"arg_{i}", signature=x.node_type) for i, x in enumerate(args)]
+        inner_tree = impl(*variables)  # Pointer to the Composite's inner tree
         
         # TODO: impl gets evaluated twice!
         def impl_(*args):
-            return self.impl_pt.evaluate()[0]  # drop spec evaluation as Composite has its own spec
+            for var, arg in zip(variables, args):
+                var.load_val(arg)
+            return inner_tree.evaluate()[0]  # drop spec evaluation as Composite has its own spec
         
         super().__init__(spec=spec,
                          impl=impl_,
                          sign=sign,
                          args=args,
                          name=name)
-    
+
+
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.node_type}: {self.name} [Composite]")
@@ -239,28 +248,44 @@ class Var(Node):
         return f"{self.node_type}: {self.name} [Var]"
 
 
+def Copy(x: Node) -> Op:
+    def sign(x: StaticType) -> StaticType:
+        return x
+    
+    def spec(x):
+        return x
+    
+    def impl(x):
+        return x.copy()
+    
+    return Op(
+        spec=spec,
+        signature=sign,
+        impl=impl,
+        args=[x],
+        name="Copy")
+
+
 # TODO: to be moved somewhere, it's here due to loading cycles
-def Tuple_get_item(x: Node, idx: Node) -> Op:
-    def sign(x: TupleT, idx: IntT) -> StaticType:
+def Tuple_get_item(x: Node, idx: int) -> Op:
+    def sign(x: TupleT) -> StaticType:
         if not isinstance(x, TupleT):
             raise TypeError(f"{x} is not an instance of TupleT to iterate over it")
-        if idx.runtime_val:
-            return x.args[idx.runtime_val.val]
-        else:
-            raise TypeError("Tuple_get_item depends on a variable. Impossible to typecheck")
+        return x.args[idx]
 
-    def impl(x: Tuple, idx: Int) -> RuntimeType:
-        if idx.val >= len(x.args) or idx.val < 0:
+    def impl(x: Tuple) -> RuntimeType:
+        if idx >= len(x.args) or idx < 0:
             raise ValueError(f"Index is out of range for tuple {str(x)}, given {str(idx)}")
-        return x.args[idx.val]
+        return x.args[idx]
 
-    def spec(x: tuple, idx: int):
+    def spec(x: tuple):
         return x[idx]
 
     return Op(
         spec=spec,
         impl=impl,
         signature=sign,
-        args=[x, idx],
+        args=[x],
         name="Tuple_get_item")
+
 

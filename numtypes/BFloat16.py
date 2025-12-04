@@ -3,85 +3,61 @@ import random
 import math
 
 from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.numtypes.Int import *
+from fused_dot_product.numtypes.Tuple import *
 from fused_dot_product.ast.AST import *
 
-def BF16_mantissa_to_UQ(mantissa: Node) -> Composite:
-    def spec(mantissa: int) -> float:
-        return (float(mantissa) / (2 ** 7)) + 1.0
-    
-    def sign(mantissa: IntT) -> UQT:
-        return UQT(1, 7)
-    
-    mantissa_ = Or(mantissa, Lshift(Const(Int(1)), Const(Int(BFloat16.mantissa_bits), "BF16_MANTISSA_BITS")))
-    impl = Int_to_UQ(mantissa_, Const(Int(1)), Const(Int(BFloat16.mantissa_bits), "BF16_MANTISSA_BITS"))
-    
-    return Composite(spec=spec, 
-                     impl=impl, 
-                     sign=sign,
-                     args=[mantissa], 
-                     name="BF16_mantissa_to_UQ")
-
-def BF16_decode(x: Node) -> Op:
-    def spec(x: int) -> tuple[int]:
+def BF16_decode(x: Node) -> Composite:
+    def spec(x: float) -> tuple[float]:
         def sign(x):
-            if x < 0:
-                return 1
-            else:
-                return 0
+            return 1.0 if x < 0 else 0.0
         
         def mantissa(x):
             if x == 0.0:
-                return 0
+                return 0.0
             exp = math.floor(math.log2(abs(x)))
             frac = abs(x) / (2 ** exp) - 1.0
-            return int(frac * (2 ** 7))
+            return float(int(frac * (2 ** 7)))
         
         def exponent(x):
-            if x == 0:
-                return 0
-            else:
-                return math.floor(math.log2(abs(x))) + 127
-        return (
-            sign(x),
-            mantissa(x),
-            exponent(x),
-        )
-    
-    def impl(x: BFloat16) -> Tuple:
-        return Tuple(
-            Int(x.sign, 1),
-            Int(x.mantissa, 7),
-            Int(x.exponent, 8),
-        )
+            return 0.0 if x == 0 else float(math.floor(math.log2(abs(x))) + 127)
+        
+        return sign(x), mantissa(x), exponent(x)
     
     def signature(x: BFloat16T) -> TupleT:
         return TupleT(
-            IntT(1),
-            IntT(7),
-            IntT(8),
+            UQT(1, 0),
+            UQT(7, 0),
+            UQT(8, 0),
         )
     
-    return Op(
+    def impl(x: Node) -> Node:
+        impl = make_Tuple(
+            BF16_sign(x),
+            BF16_mantissa(x),
+            BF16_exponent(x),
+        )
+        return impl
+    
+    return Composite(
         spec=spec,
         impl=impl,
-        signature=signature,
+        sign=signature,
         args=[x],
         name="BF16_decode")
 
 def BF16_mantissa(x: Node) -> Op:
-    def spec(x: int) -> int:
+    def spec(x: float) -> float:
         if x == 0.0:
-            return 0
+            return 0.0
         exp = math.floor(math.log2(abs(x)))
         frac = abs(x) / (2 ** exp) - 1.0
-        return int(frac * (2 ** 7))
+        return float(int(frac * (2 ** 7)))
     
-    def impl(x: BFloat16) -> Int:
-        return Int(x.mantissa, 7)
+    def impl(x: BFloat16) -> UQ:
+        return UQ(x.mantissa, 7, 0)
     
-    def sign(x: BFloat16T) -> IntT:
-        return IntT(7)
+    def sign(x: BFloat16T) -> UQT:
+        return UQT(7, 0)
     
     return Op(
             spec=spec,
@@ -91,18 +67,17 @@ def BF16_mantissa(x: Node) -> Op:
             name="BF16_mantissa")
 
 def BF16_exponent(x: Node) -> Op:
-    """Returns biased exponent of BFloat16."""
     def spec(x: float) -> float:
         if x == 0:
-            return 0
+            return 1.0
         else:
-            return math.floor(math.log2(abs(x))) + 127
+            return float(math.floor(math.log2(abs(x))) + 127)
     
-    def impl(x: BFloat16) -> Int:
-        return Int(x.exponent, 8)
+    def impl(x: BFloat16) -> UQ:
+        return UQ(x.exponent, 8, 0)
     
-    def sign(x: BFloat16T) -> IntT:
-        return IntT(8)
+    def sign(x: BFloat16T) -> UQT:
+        return UQT(8, 0)
     
     return Op(
             spec=spec,
@@ -114,15 +89,15 @@ def BF16_exponent(x: Node) -> Op:
 def BF16_sign(x: Node) -> Op:
     def spec(x: float) -> float:
         if x < 0:
-            return 1
+            return 1.0
         else:
-            return 0
+            return 0.0
     
-    def impl(x: BFloat16) -> Int:
-        return Int(x.sign, 1)
+    def impl(x: BFloat16) -> UQ:
+        return UQ(x.sign, 1, 0)
     
-    def sign(x: BFloat16T) -> IntT:
-        return IntT(1)
+    def sign(x: BFloat16T) -> UQT:
+        return UQT(1, 0)
     
     return Op(
             spec=spec,

@@ -18,6 +18,12 @@ class RuntimeType:
     
     def static_type(self):
         raise NotImplementedError
+        
+    def copy(self):
+        raise NotImplementedError
+    
+    def total_bits(self):
+        raise NotImplementedError
 
 
 class Tuple(RuntimeType):
@@ -27,6 +33,7 @@ class Tuple(RuntimeType):
         for x in args:
             if not isinstance(x, RuntimeType):
                 raise TypeError("Tuple must contain RuntimeType instances")
+        
         self.args = args
     
     def to_spec(self):
@@ -37,6 +44,12 @@ class Tuple(RuntimeType):
     
     def static_type(self):
         return TupleT(*[x.static_type() for x in self.args])
+    
+    def total_bits(self):
+        return sum([x.total_bits() for x in self.args])
+    
+    def copy(self):
+        return Tuple(*[x.copy() for x in self.args])
 
 
 class Q(RuntimeType):
@@ -44,28 +57,17 @@ class Q(RuntimeType):
     def __init__(self, val: int, int_bits: int, frac_bits: int):
         self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
         
-        total_bits = int_bits + frac_bits
+        assert self.int_bits >= 0
+        assert self.frac_bits >= 0
+        assert self.int_bits > 0 or self.frac_bits > 0
+        assert 0 <= self.val < (1 << self.total_bits())
         
-        assert int_bits >= 0, f"int bits can not be negative, {int_bits} is provided"
-        assert frac_bits >= 0, f"frac bits can not be negative, {frac_bits} is provided"
-        assert val >= 0, f"signed fixed-point can not be negative, {val} is provided"
-        assert max(1, val.bit_length()) <= total_bits, (
-            f"Value {val} requires {max(1, val.bit_length())} bits, "
-            f"but only {total_bits} provided ({int_bits}+{frac_bits})"
-        )
-    
     def __str__(self):
         return f"Q{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
     
-    def sign_bit(self):
-        sign = self.val >> (self.frac_bits + self.int_bits - 1)
-        assert sign in (0, 1)
-        return sign
-    
-    def negate(self):
-        total_width = self.int_bits + self.frac_bits
-        neg_val = mask((~self.val + 1), total_width)
-        return Q(neg_val, self.int_bits, self.frac_bits)
+    @staticmethod
+    def from_int(x: int):
+        return Q(x, max(1, x.bit_length()) + 1, 0)
     
     @staticmethod
     def sign_extend(x, n: int):
@@ -85,73 +87,80 @@ class Q(RuntimeType):
         elif x.frac_bits < y.frac_bits:
             shift = y.frac_bits - x.frac_bits
             x = Q(x.val << shift, x.int_bits, y.frac_bits)
-        
+
         # Step 2. Align integer bits
         if x.int_bits > y.int_bits:
             y = Q.sign_extend(y, x.int_bits - y.int_bits)
         elif x.int_bits < y.int_bits:
             x = Q.sign_extend(x, y.int_bits - x.int_bits)
-        
+
         return x, y
+    
+    def negate(self):
+        total_width = self.total_bits() 
+        neg_val = mask((~self.val + 1), total_width)
+        return Q(neg_val, self.int_bits, self.frac_bits)
+    
+    def sign_bit(self):
+        sign = self.val >> (self.total_bits() - 1)
+        assert sign in (0, 1)
+        return sign
     
     def to_spec(self):
         sign_bit = self.sign_bit()
         if sign_bit == 1:
-            total_bits = self.int_bits + self.frac_bits
-            signed_val = self.val - (sign_bit << total_bits)
+            signed_val = self.val - (sign_bit << self.total_bits())
             return float(signed_val) / (2 ** self.frac_bits)
         else:
             return float(self.val) / (2 ** self.frac_bits)
     
     def static_type(self):
         return QT(self.int_bits, self.frac_bits)
+    
+    def copy(self, val=None):
+        if val is None:
+            val = self.val
+        return Q(val, self.int_bits, self.frac_bits)
+    
+    def total_bits(self):
+        return self.int_bits + self.frac_bits
 
 
 class UQ(RuntimeType):
     """Unsigned fixed-point type."""
     def __init__(self, val: int, int_bits: int, frac_bits: int):
-        self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
-        
-        assert int_bits >= 0, f"int bits can not be negative, {int_bits} is provided"
-        assert frac_bits >= 0, f"frac bits can not be negative, {frac_bits} is provided"
-        assert val >= 0, f"Unsigned value must be non-negative, got {val}"
         total_bits = int_bits + frac_bits
-        assert max(1, val.bit_length()) <= total_bits, (
+        
+        assert int_bits >= 0
+        assert frac_bits >= 0
+        assert int_bits > 0 or frac_bits > 0
+        assert 0 <= val < (1 << total_bits), (
             f"Value {val} requires {max(1, val.bit_length())} bits, "
             f"but only {total_bits} provided ({int_bits}+{frac_bits})"
         )
+        
+        self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
     
     def __str__(self):
         return f"UQ{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
+    
+    @staticmethod
+    def from_int(x: int):
+        return UQ(x, max(1, x.bit_length()), 0)
     
     def to_spec(self):
         return float(self.val) / (2 ** self.frac_bits)
     
     def static_type(self):
         return UQT(self.int_bits, self.frac_bits)
-
-
-class Int(RuntimeType):
-    """Signed integer bits."""
-    def __init__(self, val: int, width: int = None):
-        self.val = val
-        if width is None:
-            self.width = max(1, val.bit_length())
-        else:
-            self.width = width
-        
-        assert self.width > 0, f"Integer width can not be less than zero, {self.width} is provided"
-        assert max(1, val.bit_length()) <= self.width, \
-                f"Value {val} needs {max(1, val.bit_length())} bits, but width={self.width} is too small"
     
-    def __str__(self):
-        return f"Int({str(self.to_spec())}, width={self.width})"
+    def copy(self, val=None):
+        if val is None:
+            val = self.val
+        return UQ(val, self.int_bits, self.frac_bits)
     
-    def to_spec(self):
-        return self.val
-    
-    def static_type(self):
-        return IntT(self.width)
+    def total_bits(self):
+        return self.int_bits + self.frac_bits
 
 
 class Float32(RuntimeType):
@@ -165,14 +174,13 @@ class Float32(RuntimeType):
     zero_code = 0
     
     def __init__(self, sign: int, mantissa: int, exponent: int):
-        assert sign in (0, 1), f"Invalid sign: {sign}"
-        assert mantissa >= 0, f"Mantissa must be non-negative, got {mantissa}"
-        assert exponent >= 0, f"Exponent must be non-negative, got {exponent}"
-        assert mantissa.bit_length() <= self.mantissa_bits, \
-            f"Mantissa too large: needs {mantissa.bit_length()} bits (max {self.mantissa_bits})"
-        assert exponent.bit_length() <= self.exponent_bits, \
-            f"Exponent too large: needs {exponent.bit_length()} bits (max {self.exponent_bits})"
+        assert sign in (0, 1)
+        assert 0 <= mantissa < (1 << self.mantissa_bits)
+        assert 0 <= exponent < (1 << self.exponent_bits)
         
+        self.val = (sign << (self.exponent_bits + self.mantissa_bits)) \
+                 | (exponent << self.mantissa_bits) \
+                 | mantissa
         self.sign = sign
         self.mantissa = mantissa
         self.exponent = exponent
@@ -222,6 +230,12 @@ class Float32(RuntimeType):
     @classmethod
     def NaN(cls):
         return cls(0, 1, cls.nan_code)
+    
+    def copy(self):
+        return Float32(self.sign, self.mantissa, self.exponent)
+    
+    def total_bits(self):
+        return 32
 
 
 class BFloat16(RuntimeType):
@@ -231,14 +245,13 @@ class BFloat16(RuntimeType):
     exponent_bias = 127
     
     def __init__(self, sign: int, mantissa: int, exponent: int):
-        assert sign in (0, 1), f"Invalid sign: {sign}"
-        assert mantissa >= 0, f"Mantissa must be non-negative, got {mantissa}"
-        assert exponent >= 0, f"Exponent must be non-negative, got {exponent}"
-        assert mantissa.bit_length() <= self.mantissa_bits, \
-            f"Mantissa too large: needs {mantissa.bit_length()} bits (max {self.mantissa_bits})"
-        assert exponent.bit_length() <= self.exponent_bits, \
-            f"Exponent too large: needs {exponent.bit_length()} bits (max {self.exponent_bits})"
+        assert sign in (0, 1)
+        assert 0 <= mantissa < (1 << self.mantissa_bits)
+        assert 0 <= exponent < (1 << self.exponent_bits)
         
+        self.val = (sign << (self.exponent_bits + self.mantissa_bits)) \
+                 | (exponent << self.mantissa_bits) \
+                 | mantissa
         self.sign = sign
         self.mantissa = mantissa
         self.exponent = exponent
@@ -285,6 +298,12 @@ class BFloat16(RuntimeType):
         
         return gen, gen_shared_exp
 
+    def copy(self):
+        return BFloat16(self.sign, self.mantissa, self.exponent)
+    
+    def total_bits(self):
+        return 16
+        
 if __name__ == '__main__':
     s = Tuple(Int(2), Q(2, 2, 3))
     print(s)
