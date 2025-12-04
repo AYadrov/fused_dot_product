@@ -94,8 +94,6 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         
         # Step 3. Locally shift mantissas by the inverted last {s} bits of E_p
         # Make room for the right shift, UQ2.14 + (2**s - 1)
-        extend_bits = pow2s_sub1
-        
         M_p = [uq_resize(M_p[i], 2, 14 + 2**s - 1) for i in range(N)]
         M_p = [uq_rshift(M_p[i], L_shifts[i]) for i in range(N)]
         
@@ -110,8 +108,6 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         M_p = [q_add_sign(M_p[i], S_p[i]) for i in range(N)]
         
         # Step 6. Adder Tree
-        
-        # Adder tree
         M_sum = CSA_tree4(*M_p) # Q6.{Wf + (2**s - 1) - 2}
         
         ########## RESULT ##################

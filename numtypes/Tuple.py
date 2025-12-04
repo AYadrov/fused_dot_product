@@ -14,13 +14,13 @@ def make_Tuple(*args: Node) -> Op:
     
     return Op(
         spec=spec,
-        impl=make_fixed_arguments(impl, RuntimeType, len(args)),
-        signature=make_fixed_arguments(sign, StaticType, len(args)),
+        impl=_make_fixed_arguments(impl, RuntimeType, len(args)),
+        signature=_make_fixed_arguments(sign, StaticType, len(args)),
         args=args,
         name="Tuple_create")
 
 
-def make_fixed_arguments(f, default_type, N):
+def _make_fixed_arguments(f, default_type, N):
 
     # Desired signature parameters
     params = [

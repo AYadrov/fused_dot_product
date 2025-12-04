@@ -45,25 +45,6 @@ def _uq_aligner(x: Node,
         name="_uq_aligner")
 
 
-def _uq_zero_extend(x: Node, n: int) -> Op:
-    assert isinstance(n, int) and n >= 0
-    def spec(x):
-        return x
-    
-    def sign(x: UQT) -> UQT:
-        return UQT(x.int_bits + n, x.frac_bits)
-    
-    def impl(x: UQ) -> Tuple:
-        return UQ(x.val, x.int_bits + n, x.frac_bits)
-    
-    return Op(
-        spec=spec,
-        impl=impl,
-        signature=sign,
-        args=[x],
-        name="_uq_zero_extend")
-
-
 def _uq_select_shape(x: Node, start: int, end: int) -> Op:
     def spec(x):
         return 0.0
@@ -89,6 +70,25 @@ def _uq_select_shape(x: Node, start: int, end: int) -> Op:
 
 
 ############## Public API ##############
+
+def uq_zero_extend(x: Node, n: int) -> Op:
+    assert isinstance(n, int) and n >= 0
+    def spec(x):
+        return x
+    
+    def sign(x: UQT) -> UQT:
+        return UQT(x.int_bits + n, x.frac_bits)
+    
+    def impl(x: UQ) -> Tuple:
+        return UQ(x.val, x.int_bits + n, x.frac_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        signature=sign,
+        args=[x],
+        name="uq_zero_extend")
+
 
 def uq_add(x: Node, y: Node) -> Composite:
     def spec(x: float, y: float) -> float:
