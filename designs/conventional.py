@@ -76,7 +76,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         M_p = [uq_rshift(M_p[i], Sh_p[i]) for i in range(N)]
         
         # Step 4. Adjust sign for mantissas using xor operation
-        S_p = [uq_xor(S_a[i], S_b[i]) for i in range(N)]
+        S_p = [basic_xor(x=S_a[i], y=S_b[i], out=S_a[i].copy()) for i in range(N)]
         
         M_p = [uq_to_q(M_p[i]) for i in range(N)] # Q3.{Wf - 2}
         M_p = [q_add_sign(M_p[i], S_p[i]) for i in range(N)]
@@ -129,5 +129,5 @@ if __name__ == '__main__':
         for i in range(N):
             a[i].load_val(random_gen())
             b[i].load_val(random_gen())
-        tqdm.write(str(design.evaluate()[0]))
+        tqdm.write(str(design.evaluate()))
 

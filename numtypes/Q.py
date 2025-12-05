@@ -71,16 +71,27 @@ def q_sign_extend(x: Node, n: int) -> Op:
         name="q_sign_extend")
 
 
-def q_neg(x: Node) -> Op:
-    def impl(x: Q) -> Q:
-        total_width = x.total_bits() 
-        val = mask((~x.val + 1), total_width)
-        return Q(val, x.int_bits, x.frac_bits)
+def q_neg(x: Node) -> Composite:
+    def spec(x):
+        return -x    
+    
+    def impl(x: Node) -> Node:
+        x = basic_invert(
+            x=x,
+            out=x.copy(),
+        )
+        x = basic_add(
+            x=x,
+            y=UQ.from_int(1),
+            out=x.copy(),
+        )
+        return x
    
     def sign(x: QT) -> QT:
         return QT(x.int_bits, x.frac_bits)
     
-    return Op(
+    return Composite(
+        spec=spec,
         impl=impl,
         sign=sign,
         args=[x],

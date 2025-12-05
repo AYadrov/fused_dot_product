@@ -65,7 +65,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         
         # Step 2. Estimate local shifts
         trailing_bits = [uq_select(E_p[i], s-1, 0) for i in range(N)]
-        L_shifts = [uq_invert(trailing_bits[i], s) for i in range(N)]
+        L_shifts = [basic_invert(x=trailing_bits[i], out=trailing_bits[i].copy()) for i in range(N)]
         
         # Step 3. Take leading {9-s} bits for max exponent and a global shift
         E_lead = [uq_select(E_p[i], 8, s) for i in range(N)]
@@ -81,7 +81,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         # Step 6. Append {s} 1s at the end of the max exponent for a normalization
         E_m = uq_resize(E_m, 9, 0)
         E_m = uq_lshift(E_m, s_)
-        E_m = uq_or(E_m, pow2s_sub1)
+        E_m = basic_or(x=E_m, y=pow2s_sub1, out=E_m.copy())
         
         ########## MANTISSAS ###############
         
@@ -103,7 +103,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         M_p = [uq_rshift(M_p[i], G_shifts[i]) for i in range(N)]  # UQ2.{Wf + (2**s - 1) - 2}
         
         # Step 5. Adjust signs using xor operation
-        S_p = [uq_xor(S_a[i], S_b[i]) for i in range(N)]
+        S_p = [basic_xor(x=S_a[i], y=S_b[i], out=S_a[i].copy()) for i in range(N)]
         M_p = [uq_to_q(M_p[i]) for i in range(N)]  # Q3.{Wf - 2 + (2**s - 1)}
         M_p = [q_add_sign(M_p[i], S_p[i]) for i in range(N)]
         
@@ -156,5 +156,5 @@ if __name__ == '__main__':
         for i in range(N):
             a[i].load_val(random_gen())
             b[i].load_val(random_gen())
-        tqdm.write(str(design.evaluate()[0]))
+        tqdm.write(str(design.evaluate()))
 

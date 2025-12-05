@@ -27,7 +27,7 @@ class Node:
         return Tuple_get_item(self, idx)
     
     def evaluate(self) -> tp.Tuple[RuntimeType, tp.Any]:
-        inputs = [arg.evaluate() for x in self.args]
+        inputs = [arg.evaluate() for arg in self.args]
         out = self.impl(*inputs)
         
         ########## CHECK BLOCK #########
@@ -46,7 +46,7 @@ class Node:
             )
             assert ulp_distance(spec_out, out.to_spec()) == 0, err_msg
         ################################
-        return impl_res, spec_res
+        return out
     
     def static_typecheck(self, verify=False):
         # Checks that signature's annotations are StaticType
