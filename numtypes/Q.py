@@ -7,10 +7,27 @@ from fused_dot_product.ast.AST import *
 
 ########### Private Helpers ############
 
-def _q_aligner(x: Node,
-               y: Node,
-               int_aggr: tp.Callable,
-               frac_aggr: tp.Callable) -> Op:
+# Function does not care about int_bits/frac_bits types, it takes their values
+def q_alloc(self, int_bits: Node,
+                  frac_bits: Node) -> Op:
+    def sign(x: StaticType, y: StaticType) -> QT:
+        if x.runtime_val and y.runtime_val:
+            return QT(x.runtime_val.val, y.runtime_val.val)
+        else:
+            raise TypeError("_q_alloc's arguments depend on a variable")
+    
+    def impl(x: RuntimeType, y: RuntimeType) -> Q:
+        return Q(0, x.val, y,val)
+    
+    return Op(
+        sign=sign,
+        impl=impl,
+        args=[int_bits, frac_bits],
+        name="q_alloc")
+
+def q_aligner(self, y: Node,
+                     int_aggr: tp.Callable,
+                     frac_aggr: tp.Callable) -> Op:
     def sign(x: QT, y: QT) -> TupleT:
         int_bits = int_aggr(x.int_bits, y.int_bits)
         frac_bits = frac_aggr(x.frac_bits, y.frac_bits)
@@ -43,22 +60,22 @@ def _q_aligner(x: Node,
             return x
         
         return Tuple(align(x), align(y))
-    
+
     return Op(
         impl=impl,
         sign=sign,
-        args=[x, y],
-        name="_q_aligner")
+        args=[self, y],
+        name="q_aligner")
 
 
 ############## Public API ##############
 
 def q_sign_extend(x: Node, n: int) -> Op:
+    assert isinstance(n, int) and n >= 0, f"n should be a non-negative integer, {n} is given"
     def sign(x: QT) -> QT:
         return QT(x.int_bits + n, x.frac_bits)
     
     def impl(x: Q) -> Q:
-        assert isinstance(n, int) and n >= 0
         sign = x.sign_bit()
         upper_bits = (sign << n) - sign
         res = x.val | (upper_bits << x.total_bits())
@@ -101,7 +118,7 @@ def q_neg(x: Node) -> Composite:
 def q_add(x: Node, y: Node) -> Composite:
     def impl(x: Node, y: Node) -> Node:
         x_adj, y_adj = _q_aligner(
-            x=x, 
+            x=x,
             y=y,
             int_aggr=lambda x, y: max(x, y) + 1,
             frac_aggr=lambda x, y: max(x, y),
@@ -151,13 +168,14 @@ def q_sub(x: Node, y: Node) -> Composite:
         args=[x, y],
         name="q_sub",
     )
-    
+
+
 def q_lshift(x: Node, n: Node) -> Composite:
     def spec(x: float, n: float) -> float:
         return x * 2**int(n)
         
     def sign(x: QT, n: UQT) -> QT:
-        return QT(x.int_bits , x.frac_bits)
+        return QT(x.int_bits, x.frac_bits)
     
     def impl(x: Node, n: Node) -> Node:
         impl = basic_lshift(
@@ -174,7 +192,32 @@ def q_lshift(x: Node, n: Node) -> Composite:
         args=[x, n],
         name="q_lshift",
     )
+
+
+def q_rshift(x: Node, n: Node) -> Composite:
+    def spec(x: float, n: float) -> float:
+        return x / 2**int(n)
+        
+    def sign(x: QT, n: UQT) -> QT:
+        return QT(x.int_bits, x.frac_bits)
     
+    def impl(x: Node, n: Node) -> Node:
+        impl = basic_rshift(
+            x=x,
+            amount=n,
+            out=x.copy()
+        )
+        return impl
+    
+    return Composite(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, n],
+        name="q_rshift",
+    )
+
+
 def q_add_sign(x: Node, s: Node) -> Op:
     def impl(x: Q, s: UQ) -> Q:
         assert s.val in (0, 1)

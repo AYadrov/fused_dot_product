@@ -154,3 +154,11 @@ def basic_invert(x: Node, out: Node) -> Op:
         name="basic_invert",
     )
 
+def basic_identity(x: Node, out: Node) -> Op:
+    return _unary_operator(
+        op=lambda x: x,
+        x=x,
+        out=out,
+        name="basic_identity",
+    )
+

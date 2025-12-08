@@ -65,47 +65,6 @@ class Q(RuntimeType):
     def __str__(self):
         return f"Q{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
     
-    @staticmethod
-    def from_int(x: int):
-        return Q(x, max(1, x.bit_length()) + 1, 0)
-    
-    @staticmethod
-    def sign_extend(x, n: int):
-        assert n >= 0, f"Extend bits can not be negative, {n} is provided"
-        total_bits = x.int_bits + x.frac_bits
-        sign = x.sign_bit()
-        upper_bits = (sign << n) - sign
-        res = x.val | (upper_bits << total_bits)
-        return Q(res, x.int_bits + n, x.frac_bits)
-    
-    @staticmethod
-    def align(x, y):
-        # Step 1. Align fractional bits
-        if x.frac_bits > y.frac_bits:
-            shift = x.frac_bits - y.frac_bits
-            y = Q(y.val << shift, y.int_bits, x.frac_bits)
-        elif x.frac_bits < y.frac_bits:
-            shift = y.frac_bits - x.frac_bits
-            x = Q(x.val << shift, x.int_bits, y.frac_bits)
-
-        # Step 2. Align integer bits
-        if x.int_bits > y.int_bits:
-            y = Q.sign_extend(y, x.int_bits - y.int_bits)
-        elif x.int_bits < y.int_bits:
-            x = Q.sign_extend(x, y.int_bits - x.int_bits)
-
-        return x, y
-    
-    def negate(self):
-        total_width = self.total_bits() 
-        neg_val = mask((~self.val + 1), total_width)
-        return Q(neg_val, self.int_bits, self.frac_bits)
-    
-    def sign_bit(self):
-        sign = self.val >> (self.total_bits() - 1)
-        assert sign in (0, 1)
-        return sign
-    
     def to_spec(self):
         sign_bit = self.sign_bit()
         if sign_bit == 1:
@@ -124,6 +83,59 @@ class Q(RuntimeType):
     
     def total_bits(self):
         return self.int_bits + self.frac_bits
+        
+    # Custom methods
+    @staticmethod
+    def from_int(x: int):
+        return Q(x, max(1, x.bit_length()) + 1, 0)
+    
+    # TO BE DELETED
+    @staticmethod
+    def sign_extend(x, n: int):
+        assert n >= 0, f"Extend bits can not be negative, {n} is provided"
+        total_bits = x.int_bits + x.frac_bits
+        sign = x.sign_bit()
+        upper_bits = (sign << n) - sign
+        res = x.val | (upper_bits << total_bits)
+        return Q(res, x.int_bits + n, x.frac_bits)
+    
+    # TO BE DELETED
+    def negate(self):
+        total_width = self.total_bits() 
+        neg_val = mask((~self.val + 1), total_width)
+        return Q(neg_val, self.int_bits, self.frac_bits)
+    
+    # TO BE DELETED
+    def sign_bit(self):
+        sign = self.val >> (self.total_bits() - 1)
+        assert sign in (0, 1)
+        return sign
+    
+    def frac_bits_len(self) -> Op:
+        def sign(x: QT) -> UQT:
+            return UQ.from_int(self.frac_bits).static_type()
+        
+        def impl(x: Q) -> UQ:
+            return UQ.from_int(self.frac_bits)
+        
+        return Op(
+            spec=spec,
+            impl=impl,
+            args=[self],
+            name="Q.frac_bits_len")
+    
+    def int_bits_len(self) -> Op:
+        def sign(x: QT) -> UQT:
+            return UQ.from_int(self.int_bits).static_type()
+        
+        def impl(x: Q) -> UQ:
+            return UQ.from_int(self.int_bits)
+        
+        return Op(
+            spec=spec,
+            impl=impl,
+            args=[self],
+            name="Q.frac_bits_len")
 
 
 class UQ(RuntimeType):
@@ -144,10 +156,6 @@ class UQ(RuntimeType):
     def __str__(self):
         return f"UQ{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
     
-    @staticmethod
-    def from_int(x: int):
-        return UQ(x, max(1, x.bit_length()), 0)
-    
     def to_spec(self):
         return float(self.val) / (2 ** self.frac_bits)
     
@@ -161,6 +169,37 @@ class UQ(RuntimeType):
     
     def total_bits(self):
         return self.int_bits + self.frac_bits
+    
+    # Custom methods
+    @staticmethod
+    def from_int(x: int):
+        return UQ(x, max(1, x.bit_length()), 0)
+    
+    def frac_bits_len(self) -> Op:
+        def sign(x: UQT) -> UQT:
+            return UQT.from_int(self.frac_bits).static_type()
+        
+        def impl(x: UQ) -> UQ:
+            return UQ.from_int(self.frac_bits)
+        
+        return Op(
+            spec=spec,
+            impl=impl,
+            args=[self],
+            name="UQ.frac_bits_len")
+    
+    def int_bits_len(self) -> Op:
+        def sign(x: UQT) -> UQT:
+            return UQT.from_int(self.int_bits).static_type()
+        
+        def impl(x: Q) -> UQ:
+            return UQ.from_int(self.int_bits)
+        
+        return Op(
+            spec=spec,
+            impl=impl,
+            args=[self],
+            name="UQ.frac_bits_len")
 
 
 class Float32(RuntimeType):
