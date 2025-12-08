@@ -25,9 +25,10 @@ def q_alloc(self, int_bits: Node,
         args=[int_bits, frac_bits],
         name="q_alloc")
 
-def q_aligner(self, y: Node,
-                     int_aggr: tp.Callable,
-                     frac_aggr: tp.Callable) -> Op:
+def q_aligner(x: Node,
+               y: Node,
+               int_aggr: tp.Callable,
+               frac_aggr: tp.Callable) -> Op:
     def sign(x: QT, y: QT) -> TupleT:
         int_bits = int_aggr(x.int_bits, y.int_bits)
         frac_bits = frac_aggr(x.frac_bits, y.frac_bits)
@@ -64,9 +65,34 @@ def q_aligner(self, y: Node,
     return Op(
         impl=impl,
         sign=sign,
-        args=[self, y],
+        args=[x, y],
         name="q_aligner")
 
+def q_frac_bits(x: Node) -> Op:
+    def sign(x: QT) -> UQT:
+        return UQ.from_int(self.frac_bits).static_type()
+    
+    def impl(x: Q) -> UQ:
+       return UQ.from_int(self.frac_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        args=[x],
+        name="q_frac_bits")
+
+def q_int_bits(x: Node) -> Op:
+    def sign(x: QT) -> UQT:
+        return UQ.from_int(self.int_bits).static_type()
+    
+    def impl(x: Q) -> UQ:
+        return UQ.from_int(self.int_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        args=[x],
+        name="q_int_bits")
 
 ############## Public API ##############
 
@@ -117,7 +143,7 @@ def q_neg(x: Node) -> Composite:
 
 def q_add(x: Node, y: Node) -> Composite:
     def impl(x: Node, y: Node) -> Node:
-        x_adj, y_adj = _q_aligner(
+        x_adj, y_adj = q_aligner(
             x=x,
             y=y,
             int_aggr=lambda x, y: max(x, y) + 1,
@@ -144,7 +170,7 @@ def q_add(x: Node, y: Node) -> Composite:
 
 def q_sub(x: Node, y: Node) -> Composite:
     def impl(x: Node, y: Node) -> Node:
-        x_adj, y_adj = _q_aligner(
+        x_adj, y_adj = q_aligner(
             x=x, 
             y=y,
             int_aggr=lambda x, y: max(x, y) + 1,

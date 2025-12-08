@@ -110,32 +110,6 @@ class Q(RuntimeType):
         sign = self.val >> (self.total_bits() - 1)
         assert sign in (0, 1)
         return sign
-    
-    def frac_bits_len(self) -> Op:
-        def sign(x: QT) -> UQT:
-            return UQ.from_int(self.frac_bits).static_type()
-        
-        def impl(x: Q) -> UQ:
-            return UQ.from_int(self.frac_bits)
-        
-        return Op(
-            spec=spec,
-            impl=impl,
-            args=[self],
-            name="Q.frac_bits_len")
-    
-    def int_bits_len(self) -> Op:
-        def sign(x: QT) -> UQT:
-            return UQ.from_int(self.int_bits).static_type()
-        
-        def impl(x: Q) -> UQ:
-            return UQ.from_int(self.int_bits)
-        
-        return Op(
-            spec=spec,
-            impl=impl,
-            args=[self],
-            name="Q.frac_bits_len")
 
 
 class UQ(RuntimeType):
@@ -174,32 +148,6 @@ class UQ(RuntimeType):
     @staticmethod
     def from_int(x: int):
         return UQ(x, max(1, x.bit_length()), 0)
-    
-    def frac_bits_len(self) -> Op:
-        def sign(x: UQT) -> UQT:
-            return UQT.from_int(self.frac_bits).static_type()
-        
-        def impl(x: UQ) -> UQ:
-            return UQ.from_int(self.frac_bits)
-        
-        return Op(
-            spec=spec,
-            impl=impl,
-            args=[self],
-            name="UQ.frac_bits_len")
-    
-    def int_bits_len(self) -> Op:
-        def sign(x: UQT) -> UQT:
-            return UQT.from_int(self.int_bits).static_type()
-        
-        def impl(x: Q) -> UQ:
-            return UQ.from_int(self.int_bits)
-        
-        return Op(
-            spec=spec,
-            impl=impl,
-            args=[self],
-            name="UQ.frac_bits_len")
 
 
 class Float32(RuntimeType):

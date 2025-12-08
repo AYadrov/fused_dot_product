@@ -12,7 +12,7 @@ def _binary_operator(op: tp.Callable, x: Node, y: Node, out: Node, name: str) ->
         return out
     
     def impl(x: RuntimeType, y: RuntimeType, out: RuntimeType) -> RuntimeType:
-        val = op(x.val, y.val)
+        val = op(x, y)
         # TODO: check for truncation
         val = mask(val, out.total_bits())
         # TODO: add a check whether val is in ranges
@@ -30,7 +30,7 @@ def _unary_operator(op: tp.Callable, x: Node, out: Node, name: str) -> Op:
         return out
     
     def impl(x: RuntimeType, out: RuntimeType) -> RuntimeType:
-        val = op(x.val)
+        val = op(x)
         # TODO: check for truncation
         val = mask(val, out.total_bits())
         # TODO: add a check whether val is in ranges
@@ -47,7 +47,7 @@ def _unary_operator(op: tp.Callable, x: Node, out: Node, name: str) -> Op:
 
 def basic_add(x: Node, y: Node, out: Node) -> Op:
     return _binary_operator(
-        op=lambda x, y: x + y,
+        op=lambda x, y: x.val + y.val,
         x=x,
         y=y,
         out=out,
@@ -56,7 +56,7 @@ def basic_add(x: Node, y: Node, out: Node) -> Op:
 
 def basic_sub(x: Node, y: Node, out: Node) -> Op:
     return _binary_operator(
-        op=lambda x, y: x - y,
+        op=lambda x, y: x.val - y.val,
         x=x,
         y=y,
         out=out,
@@ -65,7 +65,7 @@ def basic_sub(x: Node, y: Node, out: Node) -> Op:
 
 def basic_mul(x: Node, y: Node, out: Node) -> Op:
     return _binary_operator(
-        op=lambda x, y: x * y,
+        op=lambda x, y: x.val * y.val,
         x=x,
         y=y,
         out=out,
@@ -74,7 +74,7 @@ def basic_mul(x: Node, y: Node, out: Node) -> Op:
 
 def basic_max(x: Node, y: Node, out: Node) -> Op:
     return _binary_operator(
-        op=lambda x, y: max(x, y),
+        op=lambda x, y: max(x.val, y.val),
         x=x,
         y=y,
         out=out,
@@ -83,7 +83,7 @@ def basic_max(x: Node, y: Node, out: Node) -> Op:
 
 def basic_min(x: Node, y: Node, out: Node) -> Op:
     return _binary_operator(
-        op=lambda x, y: min(x, y),
+        op=lambda x, y: min(x.val, y.val),
         x=x,
         y=y,
         out=out,
@@ -92,7 +92,7 @@ def basic_min(x: Node, y: Node, out: Node) -> Op:
 
 def basic_rshift(x: Node, amount: Node, out: Node) -> Op:
     return _binary_operator(
-        op=lambda x, amount: x >> amount,
+        op=lambda x, amount: x.val >> amount.val,
         x=x,
         y=amount,
         out=out,
@@ -101,7 +101,7 @@ def basic_rshift(x: Node, amount: Node, out: Node) -> Op:
 
 def basic_lshift(x: Node, amount: Node, out: Node) -> Op:
     return _binary_operator(
-        op=lambda x, amount: x << amount,
+        op=lambda x, amount: x.val << amount.val,
         x=x,
         y=amount,
         out=out,
@@ -110,7 +110,7 @@ def basic_lshift(x: Node, amount: Node, out: Node) -> Op:
 
 def basic_or(x: Node, y: Node, out: Node) -> Op:
     return _binary_operator(
-        op=lambda x, y: x | y,
+        op=lambda x, y: x.val | y.val,
         x=x,
         y=y,
         out=out,
@@ -119,7 +119,7 @@ def basic_or(x: Node, y: Node, out: Node) -> Op:
  
 def basic_xor(x: Node, y: Node, out: Node) -> Op:
     return _binary_operator(
-        op=lambda x, y: x ^ y,
+        op=lambda x, y: x.val ^ y.val,
         x=x,
         y=y,
         out=out,
@@ -128,7 +128,7 @@ def basic_xor(x: Node, y: Node, out: Node) -> Op:
 
 def basic_and(x: Node, y: Node, out: Node) -> Op:
     return _binary_operator(
-        op=lambda x, y: x & y,
+        op=lambda x, y: x.val & y.val,
         x=x,
         y=y,
         out=out,
@@ -140,7 +140,7 @@ def basic_and(x: Node, y: Node, out: Node) -> Op:
 def basic_select(x: Node, start: int, end: int, out: Node) -> Op:
     assert start >= end and end >= 0, "Bad indexing"
     return _unary_operator(
-        op=lambda x: mask(x >> end, start - end + 1),
+        op=lambda x: mask(x.val >> end, start - end + 1),
         x=x,
         out=out,
         name="basic_select",
@@ -156,7 +156,7 @@ def basic_invert(x: Node, out: Node) -> Op:
 
 def basic_identity(x: Node, out: Node) -> Op:
     return _unary_operator(
-        op=lambda x: x,
+        op=lambda x: x.val,
         x=x,
         out=out,
         name="basic_identity",
