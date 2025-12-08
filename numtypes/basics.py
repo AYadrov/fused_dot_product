@@ -135,6 +135,15 @@ def basic_and(x: Node, y: Node, out: Node) -> Op:
         name="basic_and",
     )
 
+def basic_concat(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: (x.val << y.total_bits()) | y.val,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_concat",
+    )
+
 ########### Unary Operators ###########
 
 def basic_select(x: Node, start: int, end: int, out: Node) -> Op:

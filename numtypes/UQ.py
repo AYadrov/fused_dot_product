@@ -64,16 +64,16 @@ def _uq_select_shape(x: Node, start: int, end: int) -> Op:
 ############## Public API ##############
 
 # Function does not care about int_bits/frac_bits types, it takes their values
-def uq_alloc(self, int_bits: Node,
-                   frac_bits: Node) -> Op:
-    def sign(x: StaticType, y: StaticType) -> UQT:
-        if x.runtime_val and y.runtime_val:
-            return UQT(x.runtime_val.val, y.runtime_val.val)
+def uq_alloc(int_bits: Node,
+             frac_bits: Node) -> Op:
+    def sign(int_bits: StaticType, frac_bits: StaticType) -> UQT:
+        if int_bits.runtime_val and frac_bits.runtime_val:
+            return UQT(int_bits.runtime_val.val, frac_bits.runtime_val.val)
         else:
             raise TypeError("_q_alloc's arguments depend on a variable")
     
-    def impl(x: RuntimeType, y: RuntimeType) -> UQ:
-        return UQ(0, x.val, y,val)
+    def impl(int_bits: RuntimeType, frac_bits: RuntimeType) -> UQ:
+        return UQ(0, int_bits.val, frac_bits.val)
     
     return Op(
         sign=sign,
