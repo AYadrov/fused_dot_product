@@ -1,5 +1,6 @@
 import inspect
 import typing as tp
+from contextvars import ContextVar
 
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.StaticTypes import *
@@ -7,6 +8,11 @@ from fused_dot_product.utils.utils import ulp_distance
 
 
 class Node:
+    # Shared cache for a single evaluation call-chain.
+    _eval_cache: ContextVar[tp.Optional[dict["Node", RuntimeType]]] = ContextVar(
+        "eval_cache", default=None
+    )
+
     def __init__(self, spec: tp.Callable[..., tp.Any],
                        impl: tp.Callable[..., RuntimeType],
                        sign: tp.Callable[..., StaticType],
@@ -27,27 +33,42 @@ class Node:
     def __getitem__(self, idx):
         return Tuple_get_item(self, idx)
     
-    def evaluate(self) -> tp.Tuple[RuntimeType, tp.Any]:
-        inputs = [arg.evaluate() for arg in self.args]
-        out = self.impl(*inputs)
+    def evaluate(self, cache: tp.Optional[dict["Node", RuntimeType]] = None) -> RuntimeType:
+        # Use a per-evaluation cache to avoid recomputing shared subtrees.
+        # Cache lives only for the current call chain.
+        active_cache = cache if cache is not None else self._eval_cache.get()
+        if active_cache is None:
+            active_cache = {}
+        token = self._eval_cache.set(active_cache)
         
-        ########## CHECK BLOCK #########
-        self.dynamic_typecheck(args=inputs, out=out)
-        
-        if self.spec:
-            spec_inputs = [x.to_spec() for x in inputs]
-            spec_out = self.spec(*spec_inputs)
-            err_msg = (
-                f"[{self.name}] mismatch:\n"
-                f"  input-spec: {spec_inputs}\n"
-                f"  input-impl: {[str(x) for x in inputs]}\n"
-                f"  impl: {out}\n"
-                f"  spec: {spec_out}\n"
-                f"  spec/impl ulp: {ulp_distance(out.to_spec(), spec_out)}"
-            )
-            assert ulp_distance(spec_out, out.to_spec()) == 0, err_msg
-        ################################
-        return out
+        try:
+            if self in active_cache:
+                return active_cache[self]
+            
+            inputs = [arg.evaluate(active_cache) for arg in self.args]
+            out = self.impl(*inputs)
+            
+            ########## CHECK BLOCK #########
+            self.dynamic_typecheck(args=inputs, out=out)
+            
+            if self.spec:
+                spec_inputs = [x.to_spec() for x in inputs]
+                spec_out = self.spec(*spec_inputs)
+                err_msg = (
+                    f"[{self.name}] mismatch:\n"
+                    f"  input-spec: {spec_inputs}\n"
+                    f"  input-impl: {[str(x) for x in inputs]}\n"
+                    f"  impl: {out}\n"
+                    f"  spec: {spec_out}\n"
+                    f"  spec/impl ulp: {ulp_distance(out.to_spec(), spec_out)}"
+                )
+                assert ulp_distance(spec_out, out.to_spec()) == 0, err_msg
+            ################################
+            active_cache[self] = out
+            return out
+            
+        finally:
+            self._eval_cache.reset(token)
     
     def static_typecheck(self, verify=False):
         # Checks that signature's annotations are StaticType
@@ -313,5 +334,4 @@ def Tuple_get_item(x: Node, idx: int) -> Op:
         sign=sign,
         args=[x],
         name="Tuple_get_item")
-
 
