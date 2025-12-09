@@ -20,10 +20,11 @@ def est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
         return UQT(E_max.int_bits + s, 0)
     
     def impl(E_max: Node, E_p: Node) -> Node:
-        # E_max.int_bits + s
+        # out = UQ(E_max.int_bits + s, E_max.frac_bits)
         out_int_bits = uq_add(_uq_int_bits(E_max), Const(UQ.from_int(s)))
         out_frac_bits = _uq_frac_bits(E_max)
         out = _uq_alloc(out_int_bits, out_frac_bits)
+        
         return basic_concat(
             x=uq_sub(E_max, E_p),  # In theory produces UQ<7,0>, in practice UQ<8,0> (can be neglected)
             y=Const(UQ(0, s, 0)),
@@ -57,6 +58,32 @@ def est_local_shift(E_p: Node, s: int) -> Primitive:
         args=[E_p],
         name="est_local_shift")
 
+def prepend_ones(x: Node, s: int) -> Primitive:
+    def spec(x):
+        return x * 2**s + (2 ** s - 1)
+    
+    def sign(x: UQT) -> UQT:
+        return UQT(x.int_bits + s, 0)
+    
+    def impl(x: Node) -> Node:
+        # out = UQ(E_max.int_bits + s, E_max.frac_bits)
+        out_int_bits = uq_add(_uq_int_bits(x), Const(UQ.from_int(s)))
+        out_frac_bits = _uq_frac_bits(x)
+        out = _uq_alloc(out_int_bits, out_frac_bits)
+        
+        return basic_concat(
+            x=x, 
+            y=Const(UQ.from_int((1 << s) - 1)), 
+            out=out,
+        )
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x],
+        name="prepend_ones")
+    
 
 def Optimized(a0: Node, a1: Node, a2: Node, a3: Node, 
               b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
@@ -93,17 +120,9 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         
         ########## CONSTANTS ###############
         
-        s_ = Const(
-            val=UQ.from_int(s),
-            name="s",
-        )
         bf16_bias = Const(
             val=Q.from_int(BFloat16.exponent_bias),
             name="BFloat16.exponent_bias",
-        )
-        pow2s_sub1 = Const(
-            val=UQ.from_int((1 << s) - 1),
-            name="pow2s_sub1",
         )
         
         ########## EXPONENTS ###############
@@ -152,11 +171,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         
         ########## RESULT ##################
         # Append {s} 1s at the end of the max exponent for a normalization
-        E_m = basic_concat(
-            x=E_m, 
-            y=Const(UQ.from_int((1 << s) - 1)), 
-            out=Const(UQ(0, 9, 0)),
-        )
+        E_m = prepend_ones(E_m, s)
         # Subtract bias
         E_m = uq_to_q(E_m)  # Q10.0
         E_m = q_sub(E_m, bf16_bias)  # Q11.0
