@@ -24,6 +24,9 @@ class RuntimeType:
     
     def total_bits(self):
         raise NotImplementedError
+    
+    def __eq__(self, other):
+        raise NotImplementedError
 
 
 class Tuple(RuntimeType):
@@ -50,6 +53,12 @@ class Tuple(RuntimeType):
     
     def copy(self):
         return Tuple(*[x.copy() for x in self.args])
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, Tuple) 
+            and all([x == y for x, y in zip(self.args, other.args)]
+        )
 
 
 class Q(RuntimeType):
@@ -110,6 +119,14 @@ class Q(RuntimeType):
         sign = self.val >> (self.total_bits() - 1)
         assert sign in (0, 1)
         return sign
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, Q)
+            and other.int_bits == self.int_bits 
+            and other.frac_bits == self.frac_bits 
+            and other.val == self.val
+        )
 
 
 class UQ(RuntimeType):
@@ -148,6 +165,14 @@ class UQ(RuntimeType):
     @staticmethod
     def from_int(x: int):
         return UQ(x, max(1, x.bit_length()), 0)
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, UQ)
+            and other.int_bits == self.int_bits 
+            and other.frac_bits == self.frac_bits 
+            and other.val == self.val
+        )
 
 
 class Float32(RuntimeType):
@@ -223,6 +248,12 @@ class Float32(RuntimeType):
     
     def total_bits(self):
         return 32
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, Float32)
+            and self.val == other.val
+        )
 
 
 class BFloat16(RuntimeType):
@@ -290,6 +321,13 @@ class BFloat16(RuntimeType):
     
     def total_bits(self):
         return 16
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, BFloat16)
+            and self.val == other.val
+        )
+
         
 if __name__ == '__main__':
     s = Tuple(Int(2), Q(2, 2, 3))
