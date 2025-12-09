@@ -58,6 +58,7 @@ def est_local_shift(E_p: Node, s: int) -> Primitive:
         args=[E_p],
         name="est_local_shift")
 
+
 def prepend_ones(x: Node, s: int) -> Primitive:
     def spec(x):
         return x * 2**s + (2 ** s - 1)
@@ -72,8 +73,8 @@ def prepend_ones(x: Node, s: int) -> Primitive:
         out = _uq_alloc(out_int_bits, out_frac_bits)
         
         return basic_concat(
-            x=x, 
-            y=Const(UQ.from_int((1 << s) - 1)), 
+            x=x,
+            y=Const(UQ.from_int((1 << s) - 1)),
             out=out,
         )
     
@@ -83,12 +84,12 @@ def prepend_ones(x: Node, s: int) -> Primitive:
         sign=sign,
         args=[x],
         name="prepend_ones")
-    
 
-def Optimized(a0: Node, a1: Node, a2: Node, a3: Node, 
+
+def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
               b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
     
-    def spec(a0: float, a1: float, a2: float, a3: float, 
+    def spec(a0: float, a1: float, a2: float, a3: float,
              b0: float, b1: float, b2: float, b3: float) -> float:
         out = 0
         out += a0 * b0
@@ -97,13 +98,14 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         out += a3 * b3
         return float(np.float32(out))
     
-    def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T, 
+    def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T,
              b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
         return Float32T()
     
-    def impl(a0: Node, a1: Node, a2: Node, a3: Node, 
+    def impl(a0: Node, a1: Node, a2: Node, a3: Node,
              b0: Node, b1: Node, b2: Node, b3: Node) -> Node:
-        ########## INPUT ###################
+        
+        ############## INPUT ###############
         
         S_a, M_a, E_a = [0] * N, [0] * N, [0] * N
         S_b, M_b, E_b = [0] * N, [0] * N, [0] * N
@@ -118,14 +120,14 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         S_b[2], M_b[2], E_b[2] = BF16_decode(b2)
         S_b[3], M_b[3], E_b[3] = BF16_decode(b3)
         
-        ########## CONSTANTS ###############
+        ############ CONSTANTS #############
         
         bf16_bias = Const(
             val=Q.from_int(BFloat16.exponent_bias),
             name="BFloat16.exponent_bias",
         )
         
-        ########## EXPONENTS ###############
+        ############ EXPONENTS #############
         
         # Step 1. Exponents add. Each E_p is shifted by bias twice!
         E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]
@@ -142,7 +144,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         # Step 5. Calculate global shifts as {(max_exp - exp) * 2**s}
         G_shifts = [est_global_shift(E_m, E_lead[i], s) for i in range(N)]
         
-        ########## MANTISSAS ###############
+        ############# MANTISSAS ############
         
         # Step 1. Convert mantissas to UQ1.7
         M_a = [mantissa_add_implicit_bit(M_a[i]) for i in range(N)] # UQ1.7
@@ -169,7 +171,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         # Step 6. Adder Tree
         M_sum = CSA_tree4(*M_p) # Q6.{Wf + (2**s - 1) - 2}
         
-        ########## RESULT ##################
+        ############# RESULT ###############
         # Append {s} 1s at the end of the max exponent for a normalization
         E_m = prepend_ones(E_m, s)
         # Subtract bias
@@ -191,7 +193,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
 if __name__ == '__main__':
     from tqdm import tqdm
     from time import time
-
+    
     # Compile design
     a = [
         Var(name="a_0", sign=BFloat16T()),
