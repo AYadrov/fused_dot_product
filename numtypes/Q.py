@@ -68,12 +68,13 @@ def q_aligner(x: Node,
         args=[x, y],
         name="q_aligner")
 
+
 def q_frac_bits(x: Node) -> Op:
     def sign(x: QT) -> UQT:
-        return UQ.from_int(self.frac_bits).static_type()
+        return UQ.from_int(x.frac_bits).static_type()
     
     def impl(x: Q) -> UQ:
-       return UQ.from_int(self.frac_bits)
+       return UQ.from_int(x.frac_bits)
     
     return Op(
         spec=spec,
@@ -83,10 +84,10 @@ def q_frac_bits(x: Node) -> Op:
 
 def q_int_bits(x: Node) -> Op:
     def sign(x: QT) -> UQT:
-        return UQ.from_int(self.int_bits).static_type()
+        return UQ.from_int(x.int_bits).static_type()
     
     def impl(x: Q) -> UQ:
-        return UQ.from_int(self.int_bits)
+        return UQ.from_int(x.int_bits)
     
     return Op(
         spec=spec,

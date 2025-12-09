@@ -146,6 +146,7 @@ def basic_concat(x: Node, y: Node, out: Node) -> Op:
 
 ########### Unary Operators ###########
 
+# TODO: Truncation is possible if out is too small
 def basic_select(x: Node, start: int, end: int, out: Node) -> Op:
     assert start >= end and end >= 0, "Bad indexing"
     return _unary_operator(
@@ -155,6 +156,7 @@ def basic_select(x: Node, start: int, end: int, out: Node) -> Op:
         name="basic_select",
     )
 
+# TODO: Truncation is possible if out is too small
 def basic_invert(x: Node, out: Node) -> Op:
     return _unary_operator(
         op=lambda x: ((1 << x.total_bits()) - 1) - x.val,
@@ -163,6 +165,7 @@ def basic_invert(x: Node, out: Node) -> Op:
         name="basic_invert",
     )
 
+# TODO: Truncation is possible if out is too small
 def basic_identity(x: Node, out: Node) -> Op:
     return _unary_operator(
         op=lambda x: x.val,

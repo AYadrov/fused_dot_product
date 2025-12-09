@@ -153,6 +153,44 @@ class Composite(Node):
                 arg.print_tree(new_prefix, is_arg_last, depth)
 
 
+class Primitive(Node):
+    def __init__(self, spec: tp.Callable[..., tp.Any],
+                       impl: Node,
+                       sign: tp.Callable[..., StaticType],
+                       args: list[Node],
+                       name: str):
+        self.impl_pt = impl(*args)  # Pointer to the full tree for traverses/printing
+        
+        variables = [Var(name=f"arg_{i}", sign=x.node_type) for i, x in enumerate(args)]
+        inner_tree = impl(*variables)  # Pointer to the Composite's inner tree
+        
+        def impl_(*args):
+            for var, arg in zip(variables, args):
+                var.load_val(arg)
+            return inner_tree.evaluate()
+        
+        super().__init__(spec=spec,
+                         impl=impl_,
+                         sign=sign,
+                         args=args,
+                         name=name)
+
+
+    def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
+        connector = "└── " if is_last else "├── "
+        print(prefix + connector + f"{self.node_type}: {self.name} [Primitive]")
+        
+        new_prefix = prefix + ("    " if is_last else "│   ")
+        
+        if depth > 0:
+            print(new_prefix + "└── Impl:")
+            self.impl_pt.print_tree(new_prefix + "    ", True, depth - 1)
+        else:
+            for i, arg in enumerate(self.args):
+                is_arg_last = i == len(self.args) - 1
+                arg.print_tree(new_prefix, is_arg_last, depth)
+
+
 class Op(Node):
     def __init__(
         self,

@@ -16,8 +16,8 @@ def mantissa_add_implicit_bit(x: Node) -> Composite:
     
     def impl(x: Node) -> Node:
         return basic_concat(
-            x=Const(UQ(1, 1, 0)),
-            y=x,
+            x=Const(UQ(1, 1, 0)),  # 1.
+            y=x,  # xxxxxxx.
             out=Const(UQ(0, 1, 7)),
         )
     
@@ -27,6 +27,27 @@ def mantissa_add_implicit_bit(x: Node) -> Composite:
         impl=impl,
         args=[x],
         name="mantissa_add_implicit_bit")
+
+def sign_xor(x: Node, y: Node) -> Primitive:
+    def spec(x, y):
+        return 0.0 if x == y else 1.0
+    
+    def sign(x: UQT, y: UQT) -> UQT:
+        return UQT(1, 0)
+    
+    def impl(x: UQ, y: UQ) -> UQ:
+        return basic_xor(
+            x=x,
+            y=y,
+            out=Const(UQ(0, 1, 0)),  # 0.
+        )
+    
+    return Primitive(
+        spec=spec,
+        sign=sign,
+        impl=impl,
+        args=[x, y],
+        name="sign_xor")
 
 
 def MAX_EXPONENT4(e0: Node, e1: Node, e2: Node, e3: Node) -> Composite:

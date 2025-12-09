@@ -61,10 +61,8 @@ def _uq_select_shape(x: Node, start: int, end: int) -> Op:
         name="_uq_select_shape")
 
 
-############## Public API ##############
-
 # Function does not care about int_bits/frac_bits types, it takes their values
-def uq_alloc(int_bits: Node,
+def _uq_alloc(int_bits: Node,
              frac_bits: Node) -> Op:
     def sign(int_bits: StaticType, frac_bits: StaticType) -> UQT:
         if int_bits.runtime_val and frac_bits.runtime_val:
@@ -79,17 +77,53 @@ def uq_alloc(int_bits: Node,
         sign=sign,
         impl=impl,
         args=[int_bits, frac_bits],
-        name="uq_alloc")
+        name="_uq_alloc")
 
 
-def uq_zero_extend(x: Node, n: int) -> Op:
-    assert isinstance(n, int) and n >= 0
+def _uq_frac_bits(x: Node) -> Op:
+    def sign(x: QT) -> UQT:
+        return UQ.from_int(x.frac_bits).static_type()
     
+    def impl(x: Q) -> UQ:
+       return UQ.from_int(x.frac_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        args=[x],
+        name="_uq_frac_bits")
+
+
+def _uq_int_bits(x: Node) -> Op:
+    def sign(x: QT) -> UQT:
+        return UQ.from_int(x.int_bits).static_type()
+    
+    def impl(x: Q) -> UQ:
+        return UQ.from_int(x.int_bits)
+    
+    return Op(
+        spec=spec,
+        impl=impl,
+        args=[x],
+        name="_uq_int_bits")
+
+
+############## Public API ##############
+
+def uq_zero_extend(x: Node, n: int) -> Primitive:
+    assert isinstance(n, int) and n >= 0
     def sign(x: UQT) -> UQT:
         return UQT(x.int_bits + n, x.frac_bits)
     
+    def spec(x):
+        return x
+    
     def impl(x: UQ) -> Tuple:
-        return UQ(x.val, x.int_bits + n, x.frac_bits)
+        int_bits = uq_add(_uq_int_bits(x), Const(UQ.from_int(n)))
+        frac_bits = _uq_frac_bits(x)
+        out = _uq_alloc(int_bits, frac_bits)
+        
+        return basic_identity(x=x, out=out)
     
     return Op(
         impl=impl,

@@ -56,8 +56,8 @@ class Tuple(RuntimeType):
     
     def __eq__(self, other):
         return (
-            isinstance(other, Tuple) 
-            and all([x == y for x, y in zip(self.args, other.args)]
+            isinstance(other, Tuple)
+            and all([x == y for x, y in zip(self.args, other.args)])
         )
 
 
