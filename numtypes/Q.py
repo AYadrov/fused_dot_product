@@ -120,12 +120,12 @@ def q_neg(x: Node) -> Composite:
     def impl(x: Node) -> Node:
         x = basic_invert(
             x=x,
-            out=x.copy(val=0),
+            out=x.copy(),
         )
         x = basic_add(
             x=x,
             y=Const(UQ.from_int(1)),
-            out=x.copy(val=0),
+            out=x.copy(),
         )
         return x
    
