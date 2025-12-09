@@ -68,6 +68,7 @@ class Node:
             return out
             
         finally:
+            # Erase current cache
             self._eval_cache.reset(token)
     
     def static_typecheck(self, verify=False):
