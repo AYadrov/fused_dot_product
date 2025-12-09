@@ -18,6 +18,7 @@ class Node:
         self.args = args
         self.name = name
         
+        # Defines node_type at initialization - some parts rely on this
         self.static_typecheck()
     
     def copy(self):
@@ -153,6 +154,7 @@ class Composite(Node):
                 arg.print_tree(new_prefix, is_arg_last, depth)
 
 
+# Currently looks the same as Composite
 class Primitive(Node):
     def __init__(self, spec: tp.Callable[..., tp.Any],
                        impl: Node,
@@ -162,7 +164,7 @@ class Primitive(Node):
         self.impl_pt = impl(*args)  # Pointer to the full tree for traverses/printing
         
         variables = [Var(name=f"arg_{i}", sign=x.node_type) for i, x in enumerate(args)]
-        inner_tree = impl(*variables)  # Pointer to the Composite's inner tree
+        inner_tree = impl(*variables)  # Pointer to the inner tree
         
         def impl_(*args):
             for var, arg in zip(variables, args):
@@ -174,7 +176,6 @@ class Primitive(Node):
                          sign=sign,
                          args=args,
                          name=name)
-
 
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
@@ -231,7 +232,7 @@ class Const(Node):
         
         def sign() -> StaticType:
             node_type = self.val.static_type()
-            node_type.runtime_val = self.val  # Constant folding at typechecking
+            node_type.runtime_val = self.val  # Constant folding for typechecking
             return node_type
         
         super().__init__(spec=spec,

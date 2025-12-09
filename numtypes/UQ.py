@@ -81,34 +81,14 @@ def _uq_alloc(int_bits: Node,
         name="_uq_alloc")
 
 
-# Get frac bits at runtime
+# These functions are possible because x.node_type is known at compile time and does not change
 def _uq_frac_bits(x: Node) -> Op:
-    def sign(x: UQT) -> UQT:
-        return UQ.from_int(x.frac_bits).static_type()
-    
-    def impl(x: UQ) -> UQ:
-        return UQ.from_int(x.frac_bits)
-    
-    return Op(
-        sign=sign,
-        impl=impl,
-        args=[x],
-        name="_uq_frac_bits")
+    assert isinstance(x.node_type, UQT)
+    return Const(UQ.from_int(x.node_type.frac_bits))
 
-
-# Get int bits at runtime
-def _uq_int_bits(x: Node) -> Op:
-    def sign(x: UQT) -> UQT:
-        return UQ.from_int(x.int_bits).static_type()
-    
-    def impl(x: UQ) -> UQ:
-        return UQ.from_int(x.int_bits)
-    
-    return Op(
-        sign=sign,
-        impl=impl,
-        args=[x],
-        name="_uq_int_bits")
+def _uq_int_bits(x: Node):
+    assert isinstance(x.node_type, UQT)
+    return Const(UQ.from_int(x.node_type.int_bits))
 
 
 ############## Public API ##############
@@ -296,7 +276,7 @@ def uq_to_q(x: Node) -> Primitive:
     def impl(x: Node) -> Node:
         int_bits = uq_add(_uq_int_bits(x), Const(UQ.from_int(1)))
         frac_bits = _uq_frac_bits(x)
-        out = Const(_q_alloc(int_bits, frac_bits))
+        out = _q_alloc(int_bits, frac_bits)
         return basic_identity(x=x, out=out)
     
     def spec(x):
@@ -314,7 +294,7 @@ def uq_to_q(x: Node) -> Primitive:
 
 
 # TODO: spec does not match impl due to truncation
-def uq_rshift(x: Node, amount: Node) -> Composite:
+def uq_rshift(x: Node, amount: Node) -> Primitive:
     def impl(x: Node, amount: Node) -> Node:
         root = basic_rshift(
             x=x,
@@ -330,7 +310,7 @@ def uq_rshift(x: Node, amount: Node) -> Composite:
     def sign(x: UQT, amount: StaticType) -> UQT:
         return UQT(x.int_bits, x.frac_bits)
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -339,7 +319,7 @@ def uq_rshift(x: Node, amount: Node) -> Composite:
 
 
 # TODO: spec does not match impl due to truncation
-def uq_lshift(x: Node, amount: Node) -> Composite:
+def uq_lshift(x: Node, amount: Node) -> Primitive:
     def impl(x: Node, amount: Node) -> Node:
         root = basic_lshift(
             x=x,
@@ -355,7 +335,7 @@ def uq_lshift(x: Node, amount: Node) -> Composite:
     def sign(x: UQT, amount: StaticType) -> UQT:
         return UQT(x.int_bits, x.frac_bits)
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -364,7 +344,7 @@ def uq_lshift(x: Node, amount: Node) -> Composite:
 
 
 
-def uq_select(x: Node, start: int, end: int) -> Composite:
+def uq_select(x: Node, start: int, end: int) -> Primitive:
     width = start - end + 1
     
     def spec(x: float) -> float:
@@ -380,7 +360,7 @@ def uq_select(x: Node, start: int, end: int) -> Composite:
         root = basic_select(x, start, end, out)
         return root
     
-    return Composite(
+    return Primitive(
         spec=spec,
         sign=sign,
         impl=impl,
@@ -388,26 +368,33 @@ def uq_select(x: Node, start: int, end: int) -> Composite:
         name="uq_select")
 
 
-# TODO: Truncation catch, rounding
-def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Op:
-    def impl(x: UQ) -> UQ:
-        # assert int_bits >= x.int_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
-        # assert frac_bits >= x.frac_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
+# TODO: Truncation
+def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Primitive:
+    def spec(x):
+        return x
+    
+    def impl(x: Node) -> Node:
+        shift = uq_sub(
+            Const(UQ.from_int(frac_bits)), 
+            _uq_frac_bits(x),
+        )
         
-        shift = frac_bits - x.frac_bits
-        if shift >= 0:
-            val_adj = x.val << shift  # Fraction bits extension
-        else:
-            val_adj = x.val >> abs(shift)  # Fraction bits truncation
-        
-        val_masked = mask(val_adj, int_bits + frac_bits)  # Possible int bits Truncation
-        return UQ(val_masked, int_bits, frac_bits)
+        out = basic_lshift(
+            x=x, 
+            amount=shift,
+            out=Const(UQ(0, int_bits, frac_bits)),
+        )
+        return out
     
     def sign(x: UQT) -> UQT:
+        if x.int_bits > int_bits or x.frac_bits > frac_bits:
+            raise ValueError("User tries to truncate, not implemented yet")
         return UQT(int_bits, frac_bits)
     
-    return Op(
+    return Primitive(
+        spec=spec,
         impl=impl,
         sign=sign,
         args=[x],
         name="uq_resize")
+

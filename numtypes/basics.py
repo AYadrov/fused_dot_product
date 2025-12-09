@@ -55,8 +55,11 @@ def basic_add(x: Node, y: Node, out: Node) -> Op:
     )
 
 def basic_sub(x: Node, y: Node, out: Node) -> Op:
+    def op(x, y):
+        return x.val - y.val
+    
     return _binary_operator(
-        op=lambda x, y: x.val - y.val,
+        op=op,
         x=x,
         y=y,
         out=out,
