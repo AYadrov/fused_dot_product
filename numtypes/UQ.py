@@ -65,10 +65,9 @@ def _uq_select_shape(x: Node, start: int, end: int) -> Op:
 def _uq_alloc(int_bits: Node,
              frac_bits: Node) -> Op:
     def sign(int_bits: StaticType, frac_bits: StaticType) -> UQT:
-        if int_bits.runtime_val and frac_bits.runtime_val:
+        if int_bits.runtime_val is not None and frac_bits.runtime_val is not None:
             return UQT(int_bits.runtime_val.val, frac_bits.runtime_val.val)
-        else:
-            raise TypeError("_q_alloc's arguments depend on a variable")
+        raise TypeError("_uq_alloc's arguments depend on a variable")
     
     def impl(int_bits: RuntimeType, frac_bits: RuntimeType) -> UQ:
         return UQ(0, int_bits.val, frac_bits.val)
@@ -81,28 +80,28 @@ def _uq_alloc(int_bits: Node,
 
 
 def _uq_frac_bits(x: Node) -> Op:
-    def sign(x: QT) -> UQT:
+    def sign(x: UQT) -> UQT:
         return UQ.from_int(x.frac_bits).static_type()
     
-    def impl(x: Q) -> UQ:
-       return UQ.from_int(x.frac_bits)
+    def impl(x: UQ) -> UQ:
+        return UQ.from_int(x.frac_bits)
     
     return Op(
-        spec=spec,
+        sign=sign,
         impl=impl,
         args=[x],
         name="_uq_frac_bits")
 
 
 def _uq_int_bits(x: Node) -> Op:
-    def sign(x: QT) -> UQT:
+    def sign(x: UQT) -> UQT:
         return UQ.from_int(x.int_bits).static_type()
     
-    def impl(x: Q) -> UQ:
+    def impl(x: UQ) -> UQ:
         return UQ.from_int(x.int_bits)
     
     return Op(
-        spec=spec,
+        sign=sign,
         impl=impl,
         args=[x],
         name="_uq_int_bits")
@@ -118,14 +117,14 @@ def uq_zero_extend(x: Node, n: int) -> Primitive:
     def spec(x):
         return x
     
-    def impl(x: UQ) -> Tuple:
+    def impl(x: Node) -> Node:
         int_bits = uq_add(_uq_int_bits(x), Const(UQ.from_int(n)))
         frac_bits = _uq_frac_bits(x)
         out = _uq_alloc(int_bits, frac_bits)
-        
         return basic_identity(x=x, out=out)
     
-    return Op(
+    return Composite(
+        spec=spec,
         impl=impl,
         sign=sign,
         args=[x],
@@ -401,4 +400,3 @@ def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Op:
         sign=sign,
         args=[x],
         name="uq_resize")
-

@@ -8,16 +8,14 @@ from fused_dot_product.ast.AST import *
 ########### Private Helpers ############
 
 # Function does not care about int_bits/frac_bits types, it takes their values
-def q_alloc(self, int_bits: Node,
-                  frac_bits: Node) -> Op:
+def q_alloc(int_bits: Node, frac_bits: Node) -> Op:
     def sign(x: StaticType, y: StaticType) -> QT:
-        if x.runtime_val and y.runtime_val:
+        if x.runtime_val is not None and y.runtime_val is not None:
             return QT(x.runtime_val.val, y.runtime_val.val)
-        else:
-            raise TypeError("_q_alloc's arguments depend on a variable")
+        raise TypeError("q_alloc's arguments depend on a variable")
     
     def impl(x: RuntimeType, y: RuntimeType) -> Q:
-        return Q(0, x.val, y,val)
+        return Q(0, x.val, y.val)
     
     return Op(
         sign=sign,
@@ -74,10 +72,10 @@ def q_frac_bits(x: Node) -> Op:
         return UQ.from_int(x.frac_bits).static_type()
     
     def impl(x: Q) -> UQ:
-       return UQ.from_int(x.frac_bits)
+        return UQ.from_int(x.frac_bits)
     
     return Op(
-        spec=spec,
+        sign=sign,
         impl=impl,
         args=[x],
         name="q_frac_bits")
@@ -90,7 +88,7 @@ def q_int_bits(x: Node) -> Op:
         return UQ.from_int(x.int_bits)
     
     return Op(
-        spec=spec,
+        sign=sign,
         impl=impl,
         args=[x],
         name="q_int_bits")
@@ -122,12 +120,12 @@ def q_neg(x: Node) -> Composite:
     def impl(x: Node) -> Node:
         x = basic_invert(
             x=x,
-            out=x.copy(),
+            out=x.copy(val=0),
         )
         x = basic_add(
             x=x,
-            y=UQ.from_int(1),
-            out=x.copy(),
+            y=Const(UQ.from_int(1)),
+            out=x.copy(val=0),
         )
         return x
    
@@ -263,4 +261,3 @@ def q_add_sign(x: Node, s: Node) -> Op:
             sign=sign,
             args=[x, s], 
             name="q_add_sign")
-
