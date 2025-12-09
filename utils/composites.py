@@ -6,7 +6,7 @@ from fused_dot_product.numtypes.Q import *
 from fused_dot_product.numtypes.UQ import *
 
 
-def mantissa_add_implicit_bit(x: Node) -> Composite:
+def mantissa_add_implicit_bit(x: Node) -> Primitive:
     def spec(mantissa: float) -> float:
         return (float(mantissa) / (2 ** 7)) + 1.0
     

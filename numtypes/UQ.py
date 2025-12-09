@@ -62,6 +62,7 @@ def _uq_select_shape(x: Node, start: int, end: int) -> Op:
 
 
 # Function does not care about int_bits/frac_bits types, it takes their values
+# Allocates UQ at runtime
 def _uq_alloc(int_bits: Node,
              frac_bits: Node) -> Op:
     def sign(int_bits: StaticType, frac_bits: StaticType) -> UQT:
@@ -79,6 +80,7 @@ def _uq_alloc(int_bits: Node,
         name="_uq_alloc")
 
 
+# Get frac bits at runtime
 def _uq_frac_bits(x: Node) -> Op:
     def sign(x: UQT) -> UQT:
         return UQ.from_int(x.frac_bits).static_type()
@@ -93,6 +95,7 @@ def _uq_frac_bits(x: Node) -> Op:
         name="_uq_frac_bits")
 
 
+# Get int bits at runtime
 def _uq_int_bits(x: Node) -> Op:
     def sign(x: UQT) -> UQT:
         return UQ.from_int(x.int_bits).static_type()
@@ -123,7 +126,7 @@ def uq_zero_extend(x: Node, n: int) -> Primitive:
         out = _uq_alloc(int_bits, frac_bits)
         return basic_identity(x=x, out=out)
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -131,7 +134,7 @@ def uq_zero_extend(x: Node, n: int) -> Primitive:
         name="uq_zero_extend")
 
 
-def uq_add(x: Node, y: Node) -> Composite:
+def uq_add(x: Node, y: Node) -> Primitive:
     def spec(x: float, y: float) -> float:
         return x + y
     
@@ -154,7 +157,7 @@ def uq_add(x: Node, y: Node) -> Composite:
         )
         return root
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -162,7 +165,7 @@ def uq_add(x: Node, y: Node) -> Composite:
         name="uq_add")
 
 
-def uq_sub(x: Node, y: Node) -> Composite:
+def uq_sub(x: Node, y: Node) -> Primitive:
     def spec(x: float, y: float) -> float:
         return x - y
     
@@ -185,7 +188,7 @@ def uq_sub(x: Node, y: Node) -> Composite:
         )
         return root
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -193,7 +196,7 @@ def uq_sub(x: Node, y: Node) -> Composite:
         name="uq_sub")
 
 
-def uq_max(x: Node, y: Node) -> Composite:
+def uq_max(x: Node, y: Node) -> Primitive:
     def spec(x: float, y: float) -> float:
         return max(x, y)
     
@@ -216,7 +219,7 @@ def uq_max(x: Node, y: Node) -> Composite:
         )
         return root
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -224,7 +227,7 @@ def uq_max(x: Node, y: Node) -> Composite:
         name="uq_max")
 
 
-def uq_min(x: Node, y: Node) -> Composite:
+def uq_min(x: Node, y: Node) -> Primitive:
     def spec(x: float, y: float) -> float:
         return min(x, y)
     
@@ -247,7 +250,7 @@ def uq_min(x: Node, y: Node) -> Composite:
         )
         return root
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -255,7 +258,7 @@ def uq_min(x: Node, y: Node) -> Composite:
         name="uq_min")
 
 
-def uq_mul(x: Node, y: Node) -> Composite:
+def uq_mul(x: Node, y: Node) -> Primitive:
     def spec(x: float, y: float) -> float:
         return x * y
     
@@ -280,7 +283,7 @@ def uq_mul(x: Node, y: Node) -> Composite:
         )
         return root
     
-    return Composite(
+    return Primitive(
             spec=spec,
             impl=impl,
             sign=sign,
@@ -288,14 +291,21 @@ def uq_mul(x: Node, y: Node) -> Composite:
             name="uq_mul")
 
 
-def uq_to_q(x: Node) -> Op:
-    def impl(x: UQ) -> Q:
-        return Q(x.val, x.int_bits + 1, x.frac_bits)
+def uq_to_q(x: Node) -> Primitive:
+    def impl(x: Node) -> Node:
+        int_bits = uq_add(_uq_int_bits(x), Const(UQ.from_int(1)))
+        frac_bits = _uq_frac_bits(x)
+        out = Const(_q_alloc(int_bits, frac_bits))
+        return basic_identity(x=x, out=out)
+    
+    def spec(x):
+        return x
     
     def sign(x: UQT) -> QT:
         return QT(x.int_bits + 1, x.frac_bits)
     
-    return Op(
+    return Primitive(
+            spec=spec,
             impl=impl,
             sign=sign,
             args=[x],

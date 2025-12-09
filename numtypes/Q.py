@@ -8,7 +8,7 @@ from fused_dot_product.ast.AST import *
 ########### Private Helpers ############
 
 # Function does not care about int_bits/frac_bits types, it takes their values
-def q_alloc(int_bits: Node, frac_bits: Node) -> Op:
+def _q_alloc(int_bits: Node, frac_bits: Node) -> Op:
     def sign(x: StaticType, y: StaticType) -> QT:
         if x.runtime_val is not None and y.runtime_val is not None:
             return QT(x.runtime_val.val, y.runtime_val.val)
@@ -21,7 +21,7 @@ def q_alloc(int_bits: Node, frac_bits: Node) -> Op:
         sign=sign,
         impl=impl,
         args=[int_bits, frac_bits],
-        name="q_alloc")
+        name="_q_alloc")
 
 def q_aligner(x: Node,
                y: Node,
@@ -67,7 +67,7 @@ def q_aligner(x: Node,
         name="q_aligner")
 
 
-def q_frac_bits(x: Node) -> Op:
+def _q_frac_bits(x: Node) -> Op:
     def sign(x: QT) -> UQT:
         return UQ.from_int(x.frac_bits).static_type()
     
@@ -78,9 +78,9 @@ def q_frac_bits(x: Node) -> Op:
         sign=sign,
         impl=impl,
         args=[x],
-        name="q_frac_bits")
+        name="_q_frac_bits")
 
-def q_int_bits(x: Node) -> Op:
+def _q_int_bits(x: Node) -> Op:
     def sign(x: QT) -> UQT:
         return UQ.from_int(x.int_bits).static_type()
     
@@ -91,7 +91,7 @@ def q_int_bits(x: Node) -> Op:
         sign=sign,
         impl=impl,
         args=[x],
-        name="q_int_bits")
+        name="_q_int_bits")
 
 ############## Public API ##############
 
