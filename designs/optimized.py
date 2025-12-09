@@ -5,10 +5,58 @@ from fused_dot_product.utils.composites import *
 from fused_dot_product.designs.CSA import CSA_tree4
 
 from fused_dot_product.numtypes.UQ import *
+from fused_dot_product.numtypes.UQ import _uq_int_bits, _uq_frac_bits, _uq_alloc
 from fused_dot_product.numtypes.BFloat16 import *
 from fused_dot_product.numtypes.Q import *
 
 import numpy as np
+
+
+def est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
+    def spec(E_max, E_p):
+        return (E_max - E_p) * 2**s
+    
+    def sign(E_max: UQT, E_p: UQT) -> UQT:
+        return UQT(E_max.int_bits + s, 0)
+    
+    def impl(E_max: Node, E_p: Node) -> Node:
+        # E_max.int_bits + s
+        out_int_bits = uq_add(_uq_int_bits(E_max), Const(UQ.from_int(s)))
+        out_frac_bits = _uq_frac_bits(E_max)
+        out = _uq_alloc(out_int_bits, out_frac_bits)
+        return basic_concat(
+            x=uq_sub(E_max, E_p),  # In theory produces UQ<7,0>, in practice UQ<8,0> (can be neglected)
+            y=Const(UQ(0, s, 0)),
+            out=out,
+        )
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[E_max, E_p],
+        name="est_global_shift")
+
+
+def est_local_shift(E_p: Node, s: int) -> Primitive:
+    def spec(x):
+        return (2**s - 1) - (x % (2 ** s))
+    
+    def sign(E_p: UQT) -> UQT:
+        return UQT(s, 0)
+    
+    def impl(E_p: Node) -> Node:
+        trailing_bits = uq_select(E_p, s-1, 0)
+        out = basic_invert(x=trailing_bits, out=trailing_bits.copy())
+        return out
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[E_p],
+        name="est_local_shift")
+
 
 def Optimized(a0: Node, a1: Node, a2: Node, a3: Node, 
               b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
@@ -64,8 +112,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]
         
         # Step 2. Estimate local shifts
-        trailing_bits = [uq_select(E_p[i], s-1, 0) for i in range(N)]
-        L_shifts = [basic_invert(x=trailing_bits[i], out=trailing_bits[i].copy()) for i in range(N)]
+        L_shifts = [est_local_shift(E_p[i], s) for i in range(N)]
         
         # Step 3. Take leading {9-s} bits for max exponent and a global shift
         E_lead = [uq_select(E_p[i], 8, s) for i in range(N)]
@@ -74,14 +121,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         E_m = OPTIMIZED_MAX_EXP4(*E_lead)
         
         # Step 5. Calculate global shifts as {(max_exp - exp) * 2**s}
-        G_shifts = [uq_sub(E_m, E_lead[i]) for i in range(N)]
-        G_shifts = [uq_resize(G_shifts[i], 9, 0) for i in range(N)]
-        G_shifts = [uq_lshift(G_shifts[i], s_) for i in range(N)]
-        
-        # Step 6. Append {s} 1s at the end of the max exponent for a normalization
-        E_m = uq_resize(E_m, 9, 0)
-        E_m = uq_lshift(E_m, s_)
-        E_m = basic_or(x=E_m, y=pow2s_sub1, out=E_m.copy())
+        G_shifts = [est_global_shift(E_m, E_lead[i], s) for i in range(N)]
         
         ########## MANTISSAS ###############
         
@@ -103,7 +143,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         M_p = [uq_rshift(M_p[i], G_shifts[i]) for i in range(N)]  # UQ2.{Wf + (2**s - 1) - 2}
         
         # Step 5. Adjust signs using xor operation
-        S_p = [basic_xor(x=S_a[i], y=S_b[i], out=S_a[i].copy()) for i in range(N)]
+        S_p = [sign_xor(S_a[i], S_b[i]) for i in range(N)]
         M_p = [uq_to_q(M_p[i]) for i in range(N)]  # Q3.{Wf - 2 + (2**s - 1)}
         M_p = [q_add_sign(M_p[i], S_p[i]) for i in range(N)]
         
@@ -111,6 +151,13 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         M_sum = CSA_tree4(*M_p) # Q6.{Wf + (2**s - 1) - 2}
         
         ########## RESULT ##################
+        # Append {s} 1s at the end of the max exponent for a normalization
+        E_m = basic_concat(
+            x=E_m, 
+            y=Const(UQ.from_int((1 << s) - 1)), 
+            out=Const(UQ(0, 9, 0)),
+        )
+        # Subtract bias
         E_m = uq_to_q(E_m)  # Q10.0
         E_m = q_sub(E_m, bf16_bias)  # Q11.0
         

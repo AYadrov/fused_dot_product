@@ -56,7 +56,10 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]  # UQ9.0
         
         # Step 2. Calculate maximum exponent
-        E_m = MAX_EXPONENT4(*E_p)  # UQ9.0
+        E_m = uq_max(  
+            uq_max(E_p[0], E_p[1]),
+            uq_max(E_p[2], E_p[3]),
+        )  # UQ9.0
         
         # Step 3. Calculate global shifts
         Sh_p = [uq_sub(E_m, E_p[i]) for i in range(N)]
@@ -82,7 +85,10 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         M_p = [q_add_sign(M_p[i], S_p[i]) for i in range(N)]
         
         # Step 5. Adder tree
-        M_sum = ADDER_TREE4(*M_p) # Q5.{Wf - 2}
+        M_sum = q_add(
+            q_add(M_p[0], M_p[1]),
+            q_add(M_p[2], M_p[3]),
+        )  # Q5.{Wf - 2}
         
         ########## RESULT ##################
          # Subtract bias that is left! 
