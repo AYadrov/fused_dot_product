@@ -3,6 +3,7 @@ import typing as tp
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
+from fused_dot_product.numtypes.Q import _q_alloc
 
 ########### Private Helpers ############
 
