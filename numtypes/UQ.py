@@ -82,11 +82,11 @@ def _uq_alloc(int_bits: Node,
 
 
 # These functions are possible because x.node_type is known at compile time and does not change
-def _uq_frac_bits(x: Node) -> Op:
+def _uq_frac_bits(x: Node) -> Node:
     assert isinstance(x.node_type, UQT)
     return Const(UQ.from_int(x.node_type.frac_bits))
 
-def _uq_int_bits(x: Node):
+def _uq_int_bits(x: Node) -> Node:
     assert isinstance(x.node_type, UQT)
     return Const(UQ.from_int(x.node_type.int_bits))
 

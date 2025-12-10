@@ -4,9 +4,6 @@ from fused_dot_product.numtypes.StaticTypes import *
 from fused_dot_product.numtypes.RuntimeTypes import *
 
 
-    
-
-
 # It is important to call CSA only on fixed points with equal lengths!
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal

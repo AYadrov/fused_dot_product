@@ -3,62 +3,46 @@ import typing as tp
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.utils.utils import *
 from fused_dot_product.ast.AST import *
+from fused_dot_product.numtypes.Tuple import _make_fixed_arguments
 
 
 ############ Constructors ##############
 
-def _ternary_operator(op: tp.Callable, x: Node, y: Node, z: Node, out: Node, name: str) -> Op:
-    def sign(x: StaticType, y: StaticType, z: StaticType, out: StaticType) -> StaticType:
-        return out
-    
-    def impl(x: RuntimeType, y: RuntimeType, z: RuntimeType, out: RuntimeType) -> RuntimeType:
-        val = op(x, y, z)
+def _impl_constructor(op):
+    def impl(*args: RuntimeType) -> RuntimeType:
+        *op_args, out = args
+        val = op(*op_args)
         # TODO: check for truncation
         val = mask(val, out.total_bits())
         # TODO: add a check whether val is in ranges
         out.val = val
         return out
-    
+    return impl
+
+def _sign_constructor() -> StaticType:
+    def sign(*args: StaticType) -> StaticType:
+        return args[-1]
+    return sign
+
+
+def _ternary_operator(op: tp.Callable, x: Node, y: Node, z: Node, out: Node, name: str) -> Op:
     return Op(
-        impl=impl,
-        sign=sign,
+        impl=_make_fixed_arguments(_impl_constructor(op), RuntimeType, 4),
+        sign=_make_fixed_arguments(_sign_constructor(), StaticType, 4),
         args=[x, y, z, out],
         name=name)
 
-
 def _binary_operator(op: tp.Callable, x: Node, y: Node, out: Node, name: str) -> Op:
-    def sign(x: StaticType, y: StaticType, out: StaticType) -> StaticType:
-        return out
-    
-    def impl(x: RuntimeType, y: RuntimeType, out: RuntimeType) -> RuntimeType:
-        val = op(x, y)
-        # TODO: check for truncation
-        val = mask(val, out.total_bits())
-        # TODO: add a check whether val is in ranges
-        out.val = val
-        return out
-    
     return Op(
-        impl=impl,
-        sign=sign,
+        impl=_make_fixed_arguments(_impl_constructor(op), RuntimeType, 3),
+        sign=_make_fixed_arguments(_sign_constructor(), StaticType, 3),
         args=[x, y, out],
         name=name)
 
 def _unary_operator(op: tp.Callable, x: Node, out: Node, name: str) -> Op:
-    def sign(x: StaticType, out: StaticType) -> StaticType:
-        return out
-    
-    def impl(x: RuntimeType, out: RuntimeType) -> RuntimeType:
-        val = op(x)
-        # TODO: check for truncation
-        val = mask(val, out.total_bits())
-        # TODO: add a check whether val is in ranges
-        out.val = val
-        return out
-    
     return Op(
-        impl=impl,
-        sign=sign,
+        impl=_make_fixed_arguments(_impl_constructor(op), RuntimeType, 2),
+        sign=_make_fixed_arguments(_sign_constructor(), StaticType, 2),
         args=[x, out],
         name=name)
 
@@ -211,4 +195,3 @@ def basic_identity(x: Node, out: Node) -> Op:
         name="basic_identity",
     )
         
-
