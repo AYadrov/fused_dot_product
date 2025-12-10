@@ -95,25 +95,76 @@ def _q_int_bits(x: Node) -> Op:
 
 ############## Public API ##############
 
-def q_sign_extend(x: Node, n: int) -> Op:
+def q_sign_bit(x: Node) -> Primitive:
+    def sign(x: QT) -> UQT:
+        return UQT(1, 0)
+    
+    def spec(x):
+        return 1.0 if x < 0 else 0.0
+
+    def impl(x: Node) -> Node:
+        start = x.node_type.int_bits + x.node_type.frac_bits - 1
+        return basic_select(
+            x=x,
+            start=start,
+            end=start,
+            out=Const(UQ(0, 1, 0)),
+        )
+    
+    return Primitive(
+        spec=spec,
+        sign=sign,
+        impl=impl,
+        args=[x],
+        name="q_sign_bit")
+
+def q_sign_extend(x: Node, n: int) -> Primitive:
     assert isinstance(n, int) and n >= 0, f"n should be a non-negative integer, {n} is given"
     def sign(x: QT) -> QT:
         return QT(x.int_bits + n, x.frac_bits)
     
-    def impl(x: Q) -> Q:
-        sign = x.sign_bit()
-        upper_bits = (sign << n) - sign
-        res = x.val | (upper_bits << x.total_bits())
-        return Q(res, x.int_bits + n, x.frac_bits)
+    def spec(x):
+        return x
     
-    return Op(
+    def impl(x: Node) -> Node:
+        if n == 0:
+            return x.copy()
+        
+        sign_bit = q_sign_bit(x)
+        shift_amount = Const(UQ.from_int(n))
+        
+        shifted = basic_lshift(
+            x=sign_bit,
+            amount=shift_amount,
+            out=Const(UQ(0, n + 1, 0)),
+        )
+        
+        upper_bits = basic_sub(
+            x=shifted,
+            y=sign_bit,
+            out=Const(UQ(0, n, 0)),
+        )
+        # A little bit ugly, only because of cycles
+        int_bits = Const(UQ.from_int(x.node_type.int_bits + n))
+        frac_bits = Const(UQ.from_int(x.node_type.frac_bits))
+        out = _q_alloc(int_bits, frac_bits)
+        
+        res = basic_concat(
+            x=upper_bits,
+            y=x,
+            out=out,
+        )
+        return res
+    
+    return Primitive(
         impl=impl,
         sign=sign,
+        spec=spec,
         args=[x],
         name="q_sign_extend")
 
 
-def q_neg(x: Node) -> Composite:
+def q_neg(x: Node) -> Primitive:
     def spec(x):
         return -x    
     
@@ -132,7 +183,7 @@ def q_neg(x: Node) -> Composite:
     def sign(x: QT) -> QT:
         return QT(x.int_bits, x.frac_bits)
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -140,7 +191,7 @@ def q_neg(x: Node) -> Composite:
         name="q_neg")
 
 
-def q_add(x: Node, y: Node) -> Composite:
+def q_add(x: Node, y: Node) -> Primitive:
     def impl(x: Node, y: Node) -> Node:
         x_adj, y_adj = q_aligner(
             x=x,
@@ -158,7 +209,7 @@ def q_add(x: Node, y: Node) -> Composite:
         int_bits = max(x.int_bits, y.int_bits) + 1
         return QT(int_bits, frac_bits)
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -167,7 +218,7 @@ def q_add(x: Node, y: Node) -> Composite:
     )
 
 
-def q_sub(x: Node, y: Node) -> Composite:
+def q_sub(x: Node, y: Node) -> Primitive:
     def impl(x: Node, y: Node) -> Node:
         x_adj, y_adj = q_aligner(
             x=x, 
@@ -186,7 +237,7 @@ def q_sub(x: Node, y: Node) -> Composite:
         int_bits = max(x.int_bits, y.int_bits) + 1
         return QT(int_bits, frac_bits)
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -195,7 +246,7 @@ def q_sub(x: Node, y: Node) -> Composite:
     )
 
 
-def q_lshift(x: Node, n: Node) -> Composite:
+def q_lshift(x: Node, n: Node) -> Primitive:
     def spec(x: float, n: float) -> float:
         return x * 2**int(n)
         
@@ -210,7 +261,7 @@ def q_lshift(x: Node, n: Node) -> Composite:
         )
         return impl
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -219,7 +270,7 @@ def q_lshift(x: Node, n: Node) -> Composite:
     )
 
 
-def q_rshift(x: Node, n: Node) -> Composite:
+def q_rshift(x: Node, n: Node) -> Primitive:
     def spec(x: float, n: float) -> float:
         return x / 2**int(n)
         
@@ -234,7 +285,7 @@ def q_rshift(x: Node, n: Node) -> Composite:
         )
         return impl
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,

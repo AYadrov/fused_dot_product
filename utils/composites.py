@@ -4,7 +4,7 @@ from fused_dot_product.config import *
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.Q import *
 from fused_dot_product.numtypes.UQ import *
-from fused_dot_product.numtypes.UQ import _uq_alloc
+from fused_dot_product.numtypes.UQ import _uq_alloc, _uq_int_bits, _uq_frac_bits
 
 
 def mantissa_add_implicit_bit(x: Node) -> Primitive:
@@ -54,13 +54,14 @@ def sign_xor(x: Node, y: Node) -> Primitive:
 def OPTIMIZED_MAX_EXP4(e0: Node,
                        e1: Node,
                        e2: Node,
-                       e3: Node) -> Composite:
+                       e3: Node) -> Primitive:
     def spec(e0, e1, e2, e3):
         return max(max(e0, e1), max(e2, e3))
     
     def sign(e0: UQT, e1: UQT, e2: UQT, e3: UQT) -> UQT:
         int_bits = max(max(e0.int_bits, e1.int_bits), max(e2.int_bits, e3.int_bits))
         frac_bits = max(max(e0.frac_bits, e1.frac_bits), max(e2.frac_bits, e3.frac_bits))
+        assert frac_bits == 0, "Not expected fractional bits"
         return UQT(int_bits, frac_bits)
     
     def impl(e0: Node, e1: Node, e2: Node, e3: Node) -> Node:
@@ -80,9 +81,8 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
             return acc
         
         def concat(high: Node, low: Node) -> Node:
-            int_bits = Const(UQ.from_int(high.node_type.int_bits + low.node_type.int_bits))
-            frac_bits = Const(UQ.from_int(high.node_type.frac_bits + low.node_type.frac_bits))
-            out = _uq_alloc(int_bits, frac_bits)
+            int_bits = uq_add(_uq_int_bits(high), _uq_int_bits(low))
+            out = _uq_alloc(int_bits, Const(UQ.from_int(0)))
             return basic_concat(x=high, y=low, out=out)
         
         inputs = [e0, e1, e2, e3]
@@ -94,7 +94,6 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
         
         zero_bit = Const(UQ(0, 1, 0))
         
-        # ep_bits[j][i] matches the original layout: leading zero then bits MSB→LSB.
         ep_bits = []
         for exp in inputs:
             bits = [zero_bit]
@@ -129,7 +128,7 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
             out = concat(out, b)
         return out
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
