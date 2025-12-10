@@ -93,6 +93,24 @@ def _q_int_bits(x: Node) -> Op:
         args=[x],
         name="_q_int_bits")
 
+# Does not have spec
+def _q_is_min_val(x: Node) -> Op:
+    def impl(x: Q) -> UQ:
+        if x.val == (1 << (x.total_bits() - 1)):
+            res = 1
+        else:
+            res = 0
+        return UQ(res, 1, 0)
+    
+    def sign(x: QT) -> UQT:
+        return UQT(1, 0)
+    
+    return Op(
+        impl=impl,
+        sign=sign,
+        args=[x],
+        name="_q_is_min_val")
+
 ############## Public API ##############
 
 def q_sign_bit(x: Node) -> Primitive:
@@ -164,21 +182,28 @@ def q_sign_extend(x: Node, n: int) -> Primitive:
         name="q_sign_extend")
 
 
+# TODO: can overflow if x==Min-val
+# Ex: q_neg(b10) overflows as -2 is represented, but 2 can not be represented in 2 bits
+# Therefore, spec does not really matches for this special case
 def q_neg(x: Node) -> Primitive:
     def spec(x):
         return -x    
     
     def impl(x: Node) -> Node:
-        x = basic_invert(
+        x_inv = basic_invert(
             x=x,
             out=x.copy(),
         )
-        x = basic_add(
-            x=x,
+        x_neg = basic_add(
+            x=x_inv,
             y=Const(UQ.from_int(1)),
             out=x.copy(),
         )
-        return x
+        
+        x_is_min = _q_is_min_val(x)
+        x_overflow = basic_invert(basic_xor(x, x, x.copy()), x.copy())
+        
+        return basic_mux_2_1(sel=x_is_min, in0=x_neg, in1=x_overflow, out=x.copy())
    
     def sign(x: QT) -> QT:
         return QT(x.int_bits, x.frac_bits)
@@ -315,4 +340,22 @@ def q_add_sign(x: Node, s: Node) -> Primitive:
         sign=sign,
         args=[x, s],
         name="q_add_sign")
+
+def q_abs(x: Node) -> Primitive:
+    def spec(x):
+        return abs(x)
+    
+    def impl(x: Node) -> Node:
+        sign_bit = q_sign_bit(x)  # UQ1.0
+        return q_add_sign(x, sign_bit)
+    
+    def sign(x: QT) -> QT:
+        return QT(x.int_bits, x.frac_bits)
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x],
+        name="q_abs")
 

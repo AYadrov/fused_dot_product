@@ -51,6 +51,7 @@ class Node:
             ########## CHECK BLOCK #########
             self.dynamic_typecheck(args=inputs, out=out)
             
+            # Check spec if Node has a spec
             if self.spec:
                 spec_inputs = [x.to_spec() for x in inputs]
                 spec_out = self.spec(*spec_inputs)
@@ -302,6 +303,7 @@ class Var(Node):
     
     def __str__(self):
         return f"{self.node_type}: {self.name} [Var]"
+
 
 
 def Copy(x: Node) -> Op:

@@ -9,6 +9,7 @@ from fused_dot_product.numtypes.Tuple import _make_fixed_arguments
 ############ Constructors ##############
 
 def _impl_constructor(op):
+    # To be called with op's arguments and output
     def impl(*args: RuntimeType) -> RuntimeType:
         *op_args, out = args
         val = op(*op_args)
@@ -20,6 +21,7 @@ def _impl_constructor(op):
     return impl
 
 def _sign_constructor() -> StaticType:
+    # To be called with arguments and output
     def sign(*args: StaticType) -> StaticType:
         return args[-1]
     return sign
