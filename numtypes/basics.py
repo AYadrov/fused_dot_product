@@ -7,6 +7,25 @@ from fused_dot_product.ast.AST import *
 
 ############ Constructors ##############
 
+def _ternary_operator(op: tp.Callable, x: Node, y: Node, z: Node, out: Node, name: str) -> Op:
+    def sign(x: StaticType, y: StaticType, z: StaticType, out: StaticType) -> StaticType:
+        return out
+    
+    def impl(x: RuntimeType, y: RuntimeType, z: RuntimeType, out: RuntimeType) -> RuntimeType:
+        val = op(x, y, z)
+        # TODO: check for truncation
+        val = mask(val, out.total_bits())
+        # TODO: add a check whether val is in ranges
+        out.val = val
+        return out
+    
+    return Op(
+        impl=impl,
+        sign=sign,
+        args=[x, y, z, out],
+        name=name)
+
+
 def _binary_operator(op: tp.Callable, x: Node, y: Node, out: Node, name: str) -> Op:
     def sign(x: StaticType, y: StaticType, out: StaticType) -> StaticType:
         return out
@@ -42,6 +61,21 @@ def _unary_operator(op: tp.Callable, x: Node, out: Node, name: str) -> Op:
         sign=sign,
         args=[x, out],
         name=name)
+
+########## Ternary Operators ###########
+
+def basic_mux_2_1(sel: Node, in0: Node, in1: Node, out: Node) -> Op:
+    def op(sel: Node, in0: Node, in1: Node) -> int:
+        assert sel.val in (0, 1), "out of range"
+        return in1.val if sel.val == 1 else in0.val
+    return _ternary_operator(
+        op=op,
+        x=sel,
+        y=in0,
+        z=in1,
+        out=out,
+        name="basic_mux_2_1",
+    )
 
 ########### Binary Operators ###########
 
@@ -176,4 +210,5 @@ def basic_identity(x: Node, out: Node) -> Op:
         out=out,
         name="basic_identity",
     )
+        
 

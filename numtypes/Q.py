@@ -294,21 +294,25 @@ def q_rshift(x: Node, n: Node) -> Primitive:
     )
 
 
-def q_add_sign(x: Node, s: Node) -> Op:
-    def impl(x: Q, s: UQ) -> Q:
-        assert s.val in (0, 1)
-        if s.val == 1:
-            total_width = x.int_bits + x.frac_bits
-            neg_val = mask(~x.val + 1, total_width)
-            return Q(neg_val, x.int_bits, x.frac_bits)
-        else:
-            return Q(x.val, x.int_bits, x.frac_bits)
-            
-    def sign(x: QT, n: UQT) -> QT:
+def q_add_sign(x: Node, s: Node) -> Primitive:
+    def spec(x, s):
+        return x * (-1) ** s
+    
+    def impl(x: Node, s: Node) -> Node:
+        return basic_mux_2_1(
+            sel=s,
+            in0=x.copy(),
+            in1=q_neg(x),
+            out=x.copy(),
+        )
+    
+    def sign(x: QT, s: UQT) -> QT:
         return QT(x.int_bits, x.frac_bits)
     
-    return Op(
-            impl=impl,
-            sign=sign,
-            args=[x, s], 
-            name="q_add_sign")
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, s],
+        name="q_add_sign")
+

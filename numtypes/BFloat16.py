@@ -6,7 +6,50 @@ from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.Tuple import *
 from fused_dot_product.ast.AST import *
 
-def BF16_decode(x: Node) -> Composite:
+########### Private Helpers ############
+
+def _bf16_mantissa(x: Node) -> Op:
+    def impl(x: BFloat16) -> UQ:
+        return UQ(x.mantissa, 7, 0)
+    
+    def sign(x: BFloat16T) -> UQT:
+        return UQT(7, 0)
+    
+    return Op(
+            impl=impl,
+            sign=sign,
+            args=[x],
+            name="_bf16_mantissa")
+
+def _bf16_exponent(x: Node) -> Op:
+    def impl(x: BFloat16) -> UQ:
+        return UQ(x.exponent, 8, 0)
+    
+    def sign(x: BFloat16T) -> UQT:
+        return UQT(8, 0)
+    
+    return Op(
+            impl=impl,
+            sign=sign,
+            args=[x],
+            name="_bf16_exponent")
+
+def _bf16_sign(x: Node) -> Op:
+    def impl(x: BFloat16) -> UQ:
+        return UQ(x.sign, 1, 0)
+    
+    def sign(x: BFloat16T) -> UQT:
+        return UQT(1, 0)
+    
+    return Op(
+            impl=impl,
+            sign=sign,
+            args=[x],
+            name="_bf16_sign")
+
+############## Public API ##############
+
+def bf16_decode(x: Node) -> Composite:
     def spec(x: float) -> tuple[float]:
         def sign(x):
             return 1.0 if x < 0 else 0.0
@@ -32,9 +75,9 @@ def BF16_decode(x: Node) -> Composite:
     
     def impl(x: Node) -> Node:
         impl = make_Tuple(
-            BF16_sign(x),
-            BF16_mantissa(x),
-            BF16_exponent(x),
+            _bf16_sign(x),
+            _bf16_mantissa(x),
+            _bf16_exponent(x),
         )
         return impl
     
@@ -43,44 +86,9 @@ def BF16_decode(x: Node) -> Composite:
         impl=impl,
         sign=sign,
         args=[x],
-        name="BF16_decode")
+        name="bf16_decode")
 
-def BF16_mantissa(x: Node) -> Op:
-    def impl(x: BFloat16) -> UQ:
-        return UQ(x.mantissa, 7, 0)
-    
-    def sign(x: BFloat16T) -> UQT:
-        return UQT(7, 0)
-    
-    return Op(
-            impl=impl,
-            sign=sign,
-            args=[x],
-            name="BF16_mantissa")
 
-def BF16_exponent(x: Node) -> Op:
-    def impl(x: BFloat16) -> UQ:
-        return UQ(x.exponent, 8, 0)
-    
-    def sign(x: BFloat16T) -> UQT:
-        return UQT(8, 0)
-    
-    return Op(
-            impl=impl,
-            sign=sign,
-            args=[x],
-            name="BF16_exponent")
 
-def BF16_sign(x: Node) -> Op:
-    def impl(x: BFloat16) -> UQ:
-        return UQ(x.sign, 1, 0)
-    
-    def sign(x: BFloat16T) -> UQT:
-        return UQT(1, 0)
-    
-    return Op(
-            impl=impl,
-            sign=sign,
-            args=[x],
-            name="BF16_sign")
+
 

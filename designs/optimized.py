@@ -12,7 +12,7 @@ from fused_dot_product.numtypes.Q import *
 import numpy as np
 
 
-def est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
+def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
     def spec(E_max, E_p):
         return (E_max - E_p) * 2**s
     
@@ -36,10 +36,10 @@ def est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
         impl=impl,
         sign=sign,
         args=[E_max, E_p],
-        name="est_global_shift")
+        name="_est_global_shift")
 
 
-def est_local_shift(E_p: Node, s: int) -> Primitive:
+def _est_local_shift(E_p: Node, s: int) -> Primitive:
     def spec(x):
         return (2**s - 1) - (x % (2 ** s))
     
@@ -56,10 +56,10 @@ def est_local_shift(E_p: Node, s: int) -> Primitive:
         impl=impl,
         sign=sign,
         args=[E_p],
-        name="est_local_shift")
+        name="_est_local_shift")
 
 
-def prepend_ones(x: Node, s: int) -> Primitive:
+def _prepend_ones(x: Node, s: int) -> Primitive:
     def spec(x):
         return x * 2**s + (2 ** s - 1)
     
@@ -83,7 +83,7 @@ def prepend_ones(x: Node, s: int) -> Primitive:
         impl=impl,
         sign=sign,
         args=[x],
-        name="prepend_ones")
+        name="_prepend_ones")
 
 
 def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
@@ -110,15 +110,15 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         S_a, M_a, E_a = [0] * N, [0] * N, [0] * N
         S_b, M_b, E_b = [0] * N, [0] * N, [0] * N
         
-        S_a[0], M_a[0], E_a[0] = BF16_decode(a0)
-        S_a[1], M_a[1], E_a[1] = BF16_decode(a1)
-        S_a[2], M_a[2], E_a[2] = BF16_decode(a2)
-        S_a[3], M_a[3], E_a[3] = BF16_decode(a3)
+        S_a[0], M_a[0], E_a[0] = bf16_decode(a0)
+        S_a[1], M_a[1], E_a[1] = bf16_decode(a1)
+        S_a[2], M_a[2], E_a[2] = bf16_decode(a2)
+        S_a[3], M_a[3], E_a[3] = bf16_decode(a3)
         
-        S_b[0], M_b[0], E_b[0] = BF16_decode(b0)
-        S_b[1], M_b[1], E_b[1] = BF16_decode(b1)
-        S_b[2], M_b[2], E_b[2] = BF16_decode(b2)
-        S_b[3], M_b[3], E_b[3] = BF16_decode(b3)
+        S_b[0], M_b[0], E_b[0] = bf16_decode(b0)
+        S_b[1], M_b[1], E_b[1] = bf16_decode(b1)
+        S_b[2], M_b[2], E_b[2] = bf16_decode(b2)
+        S_b[3], M_b[3], E_b[3] = bf16_decode(b3)
         
         ############ CONSTANTS #############
         
@@ -133,7 +133,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]
         
         # Step 2. Estimate local shifts
-        L_shifts = [est_local_shift(E_p[i], s) for i in range(N)]
+        L_shifts = [_est_local_shift(E_p[i], s) for i in range(N)]
         
         # Step 3. Take leading {9-s} bits for max exponent and a global shift
         E_lead = [uq_select(E_p[i], 8, s) for i in range(N)]
@@ -142,7 +142,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         E_m = OPTIMIZED_MAX_EXP4(*E_lead)
         
         # Step 5. Calculate global shifts as {(max_exp - exp) * 2**s}
-        G_shifts = [est_global_shift(E_m, E_lead[i], s) for i in range(N)]
+        G_shifts = [_est_global_shift(E_m, E_lead[i], s) for i in range(N)]
         
         ############# MANTISSAS ############
         
@@ -173,7 +173,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         
         ############# RESULT ###############
         # Append {s} 1s at the end of the max exponent for a normalization
-        E_m = prepend_ones(E_m, s)
+        E_m = _prepend_ones(E_m, s)
         # Subtract bias
         E_m = uq_to_q(E_m)  # Q10.0
         E_m = q_sub(E_m, bf16_bias)  # Q11.0
