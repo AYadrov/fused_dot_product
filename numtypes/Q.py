@@ -187,18 +187,11 @@ def q_sign_extend(x: Node, n: int) -> Primitive:
 # Therefore, spec does not really matches for this special case
 def q_neg(x: Node) -> Primitive:
     def spec(x):
-        return -x    
+        return -x
     
     def impl(x: Node) -> Node:
-        x_inv = basic_invert(
-            x=x,
-            out=x.copy(),
-        )
-        x_neg = basic_add(
-            x=x_inv,
-            y=Const(UQ.from_int(1)),
-            out=x.copy(),
-        )
+        x_inv = basic_invert(x, x.copy())
+        x_neg = basic_add(x_inv, Const(UQ.from_int(1)), x.copy())
         
         x_is_min = _q_is_min_val(x)
         x_overflow = basic_invert(basic_xor(x, x, x.copy()), x.copy())
@@ -246,7 +239,7 @@ def q_add(x: Node, y: Node) -> Primitive:
 def q_sub(x: Node, y: Node) -> Primitive:
     def impl(x: Node, y: Node) -> Node:
         x_adj, y_adj = q_aligner(
-            x=x, 
+            x=x,
             y=y,
             int_aggr=lambda x, y: max(x, y) + 1,
             frac_aggr=lambda x, y: max(x, y),
@@ -293,6 +286,28 @@ def q_lshift(x: Node, n: Node) -> Primitive:
         args=[x, n],
         name="q_lshift",
     )
+
+
+# assumes that x is already positive
+def q_to_uq(x: Node) -> Primitive:
+    def impl(x: Node) -> Node:
+        int_bits = uq_sub(_q_int_bits(x), Const(UQ.from_int(1)))
+        frac_bits = _q_frac_bits(x)
+        out = _uq_alloc(int_bits, frac_bits)
+        return basic_identity(x=x, out=out)
+    
+    def spec(x):
+        return x
+    
+    def sign(x: QT) -> UQT:
+        return UQT(x.int_bits - 1, x.frac_bits)
+    
+    return Primitive(
+            spec=spec,
+            impl=impl,
+            sign=sign,
+            args=[x],
+            name="q_to_uq")
 
 
 def q_rshift(x: Node, n: Node) -> Primitive:
