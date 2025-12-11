@@ -1,12 +1,18 @@
+import math
+
 from fused_dot_product.ast.AST import *
 from fused_dot_product.config import *
 
 from fused_dot_product.numtypes.RuntimeTypes import *
+from fused_dot_product.numtypes.StaticTypes import TupleT
 from fused_dot_product.numtypes.Q import *
+from fused_dot_product.numtypes.Tuple import make_Tuple
 from fused_dot_product.numtypes.UQ import *
+from fused_dot_product.numtypes.UQ import _uq_alloc, _uq_int_bits, _uq_frac_bits
+from fused_dot_product.utils.utils import mask, round_to_the_nearest_even
 
 
-def mantissa_add_implicit_bit(x: Node) -> Composite:
+def mantissa_add_implicit_bit(x: Node) -> Primitive:
     def spec(mantissa: float) -> float:
         return (float(mantissa) / (2 ** 7)) + 1.0
     
@@ -15,12 +21,11 @@ def mantissa_add_implicit_bit(x: Node) -> Composite:
         return UQT(1, mantissa.int_bits)
     
     def impl(x: Node) -> Node:
-        n = Const(UQ.from_int(7))  # 7
-        x_ = uq_resize(x, 7, 7)  # xxxxxxx.0000000
-        x_ = uq_rshift(x_, n)  # 0000000.xxxxxxx
-        x_ = uq_resize(x_, 1, 7)  # 0.xxxxxxx
-        one = Const(UQ.from_int(1))  # 1.
-        return uq_or(x_, one)  # 1.xxxxxxx
+        return basic_concat(
+            x=Const(UQ(1, 1, 0)),  # 1.
+            y=x,  # xxxxxxx.
+            out=Const(UQ(0, 1, 7)),
+        )
     
     return Composite(
         spec=spec,
@@ -30,42 +35,310 @@ def mantissa_add_implicit_bit(x: Node) -> Composite:
         name="mantissa_add_implicit_bit")
 
 
-def MAX_EXPONENT4(e0: Node, e1: Node, e2: Node, e3: Node) -> Composite:
-    def spec(e0: float, e1: float, e2: float, e3: float) -> float:
+def sign_xor(x: Node, y: Node) -> Primitive:
+    def spec(x, y):
+        return 0.0 if x == y else 1.0
+    
+    def sign(x: UQT, y: UQT) -> UQT:
+        return UQT(1, 0)
+    
+    def impl(x: UQ, y: UQ) -> UQ:
+        return basic_xor(
+            x=x,
+            y=y,
+            out=Const(UQ(0, 1, 0)),  # 0.
+        )
+    
+    return Primitive(
+        spec=spec,
+        sign=sign,
+        impl=impl,
+        args=[x, y],
+        name="sign_xor")
+
+def _lzc(x: Node) -> Primitive:
+    """Leading zero count for an unsigned fixed-point value."""
+    width = x.node_type.int_bits + x.node_type.frac_bits
+    frac_bits = x.node_type.frac_bits
+    count_bits = max(1, math.ceil(math.log2(width + 1)))
+
+    def spec(x_val: float) -> float:
+        raw = int(round(x_val * (2 ** frac_bits)))
+        bits = f"{raw:0{width}b}"
+        lz = len(bits) - len(bits.lstrip("0"))
+        return float(lz)
+    
+    def impl(x: Node) -> Node:
+        count = Const(UQ(0, count_bits, 0))
+        still_zero = Const(UQ(1, 1, 0))
+        for pos in range(width - 1, -1, -1):
+            bit = uq_select(x, pos, pos)
+            is_zero = basic_invert(x=bit, out=bit.copy())
+            still_zero = basic_and(x=still_zero, y=is_zero, out=still_zero.copy())
+            count = uq_add(count, still_zero)
+        return count
+    
+    def sign(x: UQT) -> UQT:
+        return UQT(count_bits, 0)
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x],
+        name="_lzc")
+
+
+def _normalize_to_1_xxx_draft(m: Node, e: Node) -> Composite:
+    """
+    Normalize mantissa to the 1.xxxxx range using AST primitives only.
+    Returns Tuple(normalized_mantissa, adjusted_exponent).
+    """
+
+    def sign(m: QT, e: QT) -> TupleT:
+        # LZC width
+        width = m.int_bits + m.frac_bits
+        count_bits = max(1, math.ceil(math.log2(width + 1)))
+        
+        return TupleT(QT(m.int_bits, m.frac_bits), QT(e.int_bits, e.frac_bits))
+
+    def impl(m: Node, e: Node) -> Node:
+        magnitude = q_to_uq(q_abs(m))
+        lzc = uq_to_q(_lzc(magnitude))
+        
+        # Shift amount = LZC - int_bits + 1
+        int_bits = uq_to_q(_uq_int_bits(magnitude))
+        shift_amount = uq_add(uq_sub(lzc, int_bits), Const(UQ.from_int(1)))
+        
+        shift_sign = q_sign_bit(shift_amount)
+        shift_amount_q = q_abs(shift_amount)
+        shift_amount_uq = q_to_uq(shift_amount_q)
+        
+        # Loss of accuracy here
+        left_m = uq_lshift(magnitude, shift_amount_uq)
+        right_m = uq_rshift(magnitude, shift_amount_uq)
+        norm_m = basic_mux_2_1(
+            sel=shift_sign,
+            in0=left_m,
+            in1=right_m,
+            out=magnitude.copy(),  # Preserve mantissa size (unsigned)
+        )
+        
+        # Loss of accuracy here
+        left_e = q_sub(e, shift_amount_q)
+        right_e = q_add(e, shift_amount_q)
+        norm_e = basic_mux_2_1(
+            sel=shift_sign,
+            in0=left_e,
+            in1=right_e,
+            out=e.copy(),  # Preserve exponent's size
+        )
+        
+        return make_Tuple(norm_m, norm_e)
+
+    return Composite(
+        spec=None,
+        impl=impl,
+        sign=sign,
+        args=[m, e],
+        name="_normalize_to_1_xxx",
+    )
+
+
+# TODO: loss of accuracy, NaNs
+def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
+    def sign(m: QT, e: QT) -> Float32T:
+        return Float32T()
+
+    def impl(m: Node, e: Node) -> Node:
+        sign_bit = q_sign_bit(m)
+        
+        magnitude = q_abs(m)
+
+        # The heavy lifting still happens in an Op, but the wrapper is now a Composite
+        # that works over AST nodes (sign extraction, magnitude adjustment).
+        def _impl(m: Q, e: Q, s: UQ) -> Float32:
+
+            # Extracts signed bits from a signed fixed point
+            def twos_complement(e: Q):
+                N = e.int_bits + e.frac_bits
+                if e.val & (1 << (N - 1)):   # sign bit is 1
+                    return e.val - (1 << N)
+                else:                        # sign bit is 0
+                    return  e.val
+                    
+            def normalize_to_1_xxx(m, e, frac_bits):
+                # Normalize so that mantissa is 1.xxxxx
+                while (m >> frac_bits) == 0:
+                    m <<= 1
+                    e -= 1
+                
+                while (m >> (frac_bits + 1)) != 0:
+                    m >>= 1
+                    e += 1
+                return m, e
+            
+            frac_bits = m.frac_bits
+            
+            mantissa = m.val
+            exponent = twos_complement(e)
+            
+            # 0.0 * 2^e = 0.0
+            if mantissa == 0:
+                return Float32.nZero() if s.val == 1 else Float32.Zero()
+            
+            mantissa, exponent = normalize_to_1_xxx(mantissa, exponent, frac_bits)
+            
+            # Infinity
+            if exponent >= Float32.inf_code:
+                return Float32.nInf() if s.val == 1 else Float32.Inf()
+            
+            # Subnormal/zero
+            elif exponent <= 0:
+                # Shifting to 0.00000xxxx until exponent is 1 (subnormal)
+                while (mantissa != 0) and exponent < 1:
+                    mantissa >>= 1
+                    exponent += 1
+                
+                # Zero
+                if mantissa == 0:
+                    return Float32.nZero() if s.val == 1 else Float32.Zero()
+                
+                # Subnormal
+                else:
+                    mantissa = round_to_the_nearest_even(mantissa, frac_bits, Float32.mantissa_bits)
+                    
+                    # Handle rounding overflow
+                    if mantissa >> Float32.mantissa_bits:
+                        # Normal (rare case), drop implicit bit, exponent = 1
+                        mantissa = mask(mantissa, Float32.mantissa_bits)
+                        return Float32(s.val, mantissa, exponent)
+                    else:
+                        return Float32(s.val, mantissa, Float32.sub_code) # Subnormal
+            
+            # Normal value
+            else:
+                # Strip implicit leading 1 for Float32 mantissa
+                mantissa = mask(mantissa, frac_bits)
+                mantissa = round_to_the_nearest_even(mantissa, frac_bits, Float32.mantissa_bits)
+                
+                # Handle rounding overflow
+                if mantissa >> Float32.mantissa_bits:
+                    mantissa = mask(mantissa, Float32.mantissa_bits)
+                    exponent += 1
+                    # Infinity
+                    if exponent >= Float32.inf_code:
+                        return Float32.nInf() if s.val == 1 else Float32.Inf()
+                
+                return Float32(sign=s.val, mantissa=mantissa, exponent=exponent)
+        
+        def _sign(m: QT, e: QT, s: UQT) -> Float32T:
+            return Float32T()
+        
+        return Op(
+            impl=_impl,
+            sign=_sign,
+            args=[magnitude, e, sign_bit],
+            name="Q_E_encode_Float32_impl",
+        )
+
+    return Composite(
+        spec=None,
+        impl=impl,
+        sign=sign,
+        args=[m, e],
+        name="Q_E_encode_Float32",
+    )
+
+
+
+def OPTIMIZED_MAX_EXP4(e0: Node,
+                       e1: Node,
+                       e2: Node,
+                       e3: Node) -> Primitive:
+    def spec(e0, e1, e2, e3):
         return max(max(e0, e1), max(e2, e3))
     
     def sign(e0: UQT, e1: UQT, e2: UQT, e3: UQT) -> UQT:
         int_bits = max(max(e0.int_bits, e1.int_bits), max(e2.int_bits, e3.int_bits))
         frac_bits = max(max(e0.frac_bits, e1.frac_bits), max(e2.frac_bits, e3.frac_bits))
+        assert frac_bits == 0, "Not expected fractional bits"
         return UQT(int_bits, frac_bits)
     
     def impl(e0: Node, e1: Node, e2: Node, e3: Node) -> Node:
-        return uq_max(uq_max(e0, e1), uq_max(e2, e3))
+        def bit_not(x: Node) -> Node:
+            return basic_invert(x=x, out=x.copy())
+        
+        def bit_and(x: Node, y: Node) -> Node:
+            return basic_and(x=x, y=y, out=x.copy())
+        
+        def bit_or(x: Node, y: Node) -> Node:
+            return basic_or(x=x, y=y, out=x.copy())
+        
+        def or_tree(bits: list[Node]) -> Node:
+            acc = bits[0]
+            for b in bits[1:]:
+                acc = bit_or(acc, b)
+            return acc
+        
+        def concat(high: Node, low: Node) -> Node:
+            int_bits = uq_add(_uq_int_bits(high), _uq_int_bits(low))
+            out = _uq_alloc(int_bits, Const(UQ.from_int(0)))
+            return basic_concat(x=high, y=low, out=out)
+        
+        inputs = [e0, e1, e2, e3]
+        
+        # That's a bad move, it steps away from AST to pure integers
+        int_bits = max(x.node_type.int_bits for x in inputs)
+        frac_bits = max(x.node_type.frac_bits for x in inputs)
+        bit_width = int_bits + frac_bits
+        
+        zero_bit = Const(UQ(0, 1, 0))
+        
+        ep_bits = []
+        for exp in inputs:
+            bits = [zero_bit]
+            for pos in range(bit_width-1, -1, -1):
+                bits.append(uq_select(exp, pos, pos))
+            ep_bits.append(bits)
+        
+        smaller = [[zero_bit] for _ in range(len(inputs))]
+        maxexp = [zero_bit]
+        
+        for i in range(1, bit_width+1):
+            data_for_or = []
+            max_prev = maxexp[i-1]
+            for j in range(len(inputs)):
+                prev_bit = ep_bits[j][i-1]
+                curr_bit = ep_bits[j][i]
+                prev_is_smaller = smaller[j][i-1]
+                
+                curr_is_smaller = bit_or(bit_and(max_prev, bit_not(prev_bit)), prev_is_smaller)
+                res = bit_not(curr_is_smaller)
+                
+                smaller[j].append(curr_is_smaller)
+                
+                candidate = bit_and(curr_bit, res)
+                data_for_or.append(candidate)
+            
+            maxexp.append(or_tree(data_for_or))
+        
+        bits = maxexp[1:]  # drop the leading 0, keep MSB→LSB
+        out = bits[0]
+        for b in bits[1:]:
+            out = concat(out, b)
+        return out
     
-    return Composite(spec=spec,
-                     impl=impl,
-                     sign=sign,
-                     args=[e0, e1, e2, e3],
-                     name="MAX_EXPONENT4")
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[e0, e1, e2, e3],
+        name="OPTIMIZED_MAX_EXP4"
+    )
 
-def ADDER_TREE4(x0: Node, x1: Node, x2: Node, x3: Node) -> Composite:
-    def spec(x0: float, x1: float, x2: float, x3: float) -> float:
-        return (x0 + x1) + (x2 + x3)
+if __name__ == '__main__':
+    inputs = [Var(f"arg_{i}", sign=UQT(7,0)) for i in range(4)]
+    design = OPTIMIZED_MAX_EXP4(*inputs)
+    design.print_tree(depth=1)
     
-    def sign(x0: QT, x1: QT, x2: QT, x3: QT) -> QT:
-        frac_bits = max(max(x0.frac_bits, x1.frac_bits), max(x2.frac_bits, x3.frac_bits))
-        int_bits = max(max(x0.int_bits, x1.int_bits), max(x2.int_bits, x3.int_bits)) + 2
-        return QT(int_bits, frac_bits)
-    
-    def impl(x0: Node, x1: Node, x2: Node, x3: Node) -> Node:
-        res1 = q_add(x0, x1)
-        res2 = q_add(x2, x3)
-        return q_add(res1, res2)
-    
-    return Composite(spec=spec,
-                     impl=impl,
-                     sign=sign,
-                     args=[x0, x1, x2, x3],
-                     name="ADDER_TREE4")
-
- 

@@ -33,15 +33,15 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         S_a, M_a, E_a = [0] * N, [0] * N, [0] * N
         S_b, M_b, E_b = [0] * N, [0] * N, [0] * N
         
-        S_a[0], M_a[0], E_a[0] = BF16_decode(a0)
-        S_a[1], M_a[1], E_a[1] = BF16_decode(a1)
-        S_a[2], M_a[2], E_a[2] = BF16_decode(a2)
-        S_a[3], M_a[3], E_a[3] = BF16_decode(a3)
+        S_a[0], M_a[0], E_a[0] = bf16_decode(a0)
+        S_a[1], M_a[1], E_a[1] = bf16_decode(a1)
+        S_a[2], M_a[2], E_a[2] = bf16_decode(a2)
+        S_a[3], M_a[3], E_a[3] = bf16_decode(a3)
         
-        S_b[0], M_b[0], E_b[0] = BF16_decode(b0)
-        S_b[1], M_b[1], E_b[1] = BF16_decode(b1)
-        S_b[2], M_b[2], E_b[2] = BF16_decode(b2)
-        S_b[3], M_b[3], E_b[3] = BF16_decode(b3)
+        S_b[0], M_b[0], E_b[0] = bf16_decode(b0)
+        S_b[1], M_b[1], E_b[1] = bf16_decode(b1)
+        S_b[2], M_b[2], E_b[2] = bf16_decode(b2)
+        S_b[3], M_b[3], E_b[3] = bf16_decode(b3)
         
         ########## CONSTANTS ###############
         
@@ -56,7 +56,10 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]  # UQ9.0
         
         # Step 2. Calculate maximum exponent
-        E_m = MAX_EXPONENT4(*E_p)  # UQ9.0
+        E_m = uq_max(  
+            uq_max(E_p[0], E_p[1]),
+            uq_max(E_p[2], E_p[3]),
+        )  # UQ9.0
         
         # Step 3. Calculate global shifts
         Sh_p = [uq_sub(E_m, E_p[i]) for i in range(N)]
@@ -76,13 +79,16 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         M_p = [uq_rshift(M_p[i], Sh_p[i]) for i in range(N)]
         
         # Step 4. Adjust sign for mantissas using xor operation
-        S_p = [uq_xor(S_a[i], S_b[i]) for i in range(N)]
+        S_p = [sign_xor(S_a[i], S_b[i]) for i in range(N)]
         
         M_p = [uq_to_q(M_p[i]) for i in range(N)] # Q3.{Wf - 2}
         M_p = [q_add_sign(M_p[i], S_p[i]) for i in range(N)]
         
         # Step 5. Adder tree
-        M_sum = ADDER_TREE4(*M_p) # Q5.{Wf - 2}
+        M_sum = q_add(
+            q_add(M_p[0], M_p[1]),
+            q_add(M_p[2], M_p[3]),
+        )  # Q5.{Wf - 2}
         
         ########## RESULT ##################
          # Subtract bias that is left! 
@@ -105,17 +111,17 @@ if __name__ == '__main__':
     
     # Compile design
     a = [
-        Var(name="a_0", signature=BFloat16T()),
-        Var(name="a_1", signature=BFloat16T()),
-        Var(name="a_2", signature=BFloat16T()),
-        Var(name="a_3", signature=BFloat16T()),
+        Var(name="a_0", sign=BFloat16T()),
+        Var(name="a_1", sign=BFloat16T()),
+        Var(name="a_2", sign=BFloat16T()),
+        Var(name="a_3", sign=BFloat16T()),
     ]
     
     b = [
-        Var(name="b_0", signature=BFloat16T()),
-        Var(name="b_1", signature=BFloat16T()),
-        Var(name="b_2", signature=BFloat16T()),
-        Var(name="b_3", signature=BFloat16T()),
+        Var(name="b_0", sign=BFloat16T()),
+        Var(name="b_1", sign=BFloat16T()),
+        Var(name="b_2", sign=BFloat16T()),
+        Var(name="b_3", sign=BFloat16T()),
     ]
     
     design = Conventional(*a, *b)
@@ -129,5 +135,5 @@ if __name__ == '__main__':
         for i in range(N):
             a[i].load_val(random_gen())
             b[i].load_val(random_gen())
-        tqdm.write(str(design.evaluate()[0]))
+        tqdm.write(str(design.evaluate()))
 

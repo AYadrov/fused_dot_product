@@ -3,6 +3,7 @@ import typing as tp
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
+from fused_dot_product.numtypes.Q import _q_alloc
 
 ########### Private Helpers ############
 
@@ -10,9 +11,6 @@ def _uq_aligner(x: Node,
                 y: Node,
                 int_aggr: tp.Callable,
                 frac_aggr: tp.Callable) -> Op:
-    def spec(x, y):
-        return x, y
-    
     def sign(x: UQT, y: UQT) -> TupleT:
         int_bits = int_aggr(x.int_bits, y.int_bits)
         frac_bits = frac_aggr(x.frac_bits, y.frac_bits)
@@ -38,17 +36,13 @@ def _uq_aligner(x: Node,
         return Tuple(align(x), align(y))
     
     return Op(
-        spec=spec,
         impl=impl,
-        signature=sign,
+        sign=sign,
         args=[x, y],
         name="_uq_aligner")
 
 
 def _uq_select_shape(x: Node, start: int, end: int) -> Op:
-    def spec(x):
-        return 0.0
-    
     def sign(x: UQT) -> UQT:
         frac_bits = max(0, min(start, x.frac_bits - 1) - end + 1) if x.frac_bits > 0 else 0
         width = start - end + 1
@@ -62,35 +56,66 @@ def _uq_select_shape(x: Node, start: int, end: int) -> Op:
         return UQ(0, int_bits, frac_bits)
     
     return Op(
-        spec=spec,
         impl=impl,
-        signature=sign,
+        sign=sign,
         args=[x],
         name="_uq_select_shape")
 
 
+# Function does not care about int_bits/frac_bits types, it takes their values
+# Allocates UQ at runtime
+def _uq_alloc(int_bits: Node,
+             frac_bits: Node) -> Op:
+    def sign(int_bits: StaticType, frac_bits: StaticType) -> UQT:
+        if int_bits.runtime_val is not None and frac_bits.runtime_val is not None:
+            return UQT(int_bits.runtime_val.val, frac_bits.runtime_val.val)
+        raise TypeError("_uq_alloc's arguments depend on a variable")
+    
+    def impl(int_bits: RuntimeType, frac_bits: RuntimeType) -> UQ:
+        return UQ(0, int_bits.val, frac_bits.val)
+    
+    return Op(
+        sign=sign,
+        impl=impl,
+        args=[int_bits, frac_bits],
+        name="_uq_alloc")
+
+
+# These functions are possible because x.node_type is known at compile time and does not change
+def _uq_frac_bits(x: Node) -> Node:
+    assert isinstance(x.node_type, UQT)
+    return Const(UQ.from_int(x.node_type.frac_bits))
+
+def _uq_int_bits(x: Node) -> Node:
+    assert isinstance(x.node_type, UQT)
+    return Const(UQ.from_int(x.node_type.int_bits))
+
+
 ############## Public API ##############
 
-def uq_zero_extend(x: Node, n: int) -> Op:
+def uq_zero_extend(x: Node, n: int) -> Primitive:
     assert isinstance(n, int) and n >= 0
-    def spec(x):
-        return x
-    
     def sign(x: UQT) -> UQT:
         return UQT(x.int_bits + n, x.frac_bits)
     
-    def impl(x: UQ) -> Tuple:
-        return UQ(x.val, x.int_bits + n, x.frac_bits)
+    def spec(x):
+        return x
     
-    return Op(
+    def impl(x: Node) -> Node:
+        int_bits = uq_add(_uq_int_bits(x), Const(UQ.from_int(n)))
+        frac_bits = _uq_frac_bits(x)
+        out = _uq_alloc(int_bits, frac_bits)
+        return basic_identity(x=x, out=out)
+    
+    return Primitive(
         spec=spec,
         impl=impl,
-        signature=sign,
+        sign=sign,
         args=[x],
         name="uq_zero_extend")
 
 
-def uq_add(x: Node, y: Node) -> Composite:
+def uq_add(x: Node, y: Node) -> Primitive:
     def spec(x: float, y: float) -> float:
         return x + y
     
@@ -113,7 +138,7 @@ def uq_add(x: Node, y: Node) -> Composite:
         )
         return root
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -121,7 +146,7 @@ def uq_add(x: Node, y: Node) -> Composite:
         name="uq_add")
 
 
-def uq_sub(x: Node, y: Node) -> Composite:
+def uq_sub(x: Node, y: Node) -> Primitive:
     def spec(x: float, y: float) -> float:
         return x - y
     
@@ -144,7 +169,7 @@ def uq_sub(x: Node, y: Node) -> Composite:
         )
         return root
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -152,7 +177,7 @@ def uq_sub(x: Node, y: Node) -> Composite:
         name="uq_sub")
 
 
-def uq_max(x: Node, y: Node) -> Composite:
+def uq_max(x: Node, y: Node) -> Primitive:
     def spec(x: float, y: float) -> float:
         return max(x, y)
     
@@ -175,7 +200,7 @@ def uq_max(x: Node, y: Node) -> Composite:
         )
         return root
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -183,7 +208,7 @@ def uq_max(x: Node, y: Node) -> Composite:
         name="uq_max")
 
 
-def uq_min(x: Node, y: Node) -> Composite:
+def uq_min(x: Node, y: Node) -> Primitive:
     def spec(x: float, y: float) -> float:
         return min(x, y)
     
@@ -206,7 +231,7 @@ def uq_min(x: Node, y: Node) -> Composite:
         )
         return root
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -214,7 +239,7 @@ def uq_min(x: Node, y: Node) -> Composite:
         name="uq_min")
 
 
-def uq_mul(x: Node, y: Node) -> Composite:
+def uq_mul(x: Node, y: Node) -> Primitive:
     def spec(x: float, y: float) -> float:
         return x * y
     
@@ -239,7 +264,7 @@ def uq_mul(x: Node, y: Node) -> Composite:
         )
         return root
     
-    return Composite(
+    return Primitive(
             spec=spec,
             impl=impl,
             sign=sign,
@@ -247,26 +272,29 @@ def uq_mul(x: Node, y: Node) -> Composite:
             name="uq_mul")
 
 
-def uq_to_q(x: Node) -> Op:
-    def impl(x: UQ) -> Q:
-        return Q(x.val, x.int_bits + 1, x.frac_bits)
-        
-    def spec(x: float) -> float:
+def uq_to_q(x: Node) -> Primitive:
+    def impl(x: Node) -> Node:
+        int_bits = uq_add(_uq_int_bits(x), Const(UQ.from_int(1)))
+        frac_bits = _uq_frac_bits(x)
+        out = _q_alloc(int_bits, frac_bits)
+        return basic_identity(x=x, out=out)
+    
+    def spec(x):
         return x
     
     def sign(x: UQT) -> QT:
         return QT(x.int_bits + 1, x.frac_bits)
     
-    return Op(
+    return Primitive(
             spec=spec,
             impl=impl,
-            signature=sign,
+            sign=sign,
             args=[x],
             name="uq_to_q")
 
 
 # TODO: spec does not match impl due to truncation
-def uq_rshift(x: Node, amount: Node) -> Composite:
+def uq_rshift(x: Node, amount: Node) -> Primitive:
     def impl(x: Node, amount: Node) -> Node:
         root = basic_rshift(
             x=x,
@@ -282,7 +310,7 @@ def uq_rshift(x: Node, amount: Node) -> Composite:
     def sign(x: UQT, amount: StaticType) -> UQT:
         return UQT(x.int_bits, x.frac_bits)
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -291,7 +319,7 @@ def uq_rshift(x: Node, amount: Node) -> Composite:
 
 
 # TODO: spec does not match impl due to truncation
-def uq_lshift(x: Node, amount: Node) -> Composite:
+def uq_lshift(x: Node, amount: Node) -> Primitive:
     def impl(x: Node, amount: Node) -> Node:
         root = basic_lshift(
             x=x,
@@ -307,7 +335,7 @@ def uq_lshift(x: Node, amount: Node) -> Composite:
     def sign(x: UQT, amount: StaticType) -> UQT:
         return UQT(x.int_bits, x.frac_bits)
     
-    return Composite(
+    return Primitive(
         spec=spec,
         impl=impl,
         sign=sign,
@@ -316,7 +344,7 @@ def uq_lshift(x: Node, amount: Node) -> Composite:
 
 
 
-def uq_select(x: Node, start: int, end: int) -> Composite:
+def uq_select(x: Node, start: int, end: int) -> Primitive:
     width = start - end + 1
     
     def spec(x: float) -> float:
@@ -332,7 +360,7 @@ def uq_select(x: Node, start: int, end: int) -> Composite:
         root = basic_select(x, start, end, out)
         return root
     
-    return Composite(
+    return Primitive(
         spec=spec,
         sign=sign,
         impl=impl,
@@ -340,182 +368,33 @@ def uq_select(x: Node, start: int, end: int) -> Composite:
         name="uq_select")
 
 
-# TODO: Truncation catch, rounding
-def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Op:
-    def spec(x: float) -> float:
+# TODO: Truncation
+def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Primitive:
+    def spec(x):
         return x
     
-    def impl(x: UQ) -> UQ:
-        # assert int_bits >= x.int_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
-        # assert frac_bits >= x.frac_bits, "USER TRIES TO TRUNCATE! NOT IMPLEMENTED YET"
+    def impl(x: Node) -> Node:
+        shift = uq_sub(
+            Const(UQ.from_int(frac_bits)), 
+            _uq_frac_bits(x),
+        )
         
-        shift = frac_bits - x.frac_bits
-        if shift >= 0:
-            val_adj = x.val << shift  # Fraction bits extension
-        else:
-            val_adj = x.val >> abs(shift)  # Fraction bits truncation
-        
-        val_masked = mask(val_adj, int_bits + frac_bits)  # Possible int bits Truncation
-        return UQ(val_masked, int_bits, frac_bits)
+        out = basic_lshift(
+            x=x, 
+            amount=shift,
+            out=Const(UQ(0, int_bits, frac_bits)),
+        )
+        return out
     
     def sign(x: UQT) -> UQT:
+        if x.int_bits > int_bits or x.frac_bits > frac_bits:
+            raise ValueError("User tries to truncate, not implemented yet")
         return UQT(int_bits, frac_bits)
     
-    return Op(
+    return Primitive(
         spec=spec,
         impl=impl,
-        signature=sign,
+        sign=sign,
         args=[x],
         name="uq_resize")
-
-########### Not Really Good ############
-
-# TODO: n is needed only for spec
-def uq_invert(x: Node, n: int) -> Op:
-    def spec(x):
-        if float(int(x)) != x:
-            raise ValueError("invert operation is not implemented yet for fractions")
-        else:
-            return (2**n - 1) - x
-   
-    def sign(x: UQT) -> UQT:
-        return x
-    
-    def impl(x: UQ) -> UQ:
-        val = ((1 << x.total_bits()) - 1) - x.val
-        return x.copy(val=val)
-    
-    return Op(
-        spec=spec,
-        signature=sign,
-        impl=impl,
-        args=[x],
-        name="uq_invert")
-
-def _uq_orer(x: Node, y: Node) -> Op:
-    def spec(x: float, y: float) -> float:
-        x_fixed = int(round(x * 2**31))
-        y_fixed = int(round(y * 2**31))
-        or_res = x_fixed | y_fixed
-        return float(or_res / 2**31)
-    
-    def sign(x: UQT, y: UQT) -> UQT:
-        int_bits = max(x.int_bits, y.int_bits)
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQT(int_bits, frac_bits)
-    
-    def impl(x: UQ, y: UQ) -> UQ:
-        int_bits = max(x.int_bits, y.int_bits)
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQ(x.val | y.val, int_bits, frac_bits)
-    
-    return Op(
-        spec=spec,
-        impl=impl,
-        signature=sign,
-        args=[x, y],
-        name="_uq_orer")
-
-
-def _uq_xorer(x: Node, y: Node) -> Op:
-    def spec(x: float, y: float) -> float:
-        x_fixed = int(round(x * 2**31))
-        y_fixed = int(round(y * 2**31))
-        or_res = x_fixed ^ y_fixed
-        return float(or_res / 2**31)
-    
-    def sign(x: UQT, y: UQT) -> UQT:
-        int_bits = max(x.int_bits, y.int_bits)
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQT(int_bits, frac_bits)
-    
-    def impl(x: UQ, y: UQ) -> UQ:
-        int_bits = max(x.int_bits, y.int_bits)
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQ(x.val ^ y.val, int_bits, frac_bits)
-    
-    return Op(
-        spec=spec,
-        impl=impl,
-        signature=sign,
-        args=[x, y],
-        name="_uq_xorer")
-            
-def uq_or(x: Node, y: Node) -> Composite:
-    def spec(x: float, y: float) -> float:
-        x_fixed = int(round(x * 2**31))
-        y_fixed = int(round(y * 2**31))
-        or_res = x_fixed | y_fixed
-        return float(or_res / 2**31)
-    
-    def sign(x: UQT, y: UQT) -> UQT:
-        int_bits = max(x.int_bits, y.int_bits)
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQT(int_bits, frac_bits)
-    
-    def impl(x: Node, y: Node) -> Node:
-        x_adj, y_adj = _uq_aligner(
-            x=x, 
-            y=y, 
-            int_aggr=lambda x, y: max(x, y), 
-            frac_aggr=lambda x, y: max(x, y),
-        )
-        impl = _uq_orer(x_adj, y_adj)
-        return impl
-    
-    return Composite(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, y],
-        name="uq_or")
-        
-        
-def uq_xor(x: Node, y: Node) -> Composite:
-    def spec(x: float, y: float) -> float:
-        x_fixed = int(round(x * 2**31))
-        y_fixed = int(round(y * 2**31))
-        or_res = x_fixed ^ y_fixed
-        return float(or_res / 2**31)
-    
-    def sign(x: UQT, y: UQT) -> UQT:
-        int_bits = max(x.int_bits, y.int_bits)
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQT(int_bits, frac_bits)
-    
-    def impl(x: Node, y: Node) -> Node:
-        x_adj, y_adj = _uq_aligner(
-            x=x, 
-            y=y, 
-            int_aggr=lambda x, y: max(x, y), 
-            frac_aggr=lambda x, y: max(x, y),
-        )
-        root = _uq_xorer(x_adj, y_adj)
-        return root
-    
-    return Composite(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, y],
-        name="uq_xor")
- 
-
-if __name__ == '__main__':
-    assert UQ_to_Q(
-                Const(UQ(val=100, int_bits=12, frac_bits=34)) 
-            ).static_typecheck() == QT(13, 34)
-    assert UQ_Mul(
-                Const(UQ(val=100, int_bits=12, frac_bits=34)),
-                Const(UQ(val=100, int_bits=34, frac_bits=12))
-            ).static_typecheck() == UQT(46, 46)
-    assert UQ_Resize(
-                Const(UQ(val=100, int_bits=12, frac_bits=34)), 
-                Const(Int(100)),
-                Const(Int(150)),
-            ).static_typecheck() == UQT(100, 150)
-    assert UQ_Rshift(
-                Const(UQ(val=100, int_bits=12, frac_bits=34)), 
-                Const(Int(8)),
-            ).static_typecheck() == UQT(12, 34)
 

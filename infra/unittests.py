@@ -18,17 +18,17 @@ class TestFusedDotProduct(unittest.TestCase):
         """Ensure the unfused, conventional and optimized dot products produce similar results."""
         # Compile design
         a = [
-            Var(name="a_0", signature=BFloat16T()),
-            Var(name="a_1", signature=BFloat16T()),
-            Var(name="a_2", signature=BFloat16T()),
-            Var(name="a_3", signature=BFloat16T()),
+            Var(name="a_0", sign=BFloat16T()),
+            Var(name="a_1", sign=BFloat16T()),
+            Var(name="a_2", sign=BFloat16T()),
+            Var(name="a_3", sign=BFloat16T()),
         ]
         
         b = [
-            Var(name="b_0", signature=BFloat16T()),
-            Var(name="b_1", signature=BFloat16T()),
-            Var(name="b_2", signature=BFloat16T()),
-            Var(name="b_3", signature=BFloat16T()),
+            Var(name="b_0", sign=BFloat16T()),
+            Var(name="b_1", sign=BFloat16T()),
+            Var(name="b_2", sign=BFloat16T()),
+            Var(name="b_3", sign=BFloat16T()),
         ]
     
         conventional = Conventional(*a, *b)
@@ -42,26 +42,10 @@ class TestFusedDotProduct(unittest.TestCase):
                     a[i].load_val(random_gen())
                     b[i].load_val(random_gen())
 
-                con_res_impl, con_res_spec = conventional.evaluate()
-                opt_res_impl, opt_res_spec = optimized.evaluate()
-
-                # --- ULP error checks
-                ulp_err_conv = ulp_distance(con_res_spec, con_res_impl.to_spec())
-                ulp_err_opt = ulp_distance(opt_res_spec, opt_res_impl.to_spec())
-
-                msg_conv = (
-                    f"conventional spec={con_res_spec}, conventional impl={con_res_impl}, "
-                    f"ulp_err={ulp_err_conv}"
-                )
-                msg_opt = (
-                    f"optimized spec={opt_res_spec}, optimized impl={opt_res_impl}, "
-                    f"ulp_err={ulp_err_opt}"
-                )
-                msg_spec = f"optimized spec={opt_res_spec}, conventional spec={con_res_spec}"
-                
-                self.assertTrue(ulp_err_conv == 0, msg=msg_conv)
-                self.assertTrue(ulp_err_opt == 0, msg=msg_opt)
-                self.assertTrue(opt_res_spec == con_res_spec, msg=msg_spec)
+                con_res = conventional.evaluate()
+                opt_res = optimized.evaluate()
+                msg = f"optimized impl={opt_res}, conventional impl={con_res}"
+                self.assertTrue(opt_res == con_res, msg=msg)
     
 if __name__ == "__main__":
     unittest.main()

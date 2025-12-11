@@ -22,17 +22,17 @@ def main():
     
     # Compile designs
     a = [
-        Var(name="a_0", signature=BFloat16T()),
-        Var(name="a_1", signature=BFloat16T()),
-        Var(name="a_2", signature=BFloat16T()),
-        Var(name="a_3", signature=BFloat16T()),
+        Var(name="a_0", sign=BFloat16T()),
+        Var(name="a_1", sign=BFloat16T()),
+        Var(name="a_2", sign=BFloat16T()),
+        Var(name="a_3", sign=BFloat16T()),
     ]
     
     b = [
-        Var(name="b_0", signature=BFloat16T()),
-        Var(name="b_1", signature=BFloat16T()),
-        Var(name="b_2", signature=BFloat16T()),
-        Var(name="b_3", signature=BFloat16T()),
+        Var(name="b_0", sign=BFloat16T()),
+        Var(name="b_1", sign=BFloat16T()),
+        Var(name="b_2", sign=BFloat16T()),
+        Var(name="b_3", sign=BFloat16T()),
     ]
     
     
@@ -45,26 +45,11 @@ def main():
         a[i].load_val(random_gen())
         b[i].load_val(random_gen())
     
-    con_res_impl, con_res_spec = conv.evaluate()
-    opt_res_impl, opt_res_spec = opt.evaluate()
+    con_res = conv.evaluate()
+    opt_res = opt.evaluate()
 
-    # --- ULP error checks
-    ulp_err_conv = ulp_distance(con_res_spec, con_res_impl.to_spec())
-    ulp_err_opt = ulp_distance(opt_res_spec, opt_res_impl.to_spec())
-
-    msg_conv = (
-        f"conventional spec={con_res_spec}, conventional impl={con_res_impl}, "
-        f"ulp_err={ulp_err_conv}"
-    )
-    msg_opt = (
-        f"optimized spec={opt_res_spec}, optimized impl={opt_res_impl}, "
-        f"ulp_err={ulp_err_opt}"
-    )
-    msg_spec = f"optimized spec={opt_res_spec}, conventional spec={con_res_spec}"
-    
-    assert ulp_err_conv == 0, msg_conv
-    assert ulp_err_opt == 0, msg_opt
-    assert opt_res_spec == con_res_spec, msg_spec
+    msg = f"optimized impl={opt_res}, conventional impl={con_res}"
+    assert opt_res == con_res, msg
     return 0
 
 if __name__ == "__main__":

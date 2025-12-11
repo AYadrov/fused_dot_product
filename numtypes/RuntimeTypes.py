@@ -24,6 +24,9 @@ class RuntimeType:
     
     def total_bits(self):
         raise NotImplementedError
+    
+    def __eq__(self, other):
+        raise NotImplementedError
 
 
 class Tuple(RuntimeType):
@@ -50,6 +53,12 @@ class Tuple(RuntimeType):
     
     def copy(self):
         return Tuple(*[x.copy() for x in self.args])
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, Tuple)
+            and all([x == y for x, y in zip(self.args, other.args)])
+        )
 
 
 class Q(RuntimeType):
@@ -57,54 +66,13 @@ class Q(RuntimeType):
     def __init__(self, val: int, int_bits: int, frac_bits: int):
         self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
         
-        assert self.int_bits >= 0
+        assert self.int_bits >= 1
         assert self.frac_bits >= 0
-        assert self.int_bits > 0 or self.frac_bits > 0
+        assert self.int_bits > 1 or self.frac_bits > 0
         assert 0 <= self.val < (1 << self.total_bits())
         
     def __str__(self):
         return f"Q{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
-    
-    @staticmethod
-    def from_int(x: int):
-        return Q(x, max(1, x.bit_length()) + 1, 0)
-    
-    @staticmethod
-    def sign_extend(x, n: int):
-        assert n >= 0, f"Extend bits can not be negative, {n} is provided"
-        total_bits = x.int_bits + x.frac_bits
-        sign = x.sign_bit()
-        upper_bits = (sign << n) - sign
-        res = x.val | (upper_bits << total_bits)
-        return Q(res, x.int_bits + n, x.frac_bits)
-    
-    @staticmethod
-    def align(x, y):
-        # Step 1. Align fractional bits
-        if x.frac_bits > y.frac_bits:
-            shift = x.frac_bits - y.frac_bits
-            y = Q(y.val << shift, y.int_bits, x.frac_bits)
-        elif x.frac_bits < y.frac_bits:
-            shift = y.frac_bits - x.frac_bits
-            x = Q(x.val << shift, x.int_bits, y.frac_bits)
-
-        # Step 2. Align integer bits
-        if x.int_bits > y.int_bits:
-            y = Q.sign_extend(y, x.int_bits - y.int_bits)
-        elif x.int_bits < y.int_bits:
-            x = Q.sign_extend(x, y.int_bits - x.int_bits)
-
-        return x, y
-    
-    def negate(self):
-        total_width = self.total_bits() 
-        neg_val = mask((~self.val + 1), total_width)
-        return Q(neg_val, self.int_bits, self.frac_bits)
-    
-    def sign_bit(self):
-        sign = self.val >> (self.total_bits() - 1)
-        assert sign in (0, 1)
-        return sign
     
     def to_spec(self):
         sign_bit = self.sign_bit()
@@ -124,6 +92,41 @@ class Q(RuntimeType):
     
     def total_bits(self):
         return self.int_bits + self.frac_bits
+        
+    # Custom methods
+    @staticmethod
+    def from_int(x: int):
+        return Q(x, max(1, x.bit_length()) + 1, 0)
+    
+    # TO BE DELETED
+    @staticmethod
+    def sign_extend(x, n: int):
+        assert n >= 0, f"Extend bits can not be negative, {n} is provided"
+        total_bits = x.int_bits + x.frac_bits
+        sign = x.sign_bit()
+        upper_bits = (sign << n) - sign
+        res = x.val | (upper_bits << total_bits)
+        return Q(res, x.int_bits + n, x.frac_bits)
+    
+    # TO BE DELETED
+    def negate(self):
+        total_width = self.total_bits() 
+        neg_val = mask((~self.val + 1), total_width)
+        return Q(neg_val, self.int_bits, self.frac_bits)
+    
+    # TO BE DELETED
+    def sign_bit(self):
+        sign = self.val >> (self.total_bits() - 1)
+        assert sign in (0, 1)
+        return sign
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, Q)
+            and other.int_bits == self.int_bits 
+            and other.frac_bits == self.frac_bits 
+            and other.val == self.val
+        )
 
 
 class UQ(RuntimeType):
@@ -144,10 +147,6 @@ class UQ(RuntimeType):
     def __str__(self):
         return f"UQ{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
     
-    @staticmethod
-    def from_int(x: int):
-        return UQ(x, max(1, x.bit_length()), 0)
-    
     def to_spec(self):
         return float(self.val) / (2 ** self.frac_bits)
     
@@ -161,6 +160,19 @@ class UQ(RuntimeType):
     
     def total_bits(self):
         return self.int_bits + self.frac_bits
+    
+    # Custom methods
+    @staticmethod
+    def from_int(x: int):
+        return UQ(x, max(1, x.bit_length()), 0)
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, UQ)
+            and other.int_bits == self.int_bits 
+            and other.frac_bits == self.frac_bits 
+            and other.val == self.val
+        )
 
 
 class Float32(RuntimeType):
@@ -236,6 +248,12 @@ class Float32(RuntimeType):
     
     def total_bits(self):
         return 32
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, Float32)
+            and self.val == other.val
+        )
 
 
 class BFloat16(RuntimeType):
@@ -303,6 +321,13 @@ class BFloat16(RuntimeType):
     
     def total_bits(self):
         return 16
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, BFloat16)
+            and self.val == other.val
+        )
+
         
 if __name__ == '__main__':
     s = Tuple(Int(2), Q(2, 2, 3))
