@@ -89,35 +89,18 @@ def _lzc(x: Node) -> Primitive:
         name="_lzc")
 
 
-def _normalize_to_1_xxx(m: Node, e: Node) -> Composite:
+def _normalize_to_1_xxx_draft(m: Node, e: Node) -> Composite:
     """
     Normalize mantissa to the 1.xxxxx range using AST primitives only.
     Returns Tuple(normalized_mantissa, adjusted_exponent).
     """
-    total_bits = m.node_type.int_bits + m.node_type.frac_bits
-    frac_bits = m.node_type.frac_bits
-
-    # Pre-compute constants as Nodes
-    width_minus_one = Const(UQ.from_int(total_bits - 1))
-    
 
     def sign(m: QT, e: QT) -> TupleT:
+        # LZC width
         width = m.int_bits + m.frac_bits
         count_bits = max(1, math.ceil(math.log2(width + 1)))
-        width_minus_one_bits = max(1, (width - 1).bit_length())
-        current_idx_bits = max(count_bits, width_minus_one_bits) + 1  # uq_sub adds +1
-
-        desired_bits = max(1, m.frac_bits.bit_length())
-        desired_q_bits = desired_bits + 1  # uq_to_q adds +1
-        current_q_bits = current_idx_bits + 1  # uq_to_q adds +1
-
-        diff_bits = max(desired_q_bits, current_q_bits) + 1  # q_sub adds +1
-        exp_int_bits = max(e.int_bits, diff_bits) + 1        # q_add/q_sub add +1
-        exp_frac_bits = e.frac_bits
-
-        mant_t = UQT(m.int_bits, m.frac_bits)
-        exp_t = QT(exp_int_bits, exp_frac_bits)
-        return TupleT(mant_t, exp_t)
+        
+        return TupleT(QT(m.int_bits, m.frac_bits), QT(e.int_bits, e.frac_bits))
 
     def impl(m: Node, e: Node) -> Node:
         magnitude = q_to_uq(q_abs(m))
@@ -131,22 +114,24 @@ def _normalize_to_1_xxx(m: Node, e: Node) -> Composite:
         shift_amount_q = q_abs(shift_amount)
         shift_amount_uq = q_to_uq(shift_amount_q)
         
+        # Loss of accuracy here
         left_m = uq_lshift(magnitude, shift_amount_uq)
         right_m = uq_rshift(magnitude, shift_amount_uq)
         norm_m = basic_mux_2_1(
             sel=shift_sign,
             in0=left_m,
             in1=right_m,
-            out=m.copy(),  # Preserve m's size
+            out=magnitude.copy(),  # Preserve mantissa size (unsigned)
         )
         
+        # Loss of accuracy here
         left_e = q_sub(e, shift_amount_q)
         right_e = q_add(e, shift_amount_q)
         norm_e = basic_mux_2_1(
             sel=shift_sign,
             in0=left_e,
             in1=right_e,
-            out=right_e.copy(),  # Preserve exponent's size
+            out=e.copy(),  # Preserve exponent's size
         )
         
         return make_Tuple(norm_m, norm_e)
@@ -161,7 +146,7 @@ def _normalize_to_1_xxx(m: Node, e: Node) -> Composite:
 
 
 # TODO: loss of accuracy, NaNs
-def Q_E_encode_Float32(m: Node, e: Node) -> Composite:
+def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
     def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
 
