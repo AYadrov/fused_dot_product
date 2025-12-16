@@ -75,7 +75,8 @@ def _lzc(x: Node) -> Primitive:
             bit = uq_select(x, pos, pos)
             is_zero = basic_invert(x=bit, out=bit.copy())
             still_zero = basic_and(x=still_zero, y=is_zero, out=still_zero.copy())
-            count = uq_add(count, still_zero)
+            # Keep the accumulator width stable by zero-extending the predicate.
+            count = basic_add(x=count, y=still_zero, out=count.copy())
         return count
     
     def sign(x: UQT) -> UQT:
@@ -89,54 +90,51 @@ def _lzc(x: Node) -> Primitive:
         name="_lzc")
 
 
-def _normalize_to_1_xxx_draft(m: Node, e: Node) -> Composite:
-    """
-    Normalize mantissa to the 1.xxxxx range using AST primitives only.
-    Returns Tuple(normalized_mantissa, adjusted_exponent).
-    """
-
-    def sign(m: QT, e: QT) -> TupleT:
-        # LZC width
+def _normalize_to_1_xxx_draft(m: Node, e: Node) -> Primitive:
+    def sign(m: UQT, e: QT) -> TupleT:
         width = m.int_bits + m.frac_bits
-        count_bits = max(1, math.ceil(math.log2(width + 1)))
+        lzc_q_width = max(1, math.ceil(math.log2(width + 1))) + 1
+        shift_magnitude_q_width = max(lzc_q_width, m.int_bits + 1) + 2
+        e_int_bits = max(lzc_q_width, shift_magnitude_q_width) + 1
         
-        return TupleT(QT(m.int_bits, m.frac_bits), QT(e.int_bits, e.frac_bits))
-
+        return TupleT(UQT(m.int_bits, m.frac_bits), QT(e_int_bits, e.frac_bits))
+    
+    # Q<a,b>, UQ<c,d>
     def impl(m: Node, e: Node) -> Node:
-        magnitude = q_to_uq(q_abs(m))
-        lzc = uq_to_q(_lzc(magnitude))
+        lzc_uq = _lzc(m)  # UQ<ceil(log2(a + b)), 0>
+        lzc_q = uq_to_q(lzc_uq)  # UQ<ceil(log2(a + b)) + 1, 0>
         
         # Shift amount = LZC - int_bits + 1
-        int_bits = uq_to_q(_uq_int_bits(magnitude))
-        shift_amount = uq_add(uq_sub(lzc, int_bits), Const(UQ.from_int(1)))
+        int_bits_q = uq_to_q(_uq_int_bits(m))
+        shift_amount_q = q_add(q_sub(lzc_q, int_bits_q), Const(Q.from_int(1)))  # UQ<max(m.int_bits, lzc_width) + 2, 0>
         
-        shift_sign = q_sign_bit(shift_amount)
-        shift_amount_q = q_abs(shift_amount)
-        shift_amount_uq = q_to_uq(shift_amount_q)
+        shift_sign_uq = q_sign_bit(shift_amount_q)
+        shift_magnitude_q = q_abs(shift_amount_q)
+        shift_magnitude_uq = q_to_uq(shift_magnitude_q)
         
         # Loss of accuracy here
-        left_m = uq_lshift(magnitude, shift_amount_uq)
-        right_m = uq_rshift(magnitude, shift_amount_uq)
-        norm_m = basic_mux_2_1(
-            sel=shift_sign,
-            in0=left_m,
-            in1=right_m,
-            out=magnitude.copy(),  # Preserve mantissa size (unsigned)
+        left_m_uq = uq_lshift(m, shift_magnitude_uq)
+        right_m_uq = uq_rshift(m, shift_magnitude_uq)
+        norm_m_uq = basic_mux_2_1(
+            sel=shift_sign_uq,
+            in0=left_m_uq,
+            in1=right_m_uq,
+            out=m.copy(),
         )
         
         # Loss of accuracy here
-        left_e = q_sub(e, shift_amount_q)
-        right_e = q_add(e, shift_amount_q)
-        norm_e = basic_mux_2_1(
-            sel=shift_sign,
-            in0=left_e,
-            in1=right_e,
-            out=e.copy(),  # Preserve exponent's size
+        left_e_q = q_sub(e, shift_magnitude_q)
+        right_e_q = q_add(e, shift_magnitude_q)
+        norm_e_q = basic_mux_2_1(
+            sel=shift_sign_uq,
+            in0=left_e_q,
+            in1=right_e_q,
+            out=right_e_q.copy(),  # Preserve exponent's size
         )
         
-        return make_Tuple(norm_m, norm_e)
-
-    return Composite(
+        return make_Tuple(norm_m_uq, norm_e_q)
+    
+    return Primitive(
         spec=None,
         impl=impl,
         sign=sign,
@@ -154,11 +152,11 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
         sign_bit = q_sign_bit(m)
         
         magnitude = q_abs(m)
-
+        
         # The heavy lifting still happens in an Op, but the wrapper is now a Composite
         # that works over AST nodes (sign extraction, magnitude adjustment).
         def _impl(m: Q, e: Q, s: UQ) -> Float32:
-
+            
             # Extracts signed bits from a signed fixed point
             def twos_complement(e: Q):
                 N = e.int_bits + e.frac_bits
@@ -166,7 +164,7 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
                     return e.val - (1 << N)
                 else:                        # sign bit is 0
                     return  e.val
-                    
+            
             def normalize_to_1_xxx(m, e, frac_bits):
                 # Normalize so that mantissa is 1.xxxxx
                 while (m >> frac_bits) == 0:
@@ -241,7 +239,7 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
             args=[magnitude, e, sign_bit],
             name="Q_E_encode_Float32_impl",
         )
-
+    
     return Composite(
         spec=None,
         impl=impl,

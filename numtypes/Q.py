@@ -187,7 +187,7 @@ def q_sign_extend(x: Node, n: int) -> Primitive:
 # Therefore, spec does not really matches for this special case
 def q_neg(x: Node) -> Primitive:
     def spec(x):
-        return -x
+        return 0.0 if x == 0 else -x
     
     def impl(x: Node) -> Node:
         x_inv = basic_invert(x, x.copy())
@@ -290,6 +290,8 @@ def q_lshift(x: Node, n: Node) -> Primitive:
 
 # assumes that x is already positive
 def q_to_uq(x: Node) -> Primitive:
+    # Local import avoids circular dependency with UQ module
+    from fused_dot_product.numtypes.UQ import _uq_alloc, uq_sub
     def impl(x: Node) -> Node:
         int_bits = uq_sub(_q_int_bits(x), Const(UQ.from_int(1)))
         frac_bits = _q_frac_bits(x)
@@ -373,4 +375,3 @@ def q_abs(x: Node) -> Primitive:
         sign=sign,
         args=[x],
         name="q_abs")
-

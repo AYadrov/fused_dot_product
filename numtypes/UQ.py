@@ -293,8 +293,9 @@ def uq_to_q(x: Node) -> Primitive:
             name="uq_to_q")
 
 
-# TODO: spec does not match impl due to truncation
+# TODO: truncation
 def uq_rshift(x: Node, amount: Node) -> Primitive:
+    x_frac_bits = x.node_type.frac_bits
     def impl(x: Node, amount: Node) -> Node:
         root = basic_rshift(
             x=x,
@@ -304,7 +305,9 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
         return root
     
     def spec(x: float, amount: float) -> float:
-        return x / (2 ** int(amount))
+        raw = int(round(x * (2 ** x_frac_bits)))
+        shifted = raw >> int(amount)
+        return float(shifted) / (2 ** x_frac_bits)
     
     # TODO: Would be nice to not care about amount type, just bits amount
     def sign(x: UQT, amount: StaticType) -> UQT:
@@ -317,9 +320,10 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
         args=[x, amount],
         name="uq_rshift")
 
-
-# TODO: spec does not match impl due to truncation
+# TODO: truncation
 def uq_lshift(x: Node, amount: Node) -> Primitive:
+    x_frac_bits = x.node_type.frac_bits
+    x_total_bits = x.node_type.int_bits + x.node_type.frac_bits
     def impl(x: Node, amount: Node) -> Node:
         root = basic_lshift(
             x=x,
@@ -329,9 +333,10 @@ def uq_lshift(x: Node, amount: Node) -> Primitive:
         return root
         
     def spec(x: float, amount: float) -> float:
-        return x * (2 ** int(amount))
+        raw = int(round(x * (2 ** x_frac_bits)))
+        shifted = (raw << int(amount)) & ((1 << x_total_bits) - 1)
+        return float(shifted) / (2 ** x_frac_bits)
     
-    # TODO: Would be nice to not care about amount type, just bits amount
     def sign(x: UQT, amount: StaticType) -> UQT:
         return UQT(x.int_bits, x.frac_bits)
     
@@ -346,9 +351,15 @@ def uq_lshift(x: Node, amount: Node) -> Primitive:
 
 def uq_select(x: Node, start: int, end: int) -> Primitive:
     width = start - end + 1
+    x_frac_bits = x.node_type.frac_bits
     
     def spec(x: float) -> float:
-        return (x // 2 ** end) % 2 ** width
+        # Interpret `x` using its fractional layout, then slice bits [start:end].
+        raw = int(round(x * (2 ** x_frac_bits)))
+        sliced = (raw >> end) & ((1 << width) - 1)
+        # The output fractional width mirrors `_uq_select_shape`.
+        out_frac_bits = max(0, min(start, x_frac_bits - 1) - end + 1) if x_frac_bits > 0 else 0
+        return float(sliced) / (2 ** out_frac_bits)
     
     def sign(x: UQT) -> UQT:
         frac_bits = max(0, min(start, x.frac_bits - 1) - end + 1) if x.frac_bits > 0 else 0
@@ -397,4 +408,3 @@ def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Primitive:
         sign=sign,
         args=[x],
         name="uq_resize")
-
