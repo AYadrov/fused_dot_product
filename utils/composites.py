@@ -12,6 +12,77 @@ from fused_dot_product.numtypes.UQ import _uq_alloc, _uq_int_bits, _uq_frac_bits
 from fused_dot_product.utils.utils import mask, round_to_the_nearest_even
 
 
+def round_to_the_nearest_even_draft(x: Node, e: Node, target_bits: int) -> Primitive:
+    x_total_bits = x.node_type.frac_bits + x.node_type.int_bits
+    bits_diff = x_total_bits - target_bits
+    
+    sign_int_bits = min(x.node_type.int_bits, target_bits)
+    sign_frac_bits = max(target_bits - x.node_type.int_bits, 0)
+
+    def sign(x_t: UQT) -> UQT:
+        return UQT(sign_int_bits, sign_frac_bits)
+
+    def impl(x: Node) -> Node:
+        # Nothing to truncate, adds more bits extend if needed
+        if bits_diff <= 0:
+            return basic_identity(x=x, out=Const(UQ(0, sign_int_bits, sign_frac_bits))
+        
+        shift_amount = Const(UQ.from_int(bits_to_truncate))
+        truncated = basic_rshift(
+            x=x,
+            amount=shift_amount,
+            out=Const(UQ(0, x.node_type.int_bits + 1, target_frac_bits)),
+        )
+        
+        guard_bit = Const(UQ.from_int(0, 1, 0))
+        round_bit = guard_bit.copy()
+        sticky_bit = guard_bit.copy()
+        lsb_bit = guard_bit.copy()
+        increment = guard_bit.copy()
+        
+        
+        # Guard/round/sticky/lsb bits
+        guard_bit = basic_select(x, bits_to_truncate-1, bits_to_truncate-1, guard_bit.copy())
+        
+        if bits_to_truncate >= 2:
+            round_bit = basic_select(x, bits_to_truncate-2, bits_to_truncate-2, round_bit.copy())
+            
+            if bits_to_truncate > 2:
+                sticky_slice = uq_select(x, bits_to_truncate-3, 0)
+                sticky_bit = basic_or_reduce(x=sticky_slice, out=sticky_bit.copy())
+
+        lsb_bit = basic_select(truncated, 0, 0, lsb_bit.copy())
+
+        increment = basic_or(round_bit, sticky_bit, out=increment.copy())
+        increment = basic_or(tail, lsb, out=increment.copy())
+        increment = basic_and(guard_bit, tail, out=increment.copy())
+        
+        adding_increment_will_overflow = basic_and_reduce(x_t, increment.copy())
+        e = basic_mux_2_1(
+            sel=adding_increment_will_overflow,
+            in0=e,
+            in1=uq_add(e, adding_increment_will_overflow)
+            out=e.copy()  # TODO: We can overflow here by doing this
+        )
+        
+        truncated = basic_mux_2_1(
+            sel=adding_increment_will_overflow,
+            in0=truncated,
+            in1=uq_add(truncated, increment)
+            out=truncated.copy()  # But here we are overflow-proof
+        )
+
+        return uq_add(truncated, increment)
+
+    return Primitive(
+        spec=None,
+        impl=impl,
+        sign=sign,
+        args=[x],
+        name=f"round_to_the_nearest_even_draft",
+    )
+
+
 def mantissa_add_implicit_bit(x: Node) -> Primitive:
     def spec(mantissa: float) -> float:
         return (float(mantissa) / (2 ** 7)) + 1.0
@@ -125,14 +196,13 @@ def normalize_to_1_xxx_draft(m: Node, e: Node) -> Primitive:
             out=m.copy(),
         )
         
-        # Loss of accuracy here
         left_e_q = q_sub(e, shift_magnitude_q)
         right_e_q = q_add(e, shift_magnitude_q)
         norm_e_q = basic_mux_2_1(
             sel=shift_sign_uq,
             in0=left_e_q,
             in1=right_e_q,
-            out=right_e_q.copy(),  # Preserve exponent's size
+            out=right_e_q.copy(),
         )
         
         return make_Tuple(norm_m_uq, norm_e_q)
@@ -146,6 +216,11 @@ def normalize_to_1_xxx_draft(m: Node, e: Node) -> Primitive:
     )
 
 
+# Alias used by tests; keeps the draft normalizer accessible without exposing internals.
+def _normalize_to_1_xxx_draft(m: Node, e: Node) -> Primitive:
+    return normalize_to_1_xxx_draft(m, e)
+
+
 # TODO: loss of accuracy, NaNs
 def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
     def sign(m: QT, e: QT) -> Float32T:
@@ -154,6 +229,30 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
     def impl(m: Node, e: Node) -> Node:
         sign_bit = q_sign_bit(m)
         m_uq = q_to_uq(q_abs(m))
+        
+        m_uq, e = normalize_to_1_xxx_draft(m_uq, e)
+        
+        e_sign_uq = q_sign_bit(e)
+        e_magnitude_uq = q_to_uq(q_abs(e))
+        
+        # if exponent is negative - it is subnormal
+        shift_if_negative = uq_add(Const(UQ.from_int(1, 1, 0)), e_magnitude_uq)
+        subnormal_shift_amount = basic_mux_2_1(
+            sel=e_sign_uq,
+            in0=Const(UQ.from_int(0, 1, 0)),
+            in1=shift_if_negative,
+            out=shift_if_negative.copy(),
+        )
+        
+        normalized_exponent_uq = basic_mux_2_1(
+            sel=e_sign_uq,
+            in0=e_magnitude_uq,
+            in1=Const(UQ.from_int(1, 1, 0)),
+            out=e_magnitude_uq.copy(),
+        )
+        # Loss of accuracy
+        normalized_m_uq = uq_rshift(m_uq, subnormal_shift_amount)
+        
         
         m_is_zero = Const(UQ.from_int(0, 1, 0))
         m_is_zero = basic_invert(
@@ -164,115 +263,16 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
             out=m_is_zero.copy(),
         )
         
-        m_uq, e = normalize_to_1_xxx_draft(m_uq, e)
         
-        e_sign_uq = q_sign_bit(e)
-        e_magnitude = q_to_uq(q_abs(e))
-        
-        # if exponent is negative - it is subnormal
-        subnormal_shift_amount = basic_mux_2_1(
-            sel=e_sign_uq,
-            in0=Const(UQ.from_int(0, 1, 0)),
-            in1=uq_add(Const(UQ.from_int(1, 1, 0)), e_magnitude),
-            out=,
-        )
-        
-        
-        
-        
-        # The heavy lifting still happens in an Op, but the wrapper is now a Composite
-        # that works over AST nodes (sign extraction, magnitude adjustment).
-        def _impl(m: Q, e: Q, s: UQ) -> Float32:
-            
-            # Extracts signed bits from a signed fixed point
-            def twos_complement(e: Q):
-                N = e.int_bits + e.frac_bits
-                if e.val & (1 << (N - 1)):   # sign bit is 1
-                    return e.val - (1 << N)
-                else:                        # sign bit is 0
-                    return  e.val
-            
-            def normalize_to_1_xxx(m, e, frac_bits):
-                # Normalize so that mantissa is 1.xxxxx
-                while (m >> frac_bits) == 0:
-                    m <<= 1
-                    e -= 1
-                
-                while (m >> (frac_bits + 1)) != 0:
-                    m >>= 1
-                    e += 1
-                return m, e
-            
-            frac_bits = m.frac_bits
-            
-            mantissa = m.val
-            exponent = twos_complement(e)
-            
-            # 0.0 * 2^e = 0.0
-            if mantissa == 0:
-                return Float32.nZero() if s.val == 1 else Float32.Zero()
-            
-            mantissa, exponent = normalize_to_1_xxx(mantissa, exponent, frac_bits)
-            
-            # Infinity
-            if exponent >= Float32.inf_code:
-                return Float32.nInf() if s.val == 1 else Float32.Inf()
-            
-            # Subnormal/zero
-            elif exponent <= 0:
-                # Shifting to 0.00000xxxx until exponent is 1 (subnormal)
-                while (mantissa != 0) and exponent < 1:
-                    mantissa >>= 1
-                    exponent += 1
-                
-                # Zero
-                if mantissa == 0:
-                    return Float32.nZero() if s.val == 1 else Float32.Zero()
-                
-                # Subnormal
-                else:
-                    mantissa = round_to_the_nearest_even(mantissa, frac_bits, Float32.mantissa_bits)
-                    
-                    # Handle rounding overflow
-                    if mantissa >> Float32.mantissa_bits:
-                        # Normal (rare case), drop implicit bit, exponent = 1
-                        mantissa = mask(mantissa, Float32.mantissa_bits)
-                        return Float32(s.val, mantissa, exponent)
-                    else:
-                        return Float32(s.val, mantissa, Float32.sub_code) # Subnormal
-            
-            # Normal value
-            else:
-                # Strip implicit leading 1 for Float32 mantissa
-                mantissa = mask(mantissa, frac_bits)
-                mantissa = round_to_the_nearest_even(mantissa, frac_bits, Float32.mantissa_bits)
-                
-                # Handle rounding overflow
-                if mantissa >> Float32.mantissa_bits:
-                    mantissa = mask(mantissa, Float32.mantissa_bits)
-                    exponent += 1
-                    # Infinity
-                    if exponent >= Float32.inf_code:
-                        return Float32.nInf() if s.val == 1 else Float32.Inf()
-                
-                return Float32(sign=s.val, mantissa=mantissa, exponent=exponent)
-        
-        def _sign(m: QT, e: QT, s: UQT) -> Float32T:
-            return Float32T()
-        
-        return Op(
-            impl=_impl,
-            sign=_sign,
-            args=[magnitude, e, sign_bit],
-            name="Q_E_encode_Float32_impl",
-        )
+        # TODO: incorporate m_is_zero into a mux to force Zero/nZero if desired.
+        return #Q_E_encode_Float32(normalized_m_q, normalized_e_q)
     
     return Composite(
         spec=None,
         impl=impl,
         sign=sign,
         args=[m, e],
-        name="Q_E_encode_Float32",
+        name="Q_E_encode_Float32_draft",
     )
 
 
