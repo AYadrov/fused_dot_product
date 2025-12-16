@@ -56,7 +56,8 @@ def sign_xor(x: Node, y: Node) -> Primitive:
         args=[x, y],
         name="sign_xor")
 
-def _lzc(x: Node) -> Primitive:
+
+def lzc(x: Node) -> Primitive:
     """Leading zero count for an unsigned fixed-point value."""
     width = x.node_type.int_bits + x.node_type.frac_bits
     frac_bits = x.node_type.frac_bits
@@ -87,10 +88,10 @@ def _lzc(x: Node) -> Primitive:
         impl=impl,
         sign=sign,
         args=[x],
-        name="_lzc")
+        name="lzc")
 
 
-def _normalize_to_1_xxx_draft(m: Node, e: Node) -> Primitive:
+def normalize_to_1_xxx_draft(m: Node, e: Node) -> Primitive:
     def sign(m: UQT, e: QT) -> TupleT:
         width = m.int_bits + m.frac_bits
         lzc_q_width = max(1, math.ceil(math.log2(width + 1))) + 1
@@ -103,7 +104,7 @@ def _normalize_to_1_xxx_draft(m: Node, e: Node) -> Primitive:
     
     # Q<a,b>, UQ<c,d>
     def impl(m: Node, e: Node) -> Node:
-        lzc_uq = _lzc(m)  # UQ<ceil(log2(a + b)), 0>
+        lzc_uq = lzc(m)  # UQ<ceil(log2(a + b)), 0>
         lzc_q = uq_to_q(lzc_uq)  # UQ<ceil(log2(a + b)) + 1, 0>
         
         # Shift amount = LZC - int_bits + 1
@@ -137,11 +138,11 @@ def _normalize_to_1_xxx_draft(m: Node, e: Node) -> Primitive:
         return make_Tuple(norm_m_uq, norm_e_q)
     
     return Primitive(
-        spec=None,
+        spec=None,  # Do not check spec for now, it should be m*e == m_*e_
         impl=impl,
         sign=sign,
         args=[m, e],
-        name="_normalize_to_1_xxx",
+        name="normalize_to_1_xxx_draft",
     )
 
 
@@ -152,8 +153,32 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
 
     def impl(m: Node, e: Node) -> Node:
         sign_bit = q_sign_bit(m)
+        m_uq = q_to_uq(q_abs(m))
         
-        magnitude = q_abs(m)
+        m_is_zero = Const(UQ.from_int(0, 1, 0))
+        m_is_zero = basic_invert(
+            x=basic_or_reduce(
+                x=m_uq,
+                out=m_is_zero.copy(),
+            ),
+            out=m_is_zero.copy(),
+        )
+        
+        m_uq, e = normalize_to_1_xxx_draft(m_uq, e)
+        
+        e_sign_uq = q_sign_bit(e)
+        e_magnitude = q_to_uq(q_abs(e))
+        
+        # if exponent is negative - it is subnormal
+        subnormal_shift_amount = basic_mux_2_1(
+            sel=e_sign_uq,
+            in0=Const(UQ.from_int(0, 1, 0)),
+            in1=uq_add(Const(UQ.from_int(1, 1, 0)), e_magnitude),
+            out=,
+        )
+        
+        
+        
         
         # The heavy lifting still happens in an Op, but the wrapper is now a Composite
         # that works over AST nodes (sign extraction, magnitude adjustment).
