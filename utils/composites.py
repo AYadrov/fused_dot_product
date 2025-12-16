@@ -94,10 +94,12 @@ def _normalize_to_1_xxx_draft(m: Node, e: Node) -> Primitive:
     def sign(m: UQT, e: QT) -> TupleT:
         width = m.int_bits + m.frac_bits
         lzc_q_width = max(1, math.ceil(math.log2(width + 1))) + 1
-        shift_magnitude_q_width = max(lzc_q_width, m.int_bits + 1) + 2
-        e_int_bits = max(lzc_q_width, shift_magnitude_q_width) + 1
         
-        return TupleT(UQT(m.int_bits, m.frac_bits), QT(e_int_bits, e.frac_bits))
+        int_bits_q_width = m.int_bits.bit_length() + 1
+        shift_magnitude_width = max(lzc_q_width, int_bits_q_width) + 2
+        e_width = max(e.int_bits, shift_magnitude_width) + 1
+        
+        return TupleT(UQT(m.int_bits, m.frac_bits), QT(e_width, e.frac_bits))
     
     # Q<a,b>, UQ<c,d>
     def impl(m: Node, e: Node) -> Node:
