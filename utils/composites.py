@@ -246,6 +246,7 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
         e_sign_uq = q_sign_bit(e)
         e_magnitude_uq = q_to_uq(q_abs(e))
         
+        ###### SUBNORMAL HANDLING ######
         # if exponent is negative - it is subnormal
         shift_if_negative = uq_add(Const(UQ.from_int(1, 1, 0)), e_magnitude_uq)
         subnormal_shift_amount = basic_mux_2_1(
@@ -255,26 +256,40 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
             out=shift_if_negative.copy(),
         )
         
-        normalized_exponent_uq = basic_mux_2_1(
+        normalized_e_uq = basic_mux_2_1(
             sel=e_sign_uq,
             in0=e_magnitude_uq,
-            in1=Const(UQ.from_int(1, 1, 0)),
+            in1=Const(UQ.from_int(0, 1, 0)),  # 0 is the encoding for subnormals
             out=e_magnitude_uq.copy(),
         )
         # Loss of accuracy
         normalized_m_uq = uq_rshift(m_uq, subnormal_shift_amount)
         
+        ########### ROUNDING ###########
         
+        final_m_uq, final_e_uq = round_to_the_nearest_even_draft(normalized_m_uq, normalized_e_uq, target_bits=23)
+        
+        ######## ZERO HANDLING #########
         m_is_zero = Const(UQ.from_int(0, 1, 0))
         m_is_zero = basic_invert(
             x=basic_or_reduce(
-                x=m_uq,
+                x=final_m_uq,
                 out=m_is_zero.copy(),
             ),
             out=m_is_zero.copy(),
         )
         
+        final_e_uq = basic_mux_2_1(
+            sel=m_is_zero,
+            in0=final_e_uq,
+            in1=Const(UQ(0, 1, 0)),
+            out=final_e_uq.copy()
+        )
         
+        ####### INFINITY HANDLING ######
+        final_e_uq
+        
+        return _float32_alloc(sign_bit, final_m_uq, final_e_uq)
         # TODO: incorporate m_is_zero into a mux to force Zero/nZero if desired.
         return #Q_E_encode_Float32(normalized_m_q, normalized_e_q)
     
