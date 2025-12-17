@@ -13,72 +13,75 @@ from fused_dot_product.utils.utils import mask, round_to_the_nearest_even
 
 
 def round_to_the_nearest_even_draft(x: Node, e: Node, target_bits: int) -> Primitive:
+    """Round unsigned fixed-point x to target_bits with IEEE ties-to-even; adjust exponent on carry."""
     x_total_bits = x.node_type.frac_bits + x.node_type.int_bits
     bits_diff = x_total_bits - target_bits
     
     sign_int_bits = min(x.node_type.int_bits, target_bits)
     sign_frac_bits = max(target_bits - x.node_type.int_bits, 0)
 
-    def sign(x_t: UQT) -> UQT:
-        return UQT(sign_int_bits, sign_frac_bits)
+    def sign(x_t: UQT, e: UQT) -> TupleT:
+        return TupleT(UQT(sign_int_bits, sign_frac_bits), e)
 
-    def impl(x: Node) -> Node:
-        # Nothing to truncate, adds more bits extend if needed
+    def impl(x: Node, e: Node) -> Node:
+        # Nothing to truncate, just forward mantissa and exponent.
         if bits_diff <= 0:
-            return basic_identity(x=x, out=Const(UQ(0, sign_int_bits, sign_frac_bits))
+            mantissa = basic_identity(x=x, out=Const(UQ(0, sign_int_bits, sign_frac_bits)))
+            return make_Tuple(mantissa, e.copy())
         
-        shift_amount = Const(UQ.from_int(bits_to_truncate))
+        shift_amount = Const(UQ.from_int(bits_diff))
         truncated = basic_rshift(
             x=x,
             amount=shift_amount,
-            out=Const(UQ(0, x.node_type.int_bits + 1, target_frac_bits)),
+            out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
         )
         
-        guard_bit = Const(UQ.from_int(0, 1, 0))
-        round_bit = guard_bit.copy()
-        sticky_bit = guard_bit.copy()
-        lsb_bit = guard_bit.copy()
-        increment = guard_bit.copy()
-        
-        
-        # Guard/round/sticky/lsb bits
-        guard_bit = basic_select(x, bits_to_truncate-1, bits_to_truncate-1, guard_bit.copy())
-        
-        if bits_to_truncate >= 2:
-            round_bit = basic_select(x, bits_to_truncate-2, bits_to_truncate-2, round_bit.copy())
-            
-            if bits_to_truncate > 2:
-                sticky_slice = uq_select(x, bits_to_truncate-3, 0)
+        guard_bit = basic_select(x, bits_diff-1, bits_diff-1, Const(UQ(0, 1, 0)))
+        round_bit = Const(UQ(0, 1, 0))
+        sticky_bit = Const(UQ(0, 1, 0))
+        if bits_diff >= 2:
+            round_bit = basic_select(x, bits_diff-2, bits_diff-2, round_bit.copy())
+            if bits_diff > 2:
+                sticky_slice = uq_select(x, bits_diff-3, 0)
                 sticky_bit = basic_or_reduce(x=sticky_slice, out=sticky_bit.copy())
 
-        lsb_bit = basic_select(truncated, 0, 0, lsb_bit.copy())
+        lsb_bit = basic_select(truncated, 0, 0, Const(UQ(0, 1, 0)))
 
-        increment = basic_or(round_bit, sticky_bit, out=increment.copy())
-        increment = basic_or(tail, lsb, out=increment.copy())
-        increment = basic_and(guard_bit, tail, out=increment.copy())
+        tail = basic_or(round_bit, sticky_bit, out=Const(UQ(0, 1, 0)))
+        tail = basic_or(tail, lsb_bit, out=tail.copy())
+        increment = basic_and(guard_bit, tail, out=Const(UQ(0, 1, 0)))
         
-        adding_increment_will_overflow = basic_and_reduce(x_t, increment.copy())
-        e = basic_mux_2_1(
-            sel=adding_increment_will_overflow,
-            in0=e,
-            in1=uq_add(e, adding_increment_will_overflow)
-            out=e.copy()  # TODO: We can overflow here by doing this
+        rounded_wide = uq_add(truncated, increment)
+        
+        total_target_bits = sign_int_bits + sign_frac_bits
+        top_index = rounded_wide.node_type.int_bits + rounded_wide.node_type.frac_bits - 1
+        carry_index = total_target_bits
+        overflow_bit = Const(UQ(0, 1, 0))
+        if carry_index <= top_index:
+            overflow_bit = basic_select(rounded_wide, carry_index, carry_index, overflow_bit.copy())
+        
+        shifted = basic_rshift(  # Is it rshift or just select???
+            x=rounded_wide,
+            amount=Const(UQ.from_int(1)),
+            out=rounded_wide.copy(),
+        )
+        rounded = basic_mux_2_1(
+            sel=overflow_bit,
+            in0=rounded_wide,
+            in1=shifted,
+            out=Const(UQ(0, sign_int_bits, sign_frac_bits)),  # Silent overflow
         )
         
-        truncated = basic_mux_2_1(
-            sel=adding_increment_will_overflow,
-            in0=truncated,
-            in1=uq_add(truncated, increment)
-            out=truncated.copy()  # But here we are overflow-proof
-        )
+        e_inc = uq_add(e, overflow_bit)
+        e_out = basic_mux_2_1(sel=overflow_bit, in0=e, in1=e_inc, out=e.copy())  # Assuming that e can not overflow (weak assumption)
 
-        return uq_add(truncated, increment)
+        return make_Tuple(rounded, e_out)
 
     return Primitive(
         spec=None,
         impl=impl,
         sign=sign,
-        args=[x],
+        args=[x, e],
         name=f"round_to_the_nearest_even_draft",
     )
 
