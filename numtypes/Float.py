@@ -8,7 +8,6 @@ def _float32_alloc(sign_bit: Node,
     def sign(sign_bit: StaticType, mantissa: StaticType, exponent: StaticType) -> Float32T:
         return Float32T()
     
-    # TODO: clamp exponent or make sure that sizes are appropriate
     def impl(sign_bit: RuntimeType, mantissa: RuntimeType, exponent: RuntimeType) -> Float32:
         return Float32(sign_bit.val, mantissa.val, exponent.val)
     

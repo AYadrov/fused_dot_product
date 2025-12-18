@@ -10,6 +10,7 @@ from fused_dot_product.numtypes.Tuple import make_Tuple
 from fused_dot_product.numtypes.UQ import *
 from fused_dot_product.numtypes.UQ import _uq_alloc, _uq_int_bits, _uq_frac_bits
 from fused_dot_product.utils.utils import mask, round_to_the_nearest_even
+from fused_dot_product.numtypes.Float import _float32_alloc
 
 
 def round_to_the_nearest_even_draft(m: Node, e: Node, target_bits: int) -> Primitive:
@@ -26,8 +27,15 @@ def round_to_the_nearest_even_draft(m: Node, e: Node, target_bits: int) -> Primi
     def impl(m: Node, e: Node) -> Node:
         e_ext = q_sign_extend(e, 1)
         # Nothing to truncate, just forward mantissa and exponent.
-        if bits_diff <= 0:
-            m = basic_identity(x=m, out=Const(UQ(0, sign_int_bits, sign_frac_bits)))
+        if bits_diff < 0:
+            # Extend mantissa with additional frac_bits
+            m = basic_concat(
+                x=m,
+                y=Const(UQ(0, abs(bits_diff), 0)),
+                out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
+            )
+            return make_Tuple(m, e_ext)
+        elif bits_diff == 0:
             return make_Tuple(m, e_ext)
         
         # Truncation
