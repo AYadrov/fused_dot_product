@@ -232,7 +232,8 @@ def _normalize_to_1_xxx_draft(m: Node, e: Node) -> Primitive:
 
 
 # TODO: loss of accuracy, NaNs
-def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
+def Q_E_encode_Float32_draft(m: Node, e: Node) -> Primitive:
+    assert e.node_type.frac_bits == 0
     def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
 
@@ -242,28 +243,23 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
         
         m_uq, e = normalize_to_1_xxx_draft(m_uq, e)
         
-        
-        
-        ########### ROUNDING ###########
-        
-        m_rounded_uq, e_rounded = round_to_the_nearest_even_draft(normalized_m_uq, normalized_e_uq, target_bits=23)
-        
-        
-        
-        
-        
-        e_sign_uq = q_sign_bit(e)
-        e_magnitude_uq = q_to_uq(q_abs(e))
+        # Here we will round mantissa to the nearest while preserving the integer part
+        target_width = Float32.mantissa_bits + m_uq.node_type.int_bits
+        m_rounded_uq, e_rounded_q = round_to_the_nearest_even_draft(m_uq, e, target_bits=target_width)
         
         ###### SUBNORMAL HANDLING ######
+        
+        e_sign_uq = q_sign_bit(e_rounded_q)
+        e_magnitude_uq = q_to_uq(q_abs(e_rounded_q))
+        
         # if exponent is less than one - it is subnormal
         e_is_zero = basic_invert(basic_or_reduce(e_magnitude_uq, Const(UQ(0, 1, 0))), Const(UQ(0, 1, 0)))
         is_subnormal = basic_or(e_is_zero, e_sign_uq, Const(UQ(0, 1, 0)))
         
-        shift_if_negative = uq_add(Const(UQ.from_int(1, 1, 0)), e_magnitude_uq)
+        shift_if_negative = uq_add(Const(UQ(1, 1, 0)), e_magnitude_uq)
         subnormal_shift_amount = basic_mux_2_1(
             sel=is_subnormal,
-            in0=Const(UQ.from_int(0, 1, 0)),
+            in0=Const(UQ(0, 1, 0)),
             in1=shift_if_negative,
             out=shift_if_negative.copy(),
         )
@@ -271,42 +267,33 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
         normalized_e_uq = basic_mux_2_1(
             sel=is_subnormal,
             in0=e_magnitude_uq,
-            in1=Const(UQ.from_int(0, 1, 0)),  # 0 is the encoding for subnormals
+            in1=Const(UQ(0, 1, 0)),  # 0 is the encoding for subnormals
             out=e_magnitude_uq.copy(),
         )
-        # Loss of accuracy
-        normalized_m_uq = uq_rshift(m_uq, subnormal_shift_amount)
+        # Shifts mantissa from 1.xxx to 0.0xxx
+        normalized_m_uq = uq_rshift(m_rounded_uq, subnormal_shift_amount)
         
-        # Drop implicit bit (if it's left in case of normal)
+        ######### IMPLICIT BIT #########
+        
+        # Drop implicit bit from ?.xxx to .xxx
         frac_bits = normalized_m_uq.node_type.frac_bits
         if frac_bits > 0:
             normalized_m_uq = uq_select(normalized_m_uq, frac_bits - 1, 0)
         else:
-            normalized_m_uq = Const(UQ.from_int(0))
+            normalized_m_uq = Const(UQ(0, 1, 0))  # Edge case
         
-        ######## ZERO HANDLING #########
-        m_is_zero = Const(UQ.from_int(0, 1, 0))
-        m_is_zero = basic_invert(
-            x=basic_or_reduce(
-                x=final_m_uq,
-                out=m_is_zero.copy(),
-            ),
-            out=m_is_zero.copy(),
-        )
-        
-        final_e_uq = basic_mux_2_1(
-            sel=m_is_zero,
-            in0=final_e_uq,
+        ######### INF HANDLING #########
+        final_e_uq = uq_min(normalized_e_uq, Const(UQ.from_int(Float32.inf_code)))
+        is_inf = basic_and_reduce(final_e_uq, out=Const(UQ(0, 1, 0)))
+        final_m_uq = basic_mux_2_1(
+            sel=is_inf,
+            in0=normalized_m_uq,
             in1=Const(UQ(0, 1, 0)),
-            out=final_e_uq.copy()
-        )
-        
-        ####### INFINITY HANDLING ######
-        final_e_uq = uq_min(final_e_uq, Const(UQ.from_int(Float32.inf_code)))
+            out=normalized_m_uq.copy())
         
         return _float32_alloc(sign_bit, final_m_uq, final_e_uq)
     
-    return Composite(
+    return Primitive(
         spec=None,
         impl=impl,
         sign=sign,
