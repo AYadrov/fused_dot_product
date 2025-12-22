@@ -42,30 +42,41 @@ class Node:
         token = self._eval_cache.set(active_cache)
         
         try:
+            out = None
             if self in active_cache:
-                return active_cache[self]
+                out = active_cache[self].copy()
+            else:
+                inputs = [arg.evaluate(active_cache) for arg in self.args]
+                out = self.impl(*inputs).copy()
+                
+                ########## CHECK BLOCK #########
+                self.dynamic_typecheck(args=inputs, out=out)
+                
+                # Check spec if Node has a spec
+                if self.spec:
+                    spec_inputs = [x.to_spec() for x in inputs]
+                    spec_out = self.spec(*spec_inputs)
+                    err_msg = (
+                        f"[{self.name}] mismatch:\n"
+                        f"  input-spec: {spec_inputs}\n"
+                        f"  input-impl: {[str(x) for x in inputs]}\n"
+                        f"  impl: {out}\n"
+                        f"  spec: {spec_out}\n"
+                        f"  spec/impl ulp: {ulp_distance(out.to_spec(), spec_out)}"
+                    )
+                    assert ulp_distance(spec_out, out.to_spec()) == 0, err_msg
+                ################################
+                # A little bit paranoid with object-mutations
+                active_cache[self] = out.copy()
+                
+                if self.node_type.runtime_val is not None:
+                    print("Static args:", [x.to_spec() for x in self.args_static])
+                    print([x.to_spec() for x in inputs])
+                    print(out, self.node_type.runtime_val, self.constant_fold)
+                    print(self.name)
+                    assert out == self.node_type.runtime_val
             
-            inputs = [arg.evaluate(active_cache) for arg in self.args]
-            out = self.impl(*inputs)
-            
-            ########## CHECK BLOCK #########
-            self.dynamic_typecheck(args=inputs, out=out)
-            
-            # Check spec if Node has a spec
-            if self.spec:
-                spec_inputs = [x.to_spec() for x in inputs]
-                spec_out = self.spec(*spec_inputs)
-                err_msg = (
-                    f"[{self.name}] mismatch:\n"
-                    f"  input-spec: {spec_inputs}\n"
-                    f"  input-impl: {[str(x) for x in inputs]}\n"
-                    f"  impl: {out}\n"
-                    f"  spec: {spec_out}\n"
-                    f"  spec/impl ulp: {ulp_distance(out.to_spec(), spec_out)}"
-                )
-                assert ulp_distance(spec_out, out.to_spec()) == 0, err_msg
-            ################################
-            active_cache[self] = out
+            # Copy to avoid any object-mutations
             return out
             
         finally:
@@ -76,18 +87,25 @@ class Node:
         # Checks that signature's annotations are StaticType
         self.primitive_signature_check()
         
-        self.args_types = [x.static_typecheck() if verify else x.node_type for x in self.args]
-        self.node_type = self.sign(*self.args_types)
+        # Clone to avoid sharing runtime_val/state across nodes.
+        self.args_types = [x.static_typecheck().copy() if verify else x.node_type for x in self.args]
+        self.node_type = self.sign(*self.args_types).copy()
         
         # Checks that signature does match with received args_types and node_type
         self.signature_match(args=self.args_types, out=self.node_type)
         
         ####### CONSTANT FOLDING #######
         runtime_vals = [arg.runtime_val for arg in self.args_types]
+        
+        
+        self.args_static = runtime_vals  # debugging
+        self.constant_fold = None
+        
+        
         if all([val is not None for val in runtime_vals]) and runtime_vals != []:
-            constant_fold = self.impl(*runtime_vals)
-            self.dynamic_typecheck(args=runtime_vals, out=constant_fold)
+            constant_fold = self.evaluate()
             self.node_type.runtime_val = constant_fold
+            self.constant_fold = constant_fold
         ################################
         
         return self.node_type
@@ -195,7 +213,7 @@ class Primitive(Node):
             return inner_tree.evaluate()
         
         super().__init__(spec=spec,
-                         impl=impl_,
+                         impl=impl,
                          sign=sign,
                          args=args,
                          name=name)
@@ -275,6 +293,9 @@ class Const(Node):
 class Var(Node):
     def __init__(self, name: str, sign: StaticType):
         self.val = None
+        # Variables should never inherit a compile-time value from their type
+        # annotation, so strip any runtime_val that might be present.
+        sign.runtime_val = None
         
         def impl():
             assert self.val is not None, f"Variable {self.name} not bound to a value"
@@ -285,7 +306,7 @@ class Var(Node):
             return self.val.to_spec()
         
         def signature() -> StaticType:
-            return sign
+            return sign.copy()
         
         super().__init__(spec=spec,
                          impl=impl,
@@ -305,13 +326,12 @@ class Var(Node):
         return f"{self.node_type}: {self.name} [Var]"
 
 
-
 def Copy(x: Node) -> Op:
     def sign(x: StaticType) -> StaticType:
         return x
     
     def impl(x):
-        return x.copy()
+        return x
     
     return Op(
         sign=sign,
@@ -336,5 +356,4 @@ def Tuple_get_item(x: Node, idx: int) -> Op:
         impl=impl,
         sign=sign,
         args=[x],
-        name="Tuple_get_item")
-
+        name=f"Tuple_get_item_{idx}")
