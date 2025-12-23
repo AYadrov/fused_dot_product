@@ -65,20 +65,11 @@ def _uq_select_shape(x: Node, start: int, end: int) -> Op:
 # Function does not care about int_bits/frac_bits types, it takes their values
 # Allocates UQ at runtime
 def _uq_alloc(int_bits: Node,
-             frac_bits: Node) -> Op:
-    def sign(int_bits: StaticType, frac_bits: StaticType) -> UQT:
-        if int_bits.runtime_val is not None and frac_bits.runtime_val is not None:
-            return UQT(int_bits.runtime_val.val, frac_bits.runtime_val.val)
-        raise TypeError("_uq_alloc's arguments depend on a variable")
+              frac_bits: Node) -> Node:
+    if int_bits.node_type.runtime_val is not None and frac_bits.node_type.runtime_val is not None:
+       raise TypeError("q_alloc's arguments depend on a variable")
     
-    def impl(int_bits: RuntimeType, frac_bits: RuntimeType) -> UQ:
-        return UQ(0, int_bits.val, frac_bits.val)
-    
-    return Op(
-        sign=sign,
-        impl=impl,
-        args=[int_bits, frac_bits],
-        name="_uq_alloc")
+    return Const(UQ(0, int_bits.node_type.runtime_val, frac_bits.node_type.runtime_val))
 
 
 # These functions are possible because x.node_type is known at compile time and does not change
@@ -125,17 +116,20 @@ def uq_add(x: Node, y: Node) -> Primitive:
         return UQT(int_bits, frac_bits)
     
     def impl(x: Node, y: Node) -> Node:
+        print("!!!!!!!!!!!!!!!!! uq_add, input: x ", x.node_type.runtime_val)
         x_adj, y_adj = _uq_aligner(
             x=x,
             y=y,
             int_aggr=lambda x, y: max(x, y) + 1,
             frac_aggr=lambda x, y: max(x, y),
         )
+        print("!!!!!!!!!!!!!!!!! uq_add, aligner: x_adj ", x_adj.node_type.runtime_val)
         root = basic_add(
             x=x_adj,
             y=y_adj,
             out=x_adj.copy(),
         )
+        print("!!!!!!!!!!!!!!!!! uq_add, basic_add: root ", root.node_type.runtime_val)
         return root
     
     return Primitive(
@@ -274,7 +268,10 @@ def uq_mul(x: Node, y: Node) -> Primitive:
 
 def uq_to_q(x: Node) -> Primitive:
     def impl(x: Node) -> Node:
-        int_bits = uq_add(_uq_int_bits(x), Const(UQ.from_int(1)))
+        s = _uq_int_bits(x)
+        print("!!!!!!!!!!!!!!! UQ Int bits: ", s.node_type.runtime_val)
+        int_bits = uq_add(s, Const(UQ.from_int(1)))
+        print("!!!!!!!!!!!!!! Int bits: ", int_bits.node_type.runtime_val)
         frac_bits = _uq_frac_bits(x)
         out = _q_alloc(int_bits, frac_bits)
         return basic_identity(x=x, out=out)
@@ -408,3 +405,6 @@ def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Primitive:
         sign=sign,
         args=[x],
         name="uq_resize")
+
+if __name__ == '__main__':
+    x = uq_to_q(Const(UQ.from_int(23)))

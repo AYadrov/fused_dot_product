@@ -72,7 +72,7 @@ class Node:
                 if self.node_type.runtime_val is not None:
                     print("Static args:", [x.to_spec() for x in self.args_static])
                     print([x.to_spec() for x in inputs])
-                    print(out, self.node_type.runtime_val, self.constant_fold)
+                    print(out, self.node_type.runtime_val)
                     print(self.name)
                     assert out == self.node_type.runtime_val
             
@@ -88,8 +88,10 @@ class Node:
         self.primitive_signature_check()
         
         # Clone to avoid sharing runtime_val/state across nodes.
-        self.args_types = [x.static_typecheck().copy() if verify else x.node_type for x in self.args]
-        self.node_type = self.sign(*self.args_types).copy()
+        # During the copy, we need to preserve runtime values
+        raw_args_types = [x.static_typecheck() if verify else x.node_type for x in self.args]
+        self.args_types = [x.copy(copy_runtime=True) for x in raw_args_types]
+        self.node_type = self.sign(*self.args_types).copy(copy_runtime=True)  # runtime is preserved as it can be Const node
         
         # Checks that signature does match with received args_types and node_type
         self.signature_match(args=self.args_types, out=self.node_type)
@@ -99,13 +101,10 @@ class Node:
         
         
         self.args_static = runtime_vals  # debugging
-        self.constant_fold = None
-        
         
         if all([val is not None for val in runtime_vals]) and runtime_vals != []:
-            constant_fold = self.evaluate()
+            constant_fold = self.impl(*runtime_vals).copy()
             self.node_type.runtime_val = constant_fold
-            self.constant_fold = constant_fold
         ################################
         
         return self.node_type
@@ -163,14 +162,18 @@ class Composite(Node):
                        sign: tp.Callable[..., StaticType],
                        args: list[Node],
                        name: str):
-        self.impl_pt = impl(*args)  # Pointer to the full tree for traverses/printing
+        # Pointer to the full tree for traverses/printing
+        self.impl_pt = impl(*args)
         
-        variables = [Var(name=f"arg_{i}", sign=x.node_type) for i, x in enumerate(args)]
-        inner_tree = impl(*variables)  # Pointer to the Composite's inner tree
+        # Args will preserve runtime values of arguments
+        args_ = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
+        # Pointer to the inner tree
+        inner_tree = impl(*args_)
         
         def impl_(*args):
-            for var, arg in zip(variables, args):
-                var.load_val(arg)
+            for var, arg in zip(args_, args):
+                if isinstance(var, Var):
+                    var.load_val(arg)
             return inner_tree.evaluate()
         
         super().__init__(spec=spec,
@@ -202,18 +205,22 @@ class Primitive(Node):
                        sign: tp.Callable[..., StaticType],
                        args: list[Node],
                        name: str):
-        self.impl_pt = impl(*args)  # Pointer to the full tree for traverses/printing
+        # Pointer to the full tree for traverses/printing
+        self.impl_pt = impl(*args)
         
-        variables = [Var(name=f"arg_{i}", sign=x.node_type) for i, x in enumerate(args)]
-        inner_tree = impl(*variables)  # Pointer to the inner tree
+        # Args will preserve runtime values of arguments
+        args_ = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
+        # Pointer to the inner tree
+        inner_tree = impl(*args_)
         
         def impl_(*args):
-            for var, arg in zip(variables, args):
-                var.load_val(arg)
-            return inner_tree.evaluate()
+            for var, arg in zip(args_, args):
+                if isinstance(var, Var):
+                    var.load_val(arg)
+            return inner_tree.evaluate()  # here is an issue, it call evaluate, at evaluate runtime_val has some garbage
         
         super().__init__(spec=spec,
-                         impl=impl,
+                         impl=impl_,
                          sign=sign,
                          args=args,
                          name=name)
@@ -293,8 +300,6 @@ class Const(Node):
 class Var(Node):
     def __init__(self, name: str, sign: StaticType):
         self.val = None
-        # Variables should never inherit a compile-time value from their type
-        # annotation, so strip any runtime_val that might be present.
         sign.runtime_val = None
         
         def impl():
