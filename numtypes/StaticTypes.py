@@ -9,8 +9,7 @@ class StaticType:
     def copy(self, copy_runtime = True) -> "StaticType":
         """Return a fresh StaticType instance with the same shape."""
         new = self._clone_impl()
-        if copy_runtime:
-            new.runtime_val = self.runtime_val
+        new.runtime_val = self.runtime_val
         return new
 
     def _clone_impl(self) -> "StaticType":

@@ -18,7 +18,7 @@ class RuntimeType:
     
     def static_type(self):
         raise NotImplementedError
-        
+    
     def copy(self):
         raise NotImplementedError
     
@@ -29,6 +29,7 @@ class RuntimeType:
         raise NotImplementedError
 
 
+# TODO: Tuple should have a default self.val field
 class Tuple(RuntimeType):
     def __init__(self, *args: RuntimeType):
         if not args:
@@ -66,9 +67,9 @@ class Q(RuntimeType):
     def __init__(self, val: int, int_bits: int, frac_bits: int):
         self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
         
-        assert self.int_bits >= 1
+        assert self.int_bits >= 0
         assert self.frac_bits >= 0
-        assert self.int_bits > 1 or self.frac_bits > 0
+        assert self.int_bits + self.frac_bits >= 2
         assert 0 <= self.val < (1 << self.total_bits())
         
     def __str__(self):
@@ -84,7 +85,7 @@ class Q(RuntimeType):
     
     def static_type(self):
         return QT(self.int_bits, self.frac_bits)
-    
+
     def copy(self, val=None):
         if val is None:
             val = self.val

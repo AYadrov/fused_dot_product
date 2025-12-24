@@ -9,10 +9,10 @@ from fused_dot_product.ast.AST import *
 
 # Function does not care about int_bits/frac_bits types, it takes their values
 def _q_alloc(int_bits: Node, frac_bits: Node) -> Node:
-    if int_bits.node_type.runtime_val is not None and frac_bits.node_type.runtime_val is not None:
+    if int_bits.node_type.runtime_val is None or frac_bits.node_type.runtime_val is None:
        raise TypeError("q_alloc's arguments depend on a variable")
     
-    return Const(Q(0, int_bits.node_type.runtime_val, frac_bits.node_type.runtime_val))
+    return Const(Q(0, int_bits.node_type.runtime_val.val, frac_bits.node_type.runtime_val.val))
 
 def q_aligner(x: Node,
                y: Node,

@@ -42,12 +42,19 @@ class Node:
         token = self._eval_cache.set(active_cache)
         
         try:
-            out = None
+            # Cache hit
             if self in active_cache:
-                out = active_cache[self].copy()
+                return active_cache[self].copy()
+            # Constant folding hit
+            elif self.node_type.runtime_val:
+                out = self.node_type.runtime_val.copy()
+                active_cache[self] = out  # not neccessary to keep that value in cache
+                return out
+            # Evaluation pass
             else:
                 inputs = [arg.evaluate(active_cache) for arg in self.args]
                 out = self.impl(*inputs).copy()
+                active_cache[self] = out  # update cache
                 
                 ########## CHECK BLOCK #########
                 self.dynamic_typecheck(args=inputs, out=out)
@@ -66,18 +73,8 @@ class Node:
                     )
                     assert ulp_distance(spec_out, out.to_spec()) == 0, err_msg
                 ################################
-                # A little bit paranoid with object-mutations
-                active_cache[self] = out.copy()
                 
-                if self.node_type.runtime_val is not None:
-                    print("Static args:", [x.to_spec() for x in self.args_static])
-                    print([x.to_spec() for x in inputs])
-                    print(out, self.node_type.runtime_val)
-                    print(self.name)
-                    assert out == self.node_type.runtime_val
-            
-            # Copy to avoid any object-mutations
-            return out
+                return out
             
         finally:
             # Erase current cache
@@ -88,23 +85,19 @@ class Node:
         self.primitive_signature_check()
         
         # Clone to avoid sharing runtime_val/state across nodes.
-        # During the copy, we need to preserve runtime values
         raw_args_types = [x.static_typecheck() if verify else x.node_type for x in self.args]
-        self.args_types = [x.copy(copy_runtime=True) for x in raw_args_types]
-        self.node_type = self.sign(*self.args_types).copy(copy_runtime=True)  # runtime is preserved as it can be Const node
+        self.args_types = [x.copy() for x in raw_args_types]  # runtime_val is preserved
+        self.node_type = self.sign(*self.args_types).copy()
+        self.node_type.runtime_val = None  # runtime_val is not preserved - calculate it below manually
         
         # Checks that signature does match with received args_types and node_type
         self.signature_match(args=self.args_types, out=self.node_type)
         
         ####### CONSTANT FOLDING #######
-        runtime_vals = [arg.runtime_val for arg in self.args_types]
-        
-        
-        self.args_static = runtime_vals  # debugging
-        
-        if all([val is not None for val in runtime_vals]) and runtime_vals != []:
-            constant_fold = self.impl(*runtime_vals).copy()
-            self.node_type.runtime_val = constant_fold
+        # If all arguments are known at compile time - apply constant folding
+        args_ = [arg.runtime_val for arg in self.args_types]
+        if all([val is not None for val in args_]) and args_ != []:
+            self.node_type.runtime_val = self.evaluate()
         ################################
         
         return self.node_type
@@ -181,7 +174,6 @@ class Composite(Node):
                          sign=sign,
                          args=args,
                          name=name)
-
 
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
@@ -267,8 +259,8 @@ class Op(Node):
 
 
 class Const(Node):
-    def __init__(self, 
-                 val: RuntimeType, 
+    def __init__(self,
+                 val: RuntimeType,
                  name: str = ""):
         self.val = val
         
@@ -279,15 +271,15 @@ class Const(Node):
             return self.val.to_spec()
         
         def sign() -> StaticType:
-            node_type = self.val.static_type()
-            node_type.runtime_val = self.val  # Constant folding for typechecking
-            return node_type
+            return self.val.static_type()
         
         super().__init__(spec=spec,
                          impl=impl,
                          sign=sign,
                          args=[],
                          name=name)
+        
+        self.node_type.runtime_val = self.val  # Constant folding for typechecking
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
@@ -300,7 +292,6 @@ class Const(Node):
 class Var(Node):
     def __init__(self, name: str, sign: StaticType):
         self.val = None
-        sign.runtime_val = None
         
         def impl():
             assert self.val is not None, f"Variable {self.name} not bound to a value"
