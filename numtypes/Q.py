@@ -8,20 +8,11 @@ from fused_dot_product.ast.AST import *
 ########### Private Helpers ############
 
 # Function does not care about int_bits/frac_bits types, it takes their values
-def _q_alloc(int_bits: Node, frac_bits: Node) -> Op:
-    def sign(x: StaticType, y: StaticType) -> QT:
-        if x.runtime_val is not None and y.runtime_val is not None:
-            return QT(x.runtime_val.val, y.runtime_val.val)
-        raise TypeError("q_alloc's arguments depend on a variable")
+def _q_alloc(int_bits: Node, frac_bits: Node) -> Node:
+    if int_bits.node_type.runtime_val is None or frac_bits.node_type.runtime_val is None:
+       raise TypeError("q_alloc's arguments depend on a variable")
     
-    def impl(x: RuntimeType, y: RuntimeType) -> Q:
-        return Q(0, x.val, y.val)
-    
-    return Op(
-        sign=sign,
-        impl=impl,
-        args=[int_bits, frac_bits],
-        name="_q_alloc")
+    return Const(Q(0, int_bits.node_type.runtime_val.val, frac_bits.node_type.runtime_val.val))
 
 def q_aligner(x: Node,
                y: Node,
@@ -187,7 +178,7 @@ def q_sign_extend(x: Node, n: int) -> Primitive:
 # Therefore, spec does not really matches for this special case
 def q_neg(x: Node) -> Primitive:
     def spec(x):
-        return -x
+        return 0.0 if x == 0 else -x
     
     def impl(x: Node) -> Node:
         x_inv = basic_invert(x, x.copy())
@@ -290,6 +281,8 @@ def q_lshift(x: Node, n: Node) -> Primitive:
 
 # assumes that x is already positive
 def q_to_uq(x: Node) -> Primitive:
+    # Local import avoids circular dependency with UQ module
+    from fused_dot_product.numtypes.UQ import _uq_alloc, uq_sub
     def impl(x: Node) -> Node:
         int_bits = uq_sub(_q_int_bits(x), Const(UQ.from_int(1)))
         frac_bits = _q_frac_bits(x)
@@ -373,4 +366,3 @@ def q_abs(x: Node) -> Primitive:
         sign=sign,
         args=[x],
         name="q_abs")
-
