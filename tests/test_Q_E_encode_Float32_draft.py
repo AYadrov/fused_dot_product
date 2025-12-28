@@ -2,9 +2,10 @@ import unittest
 import random
 
 from fused_dot_product.utils.composites import Q_E_encode_Float32_draft
-from fused_dot_product.utils.operators import Q_E_encode_Float32
+from fused_dot_product.utils.utils import ulp_distance
 from fused_dot_product.ast.AST import Const
 from fused_dot_product.numtypes.RuntimeTypes import Q
+import numpy as np
 
 
 def q_from_signed(value: int, int_bits: int, frac_bits: int = 0) -> Q:
@@ -15,13 +16,6 @@ def q_from_signed(value: int, int_bits: int, frac_bits: int = 0) -> Q:
 
 
 class TestQEncodeFloat32Draft(unittest.TestCase):
-    def _encode(self, enc_fn, mantissa: Q, exponent: Q):
-        node = enc_fn(Const(mantissa), Const(exponent))
-        try:
-            return node.evaluate()
-        except Exception as err:  # pragma: no cover - helps surface draft failures clearly
-            self.fail(f"{enc_fn.__name__} raised {err!r} for mantissa={mantissa}, exponent={exponent}")
-
     def _build_cases(self):
         cases = [
             ("zero", q_from_signed(0, 4, 3), q_from_signed(0, 5, 0)),
@@ -54,9 +48,17 @@ class TestQEncodeFloat32Draft(unittest.TestCase):
     def test_draft_matches_reference(self):
         for name, mantissa, exponent in self._build_cases():
             with self.subTest(case=name, mantissa=mantissa, exponent=exponent):
-                ref = self._encode(Q_E_encode_Float32, mantissa, exponent)
-                draft = self._encode(Q_E_encode_Float32_draft, mantissa, exponent)
-                self.assertEqual(draft.val, ref.val, "Float32 bit pattern mismatch")
+
+                # Encode using the draft AST
+                draft = Q_E_encode_Float32_draft(Const(mantissa), Const(exponent)).evaluate()
+
+                # Compute reference bits from the mathematical value per spec: m * 2^(e - bias)
+                ref = float(np.float32(mantissa.to_spec() * 2 ** (exponent.to_spec() - 127)))
+                self.assertEqual(
+                    ulp_distance(draft.to_spec(), ref), 
+                    0, 
+                    f"{name}: {draft.to_spec()} != {ref} for mantissa={mantissa}, exponent={exponent}, ulp_distace={ulp_distance(draft.to_spec(), ref)}"
+                )
 
 
 if __name__ == "__main__":

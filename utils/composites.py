@@ -9,8 +9,8 @@ from fused_dot_product.numtypes.Q import *
 from fused_dot_product.numtypes.Tuple import make_Tuple
 from fused_dot_product.numtypes.UQ import *
 from fused_dot_product.numtypes.UQ import _uq_alloc, _uq_int_bits, _uq_frac_bits
-from fused_dot_product.utils.utils import mask, round_to_the_nearest_even
 from fused_dot_product.numtypes.Float import _float32_alloc
+from fused_dot_product.utils.utils import *
 
 
 def round_to_the_nearest_even_draft(m: Node, e: Node, target_bits: int) -> Primitive:
@@ -72,13 +72,13 @@ def round_to_the_nearest_even_draft(m: Node, e: Node, target_bits: int) -> Primi
         
         # Check whether rounded_wide is overflown
         carry_index = sign_int_bits + sign_frac_bits
-        overflow_bit = basic_select(rounded_wide, carry_index, carry_index, e.copy())
+        overflow_bit = basic_select(rounded_wide, carry_index, carry_index, e.copy())  # Q<x.0>
         
         # Handling overflow
         shifted = basic_rshift(
             x=rounded_wide,
             amount=Const(UQ.from_int(1)),
-            out=rounded_wide.copy(),
+            out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
         )
         rounded = basic_mux_2_1(
             sel=overflow_bit,
@@ -181,6 +181,11 @@ def lzc(x: Node) -> Primitive:
 
 
 def normalize_to_1_xxx_draft(m: Node, e: Node) -> Primitive:
+    # mantissa is going to be normalized to 1.xxxxxx
+    # this precision will make sure that we do not lose accuracy
+    m_int_target_bits = 1
+    m_frac_target_bits = max(m.node_type.int_bits - 1, 0) + m.node_type.frac_bits
+    
     def sign(m: UQT, e: QT) -> TupleT:
         width = m.int_bits + m.frac_bits
         lzc_q_width = max(1, math.ceil(math.log2(width + 1))) + 1
@@ -189,7 +194,7 @@ def normalize_to_1_xxx_draft(m: Node, e: Node) -> Primitive:
         shift_magnitude_width = max(lzc_q_width, int_bits_q_width) + 2
         e_width = max(e.int_bits, shift_magnitude_width) + 1
         
-        return TupleT(UQT(m.int_bits, m.frac_bits), QT(e_width, e.frac_bits))
+        return TupleT(UQT(m_int_target_bits, m_frac_target_bits), QT(e_width, e.frac_bits))
     
     # Q<a,b>, UQ<c,d>
     def impl(m: Node, e: Node) -> Node:
@@ -204,14 +209,17 @@ def normalize_to_1_xxx_draft(m: Node, e: Node) -> Primitive:
         shift_magnitude_q = q_abs(shift_amount_q)
         shift_magnitude_uq = q_to_uq(shift_magnitude_q)
         
-        # Loss of accuracy here
+        # This resize operation will make sure that no loss of accuracy happens
+        # This precision is union for left or right shift case
+        m = uq_resize(m, max(m_int_target_bits, m.node_type.int_bits), m_frac_target_bits)
+        
         left_m_uq = uq_lshift(m, shift_magnitude_uq)
         right_m_uq = uq_rshift(m, shift_magnitude_uq)
         norm_m_uq = basic_mux_2_1(
             sel=shift_sign_uq,
             in0=left_m_uq,
             in1=right_m_uq,
-            out=m.copy(),
+            out=Const(UQ(0, m_int_target_bits, m_frac_target_bits)),  
         )
         
         left_e_q = q_sub(e, shift_magnitude_q)
@@ -244,14 +252,20 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Primitive:
     assert e.node_type.frac_bits == 0
     def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
+    
+    def spec(m: float, e: float) -> float:
+        return float(np.float32(m * 2 ** (int(e) - 127)))
 
     def impl(m: Node, e: Node) -> Node:
         sign_bit = q_sign_bit(m)
         m_uq = q_to_uq(q_abs(m))
         
+        
+        
         m_uq, e = normalize_to_1_xxx_draft(m_uq, e)
         
         # Here we will round mantissa to the nearest while preserving the integer part
+        # Basically it is a transformation from iii.f{arbitary} -> iii.f{target_width}
         target_width = Float32.mantissa_bits + m_uq.node_type.int_bits
         m_rounded_uq, e_rounded_q = round_to_the_nearest_even_draft(m_uq, e, target_bits=target_width)
         

@@ -376,13 +376,11 @@ def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Primitive:
         return x
     
     def impl(x: Node) -> Node:
-        shift = uq_sub(
-            Const(UQ.from_int(frac_bits)), 
-            _uq_frac_bits(x),
-        )
+        assert frac_bits >= x.node_type.frac_bits, "Truncation at uq_resize"
+        shift = Const(UQ.from_int(frac_bits - x.node_type.frac_bits))
         
         out = basic_lshift(
-            x=x, 
+            x=x,
             amount=shift,
             out=Const(UQ(0, int_bits, frac_bits)),
         )

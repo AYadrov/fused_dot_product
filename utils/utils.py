@@ -47,6 +47,9 @@ def round_to_the_nearest_even(x: int, x_len: int, target_len: int) -> int:
             x += 1
     return x
     
+def print_runtime_val(x, name: str):
+    print(f"{name}: {str(x.node_type.runtime_val)}")
+    
 def mask(x, n):
     return x & ((1 << n) - 1)
 
