@@ -260,17 +260,18 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Primitive:
         sign_bit = q_sign_bit(m)
         m_uq = q_to_uq(q_abs(m))
         
-        m_uq, e = normalize_to_1_xxx_draft(m_uq, e)
+        # Ensure enough fractional guard bits to survive large right shifts into
+        # the subnormal region.
+        min_frac = m_uq.node_type.frac_bits + Float32.exponent_bias + Float32.mantissa_bits
+        if m_uq.node_type.frac_bits < min_frac:
+            m_uq = uq_resize(m_uq, m_uq.node_type.int_bits, min_frac)
         
-        # Here we will round mantissa to the nearest while preserving the integer part
-        # Basically it is a transformation from iii.f{arbitary} -> iii.f{target_width}
-        target_width = Float32.mantissa_bits + m_uq.node_type.int_bits
-        m_rounded_uq, e_rounded_q = round_to_the_nearest_even_draft(m_uq, e, target_bits=target_width)
+        m_uq, e = normalize_to_1_xxx_draft(m_uq, e)
         
         ###### SUBNORMAL HANDLING ######
         
-        e_sign_uq = q_sign_bit(e_rounded_q)
-        e_magnitude_uq = q_to_uq(q_abs(e_rounded_q))
+        e_sign_uq = q_sign_bit(e)
+        e_magnitude_uq = q_to_uq(q_abs(e))
         
         # if exponent is less than one - it is subnormal
         e_is_zero = basic_invert(basic_or_reduce(e_magnitude_uq, Const(UQ(0, 1, 0))), Const(UQ(0, 1, 0)))
@@ -284,36 +285,42 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Primitive:
             out=shift_if_negative.copy(),
         )
         
-        normalized_e_uq = basic_mux_2_1(
-            sel=is_subnormal,
-            in0=e_magnitude_uq,
-            in1=Const(UQ(0, 1, 0)),  # 0 is the encoding for subnormals
-            out=e_magnitude_uq.copy(),
-        )
-        # Shifts mantissa from 1.xxx to 0.0xxx
-        normalized_m_uq = uq_rshift(m_rounded_uq, subnormal_shift_amount)
+        # Shift mantissa from 1.xxx to 0.0xxx when subnormal
+        m_uq = uq_rshift(m_uq, subnormal_shift_amount)
         
         ######### IMPLICIT BIT #########
         
         # Drop implicit bit from ?.xxx to .xxx
-        frac_bits = normalized_m_uq.node_type.frac_bits
+        frac_bits = m_uq.node_type.frac_bits
         if frac_bits > 0:
-            normalized_m_uq = uq_select(normalized_m_uq, frac_bits - 1, 0)
+            normalized_m_uq = uq_select(m_uq, frac_bits - 1, 0)
         else:
             normalized_m_uq = Const(UQ(0, 1, 0))  # Edge case
+            
+        ##### ROUND TO THE NEAREST #####
+        
+        target_width = Float32.mantissa_bits
+        subnormal_zero_q = Const(Q(0, e.node_type.int_bits, e.node_type.frac_bits))
+        exp_for_round_q = basic_mux_2_1(
+            sel=is_subnormal,
+            in0=e,
+            in1=subnormal_zero_q,  # Subnormals encode exponent as 0
+            out=e.copy(),
+        )
+        m_rounded_uq, e_rounded_q = round_to_the_nearest_even_draft(normalized_m_uq, exp_for_round_q, target_bits=target_width)
         
         ######### INF HANDLING #########
-        final_e_uq = basic_min(
-            normalized_e_uq, 
-            Const(UQ(Float32.inf_code, 8, 0)),
-            Const(UQ(0, 8, 0)),
+        final_e_uq_wide = uq_min(q_to_uq(e_rounded_q), Const(UQ.from_int(Float32.inf_code)))
+        final_e_uq = basic_identity(
+            x=final_e_uq_wide,
+            out=Const(UQ(0, Float32.exponent_bits, 0)),
         )
         is_inf = basic_and_reduce(final_e_uq, out=Const(UQ(0, 1, 0)))
         final_m_uq = basic_mux_2_1(
             sel=is_inf,
-            in0=normalized_m_uq,
+            in0=m_rounded_uq,
             in1=Const(UQ(0, 1, 0)),
-            out=normalized_m_uq.copy())
+            out=m_rounded_uq.copy())
         
         return _float32_alloc(sign_bit, final_m_uq, final_e_uq)
     
