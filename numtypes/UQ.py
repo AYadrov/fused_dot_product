@@ -67,7 +67,7 @@ def _uq_select_shape(x: Node, start: int, end: int) -> Op:
 def _uq_alloc(int_bits: Node,
               frac_bits: Node) -> Node:
     if int_bits.node_type.runtime_val is None or frac_bits.node_type.runtime_val is None:
-       raise TypeError("q_alloc's arguments depend on a variable")
+       raise TypeError("uq_alloc's arguments depend on a variable")
     
     return Const(UQ(0, int_bits.node_type.runtime_val.val, frac_bits.node_type.runtime_val.val))
 

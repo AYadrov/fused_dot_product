@@ -281,19 +281,18 @@ def q_lshift(x: Node, n: Node) -> Primitive:
 
 # assumes that x is already positive
 def q_to_uq(x: Node) -> Primitive:
-    # Local import avoids circular dependency with UQ module
-    from fused_dot_product.numtypes.UQ import _uq_alloc, uq_sub
+    int_bits = max(x.node_type.int_bits - 1, 0)
+    frac_bits = x.node_type.frac_bits
+    
     def impl(x: Node) -> Node:
-        int_bits = uq_sub(_q_int_bits(x), Const(UQ.from_int(1)))
-        frac_bits = _q_frac_bits(x)
-        out = _uq_alloc(int_bits, frac_bits)
-        return basic_identity(x=x, out=out)
+        return basic_identity(x=x, out=Const(UQ(0, int_bits, frac_bits)))
     
     def spec(x):
+        assert x >= 0, "q_to_uq assumes that x is positive"
         return x
     
     def sign(x: QT) -> UQT:
-        return UQT(x.int_bits - 1, x.frac_bits)
+        return UQT(int_bits, frac_bits)
     
     return Primitive(
             spec=spec,

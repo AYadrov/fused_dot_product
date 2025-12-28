@@ -58,7 +58,7 @@ def _est_local_shift(E_p: Node, s: int) -> Primitive:
         args=[E_p],
         name="_est_local_shift")
 
-
+# xxx. -> xxx11.
 def _prepend_ones(x: Node, s: int) -> Primitive:
     def spec(x):
         return x * 2**s + (2 ** s - 1)
@@ -178,7 +178,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         E_m = uq_to_q(E_m)  # Q10.0
         E_m = q_sub(E_m, bf16_bias)  # Q11.0
         
-        root = Q_E_encode_Float32(M_sum, E_m)
+        root = Q_E_encode_Float32_draft(M_sum, E_m)
         return root
     
     return Composite(

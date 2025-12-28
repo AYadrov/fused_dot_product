@@ -260,8 +260,6 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Primitive:
         sign_bit = q_sign_bit(m)
         m_uq = q_to_uq(q_abs(m))
         
-        
-        
         m_uq, e = normalize_to_1_xxx_draft(m_uq, e)
         
         # Here we will round mantissa to the nearest while preserving the integer part
@@ -305,7 +303,11 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Primitive:
             normalized_m_uq = Const(UQ(0, 1, 0))  # Edge case
         
         ######### INF HANDLING #########
-        final_e_uq = uq_min(normalized_e_uq, Const(UQ.from_int(Float32.inf_code)))
+        final_e_uq = basic_min(
+            normalized_e_uq, 
+            Const(UQ(Float32.inf_code, 8, 0)),
+            Const(UQ(0, 8, 0)),
+        )
         is_inf = basic_and_reduce(final_e_uq, out=Const(UQ(0, 1, 0)))
         final_m_uq = basic_mux_2_1(
             sel=is_inf,
