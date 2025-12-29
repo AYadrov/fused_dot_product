@@ -1,7 +1,7 @@
 import unittest
 import random
 
-from fused_dot_product.utils.composites import _normalize_to_1_xxx_draft
+from fused_dot_product.utils.composites import normalize_to_1_xxx_draft
 from fused_dot_product.ast.AST import Const
 from fused_dot_product.numtypes.RuntimeTypes import Q, UQ
 
@@ -10,7 +10,7 @@ class TestNormalizeTo1Draft(unittest.TestCase):
     """Sanity checks for the AST normalizer that should force mantissas to 1.xxxxx."""
 
     def _normalize(self, mantissa, exponent):
-        node = _normalize_to_1_xxx_draft(Const(mantissa), Const(exponent))
+        node = normalize_to_1_xxx_draft(Const(mantissa), Const(exponent))
         try:
             result = node.evaluate()
         except AssertionError as err:
