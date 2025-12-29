@@ -157,7 +157,7 @@ class Composite(Node):
         self.printing_helper = impl
         
         # Args will preserve runtime values of arguments
-        args_ = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
+        args_ = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val is not None else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         # Pointer to the inner tree
         inner_tree = impl(*args_)
         
@@ -200,7 +200,7 @@ class Primitive(Node):
         self.printing_helper = impl
         
         # Args will preserve runtime values of arguments
-        args_ = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
+        args_ = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val is not None else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         # Pointer to the inner tree
         inner_tree = impl(*args_)
         

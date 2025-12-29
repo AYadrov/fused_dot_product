@@ -6,7 +6,7 @@ class StaticType:
     def __init__(self):
         self.runtime_val = None
 
-    def copy(self, copy_runtime = True) -> "StaticType":
+    def copy(self) -> "StaticType":
         """Return a fresh StaticType instance with the same shape."""
         new = self._clone_impl()
         new.runtime_val = self.runtime_val
