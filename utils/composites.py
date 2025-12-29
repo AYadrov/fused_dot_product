@@ -261,13 +261,14 @@ def Q_E_encode_Float32_draft(m: Node, e: Node) -> Primitive:
         
         ###### SUBNORMAL HANDLING ######
         
-        e_sign_uq = q_sign_bit(e)
+        e_sign_uq = q_sign_bit(normalized_e_q)
         e_magnitude_uq = q_to_uq(q_abs(normalized_e_q))
         
         # if exponent is less than one - it is subnormal
         e_is_zero = basic_invert(basic_or_reduce(e_magnitude_uq, Const(UQ(0, 1, 0))), Const(UQ(0, 1, 0)))
         is_subnormal = basic_or(e_is_zero, e_sign_uq, Const(UQ(0, 1, 0)))
         
+        # make sure that the shift makes exponent to be 1 if subnormal
         shift_if_subnormal = uq_add(Const(UQ(1, 1, 0)), e_magnitude_uq)
         subnormal_shift_amount = basic_mux_2_1(
             sel=is_subnormal,
