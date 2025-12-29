@@ -1,20 +1,18 @@
 import math
 
 from fused_dot_product.ast.AST import *
-from fused_dot_product.config import *
 
 from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.numtypes.StaticTypes import TupleT
 from fused_dot_product.numtypes.Q import *
-from fused_dot_product.numtypes.Tuple import make_Tuple
 from fused_dot_product.numtypes.UQ import *
 from fused_dot_product.numtypes.UQ import _uq_alloc, _uq_int_bits, _uq_frac_bits
-from fused_dot_product.utils.utils import mask, round_to_the_nearest_even
+from fused_dot_product.utils.utils import *
 
 
 def mantissa_add_implicit_bit(x: Node) -> Primitive:
+    int_bits = x.node_type.int_bits
     def spec(mantissa: float) -> float:
-        return (float(mantissa) / (2 ** 7)) + 1.0
+        return (float(mantissa) / (2 ** int_bits)) + 1.0
     
     def sign(mantissa: UQT) -> UQT:
         assert mantissa.frac_bits == 0
@@ -24,7 +22,7 @@ def mantissa_add_implicit_bit(x: Node) -> Primitive:
         return basic_concat(
             x=Const(UQ(1, 1, 0)),  # 1.
             y=x,  # xxxxxxx.
-            out=Const(UQ(0, 1, 7)),
+            out=Const(UQ(0, 1, int_bits)),
         )
     
     return Composite(
@@ -55,201 +53,6 @@ def sign_xor(x: Node, y: Node) -> Primitive:
         impl=impl,
         args=[x, y],
         name="sign_xor")
-
-def _lzc(x: Node) -> Primitive:
-    """Leading zero count for an unsigned fixed-point value."""
-    width = x.node_type.int_bits + x.node_type.frac_bits
-    frac_bits = x.node_type.frac_bits
-    count_bits = max(1, math.ceil(math.log2(width + 1)))
-
-    def spec(x_val: float) -> float:
-        raw = int(round(x_val * (2 ** frac_bits)))
-        bits = f"{raw:0{width}b}"
-        lz = len(bits) - len(bits.lstrip("0"))
-        return float(lz)
-    
-    def impl(x: Node) -> Node:
-        count = Const(UQ(0, count_bits, 0))
-        still_zero = Const(UQ(1, 1, 0))
-        for pos in range(width - 1, -1, -1):
-            bit = uq_select(x, pos, pos)
-            is_zero = basic_invert(x=bit, out=bit.copy())
-            still_zero = basic_and(x=still_zero, y=is_zero, out=still_zero.copy())
-            count = uq_add(count, still_zero)
-        return count
-    
-    def sign(x: UQT) -> UQT:
-        return UQT(count_bits, 0)
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x],
-        name="_lzc")
-
-
-def _normalize_to_1_xxx_draft(m: Node, e: Node) -> Composite:
-    """
-    Normalize mantissa to the 1.xxxxx range using AST primitives only.
-    Returns Tuple(normalized_mantissa, adjusted_exponent).
-    """
-
-    def sign(m: QT, e: QT) -> TupleT:
-        # LZC width
-        width = m.int_bits + m.frac_bits
-        count_bits = max(1, math.ceil(math.log2(width + 1)))
-        
-        return TupleT(QT(m.int_bits, m.frac_bits), QT(e.int_bits, e.frac_bits))
-
-    def impl(m: Node, e: Node) -> Node:
-        magnitude = q_to_uq(q_abs(m))
-        lzc = uq_to_q(_lzc(magnitude))
-        
-        # Shift amount = LZC - int_bits + 1
-        int_bits = uq_to_q(_uq_int_bits(magnitude))
-        shift_amount = uq_add(uq_sub(lzc, int_bits), Const(UQ.from_int(1)))
-        
-        shift_sign = q_sign_bit(shift_amount)
-        shift_amount_q = q_abs(shift_amount)
-        shift_amount_uq = q_to_uq(shift_amount_q)
-        
-        # Loss of accuracy here
-        left_m = uq_lshift(magnitude, shift_amount_uq)
-        right_m = uq_rshift(magnitude, shift_amount_uq)
-        norm_m = basic_mux_2_1(
-            sel=shift_sign,
-            in0=left_m,
-            in1=right_m,
-            out=magnitude.copy(),  # Preserve mantissa size (unsigned)
-        )
-        
-        # Loss of accuracy here
-        left_e = q_sub(e, shift_amount_q)
-        right_e = q_add(e, shift_amount_q)
-        norm_e = basic_mux_2_1(
-            sel=shift_sign,
-            in0=left_e,
-            in1=right_e,
-            out=e.copy(),  # Preserve exponent's size
-        )
-        
-        return make_Tuple(norm_m, norm_e)
-
-    return Composite(
-        spec=None,
-        impl=impl,
-        sign=sign,
-        args=[m, e],
-        name="_normalize_to_1_xxx",
-    )
-
-
-# TODO: loss of accuracy, NaNs
-def Q_E_encode_Float32_draft(m: Node, e: Node) -> Composite:
-    def sign(m: QT, e: QT) -> Float32T:
-        return Float32T()
-
-    def impl(m: Node, e: Node) -> Node:
-        sign_bit = q_sign_bit(m)
-        
-        magnitude = q_abs(m)
-
-        # The heavy lifting still happens in an Op, but the wrapper is now a Composite
-        # that works over AST nodes (sign extraction, magnitude adjustment).
-        def _impl(m: Q, e: Q, s: UQ) -> Float32:
-
-            # Extracts signed bits from a signed fixed point
-            def twos_complement(e: Q):
-                N = e.int_bits + e.frac_bits
-                if e.val & (1 << (N - 1)):   # sign bit is 1
-                    return e.val - (1 << N)
-                else:                        # sign bit is 0
-                    return  e.val
-                    
-            def normalize_to_1_xxx(m, e, frac_bits):
-                # Normalize so that mantissa is 1.xxxxx
-                while (m >> frac_bits) == 0:
-                    m <<= 1
-                    e -= 1
-                
-                while (m >> (frac_bits + 1)) != 0:
-                    m >>= 1
-                    e += 1
-                return m, e
-            
-            frac_bits = m.frac_bits
-            
-            mantissa = m.val
-            exponent = twos_complement(e)
-            
-            # 0.0 * 2^e = 0.0
-            if mantissa == 0:
-                return Float32.nZero() if s.val == 1 else Float32.Zero()
-            
-            mantissa, exponent = normalize_to_1_xxx(mantissa, exponent, frac_bits)
-            
-            # Infinity
-            if exponent >= Float32.inf_code:
-                return Float32.nInf() if s.val == 1 else Float32.Inf()
-            
-            # Subnormal/zero
-            elif exponent <= 0:
-                # Shifting to 0.00000xxxx until exponent is 1 (subnormal)
-                while (mantissa != 0) and exponent < 1:
-                    mantissa >>= 1
-                    exponent += 1
-                
-                # Zero
-                if mantissa == 0:
-                    return Float32.nZero() if s.val == 1 else Float32.Zero()
-                
-                # Subnormal
-                else:
-                    mantissa = round_to_the_nearest_even(mantissa, frac_bits, Float32.mantissa_bits)
-                    
-                    # Handle rounding overflow
-                    if mantissa >> Float32.mantissa_bits:
-                        # Normal (rare case), drop implicit bit, exponent = 1
-                        mantissa = mask(mantissa, Float32.mantissa_bits)
-                        return Float32(s.val, mantissa, exponent)
-                    else:
-                        return Float32(s.val, mantissa, Float32.sub_code) # Subnormal
-            
-            # Normal value
-            else:
-                # Strip implicit leading 1 for Float32 mantissa
-                mantissa = mask(mantissa, frac_bits)
-                mantissa = round_to_the_nearest_even(mantissa, frac_bits, Float32.mantissa_bits)
-                
-                # Handle rounding overflow
-                if mantissa >> Float32.mantissa_bits:
-                    mantissa = mask(mantissa, Float32.mantissa_bits)
-                    exponent += 1
-                    # Infinity
-                    if exponent >= Float32.inf_code:
-                        return Float32.nInf() if s.val == 1 else Float32.Inf()
-                
-                return Float32(sign=s.val, mantissa=mantissa, exponent=exponent)
-        
-        def _sign(m: QT, e: QT, s: UQT) -> Float32T:
-            return Float32T()
-        
-        return Op(
-            impl=_impl,
-            sign=_sign,
-            args=[magnitude, e, sign_bit],
-            name="Q_E_encode_Float32_impl",
-        )
-
-    return Composite(
-        spec=None,
-        impl=impl,
-        sign=sign,
-        args=[m, e],
-        name="Q_E_encode_Float32",
-    )
-
 
 
 def OPTIMIZED_MAX_EXP4(e0: Node,

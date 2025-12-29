@@ -13,15 +13,16 @@ def _q_alloc(int_bits: Node, frac_bits: Node) -> Op:
         if x.runtime_val is not None and y.runtime_val is not None:
             return QT(x.runtime_val.val, y.runtime_val.val)
         raise TypeError("q_alloc's arguments depend on a variable")
-    
+
     def impl(x: RuntimeType, y: RuntimeType) -> Q:
         return Q(0, x.val, y.val)
-    
+
     return Op(
         sign=sign,
         impl=impl,
         args=[int_bits, frac_bits],
         name="_q_alloc")
+
 
 def q_aligner(x: Node,
                y: Node,
@@ -187,7 +188,7 @@ def q_sign_extend(x: Node, n: int) -> Primitive:
 # Therefore, spec does not really matches for this special case
 def q_neg(x: Node) -> Primitive:
     def spec(x):
-        return -x
+        return 0.0 if x == 0 else -x
     
     def impl(x: Node) -> Node:
         x_inv = basic_invert(x, x.copy())
@@ -290,17 +291,18 @@ def q_lshift(x: Node, n: Node) -> Primitive:
 
 # assumes that x is already positive
 def q_to_uq(x: Node) -> Primitive:
+    int_bits = max(x.node_type.int_bits - 1, 0)
+    frac_bits = x.node_type.frac_bits
+    
     def impl(x: Node) -> Node:
-        int_bits = uq_sub(_q_int_bits(x), Const(UQ.from_int(1)))
-        frac_bits = _q_frac_bits(x)
-        out = _uq_alloc(int_bits, frac_bits)
-        return basic_identity(x=x, out=out)
+        return basic_identity(x=x, out=Const(UQ(0, int_bits, frac_bits)))
     
     def spec(x):
+        assert x >= 0, "q_to_uq assumes that x is positive"
         return x
     
     def sign(x: QT) -> UQT:
-        return UQT(x.int_bits - 1, x.frac_bits)
+        return UQT(int_bits, frac_bits)
     
     return Primitive(
             spec=spec,
@@ -336,7 +338,10 @@ def q_rshift(x: Node, n: Node) -> Primitive:
 
 def q_add_sign(x: Node, s: Node) -> Primitive:
     def spec(x, s):
-        return x * (-1) ** s
+        if x == 0.0:
+            return 0.0
+        else:
+            return x * (-1) ** s
     
     def impl(x: Node, s: Node) -> Node:
         return basic_mux_2_1(
@@ -373,4 +378,3 @@ def q_abs(x: Node) -> Primitive:
         sign=sign,
         args=[x],
         name="q_abs")
-

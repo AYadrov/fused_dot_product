@@ -30,7 +30,7 @@ class TestFusedDotProduct(unittest.TestCase):
             Var(name="b_2", sign=BFloat16T()),
             Var(name="b_3", sign=BFloat16T()),
         ]
-    
+        
         conventional = Conventional(*a, *b)
         optimized = Optimized(*a, *b)
         
@@ -41,7 +41,7 @@ class TestFusedDotProduct(unittest.TestCase):
                 for i in range(N):
                     a[i].load_val(random_gen())
                     b[i].load_val(random_gen())
-
+                
                 con_res = conventional.evaluate()
                 opt_res = optimized.evaluate()
                 msg = f"optimized impl={opt_res}, conventional impl={con_res}"

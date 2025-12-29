@@ -196,4 +196,19 @@ def basic_identity(x: Node, out: Node) -> Op:
         out=out,
         name="basic_identity",
     )
-        
+
+def basic_or_reduce(x: Node, out: Node) -> Op:
+    return _unary_operator(
+        op=lambda x: 1 if x.val > 0 else 0,
+        x=x,
+        out=out,
+        name="basic_or_reduce",
+    )
+
+def basic_and_reduce(x: Node, out: Node) -> Op:
+    return _unary_operator(
+        op=lambda x: 1 if x.val == ((1 << x.total_bits()) - 1) else 0,
+        x=x,
+        out=out,
+        name="basic_and_reduce",
+    )

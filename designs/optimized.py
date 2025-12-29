@@ -1,9 +1,9 @@
 from fused_dot_product.ast.AST import *
 from fused_dot_product.config import *
-from fused_dot_product.utils.operators import *
-from fused_dot_product.utils.composites import *
-from fused_dot_product.designs.CSA import CSA_tree4
 
+from fused_dot_product.utils.composites import *
+from fused_dot_product.designs.encode_Float32 import *
+from fused_dot_product.designs.CSA import CSA_tree4
 from fused_dot_product.numtypes.UQ import *
 from fused_dot_product.numtypes.UQ import _uq_int_bits, _uq_frac_bits, _uq_alloc
 from fused_dot_product.numtypes.BFloat16 import *
@@ -58,7 +58,7 @@ def _est_local_shift(E_p: Node, s: int) -> Primitive:
         args=[E_p],
         name="_est_local_shift")
 
-
+# xxx. -> xxx11.
 def _prepend_ones(x: Node, s: int) -> Primitive:
     def spec(x):
         return x * 2**s + (2 ** s - 1)
@@ -178,7 +178,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         E_m = uq_to_q(E_m)  # Q10.0
         E_m = q_sub(E_m, bf16_bias)  # Q11.0
         
-        root = Q_E_encode_Float32(M_sum, E_m)
+        root = encode_Float32(M_sum, E_m)
         return root
     
     return Composite(

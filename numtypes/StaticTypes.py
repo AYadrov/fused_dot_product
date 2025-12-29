@@ -5,6 +5,15 @@ from fused_dot_product.numtypes.RuntimeTypes import *
 class StaticType:
     def __init__(self):
         self.runtime_val = None
+
+    def copy(self) -> "StaticType":
+        """Return a fresh StaticType instance with the same shape."""
+        new = self._clone_impl()
+        new.runtime_val = self.runtime_val
+        return new
+
+    def _clone_impl(self) -> "StaticType":
+        raise NotImplementedError
     
     @property
     def total_bits(self):
@@ -38,6 +47,9 @@ class QT(StaticType):
             and self.frac_bits == other.frac_bits
         )
 
+    def _clone_impl(self) -> "QT":
+        return QT(self.int_bits, self.frac_bits)
+
 
 class UQT(StaticType):
     def __init__(self, int_bits: int, frac_bits: int):
@@ -59,6 +71,9 @@ class UQT(StaticType):
             and self.int_bits == other.int_bits
             and self.frac_bits == other.frac_bits
         )
+
+    def _clone_impl(self) -> "UQT":
+        return UQT(self.int_bits, self.frac_bits)
 
 
 class Float32T(StaticType):
@@ -83,6 +98,9 @@ class Float32T(StaticType):
             and self.exponent_bits == other.exponent_bits
         )
 
+    def _clone_impl(self) -> "Float32T":
+        return Float32T()
+
 
 class BFloat16T(StaticType):
     def __init__(self):
@@ -106,6 +124,9 @@ class BFloat16T(StaticType):
             and self.exponent_bits == other.exponent_bits
         )
 
+    def _clone_impl(self) -> "BFloat16T":
+        return BFloat16T()
+
 class TupleT(StaticType):
     def __init__(self, *args: StaticType):
         super().__init__()
@@ -127,6 +148,9 @@ class TupleT(StaticType):
             and all([arg1 == arg2 for arg1, arg2 in zip(self.args, other.args)])
         )
 
+    def _clone_impl(self) -> "TupleT":
+        return TupleT(*[arg.copy() for arg in self.args])
+
 
 if __name__ == '__main__':
     print(QT(1,3))
@@ -136,5 +160,4 @@ if __name__ == '__main__':
     print(BFloat16T())
     print(TupleT(IntT(2)))
     print(TupleT(IntT(2), QT(1,3)))
-
 
