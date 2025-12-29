@@ -304,7 +304,7 @@ class Var(Node):
             return self.val.to_spec()
         
         def signature() -> StaticType:
-            return sign.copy()
+            return sign
         
         super().__init__(spec=spec,
                          impl=impl,

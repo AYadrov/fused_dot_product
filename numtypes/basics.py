@@ -23,7 +23,7 @@ def _impl_constructor(op):
 def _sign_constructor() -> StaticType:
     # To be called with arguments and output
     def sign(*args: StaticType) -> StaticType:
-        return args[-1].copy()
+        return args[-1]
     return sign
 
 

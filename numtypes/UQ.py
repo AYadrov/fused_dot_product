@@ -65,11 +65,20 @@ def _uq_select_shape(x: Node, start: int, end: int) -> Op:
 # Function does not care about int_bits/frac_bits types, it takes their values
 # Allocates UQ at runtime
 def _uq_alloc(int_bits: Node,
-              frac_bits: Node) -> Node:
-    if int_bits.node_type.runtime_val is None or frac_bits.node_type.runtime_val is None:
-       raise TypeError("uq_alloc's arguments depend on a variable")
-    
-    return Const(UQ(0, int_bits.node_type.runtime_val.val, frac_bits.node_type.runtime_val.val))
+              frac_bits: Node) -> Op:
+    def sign(int_bits: StaticType, frac_bits: StaticType) -> UQT:
+        if int_bits.runtime_val is not None and frac_bits.runtime_val is not None:
+            return UQT(int_bits.runtime_val.val, frac_bits.runtime_val.val)
+        raise TypeError("_uq_alloc's arguments depend on a variable")
+
+    def impl(int_bits: RuntimeType, frac_bits: RuntimeType) -> UQ:
+        return UQ(0, int_bits.val, frac_bits.val)
+
+    return Op(
+        sign=sign,
+        impl=impl,
+        args=[int_bits, frac_bits],
+        name="_uq_alloc")
 
 
 # These functions are possible because x.node_type is known at compile time and does not change
