@@ -338,7 +338,10 @@ def q_rshift(x: Node, n: Node) -> Primitive:
 
 def q_add_sign(x: Node, s: Node) -> Primitive:
     def spec(x, s):
-        return x * (-1) ** s
+        if x == 0.0:
+            return 0.0
+        else:
+            return x * (-1) ** s
     
     def impl(x: Node, s: Node) -> Node:
         return basic_mux_2_1(
