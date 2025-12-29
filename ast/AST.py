@@ -47,9 +47,7 @@ class Node:
                 return active_cache[self].copy()
             # Constant folding hit
             elif self.node_type.runtime_val:
-                out = self.node_type.runtime_val.copy()
-                active_cache[self] = out  # not neccessary to keep that value in cache
-                return out
+                return self.node_type.runtime_val.copy()
             # Evaluation pass
             else:
                 inputs = [arg.evaluate(active_cache) for arg in self.args]
@@ -210,7 +208,7 @@ class Primitive(Node):
             for var, arg in zip(args_, args):
                 if isinstance(var, Var):
                     var.load_val(arg)
-            return inner_tree.evaluate()  # here is an issue, it call evaluate, at evaluate runtime_val has some garbage
+            return inner_tree.evaluate()
         
         super().__init__(spec=spec,
                          impl=impl_,

@@ -275,7 +275,7 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
         return _float32_alloc(sign_bit, final_m_uq, final_e_uq)
     
     return Primitive(
-        spec=None,
+        spec=spec,
         impl=impl,
         sign=sign,
         args=[m, e],
