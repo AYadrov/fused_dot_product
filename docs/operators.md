@@ -1,6 +1,3 @@
-# Operator and Primitive Reference
-Row-per-operator index. Types are inlined in the Inputs/Output columns (e.g., `x[UQ]`, `n[int]`).
-
 ## Basic bitwise/arithmetic ops (`numtypes/basics.py`)
 | Name | Kind | Inputs | Output | Purpose/Notes |
 | --- | --- | --- | --- | --- |
