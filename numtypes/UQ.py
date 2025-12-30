@@ -4,38 +4,34 @@ from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.numtypes.Q import _q_alloc
+from fused_dot_product.numtypes.Tuple import make_Tuple
+
 
 ########### Private Helpers ############
 
 def uq_aligner(x: Node,
                 y: Node,
                 int_aggr: tp.Callable,
-                frac_aggr: tp.Callable) -> Op:
+                frac_aggr: tp.Callable) -> Primitive:
+    int_bits = int_aggr(x.node_type.int_bits, y.node_type.int_bits)
+    frac_bits = frac_aggr(x.node_type.frac_bits, y.node_type.frac_bits)      
+     
     def sign(x: UQT, y: UQT) -> TupleT:
-        int_bits = int_aggr(x.int_bits, y.int_bits)
-        frac_bits = frac_aggr(x.frac_bits, y.frac_bits)
-        
-        return TupleT(
-            UQT(int_bits, frac_bits),
-            UQT(int_bits, frac_bits),
-        )
+        return TupleT(UQT(int_bits, frac_bits), UQT(int_bits, frac_bits))
     
-    def impl(x: UQ, y: UQ) -> Tuple:
-        # TODO: Truncation
-        int_bits = int_aggr(x.int_bits, y.int_bits)
-        frac_bits = frac_aggr(x.frac_bits, y.frac_bits)
-        
+    def spec(x, y):
+        return x, y
+    
+    def impl(x: Node, y: Node) -> Node:
         def align(x):
-            if x.frac_bits < frac_bits:
-                shift = frac_bits - x.frac_bits
-                x = UQ(x.val << shift, int_bits, frac_bits)
-            else:
-                x = UQ(x.val, int_bits, frac_bits)
-            return x
+            shift = frac_bits - x.node_type.frac_bits
+            assert shift >= 0, "truncation is not implemented yet"
+            return basic_lshift(x, Const(UQ.from_int(shift)), Const(UQ(0, int_bits, frac_bits)))
         
-        return Tuple(align(x), align(y))
+        return make_Tuple(align(x), align(y))
     
-    return Op(
+    return Primitive(
+        spec=spec,
         impl=impl,
         sign=sign,
         args=[x, y],

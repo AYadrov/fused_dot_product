@@ -25,7 +25,7 @@ Row-per-operator index. Types are inlined in the Inputs/Output columns (e.g., `x
 ## Unsigned fixed-point primitives (`numtypes/UQ.py`)
 | Name | Kind | Inputs | Output | Purpose/Notes |
 | --- | --- | --- | --- | --- |
-| `uq_aligner` | Composite | `x[UQ]`, `y[UQ]`, `int_aggr[λ]`, `frac_aggr[λ]` | `Tuple[UQ, UQ]` | Align two UQs to common width. |
+| `uq_aligner` | Primitive | `x[UQ]`, `y[UQ]`, `int_aggr[λ]`, `frac_aggr[λ]` | `Tuple[UQ, UQ]` | Align two UQs to common width. |
 | `uq_zero_extend` | Primitive | `x[UQ]`, `n[int]` | `UQ` | Pad high bits with `n` zeros. |
 | `uq_add` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned add with alignment. |
 | `uq_sub` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned subtract with alignment. |
@@ -41,7 +41,7 @@ Row-per-operator index. Types are inlined in the Inputs/Output columns (e.g., `x
 ## Signed fixed-point primitives (`numtypes/Q.py`)
 | Name | Kind | Inputs | Output | Purpose/Notes |
 | --- | --- | --- | --- | --- |
-| `q_aligner` | Composite | `x[Q]`, `y[Q]`, `int_aggr[λ]`, `frac_aggr[λ]` | `Tuple[Q,Q]` | Align two Qs to common width. |
+| `q_aligner` | Primitive | `x[Q]`, `y[Q]`, `int_aggr[λ]`, `frac_aggr[λ]` | `Tuple[Q,Q]` | Align two Qs to common width. |
 | `q_sign_bit` | Primitive | `x[Q]` | `UQ<1,0>` | MSB of two's complement value. |
 | `q_sign_extend` | Primitive | `x[Q]`, `n[int]` | `Q` | Extend sign into high bits. |
 | `q_neg` | Primitive | `x[Q]` | `Q` | Two's complement negate (with min guard). |

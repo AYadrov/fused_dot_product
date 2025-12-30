@@ -3,6 +3,7 @@ import struct
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
+from fused_dot_product.numtypes.Tuple import make_Tuple
 
 
 ########### Private Helpers ############
@@ -27,41 +28,35 @@ def _q_alloc(int_bits: Node, frac_bits: Node) -> Op:
 def q_aligner(x: Node,
                y: Node,
                int_aggr: tp.Callable,
-               frac_aggr: tp.Callable) -> Op:
+               frac_aggr: tp.Callable) -> Primitive:
+    int_bits = int_aggr(x.node_type.int_bits, y.node_type.int_bits)
+    frac_bits = frac_aggr(x.node_type.frac_bits, y.node_type.frac_bits)
+   
     def sign(x: QT, y: QT) -> TupleT:
-        int_bits = int_aggr(x.int_bits, y.int_bits)
-        frac_bits = frac_aggr(x.frac_bits, y.frac_bits)
-        return TupleT(
-            QT(int_bits, frac_bits),
-            QT(int_bits, frac_bits),
-        )
+        return TupleT(QT(int_bits, frac_bits), QT(int_bits, frac_bits))
+    
+    def spec(x, y):
+        return x, y
     
     def impl(x: Q, y: Q) -> Tuple:
-        def sign_extend(x, n):
-            assert n >= 0
-            sign = x.val >> (x.total_bits() - 1)
-            upper_bits = (sign << n) - sign
-            res = x.val | (upper_bits << x.total_bits())
-            return Q(res, x.int_bits + n, x.frac_bits)
-        
-        # TODO: check if aggregation results are less then original ones
-        int_bits = int_aggr(x.int_bits, y.int_bits)
-        frac_bits = frac_aggr(x.frac_bits, y.frac_bits)
-        
         def align(x):
-            # Step 1. Align fractional bits
-            if x.frac_bits < frac_bits:
-                shift = frac_bits - x.frac_bits
-                x = Q(x.val << shift, x.int_bits, frac_bits)
+            # Step 1. Align frac bits
+            shift = frac_bits - x.node_type.frac_bits
+            assert shift >= 0, "truncation is not implemented yet"
+            x = basic_lshift(
+                x,
+                Const(UQ.from_int(shift)), 
+                Const(Q(0, x.node_type.int_bits, frac_bits)))
+                
             # Step 2. Align integer bits
-            if x.int_bits < int_bits:
-                shift = int_bits - x.int_bits
-                x = sign_extend(x, shift)
-            return x
+            shift = int_bits - x.node_type.int_bits
+            assert shift >= 0, "truncation is not implemented yet"
+            return q_sign_extend(x, shift)
         
-        return Tuple(align(x), align(y))
+        return make_Tuple(align(x), align(y))
 
-    return Op(
+    return Primitive(
+        spec=spec,
         impl=impl,
         sign=sign,
         args=[x, y],
