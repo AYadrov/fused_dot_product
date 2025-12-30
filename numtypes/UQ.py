@@ -7,7 +7,7 @@ from fused_dot_product.numtypes.Q import _q_alloc
 
 ########### Private Helpers ############
 
-def _uq_aligner(x: Node,
+def uq_aligner(x: Node,
                 y: Node,
                 int_aggr: tp.Callable,
                 frac_aggr: tp.Callable) -> Op:
@@ -39,7 +39,7 @@ def _uq_aligner(x: Node,
         impl=impl,
         sign=sign,
         args=[x, y],
-        name="_uq_aligner")
+        name="uq_aligner")
 
 
 def _uq_select_shape(x: Node, start: int, end: int) -> Op:
@@ -125,7 +125,7 @@ def uq_add(x: Node, y: Node) -> Primitive:
         return UQT(int_bits, frac_bits)
     
     def impl(x: Node, y: Node) -> Node:
-        x_adj, y_adj = _uq_aligner(
+        x_adj, y_adj = uq_aligner(
             x=x,
             y=y,
             int_aggr=lambda x, y: max(x, y) + 1,
@@ -156,7 +156,7 @@ def uq_sub(x: Node, y: Node) -> Primitive:
         return UQT(int_bits, frac_bits)
         
     def impl(x: Node, y: Node) -> Node:
-        x_adj, y_adj = _uq_aligner(
+        x_adj, y_adj = uq_aligner(
             x=x, 
             y=y, 
             int_aggr=lambda x, y: max(x, y) + 1, 
@@ -187,7 +187,7 @@ def uq_max(x: Node, y: Node) -> Primitive:
         return UQT(int_bits, frac_bits)
     
     def impl(x: Node, y: Node) -> Node:
-        x_adj, y_adj = _uq_aligner(
+        x_adj, y_adj = uq_aligner(
             x=x, 
             y=y, 
             int_aggr=lambda x, y: max(x, y), 
@@ -218,7 +218,7 @@ def uq_min(x: Node, y: Node) -> Primitive:
         return UQT(int_bits, frac_bits)
         
     def impl(x: Node, y: Node) -> Node:
-        x_adj, y_adj = _uq_aligner(
+        x_adj, y_adj = uq_aligner(
             x=x,
             y=y,
             int_aggr=lambda x, y: max(x, y), 
@@ -250,7 +250,7 @@ def uq_mul(x: Node, y: Node) -> Primitive:
     
     def impl(x: Node, y: Node) -> Node:
         # Ugly
-        out, _ = _uq_aligner(
+        out, _ = uq_aligner(
             x=x,
             y=y,
             int_aggr=lambda x, y: x + y,

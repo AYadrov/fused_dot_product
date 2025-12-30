@@ -25,39 +25,31 @@ Row-per-operator index. Types are inlined in the Inputs/Output columns (e.g., `x
 ## Unsigned fixed-point primitives (`numtypes/UQ.py`)
 | Name | Kind | Inputs | Output | Purpose/Notes |
 | --- | --- | --- | --- | --- |
-| `_uq_select_shape` | Op | `x[UQ]`, `start[int]`, `end[int]` | `Tuple[int_bits, frac_bits]` | Determine slice shape. |
-| `_uq_alloc` | Op | `int_bits[Any]`, `frac_bits[Any]` | `UQ<int_bits, frac_bits>` | Allocate UQ of given width. |
-| `_uq_frac_bits` | Op | `x[UQ]` | `UQ<int>` | Extract fractional width. |
-| `_uq_int_bits` | Op | `x[UQ]` | `UQ<int>` | Extract integer width. |
-| `_uq_aligner` | Composite | `x[UQ]`, `y[UQ]` | `Tuple[UQ, UQ]` | Align two UQs to common width. |
+| `uq_aligner` | Composite | `x[UQ]`, `y[UQ]`, `int_aggr[λ]`, `frac_aggr[λ]` | `Tuple[UQ, UQ]` | Align two UQs to common width. |
 | `uq_zero_extend` | Primitive | `x[UQ]`, `n[int]` | `UQ` | Pad high bits with `n` zeros. |
 | `uq_add` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned add with alignment. |
 | `uq_sub` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned subtract with alignment. |
-| `uq_max` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned max. |
-| `uq_min` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned min. |
-| `uq_mul` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned multiply. |
+| `uq_max` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned max with alignment. |
+| `uq_min` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned min with alignment. |
+| `uq_mul` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned multiply with alignment. |
 | `uq_to_q` | Primitive | `x[UQ]` | `Q` | Convert to signed (adds sign bit). |
-| `uq_rshift` | Primitive | `x[UQ]`, `amount[Any]` | `UQ` | Logical right shift with resize. |
-| `uq_lshift` | Primitive | `x[UQ]`, `amount[Any]` | `UQ` | Logical left shift with resize. |
+| `uq_rshift` | Primitive | `x[UQ]`, `amount[Any]` | `UQ` | Logical right shift without resize. |
+| `uq_lshift` | Primitive | `x[UQ]`, `amount[Any]` | `UQ` | Logical left shift without resize. |
 | `uq_select` | Primitive | `x[UQ]`, `start[int]`, `end[int]` | `UQ` | Bit slice. |
 | `uq_resize` | Primitive | `x[UQ]`, `int_bits[int]`, `frac_bits[int]` | `UQ` | Resize/round toward zero. |
 
 ## Signed fixed-point primitives (`numtypes/Q.py`)
 | Name | Kind | Inputs | Output | Purpose/Notes |
 | --- | --- | --- | --- | --- |
-| `_q_alloc` | Op | `int_bits[Any]`, `frac_bits[Any]` | `Q` | Allocate signed width. |
-| `q_aligner` | Composite | `x[Q]`, `y[Q]` | `Tuple[Q,Q]` | Align two Qs to common width. |
-| `_q_frac_bits` | Op | `x[Q]` | `UQ` | Extract fractional width. |
-| `_q_int_bits` | Op | `x[Q]` | `UQ` | Extract integer width. |
-| `_q_is_min_val` | Op | `x[Q]` | `UQ<1,0>` | Detect min representable value. |
+| `q_aligner` | Composite | `x[Q]`, `y[Q]`, `int_aggr[λ]`, `frac_aggr[λ]` | `Tuple[Q,Q]` | Align two Qs to common width. |
 | `q_sign_bit` | Primitive | `x[Q]` | `UQ<1,0>` | MSB of two's complement value. |
 | `q_sign_extend` | Primitive | `x[Q]`, `n[int]` | `Q` | Extend sign into high bits. |
 | `q_neg` | Primitive | `x[Q]` | `Q` | Two's complement negate (with min guard). |
 | `q_add` | Primitive | `x[Q]`, `y[Q]` | `Q` | Signed addition with alignment. |
 | `q_sub` | Primitive | `x[Q]`, `y[Q]` | `Q` | Signed subtraction with alignment. |
-| `q_lshift` | Primitive | `x[Q]`, `n[Any]` | `Q` | Logical left shift with resize. |
+| `q_lshift` | Primitive | `x[Q]`, `n[Any]` | `Q` | Logical left shift without resize. |
 | `q_to_uq` | Primitive | `x[Q]` | `UQ` | Drop sign bit. |
-| `q_rshift` | Primitive | `x[Q]`, `n[Any]` | `Q` | Arithmetic right shift with resize. |
+| `q_rshift` | Primitive | `x[Q]`, `n[Any]` | `Q` | Arithmetic right shift without resize. |
 | `q_add_sign` | Primitive | `x[Q]`, `s[UQ<1,0>]` | `Q` | Apply sign bit to unsigned magnitude. |
 | `q_abs` | Primitive | `x[Q]` | `Q` | Absolute value (safe at min). |
 
@@ -77,7 +69,7 @@ Row-per-operator index. Types are inlined in the Inputs/Output columns (e.g., `x
 ## Composite helpers (`utils/composites.py`)
 | Name | Kind | Inputs | Output | Purpose/Notes |
 | --- | --- | --- | --- | --- |
-| `mantissa_add_implicit_bit` | Composite | `mantissa[UQ<7,0>]` | `UQ<1.x>` | Prefix implicit leading 1. |
+| `mantissa_add_implicit_bit` | Composite | `mantissa[UQ<x,0>]` | `UQ<1,x>` | Prefix implicit leading 1. |
 | `sign_xor` | Primitive | `x[UQ<1,0>]`, `y[UQ<1,0>]` | `UQ<1,0>` | Combine sign bits. |
 | `OPTIMIZED_MAX_EXP4` | Primitive | `e0..e3[UQ]` | `UQ` | Max of four exponents via bitwise tree. |
 
