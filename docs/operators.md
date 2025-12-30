@@ -1,6 +1,3 @@
-# Operator and Primitive Reference
-Row-per-operator index. Kind uses repo terminology: Op (pure bit op), Primitive (typed wrapper), Composite (multi-node implementation).
-
 ## Basic bitwise/arithmetic ops (`numtypes/basics.py`)
 | Name | Kind | Inputs | Output | Purpose/Notes |
 | --- | --- | --- | --- | --- |
@@ -27,10 +24,10 @@ Row-per-operator index. Kind uses repo terminology: Op (pure bit op), Primitive 
 | --- | --- | --- | --- | --- |
 | Private | | | |
 | `_uq_select_shape` | Op | `x`, `start`, `end` | `Tuple[int_bits, frac_bits]` | Determine slice shape. |
-| `_uq_alloc` | Op | `int_bits`, `frac_bits` | `UQ` | Allocate UQ of given width. |
+| `_uq_alloc` | Op | `int_bits`, `frac_bits` | `UQ` | Allocate dynamically UQ of given width. |
 | `_uq_frac_bits` | Op | `x` | `UQ` | Extract fractional width. |
 | `_uq_int_bits` | Op | `x` | `UQ` | Extract integer width. |
-| `_uq_aligner` | Composite | `x`, `y`, aggregators | aligned `x`, `y` | Internal aligner used by arithmetic. |
+| `_uq_aligner` | Composite | `x`, `y`, aggregators | aligned `x`, `y` | Internal aligner. |
 | Public | | | |
 | `uq_zero_extend` | Primitive | `x`, `n` | widened `UQ` | Pad high `n` bits with zeros. |
 | `uq_add` | Primitive | `x`, `y` | `UQ` | Addition of two `UQ`s with proper alignment. |
@@ -73,7 +70,7 @@ Row-per-operator index. Kind uses repo terminology: Op (pure bit op), Primitive 
 | `_bf16_exponent` | Op | `x` | `UQ<8,0>` | Extract exponent bits. |
 | `_bf16_sign` | Op | `x` | `UQ<1,0>` | Extract sign bit. |
 | Public | | | |
-| `bf16_decode` | Primitive | `x` | `Tuple[`UQ<1,0>`, `UQ<7,0>`, `UQ<8,0>`]` | Split BF16 into components. |
+| `bf16_decode` | Primitive | `x` | `Tuple[UQ<1,0>, UQ<7,0>, UQ<8,0>]` | Split BF16 into components. |
 
 ## Float helpers (`numtypes/Float.py`)
 | Name | Kind | Inputs | Output | Purpose/Notes |
@@ -84,7 +81,7 @@ Row-per-operator index. Kind uses repo terminology: Op (pure bit op), Primitive 
 ## Composite helpers (`utils/composites.py`)
 | Name | Kind | Inputs | Output | Purpose/Notes |
 | --- | --- | --- | --- | --- |
-| `mantissa_add_implicit_bit` | Composite | `mantissa` | `UQ1.x` | Prefix implicit leading 1. |
+| `mantissa_add_implicit_bit` | Composite | `mantissa` | `UQ<1.x>` | Prefix implicit leading 1. |
 | `sign_xor` | Primitive | `x`, `y` | `UQ<1,0>` | Combine sign bits. |
 | `OPTIMIZED_MAX_EXP4` | Primitive | `e0..e3` | `UQ` | Max of four exponents via an optimized bitwise tree. |
 
