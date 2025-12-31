@@ -29,7 +29,7 @@
 ## Unsigned fixed-point primitives (`numtypes/UQ.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
-| `uq_aligner` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> int_aggr<em><int -> int -> int></em> -> frac_aggr<em><int -> int -> int></em> -> (UQ<int_aggr(I1,I2), frac_aggr(F1,F2)> x UQ<int_aggr(I1,I2), frac_aggr(F1,F2)>)` | Align two UQs to a common width. |
+| `uq_aligner` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> int_aggr<int -> int -> int> -> frac_aggr<int -> int -> int> -> (UQ<int_aggr(I1,I2), frac_aggr(F1,F2)> x UQ<int_aggr(I1,I2), frac_aggr(F1,F2)>)` | Align two UQs to a common width. |
 | `uq_zero_extend` | Primitive | `UQ<I,F> -> n<int> -> UQ<I+n,F>` | Pad high bits with `n` zeros. |
 | `uq_add` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> UQ<max(I1,I2)+1, max(F1,F2)>` | Unsigned add with alignment and carry bit. |
 | `uq_sub` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> UQ<max(I1,I2)+1, max(F1,F2)>` | Unsigned subtract with alignment and borrow bit. |
@@ -45,7 +45,7 @@
 ## Signed fixed-point primitives (`numtypes/Q.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
-| `q_aligner` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> int_aggr<em><int -> int -> int></em> -> frac_aggr<em><int -> int -> int></em> -> (Q<int_aggr(I1,I2), frac_aggr(F1,F2)> x Q<int_aggr(I1,I2), frac_aggr(F1,F2)>)` | Align two Qs to a common width. |
+| `q_aligner` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> int_aggr<int -> int -> int> -> frac_aggr<int -> int -> int> -> (Q<int_aggr(I1,I2), frac_aggr(F1,F2)> x Q<int_aggr(I1,I2), frac_aggr(F1,F2)>)` | Align two Qs to a common width. |
 | `q_sign_bit` | Primitive | `Q<I,F> -> UQ<1,0>` | MSB of two's complement value. |
 | `q_sign_extend` | Primitive | `Q<I,F> -> n<int> -> Q<I+n, F>` | Extend sign into high bits. |
 | `q_neg` | Primitive | `Q<I,F> -> Q<I,F>` | Two's complement negate (special-case overflow at min). |
