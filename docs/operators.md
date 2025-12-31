@@ -1,97 +1,104 @@
+### Type notation
+- `Q<I,F>`: signed fixed-point with `I` integer and `F` fractional bits; `UQ<I,F>` unsigned.
+- `BFloat16`, `Float32`: IEEE754 formats.
+- `T`: arbitrary bitvector type, `Any`: unconstrained node chosen by caller.
+- `x`: tuple: explicit output node supplied by caller (shape must match the result).
+- `n<int>, s<int> etc.`: literal integers passed as Python args, not nodes.
+
 ## Basic bitwise/arithmetic ops (`numtypes/basics.py`)
-| Name | Kind | Inputs | Output | Purpose/Notes |
-| --- | --- | --- | --- | --- |
-| `basic_mux_2_1` | Op | `sel`, `in0`, `in1`, `out` | `out` | 2:1 mux. |
-| `basic_add` | Op | `x`, `y`, `out` | `out` | Aligned addition. |
-| `basic_sub` | Op | `x`, `y`, `out` | `out` | Aligned subtraction. |
-| `basic_mul` | Op | `x`, `y`, `out` | `out` | Aligned multiplication. |
-| `basic_max` | Op | `x`, `y`, `out` | `out` | Bitwise max. |
-| `basic_min` | Op | `x`, `y`, `out` | `out` | Bitwise min. |
-| `basic_rshift` | Op | `x`, `amount`, `out` | `out` | Logical right shift. |
-| `basic_lshift` | Op | `x`, `amount`, `out` | `out` | Logical left shift. |
-| `basic_or` | Op | `x`, `y`, `out` | `out` | Bitwise OR. |
-| `basic_xor` | Op | `x`, `y`, `out` | `out` | Bitwise XOR. |
-| `basic_and` | Op | `x`, `y`, `out` | `out` | Bitwise AND. |
-| `basic_concat` | Op | `x`, `y`, `out` | `out` | Bitwise concatenate. |
-| `basic_select` | Op | `x`, `start`, `end`, `out` | `out` | Inclusive bit slice. |
-| `basic_invert` | Op | `x`, `out` | `out` | Bitwise NOT. |
-| `basic_identity` | Op | `x`, `out` | `out` | Identity/cast. |
-| `basic_or_reduce` | Op | `x`, `out` | `out` | OR-reduce across bits. |
-| `basic_and_reduce` | Op | `x`, `out` | `out` | AND-reduce across bits. |
+| Name | Kind | Type | Purpose/Notes |
+| --- | --- | --- | --- |
+| `basic_mux_2_1` | Op | `Any -> Any -> Any -> T -> T` | 2:1 mux. |
+| `basic_add` | Op | `Any -> Any -> T -> T` | Aligned addition. |
+| `basic_sub` | Op | `Any -> Any -> T -> T` | Aligned subtraction. |
+| `basic_mul` | Op | `Any -> Any -> T -> T` | Aligned multiplication. |
+| `basic_max` | Op | `Any -> Any -> T -> T` | Bitwise max. |
+| `basic_min` | Op | `Any -> Any -> T -> T` | Bitwise min. |
+| `basic_rshift` | Op | `Any -> Any -> T -> T` | Logical right shift. |
+| `basic_lshift` | Op | `Any -> Any -> T -> T` | Logical left shift. |
+| `basic_or` | Op | `Any -> Any -> T -> T` | Bitwise OR. |
+| `basic_xor` | Op | `Any -> Any -> T -> T` | Bitwise XOR. |
+| `basic_and` | Op | `Any -> Any -> T -> T` | Bitwise AND. |
+| `basic_concat` | Op | `Any -> Any -> T -> T` | Concatenate bits. |
+| `basic_select` | Op | `Any -> int -> int -> T -> T` | Inclusive slice `[start:end]`. |
+| `basic_invert` | Op | `Any -> T -> T` | Bitwise NOT. |
+| `basic_identity` | Op | `Any -> T -> T` | Identity/cast. |
+| `basic_or_reduce` | Op | `Any -> T -> T` | OR-reduce across bits. |
+| `basic_and_reduce` | Op | `Any -> T -> T` | AND-reduce across bits. |
 
 ## Unsigned fixed-point primitives (`numtypes/UQ.py`)
-| Name | Kind | Inputs | Output | Purpose/Notes |
-| --- | --- | --- | --- | --- |
-| `uq_aligner` | Primitive | `x[UQ]`, `y[UQ]`, `int_aggr[λ]`, `frac_aggr[λ]` | `Tuple[UQ, UQ]` | Align two UQs to common width. |
-| `uq_zero_extend` | Primitive | `x[UQ]`, `n[int]` | `UQ` | Pad high bits with `n` zeros. |
-| `uq_add` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned add with alignment. |
-| `uq_sub` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned subtract with alignment. |
-| `uq_max` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned max with alignment. |
-| `uq_min` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned min with alignment. |
-| `uq_mul` | Primitive | `x[UQ]`, `y[UQ]` | `UQ` | Unsigned multiply with alignment. |
-| `uq_to_q` | Primitive | `x[UQ]` | `Q` | Convert to signed (adds sign bit). |
-| `uq_rshift` | Primitive | `x[UQ]`, `amount[Any]` | `UQ` | Logical right shift without resize. |
-| `uq_lshift` | Primitive | `x[UQ]`, `amount[Any]` | `UQ` | Logical left shift without resize. |
-| `uq_select` | Primitive | `x[UQ]`, `start[int]`, `end[int]` | `UQ` | Bit slice. |
-| `uq_resize` | Primitive | `x[UQ]`, `int_bits[int]`, `frac_bits[int]` | `UQ` | Resize/round toward zero. |
+| Name | Kind | Type | Purpose/Notes |
+| --- | --- | --- | --- |
+| `uq_aligner` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> int_aggr<int -> int -> int> -> frac_aggr<int -> int -> int> -> (UQ<int_aggr(I1,I2), frac_aggr(F1,F2)> x UQ<int_aggr(I1,I2), frac_aggr(F1,F2)>)` | Align two UQs to a common width. |
+| `uq_zero_extend` | Primitive | `UQ<I,F> -> n<int> -> UQ<I+n,F>` | Pad high bits with `n` zeros. |
+| `uq_add` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> UQ<max(I1,I2)+1, max(F1,F2)>` | Unsigned add with alignment and carry bit. |
+| `uq_sub` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> UQ<max(I1,I2)+1, max(F1,F2)>` | Unsigned subtract with alignment and borrow bit. |
+| `uq_max` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> UQ<max(I1,I2), max(F1,F2)>` | Unsigned max with alignment. |
+| `uq_min` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> UQ<max(I1,I2), max(F1,F2)>` | Unsigned min with alignment. |
+| `uq_mul` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> UQ<I1+I2, F1+F2>` | Unsigned multiply (full precision). |
+| `uq_to_q` | Primitive | `UQ<I,F> -> Q<I+1,F>` | Convert to signed (adds sign bit). |
+| `uq_rshift` | Primitive | `UQ<I,F> -> Any -> UQ<I,F>` | Logical right shift without resize. |
+| `uq_lshift` | Primitive | `UQ<I,F> -> Any -> UQ<I,F>` | Logical left shift without resize. |
+| `uq_select` | Primitive | `UQ<I,F> -> start<int> -> end<int> -> UQ<(start-end+1)-k, k>` where `k = max(0, min(start, F-1)-end+1)` | Bit slice with fractional portion preserved when slicing frac bits. |
+| `uq_resize` | Primitive | `UQ<I,F> -> I*<int> -> F*<int> -> UQ<I*, F*>` | Resize/round toward zero (no truncation allowed). |
 
 ## Signed fixed-point primitives (`numtypes/Q.py`)
-| Name | Kind | Inputs | Output | Purpose/Notes |
-| --- | --- | --- | --- | --- |
-| `q_aligner` | Primitive | `x[Q]`, `y[Q]`, `int_aggr[λ]`, `frac_aggr[λ]` | `Tuple[Q,Q]` | Align two Qs to common width. |
-| `q_sign_bit` | Primitive | `x[Q]` | `UQ<1,0>` | MSB of two's complement value. |
-| `q_sign_extend` | Primitive | `x[Q]`, `n[int]` | `Q` | Extend sign into high bits. |
-| `q_neg` | Primitive | `x[Q]` | `Q` | Two's complement negate (with min guard). |
-| `q_add` | Primitive | `x[Q]`, `y[Q]` | `Q` | Signed addition with alignment. |
-| `q_sub` | Primitive | `x[Q]`, `y[Q]` | `Q` | Signed subtraction with alignment. |
-| `q_lshift` | Primitive | `x[Q]`, `n[Any]` | `Q` | Logical left shift without resize. |
-| `q_to_uq` | Primitive | `x[Q]` | `UQ` | Drop sign bit. |
-| `q_rshift` | Primitive | `x[Q]`, `n[Any]` | `Q` | Arithmetic right shift without resize. |
-| `q_add_sign` | Primitive | `x[Q]`, `s[UQ<1,0>]` | `Q` | Apply sign bit to unsigned magnitude. |
-| `q_abs` | Primitive | `x[Q]` | `Q` | Absolute value (safe at min). |
+| Name | Kind | Type | Purpose/Notes |
+| --- | --- | --- | --- |
+| `q_aligner` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> int_aggr<int -> int -> int> -> frac_aggr<int -> int -> int> -> (Q<int_aggr(I1,I2), frac_aggr(F1,F2)> x Q<int_aggr(I1,I2), frac_aggr(F1,F2)>)` | Align two Qs to a common width. |
+| `q_sign_bit` | Primitive | `Q<I,F> -> UQ<1,0>` | MSB of two's complement value. |
+| `q_sign_extend` | Primitive | `Q<I,F> -> n<int> -> Q<I+n, F>` | Extend sign into high bits. |
+| `q_neg` | Primitive | `Q<I,F> -> Q<I,F>` | Two's complement negate (special-case overflow at min). |
+| `q_add` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Q<max(I1,I2)+1, max(F1,F2)>` | Signed addition with alignment. |
+| `q_sub` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Q<max(I1,I2)+1, max(F1,F2)>` | Signed subtraction with alignment. |
+| `q_lshift` | Primitive | `Q<I,F> -> Any -> Q<I,F>` | Logical left shift without resize. |
+| `q_rshift` | Primitive | `Q<I,F> -> Any -> Q<I,F>` | Arithmetic right shift without resize. |
+| `q_to_uq` | Primitive | `Q<I,F> -> UQ<max(I-1,0), F>` | Drop sign bit (assumes non-negative). |
+| `q_add_sign` | Primitive | `Q<I,F> -> UQ<1,0> -> Q<I,F>` | Apply sign bit to unsigned magnitude. |
+| `q_abs` | Primitive | `Q<I,F> -> Q<I,F>` | Absolute value (safe at min). |
 
 ## BF16 helpers (`numtypes/BFloat16.py`)
-| Name | Kind | Inputs | Output | Purpose/Notes |
-| --- | --- | --- | --- | --- |
-| `_bf16_mantissa` | Op | `x[BFloat16]` | `UQ<7,0>` | Extract mantissa bits. |
-| `_bf16_exponent` | Op | `x[BFloat16]` | `UQ<8,0>` | Extract exponent bits. |
-| `_bf16_sign` | Op | `x[BFloat16]` | `UQ<1,0>` | Extract sign bit. |
-| `bf16_decode` | Primitive | `x[BFloat16]` | `Tuple[UQ<1,0>, UQ<7,0>, UQ<8,0>]` | Split BF16 into components. |
+| Name | Kind | Type | Purpose/Notes |
+| --- | --- | --- | --- |
+| `_bf16_mantissa` | Op | `BFloat16 -> UQ<7,0>` | Extract mantissa bits. |
+| `_bf16_exponent` | Op | `BFloat16 -> UQ<8,0>` | Extract exponent bits. |
+| `_bf16_sign` | Op | `BFloat16 -> UQ<1,0>` | Extract sign bit. |
+| `bf16_decode` | Primitive | `BFloat16 -> (UQ<1,0> x UQ<7,0> x UQ<8,0>)` | Split BF16 into sign/mantissa/exponent. |
 
 ## Float helpers (`numtypes/Float.py`)
-| Name | Kind | Inputs | Output | Purpose/Notes |
-| --- | --- | --- | --- | --- |
-| `_float32_alloc` | Op | `sign_bit[UQ<1,0>]`, `mantissa[UQ]`, `exponent[UQ]` | `Float32` | Assemble FP32 from fields. |
+| Name | Kind | Type | Purpose/Notes |
+| --- | --- | --- | --- |
+| `_float32_alloc` | Op | `UQ<1,0> -> UQ<23,0> -> UQ<8,0> -> Float32` | Assemble FP32 from sign, mantissa, exponent fields. |
 
 ## Composite helpers (`utils/composites.py`)
-| Name | Kind | Inputs | Output | Purpose/Notes |
-| --- | --- | --- | --- | --- |
-| `mantissa_add_implicit_bit` | Composite | `mantissa[UQ<x,0>]` | `UQ<1,x>` | Prefix implicit leading 1. |
-| `sign_xor` | Primitive | `x[UQ<1,0>]`, `y[UQ<1,0>]` | `UQ<1,0>` | Combine sign bits. |
-| `OPTIMIZED_MAX_EXP4` | Primitive | `e0..e3[UQ]` | `UQ` | Max of four exponents via bitwise tree. |
+| Name | Kind | Type | Purpose/Notes |
+| --- | --- | --- | --- |
+| `mantissa_add_implicit_bit` | Composite | `UQ<I,0> -> UQ<1,I>` | Prefix implicit leading 1. |
+| `sign_xor` | Primitive | `UQ<1,0> -> UQ<1,0> -> UQ<1,0>` | XOR sign bits. |
+| `OPTIMIZED_MAX_EXP4` | Primitive | `UQ<I0,0> -> UQ<I1,0> -> UQ<I2,0> -> UQ<I3,0> -> UQ<max(I0,I1,I2,I3), 0>` | Max of four exponents via bitwise tree. |
 
 ## Carry-save adder (`designs/CSA.py`)
-| Name | Kind | Inputs | Output | Purpose/Notes |
-| --- | --- | --- | --- | --- |
-| `CSA_tree4` | Composite | `m0..m3[Q]` | `Q` | 4-input CSA tree with width alignment. |
+| Name | Kind | Type | Purpose/Notes |
+| --- | --- | --- | --- |
+| `CSA_tree4` | Composite | `Q<I0,F0> -> Q<I1,F1> -> Q<I2,F2> -> Q<I3,F3> -> Q<max(I0, I1, I2, I3)+3, max(F0, F1, F2, F3)>` | 4-input CSA tree with width alignment. |
 
 ## Float32 encoder (`designs/encode_Float32.py`)
-| Name | Kind | Inputs | Output | Purpose/Notes |
-| --- | --- | --- | --- | --- |
-| `round_to_the_nearest_even` | Primitive | `m[UQ]`, `e[UQ]`, `target_bits[int]` | `Tuple[m,e]` | G/R/S rounding and exponent adjust. |
-| `lzc` | Primitive | `x[UQ]` | `UQ` | Leading-zero count. |
-| `normalize_to_1_xxx` | Primitive | `m[UQ]`, `e[Q]` | `Tuple[m,e]` | Normalize mantissa/exponent toward 1.xxx. |
-| `encode_Float32` | Primitive | `m[Q]`, `e[Q]` | `Float32` | Pack sign, exponent, mantissa with subnormal/inf/nan handling. |
+| Name | Kind | Type | Purpose/Notes |
+| --- | --- | --- | --- |
+| `round_to_the_nearest_even` | Primitive | `UQ<I,F> -> UQ<E,0> -> target_bits<int> -> (UQ<min(I, t), max(t - I, 0)> x UQ<E+1,0>)` | Guard/round/sticky rounding of mantissa and exponent bump. |
+| `lzc` | Primitive | `UQ<I,F> -> UQ<ceil(log2(I+F+1)), 0>` | Leading-zero count. |
+| `normalize_to_1_xxx` | Primitive | `UQ<I,F> -> Q<E,0> -> (UQ<1, max(I-1,0)+F> x Q<e_width(I,F,E), 0>)` | Normalize mantissa to `1.xxx`; `e_width = max(E, max(ceil(log2(I+F+1))+1, bitlen(I)+1)+2)+1`. |
+| `encode_Float32` | Primitive | `Q<I,F> -> Q<E,0> -> Float32` | Pack sign, exponent, mantissa with subnormal/inf/nan handling. |
 
 ## Optimized design helpers (`designs/optimized.py`)
-| Name | Kind | Inputs | Output | Purpose/Notes |
-| --- | --- | --- | --- | --- |
-| `_est_global_shift` | Primitive | `E_max[UQ]`, `E_p[UQ]` | `UQ` | Compute global shift = `(E_max - E_p)*2^s`. |
-| `_est_local_shift` | Primitive | `E_p[UQ]` | `UQ` | Invert low `s` exponent bits for local alignment. |
-| `_prepend_ones` | Primitive | `x[UQ]` | `UQ` | Append `s` ones to exponent for normalization. |
+| Name | Kind | Type | Purpose/Notes |
+| --- | --- | --- | --- |
+| `_est_global_shift` | Primitive | `UQ<I,0> -> UQ<J,0> -> s<int> -> UQ<I+s,0>` | Compute global shift `(E_max - E_p) * 2^s`. |
+| `_est_local_shift` | Primitive | `UQ<I,0> -> s<int> -> UQ<s,0>` | Invert low `s` exponent bits for local alignment. |
+| `_prepend_ones` | Primitive | `UQ<I,0> -> s<int> -> UQ<I+s,0>` | Append `s` ones to exponent for normalization. |
 
 ## Designs (full composites)
-| Name | Kind | Inputs | Output | Purpose/Notes |
-| --- | --- | --- | --- | --- |
-| `Conventional` | Composite | `a0..a3[BFloat16]`, `b0..b3[BFloat16]` | `Float32` | Baseline BF16 dot product (max exponent + global shift). |
-| `Optimized` | Composite | `a0..a3[BFloat16]`, `b0..b3[BFloat16]` | `Float32` | Fused design with shared exponent estimation and local/global shifting. |
+| Name | Kind | Type | Purpose/Notes |
+| --- | --- | --- | --- |
+| `Conventional` | Composite | `BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> Float32` | Baseline BF16 dot product (max exponent + global shift). |
+| `Optimized` | Composite | `BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> Float32` | Fused design with shared exponent estimation and local/global shifting. |
