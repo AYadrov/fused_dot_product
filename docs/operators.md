@@ -20,7 +20,7 @@
 | `basic_xor` | Op | `Any -> Any -> T -> T` | Bitwise XOR. |
 | `basic_and` | Op | `Any -> Any -> T -> T` | Bitwise AND. |
 | `basic_concat` | Op | `Any -> Any -> T -> T` | Concatenate bits. |
-| `basic_select` | Op | `Any -> int -> int -> T -> T` | Inclusive slice `[start:end]`. |
+| `basic_select` | Op | `Any -> int -> int -> T -> T` | Inclusive slice. |
 | `basic_invert` | Op | `Any -> T -> T` | Bitwise NOT. |
 | `basic_identity` | Op | `Any -> T -> T` | Identity/cast. |
 | `basic_or_reduce` | Op | `Any -> T -> T` | OR-reduce across bits. |
@@ -85,9 +85,9 @@
 ## Float32 encoder (`designs/encode_Float32.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
-| `round_to_the_nearest_even` | Primitive | `UQ<I,F> -> UQ<E,0> -> target_bits<int> -> (UQ<min(I, t), max(t - I, 0)> x UQ<E+1,0>)` | Guard/round/sticky rounding of mantissa and exponent bump. |
+| `round_to_the_nearest_even` | Primitive | `UQ<I,F> -> UQ<E,0> -> target_bits<int> -> (UQ<min(I, target_bits), max(target_bits - I, 0)> x UQ<E+1,0>)` | Guard/round/sticky rounding of mantissa and exponent bump. |
 | `lzc` | Primitive | `UQ<I,F> -> UQ<ceil(log2(I+F+1)), 0>` | Leading-zero count. |
-| `normalize_to_1_xxx` | Primitive | `UQ<I,F> -> Q<E,0> -> (UQ<1, max(I-1,0)+F> x Q<e_width(I,F,E), 0>)` | Normalize mantissa to `1.xxx`; `e_width = max(E, max(ceil(log2(I+F+1))+1, bitlen(I)+1)+2)+1`. |
+| `normalize_to_1_xxx` | Primitive | `UQ<I,F> -> Q<E,0> -> (UQ<1, max(I-1,0)+F> x Q<max(E, max(max(1, ceil(log2(I+F+1)))+1, bitlen(I)+1)+2)+1, 0>)` | Normalize mantissa to `1.xxx`; exponent stays signed with fractional bits preserved. |
 | `encode_Float32` | Primitive | `Q<I,F> -> Q<E,0> -> Float32` | Pack sign, exponent, mantissa with subnormal/inf/nan handling. |
 
 ## Optimized design helpers (`designs/optimized.py`)

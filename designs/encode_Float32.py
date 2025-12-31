@@ -8,7 +8,7 @@ from fused_dot_product.numtypes.StaticTypes import *
 from fused_dot_product.numtypes.Q import *
 from fused_dot_product.numtypes.Tuple import make_Tuple
 from fused_dot_product.numtypes.UQ import *
-from fused_dot_product.numtypes.UQ import _uq_alloc, _uq_int_bits, _uq_frac_bits
+from fused_dot_product.numtypes.UQ import _uq_alloc, _uq_int_bits
 from fused_dot_product.numtypes.Float import _float32_alloc
 from fused_dot_product.utils.utils import *
 

@@ -38,26 +38,6 @@ def uq_aligner(x: Node,
         name="uq_aligner")
 
 
-def _uq_select_shape(x: Node, start: int, end: int) -> Op:
-    def sign(x: UQT) -> UQT:
-        frac_bits = max(0, min(start, x.frac_bits - 1) - end + 1) if x.frac_bits > 0 else 0
-        width = start - end + 1
-        int_bits = width - frac_bits
-        return UQT(int_bits, frac_bits)
-    
-    def impl(x: UQ) -> UQ:
-        frac_bits = max(0, min(start, x.frac_bits - 1) - end + 1) if x.frac_bits > 0 else 0
-        width = start - end + 1
-        int_bits = width - frac_bits
-        return UQ(0, int_bits, frac_bits)
-    
-    return Op(
-        impl=impl,
-        sign=sign,
-        args=[x],
-        name="_uq_select_shape")
-
-
 # Function does not care about int_bits/frac_bits types, it takes their values
 # Allocates UQ at runtime
 def _uq_alloc(int_bits: Node,
@@ -349,7 +329,11 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
     width = start - end + 1
     x_frac_bits = x.node_type.frac_bits
     
+    frac_bits = max(0, min(start, x_frac_bits - 1) - end + 1) if x_frac_bits > 0 else 0
+    int_bits = width - frac_bits
+    
     def spec(x: float) -> float:
+        
         # Interpret `x` using its fractional layout, then slice bits [start:end].
         raw = int(round(x * (2 ** x_frac_bits)))
         sliced = (raw >> end) & ((1 << width) - 1)
@@ -358,12 +342,10 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
         return float(sliced) / (2 ** out_frac_bits)
     
     def sign(x: UQT) -> UQT:
-        frac_bits = max(0, min(start, x.frac_bits - 1) - end + 1) if x.frac_bits > 0 else 0
-        int_bits = width - frac_bits
         return UQT(int_bits, frac_bits)
         
     def impl(x: Node) -> Node:
-        out = _uq_select_shape(x, start, end)
+        out = Const(UQ(0, int_bits, frac_bits))
         root = basic_select(x, start, end, out)
         return root
     

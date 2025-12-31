@@ -5,7 +5,7 @@ from fused_dot_product.ast.AST import *
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.Q import *
 from fused_dot_product.numtypes.UQ import *
-from fused_dot_product.numtypes.UQ import _uq_alloc, _uq_int_bits, _uq_frac_bits
+from fused_dot_product.numtypes.UQ import _uq_alloc, _uq_int_bits
 from fused_dot_product.utils.utils import *
 
 
