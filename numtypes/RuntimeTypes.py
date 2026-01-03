@@ -67,7 +67,7 @@ class Q(RuntimeType):
     def __init__(self, val: int, int_bits: int, frac_bits: int):
         self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
         
-        assert self.int_bits >= 0
+        assert self.int_bits >= 1  # at least one bit for the sign
         assert self.frac_bits >= 0
         assert self.int_bits + self.frac_bits >= 2
         assert 0 <= self.val < (1 << self.total_bits())
