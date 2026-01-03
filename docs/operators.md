@@ -70,6 +70,17 @@
 | --- | --- | --- | --- |
 | `_float32_alloc` | Op | `UQ<1,0> -> UQ<23,0> -> UQ<8,0> -> Float32` | Assemble FP32 from sign, mantissa, exponent fields. |
 
+## Tuple helpers (`numtypes/Tuple.py`)
+| Name | Kind | Type | Purpose/Notes |
+| --- | --- | --- | --- |
+| `make_Tuple` | Op | `T0 -> T1 -> ... -> (T0 x T1 x ...)` | Variadic tuple constructor (arity = number of args). |
+
+## General helpers (`ast/AST.py`)
+| Name | Kind | Type | Purpose/Notes |
+| --- | --- | --- | --- |
+| `Copy` | Op | `T -> T` | Node copy. |
+| `Tuple_get_item` | Op | `(T0 x T1 x ...) -> idx<int> -> T_idx` | Tuple selection by constant index. |
+
 ## Composite helpers (`utils/composites.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
