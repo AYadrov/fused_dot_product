@@ -53,7 +53,7 @@
 | `q_sub` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Q<max(I1,I2)+1, max(F1,F2)>` | Signed subtraction with alignment. |
 | `q_lshift` | Primitive | `Q<I,F> -> Any -> Q<I,F>` | Logical left shift without resize. |
 | `q_rshift` | Primitive | `Q<I,F> -> Any -> Q<I,F>` | Arithmetic right shift without resize. |
-| `q_to_uq` | Primitive | `Q<I,F> -> UQ<max(I-1,0), F>` | Drop sign bit (assumes non-negative). |
+| `q_to_uq` | Primitive | `Q<I,F> -> UQ<I-1, F>` | Drop sign bit (assumes non-negative). |
 | `q_add_sign` | Primitive | `Q<I,F> -> UQ<1,0> -> Q<I,F>` | Apply sign bit to unsigned magnitude. |
 | `q_abs` | Primitive | `Q<I,F> -> Q<I,F>` | Absolute value (safe at min). |
 

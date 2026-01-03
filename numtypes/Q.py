@@ -286,7 +286,7 @@ def q_lshift(x: Node, n: Node) -> Primitive:
 
 # assumes that x is already positive
 def q_to_uq(x: Node) -> Primitive:
-    int_bits = max(x.node_type.int_bits - 1, 0)
+    int_bits = x.node_type.int_bits - 1
     frac_bits = x.node_type.frac_bits
     
     def impl(x: Node) -> Node:
