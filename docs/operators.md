@@ -40,7 +40,7 @@
 | `uq_rshift` | Primitive | `UQ<I,F> -> Any -> UQ<I,F>` | Logical right shift without resize. |
 | `uq_lshift` | Primitive | `UQ<I,F> -> Any -> UQ<I,F>` | Logical left shift without resize. |
 | `uq_select` | Primitive | `UQ<I,F> -> start<int> -> end<int> -> UQ<(start-end+1)-k, k>` where `k = max(0, min(start, F-1)-end+1)` | Bit slice with fractional portion preserved when slicing frac bits. |
-| `uq_resize` | Primitive | `UQ<I,F> -> I*<int> -> F*<int> -> UQ<I*, F*>` | Resize/round toward zero (no truncation allowed). |
+| `uq_resize` | Primitive | `UQ<I,F> -> int_bits<int> -> frac_bits<int> -> UQ<int_bits, frac_bits>` | Resize/round toward zero (no truncation allowed). |
 
 ## Signed fixed-point primitives (`numtypes/Q.py`)
 | Name | Kind | Type | Purpose/Notes |
