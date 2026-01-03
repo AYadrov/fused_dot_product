@@ -4,62 +4,38 @@ from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.numtypes.Q import _q_alloc
+from fused_dot_product.numtypes.Tuple import make_Tuple
+
 
 ########### Private Helpers ############
 
-def _uq_aligner(x: Node,
+def uq_aligner(x: Node,
                 y: Node,
                 int_aggr: tp.Callable,
-                frac_aggr: tp.Callable) -> Op:
+                frac_aggr: tp.Callable) -> Primitive:
+    int_bits = int_aggr(x.node_type.int_bits, y.node_type.int_bits)
+    frac_bits = frac_aggr(x.node_type.frac_bits, y.node_type.frac_bits)      
+     
     def sign(x: UQT, y: UQT) -> TupleT:
-        int_bits = int_aggr(x.int_bits, y.int_bits)
-        frac_bits = frac_aggr(x.frac_bits, y.frac_bits)
-        
-        return TupleT(
-            UQT(int_bits, frac_bits),
-            UQT(int_bits, frac_bits),
-        )
+        return TupleT(UQT(int_bits, frac_bits), UQT(int_bits, frac_bits))
     
-    def impl(x: UQ, y: UQ) -> Tuple:
-        # TODO: Truncation
-        int_bits = int_aggr(x.int_bits, y.int_bits)
-        frac_bits = frac_aggr(x.frac_bits, y.frac_bits)
-        
+    def spec(x, y):
+        return x, y
+    
+    def impl(x: Node, y: Node) -> Node:
         def align(x):
-            if x.frac_bits < frac_bits:
-                shift = frac_bits - x.frac_bits
-                x = UQ(x.val << shift, int_bits, frac_bits)
-            else:
-                x = UQ(x.val, int_bits, frac_bits)
-            return x
+            shift = frac_bits - x.node_type.frac_bits
+            assert shift >= 0, "truncation is not implemented yet"
+            return basic_lshift(x, Const(UQ.from_int(shift)), Const(UQ(0, int_bits, frac_bits)))
         
-        return Tuple(align(x), align(y))
+        return make_Tuple(align(x), align(y))
     
-    return Op(
+    return Primitive(
+        spec=spec,
         impl=impl,
         sign=sign,
         args=[x, y],
-        name="_uq_aligner")
-
-
-def _uq_select_shape(x: Node, start: int, end: int) -> Op:
-    def sign(x: UQT) -> UQT:
-        frac_bits = max(0, min(start, x.frac_bits - 1) - end + 1) if x.frac_bits > 0 else 0
-        width = start - end + 1
-        int_bits = width - frac_bits
-        return UQT(int_bits, frac_bits)
-    
-    def impl(x: UQ) -> UQ:
-        frac_bits = max(0, min(start, x.frac_bits - 1) - end + 1) if x.frac_bits > 0 else 0
-        width = start - end + 1
-        int_bits = width - frac_bits
-        return UQ(0, int_bits, frac_bits)
-    
-    return Op(
-        impl=impl,
-        sign=sign,
-        args=[x],
-        name="_uq_select_shape")
+        name="uq_aligner")
 
 
 # Function does not care about int_bits/frac_bits types, it takes their values
@@ -125,7 +101,7 @@ def uq_add(x: Node, y: Node) -> Primitive:
         return UQT(int_bits, frac_bits)
     
     def impl(x: Node, y: Node) -> Node:
-        x_adj, y_adj = _uq_aligner(
+        x_adj, y_adj = uq_aligner(
             x=x,
             y=y,
             int_aggr=lambda x, y: max(x, y) + 1,
@@ -156,7 +132,7 @@ def uq_sub(x: Node, y: Node) -> Primitive:
         return UQT(int_bits, frac_bits)
         
     def impl(x: Node, y: Node) -> Node:
-        x_adj, y_adj = _uq_aligner(
+        x_adj, y_adj = uq_aligner(
             x=x, 
             y=y, 
             int_aggr=lambda x, y: max(x, y) + 1, 
@@ -187,7 +163,7 @@ def uq_max(x: Node, y: Node) -> Primitive:
         return UQT(int_bits, frac_bits)
     
     def impl(x: Node, y: Node) -> Node:
-        x_adj, y_adj = _uq_aligner(
+        x_adj, y_adj = uq_aligner(
             x=x, 
             y=y, 
             int_aggr=lambda x, y: max(x, y), 
@@ -218,7 +194,7 @@ def uq_min(x: Node, y: Node) -> Primitive:
         return UQT(int_bits, frac_bits)
         
     def impl(x: Node, y: Node) -> Node:
-        x_adj, y_adj = _uq_aligner(
+        x_adj, y_adj = uq_aligner(
             x=x,
             y=y,
             int_aggr=lambda x, y: max(x, y), 
@@ -250,7 +226,7 @@ def uq_mul(x: Node, y: Node) -> Primitive:
     
     def impl(x: Node, y: Node) -> Node:
         # Ugly
-        out, _ = _uq_aligner(
+        out, _ = uq_aligner(
             x=x,
             y=y,
             int_aggr=lambda x, y: x + y,
@@ -353,7 +329,11 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
     width = start - end + 1
     x_frac_bits = x.node_type.frac_bits
     
+    frac_bits = max(0, min(start, x_frac_bits - 1) - end + 1) if x_frac_bits > 0 else 0
+    int_bits = width - frac_bits
+    
     def spec(x: float) -> float:
+        
         # Interpret `x` using its fractional layout, then slice bits [start:end].
         raw = int(round(x * (2 ** x_frac_bits)))
         sliced = (raw >> end) & ((1 << width) - 1)
@@ -362,12 +342,10 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
         return float(sliced) / (2 ** out_frac_bits)
     
     def sign(x: UQT) -> UQT:
-        frac_bits = max(0, min(start, x.frac_bits - 1) - end + 1) if x.frac_bits > 0 else 0
-        int_bits = width - frac_bits
         return UQT(int_bits, frac_bits)
         
     def impl(x: Node) -> Node:
-        out = _uq_select_shape(x, start, end)
+        out = Const(UQ(0, int_bits, frac_bits))
         root = basic_select(x, start, end, out)
         return root
     
