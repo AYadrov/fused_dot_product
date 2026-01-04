@@ -11,8 +11,8 @@ from fused_dot_product.utils.utils import *
 
 def mantissa_add_implicit_bit(x: Node) -> Primitive:
     int_bits = x.node_type.int_bits
-    def spec(mantissa: float) -> float:
-        return (float(mantissa) / (2 ** int_bits)) + 1.0
+    def spec(mantissa: float, out: float) -> float:
+        return (float(mantissa) / (2 ** int_bits)) + 1.0 == out
     
     def sign(mantissa: UQT) -> UQT:
         assert mantissa.frac_bits == 0
@@ -34,8 +34,8 @@ def mantissa_add_implicit_bit(x: Node) -> Primitive:
 
 
 def sign_xor(x: Node, y: Node) -> Primitive:
-    def spec(x, y):
-        return 0.0 if x == y else 1.0
+    def spec(x, y, out):
+        return 0.0 if x == y else 1.0 == out
     
     def sign(x: UQT, y: UQT) -> UQT:
         return UQT(1, 0)
@@ -59,8 +59,8 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
                        e1: Node,
                        e2: Node,
                        e3: Node) -> Primitive:
-    def spec(e0, e1, e2, e3):
-        return max(max(e0, e1), max(e2, e3))
+    def spec(e0, e1, e2, e3, out):
+        return max(max(e0, e1), max(e2, e3)) == out
     
     def sign(e0: UQT, e1: UQT, e2: UQT, e3: UQT) -> UQT:
         int_bits = max(max(e0.int_bits, e1.int_bits), max(e2.int_bits, e3.int_bits))

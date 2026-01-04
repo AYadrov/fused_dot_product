@@ -50,7 +50,7 @@ def _bf16_sign(x: Node) -> Op:
 ############## Public API ##############
 
 def bf16_decode(x: Node) -> Primitive:
-    def spec(x: float) -> tuple[float]:
+    def spec(x: float, out: float) -> tuple[float]:
         def sign(x):
             return 1.0 if x < 0 else 0.0
         
@@ -64,7 +64,7 @@ def bf16_decode(x: Node) -> Primitive:
         def exponent(x):
             return 0.0 if x == 0 else float(math.floor(math.log2(abs(x))) + 127)
         
-        return sign(x), mantissa(x), exponent(x)
+        return sign(x) == out[0] and mantissa(x) == out[1] and exponent(x) == out[2]
     
     def sign(x: BFloat16T) -> TupleT:
         return TupleT(

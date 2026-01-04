@@ -60,16 +60,16 @@ class Node:
                 # Check spec if Node has a spec
                 if self.spec:
                     spec_inputs = [x.to_spec() for x in inputs]
-                    spec_out = self.spec(*spec_inputs)
+                    spec_out = out.to_spec()
+                    res = self.spec(*spec_inputs, spec_out)
+                    assert isinstance(res, bool), "Boolean is expected"
                     err_msg = (
                         f"[{self.name}] mismatch:\n"
-                        f"  input-spec: {spec_inputs}\n"
-                        f"  input-impl: {[str(x) for x in inputs]}\n"
-                        f"  impl: {out}\n"
-                        f"  spec: {spec_out}\n"
-                        f"  spec/impl ulp: {ulp_distance(out.to_spec(), spec_out)}"
+                        f"  spec: {spec_inputs}\n"
+                        f"  out: {spec_out}\n"
+                        f"  res: {res}\n"
                     )
-                    assert ulp_distance(spec_out, out.to_spec()) == 0, err_msg
+                    assert res, err_msg
                 ################################
                 
                 return out
@@ -267,8 +267,8 @@ class Const(Node):
         def impl():
             return self.val
         
-        def spec():
-            return self.val.to_spec()
+        def spec(out):
+            return self.val.to_spec() == out
         
         def sign() -> StaticType:
             return self.val.static_type()
@@ -297,9 +297,9 @@ class Var(Node):
             assert self.val is not None, f"Variable {self.name} not bound to a value"
             return self.val
         
-        def spec():
+        def spec(out):
             assert self.val is not None, f"Variable {self.name} not bound to a value"
-            return self.val.to_spec()
+            return self.val.to_spec() == out
         
         def signature() -> StaticType:
             return sign

@@ -14,13 +14,13 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
                  b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
     
     def spec(a0: float, a1: float, a2: float, a3: float,
-             b0: float, b1: float, b2: float, b3: float) -> float:
+             b0: float, b1: float, b2: float, b3: float, out_: float) -> float:
         out = 0
         out += a0 * b0
         out += a1 * b1
         out += a2 * b2
         out += a3 * b3
-        return float(np.float32(out))
+        return float(np.float32(out)) == out_
     
     def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T, 
              b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
