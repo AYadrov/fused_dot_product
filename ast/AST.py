@@ -59,8 +59,8 @@ class Node:
                 ########## CHECK BLOCK #########
                 self.dynamic_typecheck(args=inputs, out=out)
                 
-                # Check spec if Node has a spec
-                if self.spec:
+                # Op does not have spec
+                if not isinstance(self, Op):
                     spec_inputs = [x.to_spec() for x in inputs]
                     spec_out = out.to_spec()
                     res = self.spec(*spec_inputs, spec_out)
