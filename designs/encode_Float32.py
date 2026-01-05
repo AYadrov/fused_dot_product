@@ -15,21 +15,44 @@ from fused_dot_product.utils.utils import *
 
 # TODO: edge case when input is subnormal that after rounding becomes normal
 def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:
-    m_total_bits = m.node_type.frac_bits + m.node_type.int_bits
+    m_frac_bits = m.node_type.frac_bits
+    m_total_bits = m_frac_bits + m.node_type.int_bits
     bits_diff = m_total_bits - target_bits
     
     sign_int_bits = min(m.node_type.int_bits, target_bits)
     sign_frac_bits = max(target_bits - m.node_type.int_bits, 0)
     
     def spec(m: float, e: float, out):
-        if bits_diff > 0:
-            m = (m // 2 ** (-sign_frac_bits)) * 2 ** (-sign_frac_bits)  # Truncated m
-        return m * 2 ** e == out[0] * 2 ** out[1]
-
+        # Widening or equal width: value passes through unchanged.
+        if bits_diff <= 0:
+            return m * 2 ** e == out[0] * 2 ** out[1]
+        
+        # Reconstruct raw bits of the incoming mantissa.
+        raw = int(round(m * (2 ** m_frac_bits)))
+        
+        truncated = raw >> bits_diff
+        guard = (raw >> (bits_diff - 1)) & 1
+        round_bit = (raw >> (bits_diff - 2)) & 1 if bits_diff >= 2 else 0
+        sticky_mask = (1 << (bits_diff - 2)) - 1 if bits_diff > 2 else 0
+        sticky = 1 if (raw & sticky_mask) else 0
+        lsb = truncated & 1
+        
+        increment = guard and (round_bit or sticky or lsb)
+        rounded = truncated + (1 if increment else 0)
+        
+        overflow = rounded >> target_bits
+        if overflow:
+            rounded >>= 1
+        e_out = e + overflow
+        
+        mantissa_out = rounded / (2 ** sign_frac_bits)
+        return mantissa_out == out[0] and e_out == out[1]
+    
+    
     def sign(m: UQT, e: UQT) -> TupleT:
         assert e.frac_bits == 0
         return TupleT(UQT(sign_int_bits, sign_frac_bits), UQT(e.int_bits + 1, 0))
-
+    
     def impl(m: Node, e: Node) -> Node:
         e_ext = uq_zero_extend(e, 1)
         # Nothing to truncate, just forward mantissa and exponent.
@@ -95,9 +118,9 @@ def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:
         
         e_inc = uq_add(e, overflow_bit)
         e_out = basic_mux_2_1(sel=overflow_bit, in0=e_ext, in1=e_inc, out=e_ext.copy())
-
+        
         return make_Tuple(rounded, e_out)
-
+    
     return Primitive(
         spec=spec,
         impl=impl,
@@ -111,7 +134,7 @@ def lzc(x: Node) -> Primitive:
     width = x.node_type.int_bits + x.node_type.frac_bits
     frac_bits = x.node_type.frac_bits
     count_bits = max(1, math.ceil(math.log2(width + 1)))
-
+    
     def spec(x_val: float, out) -> float:
         raw = int(round(x_val * (2 ** frac_bits)))
         bits = f"{raw:0{width}b}"
@@ -157,7 +180,7 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
         return TupleT(UQT(m_int_target_bits, m_frac_target_bits), QT(e_width, e.frac_bits))
     
     def spec(m, e, out):
-        return m * e == out[0] * out[1]
+        return m * 2 ** (e - 127) == out[0] * 2 ** (out[1] - 127)
     
     # Q<a,b>, UQ<c,d>
     def impl(m: Node, e: Node) -> Node:
@@ -289,4 +312,3 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
         args=[m, e],
         name="encode_Float32",
     )
-

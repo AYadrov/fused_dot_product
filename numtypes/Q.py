@@ -114,7 +114,7 @@ def q_sign_bit(x: Node) -> Primitive:
         return UQT(1, 0)
     
     def spec(x, out):
-        return 1.0 if x < 0 else 0.0 == out
+        return (1.0 if x < 0 else 0.0) == out
 
     def impl(x: Node) -> Node:
         start = x.node_type.int_bits + x.node_type.frac_bits - 1
@@ -183,7 +183,7 @@ def q_sign_extend(x: Node, n: int) -> Primitive:
 # Therefore, spec does not really matches for this special case
 def q_neg(x: Node) -> Primitive:
     def spec(x, out):
-        return 0.0 if x == 0 else -x == out
+        return (0.0 if x == 0 else -x) == out
     
     def impl(x: Node) -> Node:
         x_inv = basic_invert(x, x.copy())

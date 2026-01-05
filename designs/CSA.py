@@ -8,8 +8,8 @@ from fused_dot_product.numtypes.RuntimeTypes import *
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
 def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
-    def spec(m0: float, m1: float, m2: float, m3: float) -> float:
-        return m0 + m1 + m2 + m3
+    def spec(m0: float, m1: float, m2: float, m3: float, out: float) -> float:
+        return m0 + m1 + m2 + m3 == out
     
     def sign(m0: QT, m1: QT, m2: QT, m3: QT) -> QT:
         frac_bits = max(max(m0.frac_bits, m1.frac_bits), max(m2.frac_bits, m3.frac_bits))
