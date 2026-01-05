@@ -14,7 +14,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
                  b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
     
     def spec(a0: float, a1: float, a2: float, a3: float,
-             b0: float, b1: float, b2: float, b3: float, out: float) -> float:
+             b0: float, b1: float, b2: float, b3: float, out: float):
         res = 0
         res += a0 * b0
         res += a1 * b1

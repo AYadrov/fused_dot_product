@@ -22,8 +22,7 @@ def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:
     sign_int_bits = min(m.node_type.int_bits, target_bits)
     sign_frac_bits = max(target_bits - m.node_type.int_bits, 0)
     
-    def spec(m: float, e: float, out):
-        # Widening or equal width: value passes through unchanged.
+    def spec(m: float, e: float, out: tuple):
         if bits_diff <= 0:
             return m * 2 ** e == out[0] * 2 ** out[1]
         
@@ -135,7 +134,7 @@ def lzc(x: Node) -> Primitive:
     frac_bits = x.node_type.frac_bits
     count_bits = max(1, math.ceil(math.log2(width + 1)))
     
-    def spec(x_val: float, out) -> float:
+    def spec(x_val: float, out: float):
         raw = int(round(x_val * (2 ** frac_bits)))
         bits = f"{raw:0{width}b}"
         lz = len(bits) - len(bits.lstrip("0"))
@@ -180,7 +179,7 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
         
         return TupleT(UQT(m_int_target_bits, m_frac_target_bits), QT(e_width, e.frac_bits))
     
-    def spec(m, e, out):
+    def spec(m: float, e: float, out: tuple):
         return m * 2 ** (e - 127) == out[0] * 2 ** (out[1] - 127)
     
     def impl(m: Node, e: Node) -> Node:
@@ -235,7 +234,7 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
     def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
     
-    def spec(m: float, e: float, out) -> float:
+    def spec(m: float, e: float, out: float):
         return float(np.float32(m * 2 ** (int(e) - 127))) == out
 
     def impl(m: Node, e: Node) -> Node:
