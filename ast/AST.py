@@ -18,6 +18,8 @@ class Node:
                        sign: tp.Callable[..., StaticType],
                        args: list["Node"],
                        name: str):
+        assert all([isinstance(x, Node) for x in args])
+        
         self.spec = spec
         self.impl = impl
         self.sign = sign
@@ -25,7 +27,7 @@ class Node:
         self.name = name
         
         # Defines node_type at initialization - some parts rely on this
-        self.static_typecheck()
+        self.static_typecheck()  # typechecking with caching (no extra passes)
     
     def copy(self):
         return Copy(self)
@@ -62,7 +64,7 @@ class Node:
                     spec_inputs = [x.to_spec() for x in inputs]
                     spec_out = out.to_spec()
                     res = self.spec(*spec_inputs, spec_out)
-                    assert isinstance(res, bool), "Boolean is expected"
+                    assert isinstance(res, bool), "Boolean is expected from specification"
                     err_msg = (
                         f"[{self.name}] mismatch:\n"
                         f"  spec: {spec_inputs}\n"
@@ -73,20 +75,19 @@ class Node:
                 ################################
                 
                 return out
-            
+        
         finally:
             # Erase current cache
             self._eval_cache.reset(token)
     
-    def static_typecheck(self, verify=False):
+    def static_typecheck(self):
         # Checks that signature's annotations are StaticType
         self.primitive_signature_check()
         
         # Clone to avoid sharing runtime_val/state across nodes.
-        raw_args_types = [x.static_typecheck() if verify else x.node_type for x in self.args]
-        self.args_types = [x.copy() for x in raw_args_types]  # runtime_val is preserved
+        self.args_types = [x.node_type.copy() for x in self.args]  # runtime_val is preserved
         self.node_type = self.sign(*self.args_types).copy()
-        self.node_type.runtime_val = None  # runtime_val is not preserved - calculate it below manually
+        self.node_type.runtime_val = None  # Do not preserve runtime_val for output
         
         # Checks that signature does match with received args_types and node_type
         self.signature_match(args=self.args_types, out=self.node_type)
@@ -279,7 +280,7 @@ class Const(Node):
                          args=[],
                          name=name)
         
-        self.node_type.runtime_val = self.val  # Constant folding for typechecking
+        self.node_type.runtime_val = self.val  # Constant folding
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "

@@ -11,9 +11,9 @@ from fused_dot_product.numtypes.Tuple import make_Tuple
 # Function does not care about int_bits/frac_bits types, it takes their values
 def _q_alloc(int_bits: Node, frac_bits: Node) -> Op:
     def sign(x: StaticType, y: StaticType) -> QT:
-        if x.runtime_val is not None and y.runtime_val is not None:
-            return QT(x.runtime_val.val, y.runtime_val.val)
-        raise TypeError("q_alloc's arguments depend on a variable")
+        if x.runtime_val is None or y.runtime_val is None:
+            raise TypeError("q_alloc's arguments depend on a variable")
+        return QT(x.runtime_val.val, y.runtime_val.val)
 
     def impl(x: RuntimeType, y: RuntimeType) -> Q:
         return Q(0, x.val, y.val)

@@ -49,7 +49,7 @@ def exact_or(a: Node, b: Node):
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
 def CSA(x: Node, y: Node, z: Node) -> Primitive:
-    def spec(x: float, y: float, z: float, out) -> bool:
+    def spec(x: float, y: float, z: float, out: tuple) -> bool:
         return x + y + z == out[0] + out[1]
     
     def sign(x: QT, y: QT, z: QT) -> TupleT:

@@ -163,6 +163,7 @@ def lzc(x: Node) -> Primitive:
         name="lzc")
 
 
+# Assume that e is biased
 def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
     # mantissa is going to be normalized to 1.xxxxxx
     # this precision will make sure that we do not lose accuracy
@@ -228,6 +229,7 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
     )
 
 
+# Assume that e is biased
 # TODO: loss of accuracy, NaNs
 def encode_Float32(m: Node, e: Node) -> Primitive:
     assert e.node_type.frac_bits == 0
