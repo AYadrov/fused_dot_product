@@ -35,7 +35,7 @@ def q_aligner(x: Node,
     def sign(x: QT, y: QT) -> TupleT:
         return TupleT(QT(int_bits, frac_bits), QT(int_bits, frac_bits))
     
-    def spec(x, y, out):
+    def spec(x: float, y: float, out: tuple):
         return x == out[0] and y == out[1]
     
     def impl(x: Q, y: Q) -> Tuple:
@@ -113,7 +113,7 @@ def q_sign_bit(x: Node) -> Primitive:
     def sign(x: QT) -> UQT:
         return UQT(1, 0)
     
-    def spec(x, out):
+    def spec(x: float, out: float):
         return (1.0 if x < 0 else 0.0) == out
 
     def impl(x: Node) -> Node:
@@ -137,7 +137,7 @@ def q_sign_extend(x: Node, n: int) -> Primitive:
     def sign(x: QT) -> QT:
         return QT(x.int_bits + n, x.frac_bits)
     
-    def spec(x, out):
+    def spec(x: float, out: float):
         return x == out
     
     def impl(x: Node) -> Node:
@@ -182,7 +182,7 @@ def q_sign_extend(x: Node, n: int) -> Primitive:
 # Ex: q_neg(b10) overflows as -2 is represented, but 2 can not be represented in 2 bits
 # Therefore, spec does not really matches for this special case
 def q_neg(x: Node) -> Primitive:
-    def spec(x, out):
+    def spec(x: float, out: float):
         return (0.0 if x == 0 else -x) == out
     
     def impl(x: Node) -> Node:
@@ -215,7 +215,7 @@ def q_add(x: Node, y: Node) -> Primitive:
         )
         return basic_add(x_adj, y_adj, x_adj.copy())
     
-    def spec(x: float, y: float, out: float) -> float:
+    def spec(x: float, y: float, out: float):
         return x + y == out
     
     def sign(x: QT, y: QT) -> QT:
@@ -243,7 +243,7 @@ def q_sub(x: Node, y: Node) -> Primitive:
         root = basic_sub(x_adj, y_adj, x_adj.copy())
         return root
     
-    def spec(x: float, y: float, out: float) -> float:
+    def spec(x: float, y: float, out: float):
         return x - y == out
     
     def sign(x: QT, y: QT) -> QT:
@@ -262,7 +262,7 @@ def q_sub(x: Node, y: Node) -> Primitive:
 
 # TODO: spec is broken
 def q_lshift(x: Node, n: Node) -> Primitive:
-    def spec(x: float, n: float, out: float) -> float:
+    def spec(x: float, n: float, out: float):
         return x * 2**int(n) == out
         
     def sign(x: QT, n: UQT) -> QT:
@@ -293,7 +293,7 @@ def q_to_uq(x: Node) -> Primitive:
     def impl(x: Node) -> Node:
         return basic_identity(x=x, out=Const(UQ(0, int_bits, frac_bits)))
     
-    def spec(x, out):
+    def spec(x: float, out: float):
         assert x >= 0, "q_to_uq assumes that x is positive"
         return x == out
     
@@ -309,7 +309,7 @@ def q_to_uq(x: Node) -> Primitive:
 
 
 def q_rshift(x: Node, n: Node) -> Primitive:
-    def spec(x: float, n: float, out: float) -> float:
+    def spec(x: float, n: float, out: float):
         return x / 2**int(n) == out
         
     def sign(x: QT, n: UQT) -> QT:
@@ -333,7 +333,7 @@ def q_rshift(x: Node, n: Node) -> Primitive:
 
 
 def q_add_sign(x: Node, s: Node) -> Primitive:
-    def spec(x, s, out):
+    def spec(x: float, s: float, out: float):
         if x == 0.0:
             return 0.0 == out
         else:
@@ -358,7 +358,7 @@ def q_add_sign(x: Node, s: Node) -> Primitive:
         name="q_add_sign")
 
 def q_abs(x: Node) -> Primitive:
-    def spec(x, out):
+    def spec(x: float, out: float):
         return abs(x) == out
     
     def impl(x: Node) -> Node:

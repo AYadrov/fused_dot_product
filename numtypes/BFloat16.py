@@ -50,7 +50,7 @@ def _bf16_sign(x: Node) -> Op:
 ############## Public API ##############
 
 def bf16_decode(x: Node) -> Primitive:
-    def spec(x: float, out: float) -> tuple[float]:
+    def spec(x: float, out: tuple) -> tuple[float]:
         def sign(x):
             return 1.0 if x < 0 else 0.0
         

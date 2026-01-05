@@ -27,7 +27,7 @@ class Node:
         self.name = name
         
         # Defines node_type at initialization - some parts rely on this
-        self.static_typecheck()  # typechecking with caching (no extra passes)
+        self.static_typecheck()  # typecheck locally current node
     
     def copy(self):
         return Copy(self)

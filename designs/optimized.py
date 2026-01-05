@@ -13,7 +13,7 @@ import numpy as np
 
 
 def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
-    def spec(E_max, E_p, out):
+    def spec(E_max: float, E_p: float, out: float):
         return (E_max - E_p) * 2**s == out
     
     def sign(E_max: UQT, E_p: UQT) -> UQT:
@@ -40,7 +40,7 @@ def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
 
 
 def _est_local_shift(E_p: Node, s: int) -> Primitive:
-    def spec(x, out):
+    def spec(x: float, out: float):
         return (2**s - 1) - (x % (2 ** s)) == out
     
     def sign(E_p: UQT) -> UQT:
@@ -60,7 +60,7 @@ def _est_local_shift(E_p: Node, s: int) -> Primitive:
 
 # xxx. -> xxx11.
 def _prepend_ones(x: Node, s: int) -> Primitive:
-    def spec(x, out):
+    def spec(x: float, out: float):
         return x * 2**s + (2 ** s - 1) == out
     
     def sign(x: UQT) -> UQT:
@@ -90,13 +90,13 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
               b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
     
     def spec(a0: float, a1: float, a2: float, a3: float,
-             b0: float, b1: float, b2: float, b3: float, out_: float) -> float:
-        out = 0
-        out += a0 * b0
-        out += a1 * b1
-        out += a2 * b2
-        out += a3 * b3
-        return float(np.float32(out)) == out_
+             b0: float, b1: float, b2: float, b3: float, out: float) -> float:
+        res = 0
+        res += a0 * b0
+        res += a1 * b1
+        res += a2 * b2
+        res += a3 * b3
+        return float(np.float32(res)) == out
     
     def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T,
              b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:

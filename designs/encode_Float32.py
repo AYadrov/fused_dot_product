@@ -183,7 +183,6 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
     def spec(m, e, out):
         return m * 2 ** (e - 127) == out[0] * 2 ** (out[1] - 127)
     
-    # Q<a,b>, UQ<c,d>
     def impl(m: Node, e: Node) -> Node:
         lzc_uq = lzc(m)  # UQ<ceil(log2(a + b)), 0>
         lzc_q = uq_to_q(lzc_uq)  # UQ<ceil(log2(a + b)) + 1, 0>
@@ -221,7 +220,7 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
         return make_Tuple(norm_m_uq, norm_e_q)
     
     return Primitive(
-        spec=spec,  # Do not check spec for now, it should be m*e == m_*e_
+        spec=spec,
         impl=impl,
         sign=sign,
         args=[m, e],
