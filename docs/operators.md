@@ -91,6 +91,7 @@
 ## Carry-save adder (`designs/CSA.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
+| `CSA` | Primitive | `QT<I0, F0> -> QT<I1, F1> -> QT<I2, F2> -> (QT<max(I0, I1, I2), max(F0, F1, F2)> x QT<max(I0, I1, I2) + 1, max(F0, F1, F2)>)` | Carry save adder. |
 | `CSA_tree4` | Composite | `Q<I0,F0> -> Q<I1,F1> -> Q<I2,F2> -> Q<I3,F3> -> Q<max(I0, I1, I2, I3)+3, max(F0, F1, F2, F3)>` | 4-input CSA tree with width alignment. |
 
 ## Float32 encoder (`designs/encode_Float32.py`)
