@@ -58,11 +58,11 @@ def _uq_alloc(int_bits: Node,
 
 
 # These functions are possible because x.node_type is known at compile time and does not change
-def _uq_frac_bits(x: Node) -> Node:
+def uq_frac_bits(x: Node) -> Node:
     assert isinstance(x.node_type, UQT)
     return Const(UQ.from_int(x.node_type.frac_bits))
 
-def _uq_int_bits(x: Node) -> Node:
+def uq_int_bits(x: Node) -> Node:
     assert isinstance(x.node_type, UQT)
     return Const(UQ.from_int(x.node_type.int_bits))
 
@@ -78,8 +78,8 @@ def uq_zero_extend(x: Node, n: int) -> Primitive:
         return x == out  # value does not change
     
     def impl(x: Node) -> Node:
-        int_bits = uq_add(_uq_int_bits(x), Const(UQ.from_int(n)))
-        frac_bits = _uq_frac_bits(x)
+        int_bits = uq_add(uq_int_bits(x), Const(UQ.from_int(n)))
+        frac_bits = uq_frac_bits(x)
         out = _uq_alloc(int_bits, frac_bits)
         return basic_identity(x=x, out=out)
     
@@ -250,8 +250,8 @@ def uq_mul(x: Node, y: Node) -> Primitive:
 
 def uq_to_q(x: Node) -> Primitive:
     def impl(x: Node) -> Node:
-        int_bits = uq_add(_uq_int_bits(x), Const(UQ.from_int(1)))
-        frac_bits = _uq_frac_bits(x)
+        int_bits = uq_add(uq_int_bits(x), Const(UQ.from_int(1)))
+        frac_bits = uq_frac_bits(x)
         out = _q_alloc(int_bits, frac_bits)
         return basic_identity(x=x, out=out)
     

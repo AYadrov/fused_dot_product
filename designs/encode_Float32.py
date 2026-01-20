@@ -8,7 +8,7 @@ from fused_dot_product.numtypes.StaticTypes import *
 from fused_dot_product.numtypes.Q import *
 from fused_dot_product.numtypes.Tuple import make_Tuple
 from fused_dot_product.numtypes.UQ import *
-from fused_dot_product.numtypes.UQ import _uq_alloc, _uq_int_bits
+from fused_dot_product.numtypes.UQ import _uq_alloc, uq_int_bits
 from fused_dot_product.numtypes.Float import _float32_alloc
 from fused_dot_product.utils.utils import *
 
@@ -187,7 +187,7 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
         lzc_q = uq_to_q(lzc_uq)  # UQ<ceil(log2(a + b)) + 1, 0>
         
         # Shift amount = LZC - int_bits + 1
-        int_bits_q = uq_to_q(_uq_int_bits(m))
+        int_bits_q = uq_to_q(uq_int_bits(m))
         shift_amount_q = q_add(q_sub(lzc_q, int_bits_q), Const(Q.from_int(1)))  # UQ<max(m.int_bits, lzc_width) + 2, 0>
         
         shift_sign_uq = q_sign_bit(shift_amount_q)
