@@ -51,7 +51,7 @@ def _unary_operator(op: tp.Callable, x: Node, out: Node, name: str) -> Op:
 ########## Ternary Operators ###########
 
 def basic_mux_2_1(sel: Node, in0: Node, in1: Node, out: Node) -> Op:
-    def op(sel: Node, in0: Node, in1: Node) -> int:
+    def op(sel: RuntimeType, in0: RuntimeType, in1: RuntimeType) -> int:
         assert sel.val in (0, 1), "out of range"
         return in1.val if sel.val == 1 else in0.val
     return _ternary_operator(
