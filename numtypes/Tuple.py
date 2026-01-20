@@ -17,6 +17,7 @@ def make_Tuple(*args: Node) -> Op:
         name="Tuple_create")
 
 
+# Helper function for creating annotation with fixed number of arguments
 def _make_fixed_arguments(f, default_type, N):
 
     # Desired signature parameters

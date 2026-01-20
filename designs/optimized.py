@@ -5,7 +5,7 @@ from fused_dot_product.utils.composites import *
 from fused_dot_product.designs.encode_Float32 import *
 from fused_dot_product.designs.CSA import CSA_tree4
 from fused_dot_product.numtypes.UQ import *
-from fused_dot_product.numtypes.UQ import _uq_int_bits, _uq_frac_bits, _uq_alloc
+from fused_dot_product.numtypes.UQ import _uq_alloc
 from fused_dot_product.numtypes.BFloat16 import *
 from fused_dot_product.numtypes.Q import *
 
@@ -21,8 +21,8 @@ def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
     
     def impl(E_max: Node, E_p: Node) -> Node:
         # out = UQ(E_max.int_bits + s, E_max.frac_bits)
-        out_int_bits = uq_add(_uq_int_bits(E_max), Const(UQ.from_int(s)))
-        out_frac_bits = _uq_frac_bits(E_max)
+        out_int_bits = uq_add(uq_int_bits(E_max), Const(UQ.from_int(s)))
+        out_frac_bits = uq_frac_bits(E_max)
         out = _uq_alloc(out_int_bits, out_frac_bits)
         
         return basic_concat(
@@ -68,8 +68,8 @@ def _prepend_ones(x: Node, s: int) -> Primitive:
     
     def impl(x: Node) -> Node:
         # out = UQ(E_max.int_bits + s, E_max.frac_bits)
-        out_int_bits = uq_add(_uq_int_bits(x), Const(UQ.from_int(s)))
-        out_frac_bits = _uq_frac_bits(x)
+        out_int_bits = uq_add(uq_int_bits(x), Const(UQ.from_int(s)))
+        out_frac_bits = uq_frac_bits(x)
         out = _uq_alloc(out_int_bits, out_frac_bits)
         
         return basic_concat(

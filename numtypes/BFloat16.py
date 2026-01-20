@@ -51,20 +51,10 @@ def _bf16_sign(x: Node) -> Op:
 
 def bf16_decode(x: Node) -> Primitive:
     def spec(x: float, out: tuple) -> tuple[float]:
-        def sign(x):
-            return 1.0 if x < 0 else 0.0
-        
-        def mantissa(x):
-            if x == 0.0:
-                return 0.0
-            exp = math.floor(math.log2(abs(x)))
-            frac = abs(x) / (2 ** exp) - 1.0
-            return float(int(frac * (2 ** 7)))
-        
-        def exponent(x):
-            return 0.0 if x == 0 else float(math.floor(math.log2(abs(x))) + 127)
-        
-        return sign(x) == out[0] and mantissa(x) == out[1] and exponent(x) == out[2]
+        sign = (-1) ** out[0]
+        mantissa = 1.0 + (out[1] / 2 ** BFloat16.mantissa_bits)
+        exponent = out[2] - BFloat16.exponent_bias
+        return x == sign * mantissa * 2 ** exponent
     
     def sign(x: BFloat16T) -> TupleT:
         return TupleT(

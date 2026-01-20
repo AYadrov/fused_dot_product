@@ -63,32 +63,6 @@ def q_aligner(x: Node,
         name="q_aligner")
 
 
-def _q_frac_bits(x: Node) -> Op:
-    def sign(x: QT) -> UQT:
-        return UQ.from_int(x.frac_bits).static_type()
-    
-    def impl(x: Q) -> UQ:
-        return UQ.from_int(x.frac_bits)
-    
-    return Op(
-        sign=sign,
-        impl=impl,
-        args=[x],
-        name="_q_frac_bits")
-
-def _q_int_bits(x: Node) -> Op:
-    def sign(x: QT) -> UQT:
-        return UQ.from_int(x.int_bits).static_type()
-    
-    def impl(x: Q) -> UQ:
-        return UQ.from_int(x.int_bits)
-    
-    return Op(
-        sign=sign,
-        impl=impl,
-        args=[x],
-        name="_q_int_bits")
-
 # Does not have spec
 def _q_is_min_val(x: Node) -> Op:
     def impl(x: Q) -> UQ:
@@ -311,7 +285,7 @@ def q_to_uq(x: Node) -> Primitive:
 def q_rshift(x: Node, n: Node) -> Primitive:
     def spec(x: float, n: float, out: float):
         return x / 2**int(n) == out
-        
+    
     def sign(x: QT, n: UQT) -> QT:
         return QT(x.int_bits, x.frac_bits)
     
