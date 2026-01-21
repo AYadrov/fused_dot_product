@@ -48,7 +48,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         
         bf16_bias = Const(
             val=Q.from_int(BFloat16.exponent_bias),
-            name="BFloat16.exponent_bias"
+            name="BFloat16.exponent_bias",
         )
         
         ########## EXPONENTS ###############
@@ -61,11 +61,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         ]
         
         # Step 2. Calculate maximum exponent
-        E_m = uq_max(  
-            uq_max(E_p[0], E_p[1]),
-            uq_max(E_p[2], E_p[3]),
-        )
-        
+        E_m = uq_max(uq_max(E_p[0], E_p[1]), uq_max(E_p[2], E_p[3]))
         [
             E_m.check(is_typeof(E_m, UQT(9, 0)))
         ]
@@ -82,7 +78,6 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         # Step 1. Convert mantissas to UQ1.7
         M_a = [mantissa_add_implicit_bit(M_a[i]) for i in range(N)]
         M_b = [mantissa_add_implicit_bit(M_b[i]) for i in range(N)]
-        
         [
             m_a.check(is_typeof(m_a, UQT(1, 7))) and
             m_b.check(is_typeof(m_b, UQT(1, 7)))

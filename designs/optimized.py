@@ -8,6 +8,7 @@ from fused_dot_product.numtypes.UQ import *
 from fused_dot_product.numtypes.UQ import _uq_alloc
 from fused_dot_product.numtypes.BFloat16 import *
 from fused_dot_product.numtypes.Q import *
+from fused_dot_product.numtypes.Bool import *
 
 import numpy as np
 
@@ -131,52 +132,80 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         
         # Step 1. Exponents add. Each E_p is shifted by bias twice!
         E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]
+        [e.check(is_typeof(e, UQT(9, 0))) for e in E_p]
         
         # Step 2. Estimate local shifts
         L_shifts = [_est_local_shift(E_p[i], s) for i in range(N)]
+        [sh.check(is_typeof(sh, UQT(s, 0))) for sh in L_shifts]
         
         # Step 3. Take leading {9-s} bits for max exponent and a global shift
         E_lead = [uq_select(E_p[i], 8, s) for i in range(N)]
+        [e.check(is_typeof(e, UQT(9-s, 0))) for e in E_lead]
         
         # Step 4. Take max exponent
         E_m = OPTIMIZED_MAX_EXP4(*E_lead)
+        [E_m.check(is_typeof(E_m, UQT(9-s, 0)))]
         
         # Step 5. Calculate global shifts as {(max_exp - exp) * 2**s}
         G_shifts = [_est_global_shift(E_m, E_lead[i], s) for i in range(N)]
+        [sh.check(is_typeof(sh, UQT(9, 0))) for sh in G_shifts]
         
         ############# MANTISSAS ############
         
         # Step 1. Convert mantissas to UQ1.7
-        M_a = [mantissa_add_implicit_bit(M_a[i]) for i in range(N)] # UQ1.7
-        M_b = [mantissa_add_implicit_bit(M_b[i]) for i in range(N)] # UQ1.7
+        M_a = [mantissa_add_implicit_bit(M_a[i]) for i in range(N)]
+        M_b = [mantissa_add_implicit_bit(M_b[i]) for i in range(N)]
+        [
+            m_a.check(is_typeof(m_a, UQT(1, 7))) and
+            m_b.check(is_typeof(m_b, UQT(1, 7)))
+            for m_a, m_b in zip(M_a, M_b)
+        ]
         
         # Step 2. Multiply mantissas into UQ2.14
         M_p = [uq_mul(M_a[i], M_b[i]) for i in range(N)]
+        [m_p.check(is_typeof(m_p, UQT(2, 14))) for m_p in M_p]
         
         # Step 3. Locally shift mantissas by the inverted last {s} bits of E_p
-        # Make room for the right shift, UQ2.14 + (2**s - 1)
+        # Make room for the right shift
         M_p = [uq_resize(M_p[i], 2, 14 + 2**s - 1) for i in range(N)]
+        [m_p.check(is_typeof(m_p, UQT(2, 14 + (2**s - 1)))) for m_p in M_p]
+        
         M_p = [uq_rshift(M_p[i], L_shifts[i]) for i in range(N)]
+        [m_p.check(is_typeof(m_p, UQT(2, 14 + (2**s - 1)))) for m_p in M_p]
         
         # Step 4. Globally shift mantissas by G_shifts[i] amount
         # Make room for the right shift
-        M_p = [uq_resize(M_p[i], 2, Wf - 2 + 2**s - 1) for i in range(N)]  # UQ2.{Wf + (2**s - 1) - 2}
-        M_p = [uq_rshift(M_p[i], G_shifts[i]) for i in range(N)]  # UQ2.{Wf + (2**s - 1) - 2}
+        M_p = [uq_resize(M_p[i], 2, Wf - 2 + 2**s - 1) for i in range(N)]
+        [m_p.check(is_typeof(m_p, UQT(2, Wf + (2**s - 1) - 2))) for m_p in M_p]
+        
+        M_p = [uq_rshift(M_p[i], G_shifts[i]) for i in range(N)]
+        [m_p.check(is_typeof(m_p, UQT(2, Wf + (2**s - 1) - 2))) for m_p in M_p]
         
         # Step 5. Adjust signs using xor operation
         S_p = [sign_xor(S_a[i], S_b[i]) for i in range(N)]
-        M_p = [uq_to_q(M_p[i]) for i in range(N)]  # Q3.{Wf - 2 + (2**s - 1)}
+        [s_p.check(is_typeof(s_p, UQT(1, 0))) for s_p in S_p]
+        
+        M_p = [uq_to_q(M_p[i]) for i in range(N)]
+        [m_p.check(is_typeof(m_p, QT(3, Wf + (2**s - 1) - 2))) for m_p in M_p]
+        
         M_p = [q_add_sign(M_p[i], S_p[i]) for i in range(N)]
+        [m_p.check(is_typeof(m_p, QT(3, Wf + (2**s - 1) - 2))) for m_p in M_p]
         
         # Step 6. Adder Tree
-        M_sum = CSA_tree4(*M_p) # Q6.{Wf + (2**s - 1) - 2}
+        M_sum = CSA_tree4(*M_p)
+        [M_sum.check(is_typeof(M_sum, QT(6, Wf + (2**s - 1) - 2)))]
         
         ############# RESULT ###############
         # Append {s} 1s at the end of the max exponent for a normalization
         E_m = _prepend_ones(E_m, s)
-        # Subtract bias
-        E_m = uq_to_q(E_m)  # Q10.0
-        E_m = q_sub(E_m, bf16_bias)  # Q11.0
+        [E_m.check(is_typeof(E_m, UQT(9, 0)))]
+        
+        # Subtract bias since E_m is biased twice
+        E_m = uq_to_q(E_m)
+        [E_m.check(is_typeof(E_m, QT(10, 0)))]
+        
+        E_m = q_sub(E_m, bf16_bias)
+        [E_m.check(is_typeof(E_m, QT(11, 0)))]
         
         root = encode_Float32(M_sum, E_m)
         return root
