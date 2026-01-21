@@ -55,8 +55,10 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         
         # Step 1. Exponents add. Each E_p is shifted by bias twice!
         E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]
-        for i in range(len(E_p)):
-            E_p[i].check(is_typeof(E_p[i], UQT(9, 0)))
+        [
+            e.check(is_typeof(e, UQT(9, 0)))
+            for e in E_p
+        ]
         
         # Step 2. Calculate maximum exponent
         E_m = uq_max(  
@@ -64,11 +66,16 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
             uq_max(E_p[2], E_p[3]),
         )
         
-        # E_m = assert_type(E_m, UQT(9, 0))
+        [
+            E_m.check(is_typeof(E_m, UQT(9, 0)))
+        ]
         
         # Step 3. Calculate global shifts
         Sh_p = [uq_sub(E_m, E_p[i]) for i in range(N)]
-        # Sh_p = [assert_type(sh, UQT(10, 0)) for sh in Sh_p]
+        [
+            sh.check(is_typeof(sh, UQT(10, 0)))
+            for sh in Sh_p
+        ]
         
         ########## MANTISSAS ###############
         
@@ -76,30 +83,51 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         M_a = [mantissa_add_implicit_bit(M_a[i]) for i in range(N)]
         M_b = [mantissa_add_implicit_bit(M_b[i]) for i in range(N)]
         
-        # M_a = [assert_type(m_a, UQT(1, 7)) for m_a in M_a]
-        # M_b = [assert_type(m_b, UQT(1, 7)) for m_b in M_b]
+        [
+            m_a.check(is_typeof(m_a, UQT(1, 7))) and
+            m_b.check(is_typeof(m_b, UQT(1, 7)))
+            for m_a, m_b in zip(M_a, M_b)
+        ]
         
         # Step 2. Multiply mantissas
         M_p = [uq_mul(M_a[i], M_b[i]) for i in range(N)]
-        # M_p = [assert_type(m_p, UQT(2, 14)) for m_p in M_p]
+        [
+            m_p.check(is_typeof(m_p, UQT(2, 14)))
+            for m_p in M_p
+        ]
         
         # Step 3. Shift mantissas
         # Make room for the right shift first, accuracy requirement is Wf
         M_p = [uq_resize(M_p[i], 2, Wf - 2) for i in range(N)]
-        # M_p = [assert_type(m_p, UQT(2, Wf - 2)) for m_p in M_p]
+        [
+            m_p.check(is_typeof(m_p, UQT(2, Wf - 2))) 
+            for m_p in M_p
+        ]
         
         M_p = [uq_rshift(M_p[i], Sh_p[i]) for i in range(N)]
-        # M_p = [assert_type(m_p, UQT(2, Wf - 2)) for m_p in M_p]
+        [
+            m_p.check(is_typeof(m_p, UQT(2, Wf - 2))) 
+            for m_p in M_p
+        ]
         
         # Step 4. Adjust sign for mantissas using xor operation
         S_p = [sign_xor(S_a[i], S_b[i]) for i in range(N)]
-        #S_p = [assert_type(s_p, UQT(1, 0)) for s_p in S_p]
+        [
+            s_p.check(is_typeof(s_p, UQT(1, 0)))
+            for s_p in S_p
+        ]
         
         M_p = [uq_to_q(M_p[i]) for i in range(N)]
-        # M_p = [assert_type(m_p, QT(3, Wf - 2)) for m_p in M_p]
+        [
+            m_p.check(is_typeof(m_p, QT(3, Wf - 2))) 
+            for m_p in M_p
+        ]
         
         M_p = [q_add_sign(M_p[i], S_p[i]) for i in range(N)]
-        # M_p = [assert_type(m_p, QT(3, Wf - 2)) for m_p in M_p]
+        [
+            m_p.check(is_typeof(m_p, QT(3, Wf - 2))) 
+            for m_p in M_p
+        ]
         
         # Step 5. Adder tree
         M_sum = q_add(
@@ -107,15 +135,21 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
             q_add(M_p[2], M_p[3]),
         )
         
-        # M_sum = assert_type(M_sum, QT(5, Wf - 2))
+        [
+            M_sum.check(is_typeof(M_sum, QT(5, Wf - 2)))
+        ]
         
         ########## RESULT ##################
          # Subtract bias that is left! 
         E_m = uq_to_q(E_m)
-        # E_m = assert_type(E_m, QT(10, 0))
+        [
+            E_m.check(is_typeof(E_m, QT(10, 0)))
+        ]
         
         E_m = q_sub(E_m, bf16_bias)
-        # E_m = assert_type(E_m, QT(11, 0))
+        [
+            E_m.check(is_typeof(E_m, QT(11, 0)))
+        ]
         
         return encode_Float32(M_sum, E_m)
     

@@ -48,13 +48,16 @@ class Node:
         token = self._eval_cache.set(active_cache)
         
         try:
-            out = None
             # Cache hit
             if self in active_cache:
-                out = active_cache[self].copy()
+                return active_cache[self].copy()
+            
+            
+            out = None
             # Constant folding hit
-            elif self.node_type.runtime_val:
+            if self.node_type.runtime_val:
                 out = self.node_type.runtime_val.copy()
+                active_cache[self] = out
             # Evaluation pass
             else:
                 inputs = [arg.evaluate(active_cache) for arg in self.args]
@@ -84,7 +87,7 @@ class Node:
                 res = to_assert.evaluate(active_cache)
                 assert isinstance(res, Bool)
                 if res.val == 0:
-                    raise AssertionError(f"Assertion mismatch at {to_assert.name} for {to_assert.name}")
+                    raise AssertionError(f"Assertion mismatch at {to_assert.name} for {self.name}")
                 
             return out
         
