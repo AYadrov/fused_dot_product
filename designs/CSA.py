@@ -63,7 +63,16 @@ def CSA(x: Node, y: Node, z: Node) -> Primitive:
         carry = exact_or(exact_or(exact_and(x, y), exact_and(x, z)), exact_and(y, z))
         one = Const(UQ.from_int(1))
         carry = q_sign_extend(carry, 1)
-        return make_Tuple(sum_, q_lshift(carry, one))
+        carry = q_lshift(carry, one)
+        
+        carry.check(
+            is_equal(
+                q_add(q_add(x, y), z),
+                q_add(sum_, carry)
+            )
+        )
+        
+        return make_Tuple(sum_, carry)
     
     return Primitive(
         spec=spec,
@@ -85,6 +94,7 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
     def impl(m0: Node, m1: Node, m2: Node, m3: Node) -> Node:   
         s1, c1 = CSA(m0, m1, m2)
         
+        ############# Asserts ##############
         s1.check(
             is_typeof(
                 s1, 
@@ -103,15 +113,11 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
                 )
             )
         )
-        c1.check(
-            is_equal(
-                q_add(q_add(m0, m1), m2),
-                q_add(s1, c1)
-            )
-        )
+        ####################################
         
-        s2, c2 = CSA(m3, s1, c1)
+        s2, c2 = CSA(c1, s1, m3)
         
+        ############# Asserts ##############
         s2.check(
             is_typeof(
                 s2, 
@@ -130,21 +136,24 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
                 )
             )
         )
-        c2.check(
-            is_equal(
-                q_add(q_add(m3, s1), c1),
-                q_add(s2, c2)
-            )
-        )
+        ####################################
         
         impl = q_add(s2, c2)
         
+        ############# Asserts ##############
         impl.check(
             is_typeof(
-                impl, 
+                impl,
                 QT(c2.node_type.int_bits + 1, c2.node_type.frac_bits),
             )
         )
+        impl.check(
+            is_equal(
+                impl,
+                q_add(q_add(q_add(m0, m1), m2), m3)
+            )
+        )
+        ####################################
         
         return impl
     
