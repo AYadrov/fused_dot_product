@@ -8,7 +8,7 @@ def is_typeof(x: Node, t: StaticType) -> Op:
         raise TypeError(f"Node {x.name} with type {x.node_type} does not statically match {t}")
     
     def op(x: RuntimeType) -> int:
-        if x.static_type() != instance:
+        if x.static_type() != t:
             return 0
         else:
             return 1

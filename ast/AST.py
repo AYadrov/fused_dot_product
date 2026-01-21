@@ -33,7 +33,7 @@ class Node:
     def copy(self):
         return Copy(self)
     
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
         return Tuple_get_item(self, idx)
     
     def check(self, assert_node: "Node"):
@@ -64,10 +64,6 @@ class Node:
                 ########## CHECK BLOCK #########
                 self.dynamic_typecheck(args=inputs, out=out)
                 
-                for to_assert in self._assert_statements:
-                    assert_inputs = [arg.evaluate(active_cache) for arg in to_assert.args]
-                    to_assert.impl(*assert_inputs)
-                
                 # Op does not have spec
                 if not isinstance(self, Op):
                     spec_inputs = [x.to_spec() for x in inputs]
@@ -85,11 +81,10 @@ class Node:
             
             ########## ASSERT STATEMENTS #########
             for to_assert in self._assert_statements:
-                assert_inputs = [arg.evaluate(active_cache) for arg in to_assert.args]
-                res = to_assert.impl(*assert_inputs)
+                res = to_assert.evaluate(active_cache)
                 assert isinstance(res, Bool)
                 if res.val == 0:
-                    raise AssertionError(f"Assertion mismatch at {to_assert.name} for inputs: {[a.to_spec() for a in assert_inputs]}")
+                    raise AssertionError(f"Assertion mismatch at {to_assert.name} for {to_assert.name}")
                 
             return out
         
