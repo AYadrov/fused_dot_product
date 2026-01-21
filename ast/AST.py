@@ -25,6 +25,7 @@ class Node:
         self.sign = sign
         self.args = args
         self.name = name
+        self._assert_statements = []
         
         # Defines node_type at initialization - some parts rely on this
         self.static_typecheck()  # typecheck locally current node
@@ -35,6 +36,9 @@ class Node:
     def __getitem__(self, idx):
         return Tuple_get_item(self, idx)
     
+    def check(self, assert_node: "Node"):
+        self._assert_statements.append(assert_node)
+    
     def evaluate(self, cache: tp.Optional[dict["Node", RuntimeType]] = None) -> RuntimeType:
         # Use a per-evaluation cache to avoid recomputing shared subtrees.
         # Cache lives only for the current call chain.
@@ -44,12 +48,13 @@ class Node:
         token = self._eval_cache.set(active_cache)
         
         try:
+            out = None
             # Cache hit
             if self in active_cache:
-                return active_cache[self].copy()
+                out = active_cache[self].copy()
             # Constant folding hit
             elif self.node_type.runtime_val:
-                return self.node_type.runtime_val.copy()
+                out = self.node_type.runtime_val.copy()
             # Evaluation pass
             else:
                 inputs = [arg.evaluate(active_cache) for arg in self.args]
@@ -58,6 +63,10 @@ class Node:
                 
                 ########## CHECK BLOCK #########
                 self.dynamic_typecheck(args=inputs, out=out)
+                
+                for to_assert in self._assert_statements:
+                    assert_inputs = [arg.evaluate(active_cache) for arg in to_assert.args]
+                    to_assert.impl(*assert_inputs)
                 
                 # Op does not have spec
                 if not isinstance(self, Op):
@@ -73,8 +82,16 @@ class Node:
                     )
                     assert res, err_msg
                 ################################
+            
+            ########## ASSERT STATEMENTS #########
+            for to_assert in self._assert_statements:
+                assert_inputs = [arg.evaluate(active_cache) for arg in to_assert.args]
+                res = to_assert.impl(*assert_inputs)
+                assert isinstance(res, Bool)
+                if res.val == 0:
+                    raise AssertionError(f"Assertion mismatch at {to_assert.name} for inputs: {[a.to_spec() for a in assert_inputs]}")
                 
-                return out
+            return out
         
         finally:
             # Erase current cache
