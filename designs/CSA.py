@@ -65,10 +65,19 @@ def CSA(x: Node, y: Node, z: Node) -> Primitive:
         carry = q_sign_extend(carry, 1)
         carry = q_lshift(carry, one)
         
+        # Check Statement. LHS and RHS can have different sizes, depends in which order you are adding Qs
+        lhs_assert = q_add(q_add(x, y), z)
+        rhs_assert = q_add(sum_, carry)
+        lhs_assert, rhs_assert = q_aligner(
+            x=lhs_assert,
+            y=rhs_assert,
+            int_aggr=lambda x, y: max(x, y),
+            frac_aggr=lambda x, y: max(x, y),
+        )
         carry.check(
             is_equal(
-                q_add(q_add(x, y), z),
-                q_add(sum_, carry)
+                lhs_assert,
+                rhs_assert,
             )
         )
         
@@ -115,7 +124,7 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
         )
         ####################################
         
-        s2, c2 = CSA(c1, s1, m3)
+        s2, c2 = CSA(m3, s1, c1)
         
         ############# Asserts ##############
         s2.check(

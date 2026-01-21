@@ -26,9 +26,9 @@ def _q_alloc(int_bits: Node, frac_bits: Node) -> Op:
 
 
 def q_aligner(x: Node,
-               y: Node,
-               int_aggr: tp.Callable,
-               frac_aggr: tp.Callable) -> Primitive:
+              y: Node,
+              int_aggr: tp.Callable,
+              frac_aggr: tp.Callable) -> Primitive:
     int_bits = int_aggr(x.node_type.int_bits, y.node_type.int_bits)
     frac_bits = frac_aggr(x.node_type.frac_bits, y.node_type.frac_bits)
    
