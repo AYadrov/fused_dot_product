@@ -53,8 +53,8 @@ def q_signs_xor(x: Node, y: Node) -> Primitive:
             out=Const(Bool(0))
         )
     
-    def spec(x, y):
-        return (x < 0) != (y < 0)
+    def spec(x, y, out):
+        return ((x < 0) != (y < 0)) == out
     
     def sign(x: QT, y: QT) -> BoolT:
         return BoolT()    
@@ -70,7 +70,7 @@ def q_less(x: Node, y: Node) -> Primitive:
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = q_aligner(x, y, max, max)
         return basic_mux_2_1(
-            sel=q_signs_differ(x, y),
+            sel=q_signs_xor(x, y),
             in0=basic_less(aligned_x, aligned_y, Const(Bool(0))),  # same signs
             in1=basic_mux_2_1(  # different signs!
                 sel=q_sign_bit(x),
@@ -79,8 +79,8 @@ def q_less(x: Node, y: Node) -> Primitive:
                 out=Const(Bool(0))),
             out=Const(Bool(0)))
     
-    def spec(x, y):
-        return x < y
+    def spec(x, y, out):
+        return (x < y) == out
     
     def sign(x: QT, y: QT) -> BoolT:
         return BoolT()
@@ -97,7 +97,7 @@ def q_less_or_equal(x: Node, y: Node) -> Primitive:
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = q_aligner(x, y, max, max)
         return basic_mux_2_1(
-            sel=q_signs_differ(x, y),
+            sel=q_signs_xor(x, y),
             in0=basic_less_or_equal(aligned_x, aligned_y, Const(Bool(0))),  # same signs
             in1=basic_mux_2_1(  # different signs!
                 sel=q_sign_bit(x),
@@ -106,8 +106,8 @@ def q_less_or_equal(x: Node, y: Node) -> Primitive:
                 out=Const(Bool(0))),
             out=Const(Bool(0)))
     
-    def spec(x, y):
-        return x <= y
+    def spec(x, y, out):
+        return (x <= y) == out
     
     def sign(x: QT, y: QT) -> BoolT:
         return BoolT()
@@ -124,7 +124,7 @@ def q_greater(x: Node, y: Node) -> Primitive:
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = q_aligner(x, y, max, max)
         return basic_mux_2_1(
-            sel=q_signs_differ(x, y),
+            sel=q_signs_xor(x, y),
             in0=basic_greater(aligned_x, aligned_y, Const(Bool(0))),  # same signs
             in1=basic_mux_2_1(  # different signs!
                 sel=q_sign_bit(x),
@@ -133,8 +133,8 @@ def q_greater(x: Node, y: Node) -> Primitive:
                 out=Const(Bool(0))),
             out=Const(Bool(0)))
     
-    def spec(x, y):
-        return x > y
+    def spec(x, y, out):
+        return (x > y) == out
     
     def sign(x: QT, y: QT) -> BoolT:
         return BoolT()
@@ -151,7 +151,7 @@ def q_greater_or_equal(x: Node, y: Node) -> Primitive:
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = q_aligner(x, y, max, max)
         return basic_mux_2_1(
-            sel=q_signs_differ(x, y),
+            sel=q_signs_xor(x, y),
             in0=basic_greater_or_equal(aligned_x, aligned_y, Const(Bool(0))),  # same signs
             in1=basic_mux_2_1(  # different signs!
                 sel=q_sign_bit(x),
@@ -160,8 +160,8 @@ def q_greater_or_equal(x: Node, y: Node) -> Primitive:
                 out=Const(Bool(0))),
             out=Const(Bool(0)))
     
-    def spec(x, y):
-        return x >= y
+    def spec(x, y, out):
+        return (x >= y) == out
     
     def sign(x: QT, y: QT) -> BoolT:
         return BoolT()
@@ -179,8 +179,8 @@ def q_equal(x: Node, y: Node) -> Primitive:
         aligned_x, aligned_y = q_aligner(x, y, max, max)
         return basic_equal(aligned_x, aligned_y, out=Const(Bool(0)))
     
-    def spec(x, y): 
-        return x == y
+    def spec(x, y, out): 
+        return (x == y) == out
     
     def sign(x: QT, y: QT) -> BoolT:
         return BoolT()
@@ -198,8 +198,8 @@ def q_not_equal(x: Node, y: Node) -> Primitive:
         aligned_x, aligned_y = q_aligner(x, y, max, max)
         return basic_not_equal(aligned_x, aligned_y, out=Const(Bool(0)))
     
-    def spec(x, y): 
-        return x != y
+    def spec(x, y, out): 
+        return (x != y) == out
     
     def sign(x: QT, y: QT) -> BoolT:
         return BoolT()

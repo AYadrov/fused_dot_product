@@ -134,7 +134,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]
         (
             [E_p[i].check(is_typeof(E_p[i], UQT(9, 0))) for i in range(N)],
-            [E_p[i].check(is_equal(E_p[i], uq_add(E_b[i], E_a[i]))) for i in range(N)]  # commutativity
+            [E_p[i].check(uq_equal(E_p[i], uq_add(E_b[i], E_a[i]))) for i in range(N)]  # commutativity
         )
         
         # Step 2. Estimate local shifts
@@ -153,7 +153,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         E_m = OPTIMIZED_MAX_EXP4(*E_lead)
         (
             [E_m.check(is_typeof(E_m, UQT(9-s, 0)))],
-            [E_m.check(is_greater_or_equal(E_m, E_lead[i])) for i in range(N)]  # actually a max
+            [E_m.check(uq_greater_or_equal(E_m, E_lead[i])) for i in range(N)]  # actually a max
         )
         
         # Step 5. Calculate global shifts as {(max_exp - exp) * 2**s}
@@ -223,7 +223,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         (
             M_sum.check(is_typeof(M_sum, QT(6, Wf + (2**s - 1) - 2))),
             M_sum.check(
-                q_is_equal(
+                q_equal(
                     M_sum, 
                     q_add(q_add(M_p[0], M_p[1]), q_add(M_p[2], M_p[3])),
                 )

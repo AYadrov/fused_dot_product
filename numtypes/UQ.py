@@ -35,8 +35,8 @@ def uq_less(x: Node, y: Node) -> Primitive:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_less(aligned_x, aligned_y, out=Const(Bool(0)))
     
-    def spec(x, y):
-        return x < y
+    def spec(x, y, out):
+        return (x < y) == out
     
     def sign(x: UQT, y: UQT) -> BoolT:
         return BoolT()
@@ -54,8 +54,8 @@ def uq_less_or_equal(x: Node, y: Node) -> Primitive:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_less_or_equal(aligned_x, aligned_y, out=Const(Bool(0)))
     
-    def spec(x, y):
-        return x <= y
+    def spec(x, y, out):
+        return (x <= y) == out
     
     def sign(x: UQT, y: UQT) -> BoolT:
         return BoolT()
@@ -73,8 +73,8 @@ def uq_greater(x: Node, y: Node) -> Primitive:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_greater(aligned_x, aligned_y, out=Const(Bool(0)))
     
-    def spec(x, y):
-        return x > y
+    def spec(x, y, out):
+        return (x > y) == out
     
     def sign(x: UQT, y: UQT) -> BoolT:
         return BoolT()
@@ -92,8 +92,8 @@ def uq_greater_or_equal(x: Node, y: Node) -> Primitive:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_greater_or_equal(aligned_x, aligned_y, out=Const(Bool(0)))
     
-    def spec(x, y):
-        return x >= y
+    def spec(x, y, out):
+        return (x >= y) == out
     
     def sign(x: UQT, y: UQT) -> BoolT:
         return BoolT()
@@ -106,13 +106,13 @@ def uq_greater_or_equal(x: Node, y: Node) -> Primitive:
         name="uq_greater_or_equal",
     )
 
-def uq_equal(x: Node, y: Node) -> Primitive:def impl(x: Node, y: Node) -> Node:
+def uq_equal(x: Node, y: Node) -> Primitive:
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_equal(aligned_x, aligned_y, out=Const(Bool(0)))
     
-    def spec(x, y): 
-        return x == y
+    def spec(x, y, out): 
+        return (x == y) == out
     
     def sign(x: UQT, y: UQT) -> BoolT:
         return BoolT()
@@ -130,8 +130,8 @@ def uq_not_equal(x: Node, y: Node) -> Primitive:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_not_equal(aligned_x, aligned_y, out=Const(Bool(0)))
     
-    def spec(x, y): 
-        return x != y
+    def spec(x, y, out): 
+        return (x != y) == out
     
     def sign(x: UQT, y: UQT) -> BoolT:
         return BoolT()

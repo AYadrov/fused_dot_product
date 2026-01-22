@@ -66,7 +66,7 @@ def CSA(x: Node, y: Node, z: Node) -> Primitive:
         carry = q_lshift(carry, one)
         
         carry.check(
-            q_is_equal(
+            q_equal(
                 q_add(q_add(x, y), z),
                 q_add(sum_, carry),
             )
@@ -148,7 +148,7 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
             )
         )
         impl.check(
-            q_is_equal(
+            q_equal(
                 impl,
                 q_add(q_add(m0, m1), q_add(m2, m3)),
             )
@@ -162,3 +162,4 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
                      sign=sign,
                      args=[m0, m1, m2, m3],
                      name="CSA_tree4")
+
