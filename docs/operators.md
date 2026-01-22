@@ -20,6 +20,12 @@
 | `basic_xor` | Op | `Any -> Any -> T -> T` | Bitwise XOR. |
 | `basic_and` | Op | `Any -> Any -> T -> T` | Bitwise AND. |
 | `basic_concat` | Op | `Any -> Any -> T -> T` | Concatenate bits. |
+| `basic_less` | Op | `Any -> Any -> T -> T` | Bitwise less-than. |
+| `basic_less_or_equal` | Op | `Any -> Any -> T -> T` | Bitwise less-or-equal. |
+| `basic_greater` | Op | `Any -> Any -> T -> T` | Bitwise greater-than. |
+| `basic_greater_or_equal` | Op | `Any -> Any -> T -> T` | Bitwise greater-or-equal. |
+| `basic_equal` | Op | `Any -> Any -> T -> T` | Bitwise equality. |
+| `basic_not_equal` | Op | `Any -> Any -> T -> T` | Bitwise inequality. |
 | `basic_select` | Op | `Any -> int -> int -> T -> T` | Inclusive slice. |
 | `basic_invert` | Op | `Any -> T -> T` | Bitwise NOT. |
 | `basic_identity` | Op | `Any -> T -> T` | Identity/cast. |
@@ -36,6 +42,12 @@
 | `uq_max` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> UQ<max(I1,I2), max(F1,F2)>` | Unsigned max with alignment. |
 | `uq_min` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> UQ<max(I1,I2), max(F1,F2)>` | Unsigned min with alignment. |
 | `uq_mul` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> UQ<I1+I2, F1+F2>` | Unsigned multiply (full precision). |
+| `uq_less` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> Bool<1>` | Unsigned less-than. |
+| `uq_less_or_equal` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> Bool<1>` | Unsigned less-or-equal. |
+| `uq_greater` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> Bool<1>` | Unsigned greater-than. |
+| `uq_greater_or_equal` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> Bool<1>` | Unsigned greater-or-equal. |
+| `uq_equal` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> Bool<1>` | Unsigned equality. |
+| `uq_not_equal` | Primitive | `UQ<I1,F1> -> UQ<I2,F2> -> Bool<1>` | Unsigned inequality. |
 | `uq_to_q` | Primitive | `UQ<I,F> -> Q<I+1,F>` | Convert to signed (adds sign bit). |
 | `uq_rshift` | Primitive | `UQ<I,F> -> Any -> UQ<I,F>` | Logical right shift without resize. |
 | `uq_lshift` | Primitive | `UQ<I,F> -> Any -> UQ<I,F>` | Logical left shift without resize. |
@@ -49,8 +61,15 @@
 | `q_sign_bit` | Primitive | `Q<I,F> -> UQ<1,0>` | MSB of two's complement value. |
 | `q_sign_extend` | Primitive | `Q<I,F> -> n<int> -> Q<I+n, F>` | Extend sign into high bits. |
 | `q_neg` | Primitive | `Q<I,F> -> Q<I,F>` | Two's complement negate (special-case overflow at min). |
+| `q_signs_xor` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Bool<1>` | Sign mismatch (xor of sign bits). |
 | `q_add` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Q<max(I1,I2)+1, max(F1,F2)>` | Signed addition with alignment. |
 | `q_sub` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Q<max(I1,I2)+1, max(F1,F2)>` | Signed subtraction with alignment. |
+| `q_less` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Bool<1>` | Signed less-than. |
+| `q_less_or_equal` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Bool<1>` | Signed less-or-equal. |
+| `q_greater` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Bool<1>` | Signed greater-than. |
+| `q_greater_or_equal` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Bool<1>` | Signed greater-or-equal. |
+| `q_equal` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Bool<1>` | Signed equality. |
+| `q_not_equal` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Bool<1>` | Signed inequality. |
 | `q_lshift` | Primitive | `Q<I,F> -> Any -> Q<I,F>` | Logical left shift without resize. |
 | `q_rshift` | Primitive | `Q<I,F> -> Any -> Q<I,F>` | Arithmetic right shift without resize. |
 | `q_to_uq` | Primitive | `Q<I,F> -> UQ<I-1, F>` | Drop sign bit (assumes non-negative). |
@@ -74,6 +93,12 @@
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
 | `make_Tuple` | Op | `T0 -> T1 -> ... -> (T0 x T1 x ...)` | Variadic tuple constructor (arity = number of args). |
+
+## Bool helpers (`numtypes/Bool.py`)
+| Name | Kind | Type | Purpose/Notes |
+| --- | --- | --- | --- |
+| `is_typeof` | Op | `Any -> StaticType -> Bool<1>` | Static type check (returns bool node). |
+| `negate` | Op | `Bool<1> -> Bool<1>` | Boolean negation. |
 
 ## General helpers (`ast/AST.py`)
 | Name | Kind | Type | Purpose/Notes |
