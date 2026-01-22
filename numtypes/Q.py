@@ -67,7 +67,6 @@ def q_signs_xor(x: Node, y: Node) -> Primitive:
         name="q_signs_xor")
 
 def q_less(x: Node, y: Node) -> Primitive:
-    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = q_aligner(x, y, max, max)
         return basic_mux_2_1(
@@ -95,7 +94,6 @@ def q_less(x: Node, y: Node) -> Primitive:
     )
 
 def q_less_or_equal(x: Node, y: Node) -> Primitive:
-    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = q_aligner(x, y, max, max)
         return basic_mux_2_1(
@@ -123,7 +121,6 @@ def q_less_or_equal(x: Node, y: Node) -> Primitive:
     )
 
 def q_greater(x: Node, y: Node) -> Primitive:
-    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = q_aligner(x, y, max, max)
         return basic_mux_2_1(
@@ -151,7 +148,6 @@ def q_greater(x: Node, y: Node) -> Primitive:
     )
 
 def q_greater_or_equal(x: Node, y: Node) -> Primitive:
-    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = q_aligner(x, y, max, max)
         return basic_mux_2_1(
@@ -179,7 +175,6 @@ def q_greater_or_equal(x: Node, y: Node) -> Primitive:
     )
 
 def q_equal(x: Node, y: Node) -> Primitive:
-    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = q_aligner(x, y, max, max)
         return basic_equal(aligned_x, aligned_y, out=Const(Bool(0)))
@@ -188,7 +183,7 @@ def q_equal(x: Node, y: Node) -> Primitive:
         return x == y
     
     def sign(x: QT, y: QT) -> BoolT:
-        return BoolT(0)
+        return BoolT()
     
     return Primitive(
         spec=spec,
@@ -199,7 +194,6 @@ def q_equal(x: Node, y: Node) -> Primitive:
     )
 
 def q_not_equal(x: Node, y: Node) -> Primitive:
-    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = q_aligner(x, y, max, max)
         return basic_not_equal(aligned_x, aligned_y, out=Const(Bool(0)))
@@ -208,7 +202,7 @@ def q_not_equal(x: Node, y: Node) -> Primitive:
         return x != y
     
     def sign(x: QT, y: QT) -> BoolT:
-        return BoolT(0)
+        return BoolT()
     
     return Primitive(
         spec=spec,
