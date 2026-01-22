@@ -26,7 +26,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T, 
              b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
         return Float32T()
-        
+    
     def impl(a0: Node, a1: Node, a2: Node, a3: Node,
              b0: Node, b1: Node, b2: Node, b3: Node) -> Node:
         ########## INPUT ###################
@@ -55,98 +55,117 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         
         # Step 1. Exponents add. Each E_p is shifted by bias twice!
         E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]
-        [
-            e.check(is_typeof(e, UQT(9, 0)))
-            for e in E_p
-        ]
+        (
+            [E_p[i].check(is_typeof(E_p[i], UQT(9, 0))) for i in range(N)],
+            [E_p[i].check(is_equal(E_p[i], uq_add(E_b[i], E_a[i]))) for i in range(N)]  # commutativity
+        )
         
         # Step 2. Calculate maximum exponent
         E_m = uq_max(uq_max(E_p[0], E_p[1]), uq_max(E_p[2], E_p[3]))
-        [
-            E_m.check(is_typeof(E_m, UQT(9, 0)))
-        ]
+        (
+            E_m.check(is_typeof(E_m, UQT(9, 0))),
+            all([E_m.check(is_greater_or_equal(E_m, E_p[i])) for i in range(N)])  # it is actually a max
+        )
         
         # Step 3. Calculate global shifts
         Sh_p = [uq_sub(E_m, E_p[i]) for i in range(N)]
-        [
-            sh.check(is_typeof(sh, UQT(10, 0)))
-            for sh in Sh_p
-        ]
+        (
+            [Sh_p[i].check(is_typeof(Sh_p[i], UQT(10, 0))) for i in range(N)],
+            [Sh_p[i].check(is_greater_or_equal(Sh_p[i], Const(UQ(0, 10, 0)))) for i in range(N)]  # shift amount is positive
+        )
         
         ########## MANTISSAS ###############
         
         # Step 1. Convert mantissas to UQ1.7
         M_a = [mantissa_add_implicit_bit(M_a[i]) for i in range(N)]
         M_b = [mantissa_add_implicit_bit(M_b[i]) for i in range(N)]
-        [
-            m_a.check(is_typeof(m_a, UQT(1, 7))) and
-            m_b.check(is_typeof(m_b, UQT(1, 7)))
-            for m_a, m_b in zip(M_a, M_b)
-        ]
+        (
+            [M_a[i].check(is_typeof(M_a[i], UQT(1, 7))) for i in range(N)],
+            [M_b[i].check(is_typeof(M_b[i], UQT(1, 7))) for i in range(N)],
+            [M_a[i].check(is_greater_or_equal(M_a[i], Const(UQ(1 << 7, 1, 7)))) for i in range(N)],  # ge than one
+            [M_b[i].check(is_greater_or_equal(M_b[i], Const(UQ(1 << 7, 1, 7)))) for i in range(N)]   # ge than one
+        )
         
         # Step 2. Multiply mantissas
         M_p = [uq_mul(M_a[i], M_b[i]) for i in range(N)]
-        [
-            m_p.check(is_typeof(m_p, UQT(2, 14)))
-            for m_p in M_p
-        ]
+        (
+            [M_p[i].check(is_typeof(M_p[i], UQT(2, 14))) for i in range(N)],
+            [M_p[i].check(is_equal(M_p[i], uq_mul(M_b[i], M_a[i]))) for i in range(N)],  # commutativity
+            [M_p[i].check(is_greater_or_equal(*uq_aligner(M_p[i], Const(UQ.from_int(1)), max, max))) for i in range(N)]  # ge than one
+        )
         
         # Step 3. Shift mantissas
         # Make room for the right shift first, accuracy requirement is Wf
-        M_p = [uq_resize(M_p[i], 2, Wf - 2) for i in range(N)]
-        [
-            m_p.check(is_typeof(m_p, UQT(2, Wf - 2))) 
-            for m_p in M_p
-        ]
+        M_p_resized = [uq_resize(M_p[i], 2, Wf - 2) for i in range(N)]
+        (
+            [M_p_resized[i].check(is_typeof(M_p_resized[i], UQT(2, Wf - 2))) for i in range(N)]
+        )
         
-        M_p = [uq_rshift(M_p[i], Sh_p[i]) for i in range(N)]
-        [
-            m_p.check(is_typeof(m_p, UQT(2, Wf - 2))) 
-            for m_p in M_p
-        ]
+        M_p_shifted = [uq_rshift(M_p_resized[i], Sh_p[i]) for i in range(N)]
+        (
+            [M_p_shifted[i].check(is_typeof(M_p_shifted[i], UQT(2, Wf - 2))) for i in range(N)],
+            [M_p_shifted[i].check(is_less_or_equal(M_p_shifted[i], M_p_resized[i])) for i in range(N)]  # value before shift is greater or equal
+        )
         
         # Step 4. Adjust sign for mantissas using xor operation
         S_p = [sign_xor(S_a[i], S_b[i]) for i in range(N)]
-        [
-            s_p.check(is_typeof(s_p, UQT(1, 0)))
-            for s_p in S_p
-        ]
+        (
+            [S_p[i].check(is_typeof(S_p[i], UQT(1, 0))) for i in range(N)]
+        )
         
-        M_p = [uq_to_q(M_p[i]) for i in range(N)]
-        [
-            m_p.check(is_typeof(m_p, QT(3, Wf - 2))) 
-            for m_p in M_p
-        ]
+        M_p_q = [uq_to_q(M_p_shifted[i]) for i in range(N)]
+        (
+            [M_p_q[i].check(is_typeof(M_p_q[i], QT(3, Wf - 2))) for i in range(N)],
+            [M_p_q[i].check(is_equal(M_p_q[i], M_p_shifted[i])) for i in range(N)]  # value does not change
+        )
         
-        M_p = [q_add_sign(M_p[i], S_p[i]) for i in range(N)]
-        [
-            m_p.check(is_typeof(m_p, QT(3, Wf - 2))) 
-            for m_p in M_p
-        ]
+        M_p_q = [q_add_sign(M_p_q[i], S_p[i]) for i in range(N)]
+        (
+            [M_p_q[i].check(is_typeof(M_p_q[i], QT(3, Wf - 2))) for i in range(N)]
+        )
         
         # Step 5. Adder tree
         M_sum = q_add(
-            q_add(M_p[0], M_p[1]),
-            q_add(M_p[2], M_p[3]),
+            q_add(M_p_q[0], M_p_q[1]),
+            q_add(M_p_q[2], M_p_q[3]),
         )
         
-        [
-            M_sum.check(is_typeof(M_sum, QT(5, Wf - 2)))
-        ]
+        (
+            M_sum.check(is_typeof(M_sum, QT(5, Wf - 2))),
+            M_sum.check(
+                is_equal(
+                    M_sum, 
+                    q_add(
+                        q_add(M_p_q[1], M_p_q[0]),  # random permutations
+                        q_add(M_p_q[3], M_p_q[2])
+                    )
+                )
+            ),
+            M_sum.check(
+                is_equal(
+                    M_sum, 
+                    q_add(
+                        q_add(M_p_q[0], M_p_q[3]),  # random permutations
+                        q_add(M_p_q[2], M_p_q[1])
+                    )
+                )
+            )
+        )
         
         ########## RESULT ##################
          # Subtract bias that is left! 
-        E_m = uq_to_q(E_m)
-        [
-            E_m.check(is_typeof(E_m, QT(10, 0)))
-        ]
+        E_m_q = uq_to_q(E_m)
+        (
+            E_m_q.check(is_typeof(E_m_q, QT(10, 0))),
+            E_m_q.check(is_equal(E_m_q, E_m))
+        )
         
-        E_m = q_sub(E_m, bf16_bias)
-        [
-            E_m.check(is_typeof(E_m, QT(11, 0)))
-        ]
+        E_m_q_biased = q_sub(E_m_q, bf16_bias)
+        (
+            E_m_q_biased.check(is_typeof(E_m_q_biased, QT(11, 0)))
+        )
         
-        return encode_Float32(M_sum, E_m)
+        return encode_Float32(M_sum, E_m_q_biased)
     
     return Composite(
             spec=spec,
