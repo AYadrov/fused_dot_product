@@ -65,19 +65,14 @@ def CSA(x: Node, y: Node, z: Node) -> Primitive:
         carry = q_sign_extend(carry, 1)
         carry = q_lshift(carry, one)
         
-        # Check Statement. LHS and RHS can have different sizes, depends in which order you are adding Qs
-        lhs_assert = q_add(q_add(x, y), z)
-        rhs_assert = q_add(sum_, carry)
-        lhs_assert, rhs_assert = q_aligner(
-            x=lhs_assert,
-            y=rhs_assert,
-            int_aggr=lambda x, y: max(x, y),
-            frac_aggr=lambda x, y: max(x, y),
-        )
         carry.check(
             is_equal(
-                lhs_assert,
-                rhs_assert,
+                *q_aligner(
+                    q_add(q_add(x, y), z),
+                    q_add(sum_, carry),
+                    max,
+                    max
+                )
             )
         )
         
@@ -129,7 +124,7 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
         ############# Asserts ##############
         s2.check(
             is_typeof(
-                s2, 
+                s2,
                 QT(
                     max(c1.node_type.int_bits, m3.node_type.int_bits),
                     max(c1.node_type.frac_bits, m3.node_type.frac_bits),
@@ -138,7 +133,7 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
         )
         c2.check(
             is_typeof(
-                c2, 
+                c2,
                 QT(
                     max(c1.node_type.int_bits, m3.node_type.int_bits) + 1,
                     max(c1.node_type.frac_bits, m3.node_type.frac_bits),
@@ -158,8 +153,12 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
         )
         impl.check(
             is_equal(
-                impl,
-                q_add(q_add(q_add(m0, m1), m2), m3)
+                *q_aligner(
+                    impl,
+                    q_add(q_add(m0, m1), q_add(m2, m3)),
+                    max,
+                    max
+                )
             )
         )
         ####################################
