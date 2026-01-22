@@ -37,6 +37,9 @@ class Node:
         return Tuple_get_item(self, idx)
     
     def check(self, assert_node: "Node"):
+        assert isinstance(assert_node, Node)
+        assert assert_node.node_type == BoolT()
+        assert len(assert_node.args) != 0, f"No arguments provided for assert {assert_node.name}"
         self._assert_statements.append(assert_node)
     
     def evaluate(self, cache: tp.Optional[dict["Node", RuntimeType]] = None) -> RuntimeType:
