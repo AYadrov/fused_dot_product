@@ -19,65 +19,21 @@ def is_typeof(x: Node, t: StaticType) -> Op:
         name="is_typeof",
     )
 
-def is_less(x: Node, y: Node) -> Op:
-    return _binary_operator(
-        op=lambda x, y: 1 if x.val < y.val else 0,
-        x=x,
-        y=y,
-        out=Const(Bool(0)),
-        name="is_less",
-    )
 
-def is_less_or_equal(x: Node, y: Node) -> Op:
-    return _binary_operator(
-        op=lambda x, y: 1 if x.val <= y.val else 0,
-        x=x,
-        y=y,
-        out=Const(Bool(0)),
-        name="is_less_or_equal",
-    )
-
-def is_greater(x: Node, y: Node) -> Op:
-    return _binary_operator(
-        op=lambda x, y: 1 if x.val > y.val else 0,
-        x=x,
-        y=y,
-        out=Const(Bool(0)),
-        name="is_greater",
-    )
-
-def is_greater_or_equal(x: Node, y: Node) -> Op:
-    return _binary_operator(
-        op=lambda x, y: 1 if x.val >= y.val else 0,
-        x=x,
-        y=y,
-        out=Const(Bool(0)),
-        name="is_greater_or_equal",
-    )
-
-def is_equal(x: Node, y: Node) -> Op:
-    return _binary_operator(
-        op=lambda x, y: 1 if x.val == y.val else 0,
-        x=x,
-        y=y,
-        out=Const(Bool(0)),
-        name="is_equal",
-    )
-
-def is_not_equal(x: Node, y: Node) -> Op:
-    return _binary_operator(
-        op=lambda x, y: 0 if x.val == y.val else 1,
-        x=x,
-        y=y,
-        out=Const(Bool(0)),
-        name="is_not_equal",
-    )
-
-def negate(x: Node) -> Op:
+def negate(x: Node) -> Primitive:
     assert isinstance(x.node_type, BoolT)
-    return _unary_operator(
-        op=lambda x: 0 if x.val == 1 else 1,
-        x=x,
-        out=Const(Bool(0)),
-        name="negate",
-    )
+    def spec(x: bool):
+        return not x
+        
+    def impl(x: Bool):
+        return basic_invert(x, out=Const(Bool(0)))
+    
+    def sign(x: BoolT) -> BoolT:
+        return x
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x],
+        name="negate")

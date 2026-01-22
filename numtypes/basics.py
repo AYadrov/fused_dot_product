@@ -167,6 +167,60 @@ def basic_concat(x: Node, y: Node, out: Node) -> Op:
         name="basic_concat",
     )
 
+def basic_less(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: 1 if x.val < y.val else 0,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_less",
+    )
+
+def basic_less_or_equal(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: 1 if x.val <= y.val else 0,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_less_or_equal",
+    )
+
+def basic_greater(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: 1 if x.val > y.val else 0,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_greater",
+    )
+
+def basic_greater_or_equal(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: 1 if x.val >= y.val else 0,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_greater_or_equal",
+    )
+
+def basic_equal(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: 1 if x.val == y.val else 0,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_equal",
+    )
+
+def basic_not_equal(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: 1 if x.val != y.val else 0,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_not_equal",
+    )
+
 ########### Unary Operators ###########
 
 # TODO: Truncation is possible if out is too small

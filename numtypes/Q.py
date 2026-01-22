@@ -24,6 +24,199 @@ def _q_alloc(int_bits: Node, frac_bits: Node) -> Op:
         args=[int_bits, frac_bits],
         name="_q_alloc")
 
+# Does not have spec
+def _q_is_min_val(x: Node) -> Op:
+    def impl(x: Q) -> UQ:
+        if x.val == (1 << (x.total_bits() - 1)):
+            res = 1
+        else:
+            res = 0
+        return UQ(res, 1, 0)
+    
+    def sign(x: QT) -> UQT:
+        return UQT(1, 0)
+    
+    return Op(
+        impl=impl,
+        sign=sign,
+        args=[x],
+        name="_q_is_min_val")
+        
+
+############# Public API ###############
+
+def q_signs_xor(x: Node, y: Node) -> Primitive:
+    def impl(x: Q, y: Q) -> Bool:
+        return basic_xor(
+            q_sign_bit(x), 
+            q_sign_bit(y), 
+            out=Const(Bool(0))
+        )
+    
+    def spec(x, y):
+        return (x < 0) != (y < 0)
+    
+    def sign(x: QT, y: QT) -> BoolT:
+        return BoolT()    
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="q_signs_xor")
+
+def q_less(x: Node, y: Node) -> Primitive:
+    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
+    def impl(x: Node, y: Node) -> Node:
+        aligned_x, aligned_y = q_aligner(x, y, max, max)
+        return basic_mux_2_1(
+            sel=q_signs_differ(x, y),
+            in0=basic_less(aligned_x, aligned_y, Const(Bool(0))),  # same signs
+            in1=basic_mux_2_1(  # different signs!
+                sel=q_sign_bit(x),
+                in0=Const(Bool(0)),  # x > y
+                in1=Const(Bool(1)),  # x < y
+                out=Const(Bool(0))),
+            out=Const(Bool(0)))
+    
+    def spec(x, y):
+        return x < y
+    
+    def sign(x: QT, y: QT) -> BoolT:
+        return BoolT()
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="q_less"
+    )
+
+def q_less_or_equal(x: Node, y: Node) -> Primitive:
+    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
+    def impl(x: Node, y: Node) -> Node:
+        aligned_x, aligned_y = q_aligner(x, y, max, max)
+        return basic_mux_2_1(
+            sel=q_signs_differ(x, y),
+            in0=basic_less_or_equal(aligned_x, aligned_y, Const(Bool(0))),  # same signs
+            in1=basic_mux_2_1(  # different signs!
+                sel=q_sign_bit(x),
+                in0=Const(Bool(0)),  # x > y
+                in1=Const(Bool(1)),  # x < y
+                out=Const(Bool(0))),
+            out=Const(Bool(0)))
+    
+    def spec(x, y):
+        return x <= y
+    
+    def sign(x: QT, y: QT) -> BoolT:
+        return BoolT()
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="q_less_or_equal",
+    )
+
+def q_greater(x: Node, y: Node) -> Primitive:
+    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
+    def impl(x: Node, y: Node) -> Node:
+        aligned_x, aligned_y = q_aligner(x, y, max, max)
+        return basic_mux_2_1(
+            sel=q_signs_differ(x, y),
+            in0=basic_greater(aligned_x, aligned_y, Const(Bool(0))),  # same signs
+            in1=basic_mux_2_1(  # different signs!
+                sel=q_sign_bit(x),
+                in0=Const(Bool(1)),  # x > y
+                in1=Const(Bool(0)),  # x < y
+                out=Const(Bool(0))),
+            out=Const(Bool(0)))
+    
+    def spec(x, y):
+        return x > y
+    
+    def sign(x: QT, y: QT) -> BoolT:
+        return BoolT()
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="q_greater",
+    )
+
+def q_greater_or_equal(x: Node, y: Node) -> Primitive:
+    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
+    def impl(x: Node, y: Node) -> Node:
+        aligned_x, aligned_y = q_aligner(x, y, max, max)
+        return basic_mux_2_1(
+            sel=q_signs_differ(x, y),
+            in0=basic_greater_or_equal(aligned_x, aligned_y, Const(Bool(0))),  # same signs
+            in1=basic_mux_2_1(  # different signs!
+                sel=q_sign_bit(x),
+                in0=Const(Bool(1)),  # x > y
+                in1=Const(Bool(0)),  # x < y
+                out=Const(Bool(0))),
+            out=Const(Bool(0)))
+    
+    def spec(x, y):
+        return x >= y
+    
+    def sign(x: QT, y: QT) -> BoolT:
+        return BoolT()
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="q_greater_or_equal",
+    )
+
+def q_equal(x: Node, y: Node) -> Primitive:
+    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
+    def impl(x: Node, y: Node) -> Node:
+        aligned_x, aligned_y = q_aligner(x, y, max, max)
+        return basic_equal(aligned_x, aligned_y, out=Const(Bool(0)))
+    
+    def spec(x, y): 
+        return x == y
+    
+    def sign(x: QT, y: QT) -> BoolT:
+        return BoolT(0)
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="q_equal",
+    )
+
+def q_not_equal(x: Node, y: Node) -> Primitive:
+    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
+    def impl(x: Node, y: Node) -> Node:
+        aligned_x, aligned_y = q_aligner(x, y, max, max)
+        return basic_not_equal(aligned_x, aligned_y, out=Const(Bool(0)))
+    
+    def spec(x, y): 
+        return x != y
+    
+    def sign(x: QT, y: QT) -> BoolT:
+        return BoolT(0)
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="q_not_equal",
+    )
 
 def q_aligner(x: Node,
               y: Node,
@@ -47,7 +240,7 @@ def q_aligner(x: Node,
                 x,
                 Const(UQ.from_int(shift)), 
                 Const(Q(0, x.node_type.int_bits, frac_bits)))
-                
+            
             # Step 2. Align integer bits
             shift = int_bits - x.node_type.int_bits
             assert shift >= 0, "truncation is not implemented yet"
@@ -61,129 +254,6 @@ def q_aligner(x: Node,
         sign=sign,
         args=[x, y],
         name="q_aligner")
-
-def _q_signed_val(x: Q) -> int:
-    sign = x.sign_bit()
-    if sign == 1:
-        return x.val - (1 << x.total_bits())
-    return x.val
-
-def q_is_less(x: Node, y: Node) -> Op:
-    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
-    aligned = q_aligner(
-        x=x,
-        y=y,
-        int_aggr=lambda a, b: max(a, b),
-        frac_aggr=lambda a, b: max(a, b),
-    )
-    return _binary_operator(
-        op=lambda x, y: 1 if _q_signed_val(x) < _q_signed_val(y) else 0,
-        x=aligned[0],
-        y=aligned[1],
-        out=Const(Bool(0)),
-        name="q_is_less",
-    )
-
-def q_is_less_or_equal(x: Node, y: Node) -> Op:
-    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
-    aligned = q_aligner(
-        x=x,
-        y=y,
-        int_aggr=lambda a, b: max(a, b),
-        frac_aggr=lambda a, b: max(a, b),
-    )
-    return _binary_operator(
-        op=lambda x, y: 1 if _q_signed_val(x) <= _q_signed_val(y) else 0,
-        x=aligned[0],
-        y=aligned[1],
-        out=Const(Bool(0)),
-        name="q_is_less_or_equal",
-    )
-
-def q_is_greater(x: Node, y: Node) -> Op:
-    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
-    aligned = q_aligner(
-        x=x,
-        y=y,
-        int_aggr=lambda a, b: max(a, b),
-        frac_aggr=lambda a, b: max(a, b),
-    )
-    return _binary_operator(
-        op=lambda x, y: 1 if _q_signed_val(x) > _q_signed_val(y) else 0,
-        x=aligned[0],
-        y=aligned[1],
-        out=Const(Bool(0)),
-        name="q_is_greater",
-    )
-
-def q_is_greater_or_equal(x: Node, y: Node) -> Op:
-    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
-    aligned = q_aligner(
-        x=x,
-        y=y,
-        int_aggr=lambda a, b: max(a, b),
-        frac_aggr=lambda a, b: max(a, b),
-    )
-    return _binary_operator(
-        op=lambda x, y: 1 if _q_signed_val(x) >= _q_signed_val(y) else 0,
-        x=aligned[0],
-        y=aligned[1],
-        out=Const(Bool(0)),
-        name="q_is_greater_or_equal",
-    )
-
-def q_is_equal(x: Node, y: Node) -> Op:
-    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
-    aligned = q_aligner(
-        x=x,
-        y=y,
-        int_aggr=lambda a, b: max(a, b),
-        frac_aggr=lambda a, b: max(a, b),
-    )
-    return _binary_operator(
-        op=lambda x, y: 1 if _q_signed_val(x) == _q_signed_val(y) else 0,
-        x=aligned[0],
-        y=aligned[1],
-        out=Const(Bool(0)),
-        name="q_is_equal",
-    )
-
-def q_is_not_equal(x: Node, y: Node) -> Op:
-    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
-    aligned = q_aligner(
-        x=x,
-        y=y,
-        int_aggr=lambda a, b: max(a, b),
-        frac_aggr=lambda a, b: max(a, b),
-    )
-    return _binary_operator(
-        op=lambda x, y: 0 if _q_signed_val(x) == _q_signed_val(y) else 1,
-        x=aligned[0],
-        y=aligned[1],
-        out=Const(Bool(0)),
-        name="q_is_not_equal",
-    )
-
-
-# Does not have spec
-def _q_is_min_val(x: Node) -> Op:
-    def impl(x: Q) -> UQ:
-        if x.val == (1 << (x.total_bits() - 1)):
-            res = 1
-        else:
-            res = 0
-        return UQ(res, 1, 0)
-    
-    def sign(x: QT) -> UQT:
-        return UQT(1, 0)
-    
-    return Op(
-        impl=impl,
-        sign=sign,
-        args=[x],
-        name="_q_is_min_val")
-
-############## Public API ##############
 
 def q_sign_bit(x: Node) -> Primitive:
     def sign(x: QT) -> UQT:
