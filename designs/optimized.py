@@ -223,13 +223,9 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         (
             M_sum.check(is_typeof(M_sum, QT(6, Wf + (2**s - 1) - 2))),
             M_sum.check(
-                is_equal(
-                    *q_aligner(
-                        M_sum, 
-                        q_add(q_add(M_p[0], M_p[1]), q_add(M_p[2], M_p[3])),
-                        max,
-                        max
-                    )
+                q_is_equal(
+                    M_sum, 
+                    q_add(q_add(M_p[0], M_p[1]), q_add(M_p[2], M_p[3])),
                 )
             )
         )
@@ -298,4 +294,3 @@ if __name__ == '__main__':
             a[i].load_val(random_gen())
             b[i].load_val(random_gen())
         tqdm.write(str(design.evaluate()))
-

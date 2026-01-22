@@ -88,10 +88,11 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         
         # Step 2. Multiply mantissas
         M_p = [uq_mul(M_a[i], M_b[i]) for i in range(N)]
+        M_p_aligned = [uq_aligner(M_p[i], Const(UQ.from_int(1)), max, max) for i in range(N)]
         (
             [M_p[i].check(is_typeof(M_p[i], UQT(2, 14))) for i in range(N)],
             [M_p[i].check(is_equal(M_p[i], uq_mul(M_b[i], M_a[i]))) for i in range(N)],  # commutativity
-            [M_p[i].check(is_greater_or_equal(*uq_aligner(M_p[i], Const(UQ.from_int(1)), max, max))) for i in range(N)]  # ge than one
+            [M_p[i].check(is_greater_or_equal(M_p_aligned[i][0], M_p_aligned[i][1])) for i in range(N)]  # ge than one
         )
         
         # Step 3. Shift mantissas
@@ -133,7 +134,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         (
             M_sum.check(is_typeof(M_sum, QT(5, Wf - 2))),
             M_sum.check(
-                is_equal(
+                q_is_equal(
                     M_sum, 
                     q_add(
                         q_add(M_p_q[1], M_p_q[0]),  # random permutations
@@ -142,7 +143,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
                 )
             ),
             M_sum.check(
-                is_equal(
+                q_is_equal(
                     M_sum, 
                     q_add(
                         q_add(M_p_q[0], M_p_q[3]),  # random permutations
@@ -207,4 +208,3 @@ if __name__ == '__main__':
             a[i].load_val(random_gen())
             b[i].load_val(random_gen())
         tqdm.write(str(design.evaluate()))
-

@@ -62,6 +62,108 @@ def q_aligner(x: Node,
         args=[x, y],
         name="q_aligner")
 
+def _q_signed_val(x: Q) -> int:
+    sign = x.sign_bit()
+    if sign == 1:
+        return x.val - (1 << x.total_bits())
+    return x.val
+
+def q_is_less(x: Node, y: Node) -> Op:
+    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
+    aligned = q_aligner(
+        x=x,
+        y=y,
+        int_aggr=lambda a, b: max(a, b),
+        frac_aggr=lambda a, b: max(a, b),
+    )
+    return _binary_operator(
+        op=lambda x, y: 1 if _q_signed_val(x) < _q_signed_val(y) else 0,
+        x=aligned[0],
+        y=aligned[1],
+        out=Const(Bool(0)),
+        name="q_is_less",
+    )
+
+def q_is_less_or_equal(x: Node, y: Node) -> Op:
+    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
+    aligned = q_aligner(
+        x=x,
+        y=y,
+        int_aggr=lambda a, b: max(a, b),
+        frac_aggr=lambda a, b: max(a, b),
+    )
+    return _binary_operator(
+        op=lambda x, y: 1 if _q_signed_val(x) <= _q_signed_val(y) else 0,
+        x=aligned[0],
+        y=aligned[1],
+        out=Const(Bool(0)),
+        name="q_is_less_or_equal",
+    )
+
+def q_is_greater(x: Node, y: Node) -> Op:
+    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
+    aligned = q_aligner(
+        x=x,
+        y=y,
+        int_aggr=lambda a, b: max(a, b),
+        frac_aggr=lambda a, b: max(a, b),
+    )
+    return _binary_operator(
+        op=lambda x, y: 1 if _q_signed_val(x) > _q_signed_val(y) else 0,
+        x=aligned[0],
+        y=aligned[1],
+        out=Const(Bool(0)),
+        name="q_is_greater",
+    )
+
+def q_is_greater_or_equal(x: Node, y: Node) -> Op:
+    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
+    aligned = q_aligner(
+        x=x,
+        y=y,
+        int_aggr=lambda a, b: max(a, b),
+        frac_aggr=lambda a, b: max(a, b),
+    )
+    return _binary_operator(
+        op=lambda x, y: 1 if _q_signed_val(x) >= _q_signed_val(y) else 0,
+        x=aligned[0],
+        y=aligned[1],
+        out=Const(Bool(0)),
+        name="q_is_greater_or_equal",
+    )
+
+def q_is_equal(x: Node, y: Node) -> Op:
+    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
+    aligned = q_aligner(
+        x=x,
+        y=y,
+        int_aggr=lambda a, b: max(a, b),
+        frac_aggr=lambda a, b: max(a, b),
+    )
+    return _binary_operator(
+        op=lambda x, y: 1 if _q_signed_val(x) == _q_signed_val(y) else 0,
+        x=aligned[0],
+        y=aligned[1],
+        out=Const(Bool(0)),
+        name="q_is_equal",
+    )
+
+def q_is_not_equal(x: Node, y: Node) -> Op:
+    assert isinstance(x.node_type, QT) and isinstance(y.node_type, QT)
+    aligned = q_aligner(
+        x=x,
+        y=y,
+        int_aggr=lambda a, b: max(a, b),
+        frac_aggr=lambda a, b: max(a, b),
+    )
+    return _binary_operator(
+        op=lambda x, y: 0 if _q_signed_val(x) == _q_signed_val(y) else 1,
+        x=aligned[0],
+        y=aligned[1],
+        out=Const(Bool(0)),
+        name="q_is_not_equal",
+    )
+
 
 # Does not have spec
 def _q_is_min_val(x: Node) -> Op:
