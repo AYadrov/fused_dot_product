@@ -42,7 +42,11 @@ class Node:
         assert len(assert_node.args) != 0, f"No arguments provided for assert {assert_node.name}"
         self._assert_statements.append(assert_node)
     
-    def evaluate(self, cache: tp.Optional[dict["Node", RuntimeType]] = None) -> RuntimeType:
+    def evaluate(
+        self,
+        cache: tp.Optional[dict["Node", RuntimeType]] = None,
+        run_asserts: bool = True,
+    ) -> RuntimeType:
         # Use a per-evaluation cache to avoid recomputing shared subtrees.
         # Cache lives only for the current call chain.
         active_cache = cache if cache is not None else self._eval_cache.get()
@@ -55,17 +59,14 @@ class Node:
             if self in active_cache:
                 return active_cache[self].copy()
             
-            
             out = None
             # Constant folding hit
             if self.node_type.runtime_val:
                 out = self.node_type.runtime_val.copy()
-                active_cache[self] = out
             # Evaluation pass
             else:
-                inputs = [arg.evaluate(active_cache) for arg in self.args]
+                inputs = [arg.evaluate(active_cache, run_asserts=run_asserts) for arg in self.args]
                 out = self.impl(*inputs).copy()
-                active_cache[self] = out  # update cache
                 
                 ########## CHECK BLOCK #########
                 self.dynamic_typecheck(args=inputs, out=out)
@@ -84,16 +85,20 @@ class Node:
                     )
                     assert res, err_msg
                 ################################
-            
-            ########## ASSERT STATEMENTS #########
-            for to_assert in self._assert_statements:
-                res = to_assert.evaluate(active_cache)
-                assert isinstance(res, Bool)
-                if res.val == 0:
-                    raise AssertionError(f"Assertion mismatch at {to_assert.name} for {self.name}")
                 
+            ####### ASSERT STATEMENTS ######
+            if run_asserts:  # asserts should not be run at constant folding
+                active_cache[self] = out  # update cache to avoid infinite loop
+                for to_assert in self._assert_statements:
+                    res = to_assert.evaluate(active_cache, run_asserts=run_asserts)
+                    assert isinstance(res, Bool)
+                    if res.val == 0:
+                        raise AssertionError(f"Assertion mismatch at {to_assert.name} for {self.name}")
+                
+            ################################
+            
             return out
-        
+            
         finally:
             # Erase current cache
             self._eval_cache.reset(token)
@@ -114,7 +119,7 @@ class Node:
         # If all arguments are known at compile time - apply constant folding
         args_ = [arg.runtime_val for arg in self.args_types]
         if all([val is not None for val in args_]) and args_ != []:
-            self.node_type.runtime_val = self.evaluate()
+            self.node_type.runtime_val = self.evaluate(run_asserts=False)
         ################################
         
         return self.node_type
