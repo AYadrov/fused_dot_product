@@ -297,8 +297,8 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
         target_width = Float32.mantissa_bits
         m_rounded_uq, e_rounded_uq = round_to_the_nearest_even(normalized_m_uq, normalized_e_uq, target_bits=target_width)
         (
-            m_rounded_uq.check(uq_less(normalized_m_uq, Const(UQ.from_int(1)))),
-            m_rounded_uq.check(uq_greater_or_equal(normalized_m_uq, Const(UQ.from_int(0))))
+            m_rounded_uq.check(uq_less(m_rounded_uq, Const(UQ.from_int(1)))),
+            m_rounded_uq.check(uq_greater_or_equal(m_rounded_uq, Const(UQ.from_int(0))))
         )
         
         ######### INF HANDLING #########
@@ -317,8 +317,8 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
             out=m_rounded_uq.copy())
         
         (
-            final_e_uq.check(uq_less(normalized_m_uq, Const(UQ.from_int(Float32.inf_code)))),
-            final_e_uq.check(uq_greater_or_equal(normalized_m_uq, Const(UQ.from_int(0)))),
+            final_e_uq.check(uq_less_or_equal(final_e_uq, Const(UQ.from_int(Float32.inf_code)))),
+            final_e_uq.check(uq_greater_or_equal(final_e_uq, Const(UQ.from_int(0)))),
             final_m_uq.check(uq_less(final_m_uq, Const(UQ.from_int(1))))
         )
         

@@ -22,9 +22,9 @@ def is_typeof(x: Node, t: StaticType) -> Op:
 
 def negate(x: Node) -> Primitive:
     assert isinstance(x.node_type, BoolT)
-    def spec(x: bool):
-        return not x
-        
+    def spec(x: bool, out: bool):
+        return (not x) == out
+    
     def impl(x: Bool):
         return basic_invert(x, out=Const(Bool(0)))
     
