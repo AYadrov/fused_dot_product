@@ -9,6 +9,141 @@ from fused_dot_product.numtypes.Tuple import make_Tuple
 
 ########### Private Helpers ############
 
+# Function does not care about int_bits/frac_bits types, it takes their values
+# Allocates UQ at runtime
+def _uq_alloc(int_bits: Node,
+              frac_bits: Node) -> Op:
+    def sign(int_bits: StaticType, frac_bits: StaticType) -> UQT:
+        if int_bits.runtime_val is not None and frac_bits.runtime_val is not None:
+            return UQT(int_bits.runtime_val.val, frac_bits.runtime_val.val)
+        raise TypeError("_uq_alloc's arguments depend on a variable")
+
+    def impl(int_bits: RuntimeType, frac_bits: RuntimeType) -> UQ:
+        return UQ(0, int_bits.val, frac_bits.val)
+
+    return Op(
+        sign=sign,
+        impl=impl,
+        args=[int_bits, frac_bits],
+        name="_uq_alloc")
+
+
+############## Public API ##############
+
+def uq_less(x: Node, y: Node) -> Primitive:
+    def impl(x: Node, y: Node) -> Node:
+        aligned_x, aligned_y = uq_aligner(x, y, max, max)
+        return basic_less(aligned_x, aligned_y, out=Const(Bool(0)))
+    
+    def spec(x, y, out):
+        return (x < y) == out
+    
+    def sign(x: UQT, y: UQT) -> BoolT:
+        return BoolT()
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="uq_less"
+    )
+
+def uq_less_or_equal(x: Node, y: Node) -> Primitive:
+    def impl(x: Node, y: Node) -> Node:
+        aligned_x, aligned_y = uq_aligner(x, y, max, max)
+        return basic_less_or_equal(aligned_x, aligned_y, out=Const(Bool(0)))
+    
+    def spec(x, y, out):
+        return (x <= y) == out
+    
+    def sign(x: UQT, y: UQT) -> BoolT:
+        return BoolT()
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="uq_less_or_equal",
+    )
+
+def uq_greater(x: Node, y: Node) -> Primitive:
+    def impl(x: Node, y: Node) -> Node:
+        aligned_x, aligned_y = uq_aligner(x, y, max, max)
+        return basic_greater(aligned_x, aligned_y, out=Const(Bool(0)))
+    
+    def spec(x, y, out):
+        return (x > y) == out
+    
+    def sign(x: UQT, y: UQT) -> BoolT:
+        return BoolT()
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="uq_greater",
+    )
+
+def uq_greater_or_equal(x: Node, y: Node) -> Primitive:
+    def impl(x: Node, y: Node) -> Node:
+        aligned_x, aligned_y = uq_aligner(x, y, max, max)
+        return basic_greater_or_equal(aligned_x, aligned_y, out=Const(Bool(0)))
+    
+    def spec(x, y, out):
+        return (x >= y) == out
+    
+    def sign(x: UQT, y: UQT) -> BoolT:
+        return BoolT()
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="uq_greater_or_equal",
+    )
+
+def uq_equal(x: Node, y: Node) -> Primitive:
+    def impl(x: Node, y: Node) -> Node:
+        aligned_x, aligned_y = uq_aligner(x, y, max, max)
+        return basic_equal(aligned_x, aligned_y, out=Const(Bool(0)))
+    
+    def spec(x, y, out): 
+        return (x == y) == out
+    
+    def sign(x: UQT, y: UQT) -> BoolT:
+        return BoolT()
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="uq_equal",
+    )
+
+def uq_not_equal(x: Node, y: Node) -> Primitive:
+    def impl(x: Node, y: Node) -> Node:
+        aligned_x, aligned_y = uq_aligner(x, y, max, max)
+        return basic_not_equal(aligned_x, aligned_y, out=Const(Bool(0)))
+    
+    def spec(x, y, out): 
+        return (x != y) == out
+    
+    def sign(x: UQT, y: UQT) -> BoolT:
+        return BoolT()
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x, y],
+        name="uq_not_equal",
+    )
+
 def uq_aligner(x: Node,
                 y: Node,
                 int_aggr: tp.Callable,
@@ -38,36 +173,16 @@ def uq_aligner(x: Node,
         name="uq_aligner")
 
 
-# Function does not care about int_bits/frac_bits types, it takes their values
-# Allocates UQ at runtime
-def _uq_alloc(int_bits: Node,
-              frac_bits: Node) -> Op:
-    def sign(int_bits: StaticType, frac_bits: StaticType) -> UQT:
-        if int_bits.runtime_val is not None and frac_bits.runtime_val is not None:
-            return UQT(int_bits.runtime_val.val, frac_bits.runtime_val.val)
-        raise TypeError("_uq_alloc's arguments depend on a variable")
-
-    def impl(int_bits: RuntimeType, frac_bits: RuntimeType) -> UQ:
-        return UQ(0, int_bits.val, frac_bits.val)
-
-    return Op(
-        sign=sign,
-        impl=impl,
-        args=[int_bits, frac_bits],
-        name="_uq_alloc")
-
-
 # These functions are possible because x.node_type is known at compile time and does not change
 def uq_frac_bits(x: Node) -> Node:
     assert isinstance(x.node_type, UQT)
     return Const(UQ.from_int(x.node_type.frac_bits))
 
+
 def uq_int_bits(x: Node) -> Node:
     assert isinstance(x.node_type, UQT)
     return Const(UQ.from_int(x.node_type.int_bits))
 
-
-############## Public API ##############
 
 def uq_zero_extend(x: Node, n: int) -> Primitive:
     assert isinstance(n, int) and n >= 0

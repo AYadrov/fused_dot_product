@@ -51,7 +51,7 @@ def _unary_operator(op: tp.Callable, x: Node, out: Node, name: str) -> Op:
 ########## Ternary Operators ###########
 
 def basic_mux_2_1(sel: Node, in0: Node, in1: Node, out: Node) -> Op:
-    def op(sel: Node, in0: Node, in1: Node) -> int:
+    def op(sel: RuntimeType, in0: RuntimeType, in1: RuntimeType) -> int:
         assert sel.val in (0, 1), "out of range"
         return in1.val if sel.val == 1 else in0.val
     return _ternary_operator(
@@ -165,6 +165,60 @@ def basic_concat(x: Node, y: Node, out: Node) -> Op:
         y=y,
         out=out,
         name="basic_concat",
+    )
+
+def basic_less(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: 1 if x.val < y.val else 0,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_less",
+    )
+
+def basic_less_or_equal(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: 1 if x.val <= y.val else 0,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_less_or_equal",
+    )
+
+def basic_greater(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: 1 if x.val > y.val else 0,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_greater",
+    )
+
+def basic_greater_or_equal(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: 1 if x.val >= y.val else 0,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_greater_or_equal",
+    )
+
+def basic_equal(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: 1 if x.val == y.val else 0,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_equal",
+    )
+
+def basic_not_equal(x: Node, y: Node, out: Node) -> Op:
+    return _binary_operator(
+        op=lambda x, y: 1 if x.val != y.val else 0,
+        x=x,
+        y=y,
+        out=out,
+        name="basic_not_equal",
     )
 
 ########### Unary Operators ###########

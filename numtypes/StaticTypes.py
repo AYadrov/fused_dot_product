@@ -26,6 +26,24 @@ class StaticType:
         raise NotImplementedError
 
 
+class BoolT(StaticType):
+    def __init__(self):
+        super().__init__()
+    
+    @property
+    def total_bits(self):
+        return 1
+    
+    def __repr__(self):
+        return f"Bool<1>"
+    
+    def __eq__(self, other):
+        return isinstance(other, BoolT)
+        
+    def _clone_impl(self) -> "QT":
+        return BoolT()
+     
+
 class QT(StaticType):
     def __init__(self, int_bits: int, frac_bits: int):
         super().__init__()

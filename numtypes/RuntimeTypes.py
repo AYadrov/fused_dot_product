@@ -62,6 +62,35 @@ class Tuple(RuntimeType):
         )
 
 
+class Bool(RuntimeType):
+    def __init__(self, val: int):
+        assert val in (0, 1)
+        self.val = val
+        
+    def __str__(self):
+        return f"Bool({self.val})"
+    
+    def to_spec(self):
+        return self.val
+    
+    def static_type(self):
+        return BoolT()
+    
+    def copy(self, val=None):
+        if val is None:
+            val = self.val
+        return Bool(val)
+    
+    def total_bits(self):
+        return 1
+    
+    def __eq__(self, other):
+        return (
+            isinstance(other, Bool)
+            and other.val == self.val
+        )
+    
+
 class Q(RuntimeType):
     """Signed fixed-point type."""
     def __init__(self, val: int, int_bits: int, frac_bits: int):
