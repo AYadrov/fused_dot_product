@@ -40,6 +40,7 @@ class Node:
         assert isinstance(assert_node, Node)
         assert assert_node.node_type == BoolT()
         assert len(assert_node.args) != 0, f"No arguments provided for assert {assert_node.name}"
+        assert self.node_type.runtime_val is None, "Trying to put assert statements on a constant-folded node. Assert won't be checked"
         self._assert_statements.append(assert_node)
     
     def evaluate(
@@ -86,15 +87,15 @@ class Node:
                     assert res, err_msg
                 ################################
                 
+            active_cache[self] = out
+            
             ####### ASSERT STATEMENTS ######
             if run_asserts:  # asserts should not be run at constant folding
-                active_cache[self] = out  # update cache to avoid infinite loop
                 for to_assert in self._assert_statements:
                     res = to_assert.evaluate(active_cache, run_asserts=run_asserts)
                     assert isinstance(res, Bool)
                     if res.val == 0:
                         raise AssertionError(f"Assertion mismatch at {to_assert.name} for {self.name}")
-                
             ################################
             
             return out

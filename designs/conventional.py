@@ -23,7 +23,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         res += a3 * b3
         return float(np.float32(res)) == out
     
-    def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T, 
+    def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T,
              b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
         return Float32T()
     
@@ -133,7 +133,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
             M_sum.check(is_typeof(M_sum, QT(5, Wf - 2))),
             M_sum.check(
                 q_equal(
-                    M_sum, 
+                    M_sum,
                     q_add(
                         q_add(M_p_q[1], M_p_q[0]),  # random permutations
                         q_add(M_p_q[3], M_p_q[2])
@@ -142,7 +142,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
             ),
             M_sum.check(
                 q_equal(
-                    M_sum, 
+                    M_sum,
                     q_add(
                         q_add(M_p_q[0], M_p_q[3]),  # random permutations
                         q_add(M_p_q[2], M_p_q[1])
@@ -152,10 +152,10 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         )
         
         ########## RESULT ##################
-         # Subtract bias that is left! 
+         # Subtract bias that is left!
         E_m_q = uq_to_q(E_m)
         (
-            E_m_q.check(is_typeof(E_m_q, QT(10, 0))),
+            E_m_q.check(is_typeof(E_m_q, QT(10, 0)))
         )
         
         E_m_q_biased = q_sub(E_m_q, bf16_bias)
