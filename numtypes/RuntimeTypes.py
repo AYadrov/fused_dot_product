@@ -345,7 +345,7 @@ class BFloat16(RuntimeType):
             return shared_exp
         
         return gen, gen_shared_exp
-
+    
     def copy(self):
         return BFloat16(self.sign, self.mantissa, self.exponent)
     
@@ -358,7 +358,7 @@ class BFloat16(RuntimeType):
             and self.val == other.val
         )
 
-        
+
 if __name__ == '__main__':
     s = Tuple(Int(2), Q(2, 2, 3))
     print(s)
