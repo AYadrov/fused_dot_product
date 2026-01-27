@@ -1,6 +1,6 @@
 PYTHON ?= python3
 
-.PHONY: nightly install check-python
+.PHONY: nightly install check-python unit-tests
 
 check-python:
 	@echo "Checking Python installation"
@@ -16,7 +16,13 @@ check-python:
 
 install: check-python
 	@echo "Installing dependencies"
-	@command python -m pip install -r requirements.txt
+	@$(PYTHON) -m pip install --upgrade pip
+	@$(PYTHON) -m pip install -r requirements.txt
 
-nightly: check-python
+unit-tests: install
+	@echo "Running infra/unittests.py..."
+	@cd .. && $(PYTHON) -m fused_dot_product.infra.unittests --seed 0 --num-points 100
+	@echo "Complete"
+
+nightly: install
 	bash infra/nightly.sh reports/
