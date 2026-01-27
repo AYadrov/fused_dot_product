@@ -11,6 +11,9 @@ class StaticType:
         new = self._clone_impl()
         new.runtime_val = self.runtime_val
         return new
+    
+    def runtime_type(self) -> "RuntimeType":
+        raise NotImplementedError
 
     def _clone_impl(self) -> "StaticType":
         raise NotImplementedError
@@ -34,6 +37,9 @@ class BoolT(StaticType):
     def total_bits(self):
         return 1
     
+    def runtime_type(self) -> "RuntimeType":
+        return Bool(0)
+    
     def __repr__(self):
         return f"Bool<1>"
     
@@ -54,6 +60,9 @@ class QT(StaticType):
     @property
     def total_bits(self):
         return self.int_bits + self.frac_bits
+    
+    def runtime_type(self) -> "RuntimeType":
+        return Q(0, self.int_bits, self.frac_bits)
     
     def __repr__(self):
         return f"Q<{self.int_bits},{self.frac_bits}>"
@@ -80,6 +89,9 @@ class UQT(StaticType):
     def total_bits(self):
         return self.int_bits + self.frac_bits
     
+    def runtime_type(self) -> "RuntimeType":
+        return UQ(0, self.int_bits, self.frac_bits)
+    
     def __repr__(self):
         return f"UQ<{self.int_bits},{self.frac_bits}>"
     
@@ -104,6 +116,9 @@ class Float32T(StaticType):
     @property
     def total_bits(self):
         return self.sign_bits + self.mantissa_bits + self.exponent_bits
+    
+    def runtime_type(self) -> "RuntimeType":
+        return Float32(0, 0, 0)
     
     def __repr__(self):
         return f"Float<32>"
@@ -131,6 +146,9 @@ class BFloat16T(StaticType):
     def total_bits(self):
         return self.sign_bits + self.mantissa_bits + self.exponent_bits
     
+    def runtime_type(self) -> "RuntimeType":
+        return BFloat16(0, 0, 0)
+    
     def __repr__(self):
         return f"BFloat<16>"
     
@@ -155,6 +173,9 @@ class TupleT(StaticType):
     @property
     def total_bits(self):
         return sum([x.total_bits for x in self.args])
+    
+    def runtime_type(self) -> "RuntimeType":
+        return Tuple(*[arg.runtime_type for arg in self.args])
     
     def __repr__(self):
         return f"Tuple<{', '.join([repr(x) for x in self.args])}>"

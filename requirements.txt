@@ -1,1 +1,2 @@
 numpy
+z3-solver

@@ -6,6 +6,8 @@ from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.StaticTypes import *
 from fused_dot_product.utils.utils import ulp_distance
 
+from z3 import Solver
+
 
 class Node:
     # Shared cache for a single evaluation call-chain.
@@ -30,7 +32,7 @@ class Node:
             else:
                 out = impl(*inputs)
                 self._dynamic_typecheck(inputs=inputs, out=out)
-                self._run_spec_checks(inputs=inputs, out=out)
+                # self._run_spec_checks(inputs=inputs, out=out)
             return out.copy()
         
         self.spec = spec
@@ -45,20 +47,36 @@ class Node:
         
     ############## PRIVATE METHODS ###############
     
-    def _run_spec_checks(self, inputs: list[RuntimeType], out: RuntimeType):
-        # Op does not have a spec
-        if not isinstance(self, Op):
-            spec_inputs = [x.to_spec() for x in inputs]
-            spec_out = out.to_spec()
-            res = self.spec(*spec_inputs, spec_out)
-            assert isinstance(res, bool), "Boolean is expected from specification"
-            err_msg = (
-                f"[{self.name}] mismatch:\n"
-                f"  spec: {spec_inputs}\n"
-                f"  out: {spec_out}\n"
-                f"  res: {res}\n"
-            )
-            assert res, err_msg
+    def run_spec_checks(self, s=None):
+        if isinstance(self, Composite):
+            s = Solver() if s in None else s
+            inputs = []
+            for arg in self.inner_args:
+                inputs.append(arg.run_spec_checks(s))
+            
+            self.inner_tree.run_spec_checks(s)
+            out = self.spec(*inputs, s)
+            
+            if s.check() == unsat:
+                print ("proved")
+            else:
+                print ("failed to prove")
+            
+        elif isinstance(self, Primitive):
+            inputs = []
+            for child in self.args:
+                inputs.append(self.run_spec_checks(s))
+            out = self.spec(*inputs, s)
+            return out
+            
+        elif isinstance(self, Const) or isinstance(self, Var):
+            return Real(self.name) if self.name else f"{str(self.val)}"
+        
+        else:
+            raise TypeError("wrong node type at spec check")
+        
+        
+        
     
     def _run_asserts(self, cache=None):
         for to_assert in self._assert_statements:
@@ -180,15 +198,15 @@ class Composite(Node):
         self.printing_helper = impl
         
         # Args will preserve runtime values of arguments
-        args_ = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val is not None else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
+        self.inner_args = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val is not None else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         # Pointer to the inner tree
-        inner_tree = impl(*args_)
+        self.inner_tree = impl(*self.inner_args)
         
         def impl_(*args):
-            for var, arg in zip(args_, args):
+            for var, arg in zip(self.inner_args, args):
                 if isinstance(var, Var):
                     var.load_val(arg)
-            return inner_tree.evaluate()
+            return self.inner_tree.evaluate()
         
         super().__init__(spec=spec,
                          impl=impl_,
@@ -223,15 +241,15 @@ class Primitive(Node):
         self.printing_helper = impl
         
         # Args will preserve runtime values of arguments
-        args_ = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val is not None else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
+        self.inner_args = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val is not None else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         # Pointer to the inner tree
-        inner_tree = impl(*args_)
+        self.inner_tree = impl(*self.inner_args)
         
         def impl_(*args):
-            for var, arg in zip(args_, args):
+            for var, arg in zip(self.inner_args, args):
                 if isinstance(var, Var):
                     var.load_val(arg)
-            return inner_tree.evaluate()
+            return self.inner_tree.evaluate()
         
         super().__init__(spec=spec,
                          impl=impl_,
@@ -345,14 +363,18 @@ class Var(Node):
         return f"{self.node_type}: {self.name} [Var]"
 
 
-def Copy(x: Node) -> Op:
+def Copy(x: Node) -> Primitive:
     def sign(x: StaticType) -> StaticType:
+        return x
+    
+    def spec(x, s):
         return x
     
     def impl(x):
         return x
     
-    return Op(
+    return Primitive(
+        spec=spec,
         sign=sign,
         impl=impl,
         args=[x],
@@ -360,19 +382,31 @@ def Copy(x: Node) -> Op:
 
 
 # TODO: to be moved somewhere, it's here due to loading cycles
-def Tuple_get_item(x: Node, idx: int) -> Op:
+def Tuple_get_item(x: Node, idx: int) -> Primitive:
     def sign(x: TupleT) -> StaticType:
         if not isinstance(x, TupleT):
             raise TypeError(f"{x} is not an instance of TupleT to iterate over it")
         return x.args[idx]
 
-    def impl(x: Tuple) -> RuntimeType:
-        if idx >= len(x.args) or idx < 0:
+    def impl(x: Node) -> Node:
+        if idx >= len(x.node_type.args) or idx < 0:
             raise ValueError(f"Index is out of range for tuple {str(x)}, given {str(idx)}")
-        return x.args[idx]
+        def basic_get_item(x: Node, out: Node) -> Op:
+            return _unary_operator(
+                op=lambda x: x.args[idx],
+                x=x,
+                out=out,
+                name="basic_get_item",
+            )
+        return basic_get_item(x, Const(x.node_type.args[idx].runtime_type()))
+    
+    def spec(x, s):
+        return x[idx]
 
-    return Op(
+    return Primitive(
+        spec=spec,
         impl=impl,
         sign=sign,
         args=[x],
         name=f"Tuple_get_item_{idx}")
+

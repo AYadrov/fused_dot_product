@@ -5,6 +5,7 @@ from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.numtypes.Tuple import make_Tuple
 
+from z3 import Real, Solver
 
 ########### Private Helpers ############
 
@@ -355,8 +356,10 @@ def q_add(x: Node, y: Node) -> Primitive:
         )
         return basic_add(x_adj, y_adj, x_adj.copy())
     
-    def spec(x: float, y: float, out: float):
-        return x + y == out
+    def spec(x: float, y: float, s):
+        out = Real("out")
+        s.add(out == x + y)
+        return out
     
     def sign(x: QT, y: QT) -> QT:
         frac_bits = max(x.frac_bits, y.frac_bits)

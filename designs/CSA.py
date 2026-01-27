@@ -4,6 +4,7 @@ from fused_dot_product.numtypes.StaticTypes import *
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.Bool import *
 
+from z3 import Real, Solver
 
 ############## HELPERS #################
 def exact_xor(a: Node, b: Node):
@@ -49,9 +50,12 @@ def exact_or(a: Node, b: Node):
 # It is important to call CSA only on fixed points with equal lengths!
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
-def CSA(x: Node, y: Node, z: Node) -> Primitive:
-    def spec(x: float, y: float, z: float, out: tuple) -> bool:
-        return x + y + z == out[0] + out[1]
+def CSA(x: Node, y: Node, z: Node, s) -> Primitive:
+    def spec(x, y, z):
+        sum_ = Real('sum')
+        carry = Real('carry')
+        s.add(sum_ + carry == x + y + z)
+        return tuple(sum_, carry)
     
     def sign(x: QT, y: QT, z: QT) -> TupleT:
         frac_bits = max(max(x.frac_bits, y.frac_bits), z.frac_bits)
@@ -83,8 +87,10 @@ def CSA(x: Node, y: Node, z: Node) -> Primitive:
 
 
 def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
-    def spec(m0: float, m1: float, m2: float, m3: float, out: float) -> float:
-        return m0 + m1 + m2 + m3 == out
+    def spec(m0, m1, m2, m3, s):
+        out = Real('out')
+        s.add(out == m0 + m1 + m2 + m3)
+        return out
     
     def sign(m0: QT, m1: QT, m2: QT, m3: QT) -> QT:
         frac_bits = max(max(m0.frac_bits, m1.frac_bits), max(m2.frac_bits, m3.frac_bits))
