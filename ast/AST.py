@@ -25,7 +25,7 @@ class Node:
         # Wrapper for impl that makes sure that out always matches node_type and satisfies spec
         def compute(inputs: list[RuntimeType]):
             out = None
-            if self.node_type.runtime_val:
+            if self.node_type.runtime_val is not None:
                 out = self.node_type.runtime_val  # constantly-folded nodes are already checked for type and spec
             else:
                 out = impl(*inputs)
@@ -39,7 +39,6 @@ class Node:
         self.args = args
         self.name = name
         self._assert_statements = []
-        
         
         # Defines node_type at initialization - some parts rely on this
         self._static_typecheck()
@@ -157,7 +156,7 @@ class Node:
             
             inputs = [arg.evaluate(active_cache) for arg in self.args]
             out = self.impl(inputs)
-            active_cache[self] = out
+            active_cache[self] = out  # run_asserts can refer to itself causing infinite loop, caching prevents it
             
             self._run_asserts(cache=active_cache)
             
@@ -196,7 +195,7 @@ class Composite(Node):
                          sign=sign,
                          args=args,
                          name=name)
-
+    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         impl_pt = self.printing_helper(*self.args)  # Constructing a whole tree
         connector = "└── " if is_last else "├── "
@@ -239,7 +238,7 @@ class Primitive(Node):
                          sign=sign,
                          args=args,
                          name=name)
-
+    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         impl_pt = self.printing_helper(*self.args)  # Constructing a whole tree
         connector = "└── " if is_last else "├── "
