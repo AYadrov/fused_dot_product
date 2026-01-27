@@ -6,7 +6,7 @@ from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.StaticTypes import *
 from fused_dot_product.utils.utils import ulp_distance
 
-from z3 import Solver
+from z3 import Solver, Real, unsat
 
 
 class Node:
@@ -32,7 +32,7 @@ class Node:
             else:
                 out = impl(*inputs)
                 self._dynamic_typecheck(inputs=inputs, out=out)
-                # self._run_spec_checks(inputs=inputs, out=out)
+                # self.run_spec_checks(inputs=inputs, out=out)
             return out.copy()
         
         self.spec = spec
@@ -47,35 +47,42 @@ class Node:
         
     ############## PRIVATE METHODS ###############
     
-    def run_spec_checks(self, s=None):
+    def run_spec_checks(self, s=None, cache=None):
+        if cache is None:
+            cache = {}
+        if self in cache:
+            return cache[self]
         if isinstance(self, Composite):
-            s = Solver() if s in None else s
+            s = Solver() if s is None else s
             inputs = []
             for arg in self.inner_args:
-                inputs.append(arg.run_spec_checks(s))
+                inputs.append(arg.run_spec_checks(s, cache))
             
-            self.inner_tree.run_spec_checks(s)
+            out_ = self.inner_tree.run_spec_checks(s, cache)
             out = self.spec(*inputs, s)
+            s.add(out == out_)
+            cache[self] = out
             
+            print(s.to_smt2())
             if s.check() == unsat:
                 print ("proved")
             else:
                 print ("failed to prove")
             
+            return out
         elif isinstance(self, Primitive):
             inputs = []
             for child in self.args:
-                inputs.append(self.run_spec_checks(s))
+                inputs.append(child.run_spec_checks(s, cache))
             out = self.spec(*inputs, s)
+            cache[self] = out
             return out
-            
         elif isinstance(self, Const) or isinstance(self, Var):
-            return Real(self.name) if self.name else f"{str(self.val)}"
-        
+            out = Real(self.name) if self.name else f"{str(self.val)}"
+            cache[self] = out
+            return out
         else:
             raise TypeError("wrong node type at spec check")
-        
-        
         
     
     def _run_asserts(self, cache=None):

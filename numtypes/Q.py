@@ -357,7 +357,8 @@ def q_add(x: Node, y: Node) -> Primitive:
         return basic_add(x_adj, y_adj, x_adj.copy())
     
     def spec(x: float, y: float, s):
-        out = Real("out")
+        from random import randint
+        out = Real(f"out{randint(0, 1000)}")
         s.add(out == x + y)
         return out
     

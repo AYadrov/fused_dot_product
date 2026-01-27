@@ -51,11 +51,12 @@ def exact_or(a: Node, b: Node):
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
 def CSA(x: Node, y: Node, z: Node) -> Primitive:
+    from random import randint
     def spec(x, y, z, s):
-        sum_ = Real('sum')
-        carry = Real('carry')
+        sum_ = Real(f'sum{randint(0, 1000)}')
+        carry = Real(f'carry{randint(0, 1000)}')
         s.add(sum_ + carry == x + y + z)
-        return tuple(sum_, carry)
+        return tuple([sum_, carry])
     
     def sign(x: QT, y: QT, z: QT) -> TupleT:
         frac_bits = max(max(x.frac_bits, y.frac_bits), z.frac_bits)
@@ -180,5 +181,6 @@ if __name__ == '__main__':
     
     design = CSA_tree4(*args)
     design.print_tree(depth=1)
+    design.run_spec_checks()
 
 
