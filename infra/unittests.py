@@ -3,6 +3,7 @@ import random
 import inspect
 import importlib
 import argparse
+import numpy as np
 
 from ..designs.optimized import Optimized
 from ..designs.conventional import Conventional
@@ -58,7 +59,6 @@ class TestFusedDotProduct():
             Var(name="b_2", sign=BFloat16T()),
             Var(name="b_3", sign=BFloat16T()),
         ]
-        
         
         conventional = Conventional(*a, *b)
         optimized = Optimized(*a, *b)
