@@ -264,7 +264,6 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
 
 
 if __name__ == '__main__':
-    from tqdm import tqdm
     from time import time
     
     # Compile design
@@ -288,9 +287,10 @@ if __name__ == '__main__':
     
     # Test the design
     random_gen, exp_reshuffle = BFloat16.random_generator(seed=0, shared_exponent_bits=5)
-    for _ in tqdm(range(100), desc=f"Quick tests of the design"):
+    for _ in range(100):
         exp_reshuffle()
         for i in range(N):
             a[i].load_val(random_gen())
             b[i].load_val(random_gen())
-        tqdm.write(str(design.evaluate()))
+        print(str(design.evaluate()))
+
