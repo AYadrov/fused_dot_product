@@ -383,14 +383,16 @@ def Copy(x: Node) -> Primitive:
 
 # TODO: to be moved somewhere, it's here due to loading cycles
 def Tuple_get_item(x: Node, idx: int) -> Primitive:
+    if idx >= len(x.node_type.args) or idx < 0:
+        raise IndexError(f"Index is out of range for tuple {str(x)}, given {str(idx)}")
+    
     def sign(x: TupleT) -> StaticType:
         if not isinstance(x, TupleT):
-            raise TypeError(f"{x} is not an instance of TupleT to iterate over it")
+            raise IndexError(f"{x} is not an instance of TupleT to iterate over it")
         return x.args[idx]
 
     def impl(x: Node) -> Node:
-        if idx >= len(x.node_type.args) or idx < 0:
-            raise ValueError(f"Index is out of range for tuple {str(x)}, given {str(idx)}")
+        from fused_dot_product.numtypes.basics import _unary_operator
         def basic_get_item(x: Node, out: Node) -> Op:
             return _unary_operator(
                 op=lambda x: x.args[idx],
@@ -409,4 +411,3 @@ def Tuple_get_item(x: Node, idx: int) -> Primitive:
         sign=sign,
         args=[x],
         name=f"Tuple_get_item_{idx}")
-

@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 
-from fused_dot_product.numtypes.RuntimeTypes import *
-
 class StaticType:
     def __init__(self):
         self.runtime_val = None
@@ -38,6 +36,8 @@ class BoolT(StaticType):
         return 1
     
     def runtime_type(self) -> "RuntimeType":
+        from fused_dot_product.numtypes.RuntimeTypes import Bool
+
         return Bool(0)
     
     def __repr__(self):
@@ -62,6 +62,8 @@ class QT(StaticType):
         return self.int_bits + self.frac_bits
     
     def runtime_type(self) -> "RuntimeType":
+        from fused_dot_product.numtypes.RuntimeTypes import Q
+
         return Q(0, self.int_bits, self.frac_bits)
     
     def __repr__(self):
@@ -90,6 +92,8 @@ class UQT(StaticType):
         return self.int_bits + self.frac_bits
     
     def runtime_type(self) -> "RuntimeType":
+        from fused_dot_product.numtypes.RuntimeTypes import UQ
+
         return UQ(0, self.int_bits, self.frac_bits)
     
     def __repr__(self):
@@ -118,6 +122,8 @@ class Float32T(StaticType):
         return self.sign_bits + self.mantissa_bits + self.exponent_bits
     
     def runtime_type(self) -> "RuntimeType":
+        from fused_dot_product.numtypes.RuntimeTypes import Float32
+
         return Float32(0, 0, 0)
     
     def __repr__(self):
@@ -147,6 +153,8 @@ class BFloat16T(StaticType):
         return self.sign_bits + self.mantissa_bits + self.exponent_bits
     
     def runtime_type(self) -> "RuntimeType":
+        from fused_dot_product.numtypes.RuntimeTypes import BFloat16
+
         return BFloat16(0, 0, 0)
     
     def __repr__(self):
@@ -175,6 +183,8 @@ class TupleT(StaticType):
         return sum([x.total_bits for x in self.args])
     
     def runtime_type(self) -> "RuntimeType":
+        from fused_dot_product.numtypes.RuntimeTypes import Tuple
+
         return Tuple(*[arg.runtime_type for arg in self.args])
     
     def __repr__(self):
@@ -199,4 +209,3 @@ if __name__ == '__main__':
     print(BFloat16T())
     print(TupleT(IntT(2)))
     print(TupleT(IntT(2), QT(1,3)))
-

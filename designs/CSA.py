@@ -50,8 +50,8 @@ def exact_or(a: Node, b: Node):
 # It is important to call CSA only on fixed points with equal lengths!
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
-def CSA(x: Node, y: Node, z: Node, s) -> Primitive:
-    def spec(x, y, z):
+def CSA(x: Node, y: Node, z: Node) -> Primitive:
+    def spec(x, y, z, s):
         sum_ = Real('sum')
         carry = Real('carry')
         s.add(sum_ + carry == x + y + z)
@@ -168,4 +168,17 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
                      sign=sign,
                      args=[m0, m1, m2, m3],
                      name="CSA_tree4")
+
+if __name__ == '__main__':
+    # Compile design
+    args = [
+        Var(name="a_0", sign=QT(3, 4)),
+        Var(name="a_1", sign=QT(8, 3)),
+        Var(name="a_2", sign=QT(5, 0)),
+        Var(name="a_3", sign=QT(1, 5)),
+    ]
+    
+    design = CSA_tree4(*args)
+    design.print_tree(depth=1)
+
 
