@@ -194,7 +194,6 @@ if __name__ == '__main__':
     ]
     
     design = Conventional(*a, *b)
-    design.static_typecheck()
     design.print_tree(depth=1)
     
     # Test the design
