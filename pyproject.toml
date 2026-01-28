@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fused-dot-product"
+version = "0.1.0"
+description = "Python model of the fused dot product described by Kaul et al. (2019)."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy"]
+
+[project.scripts]
+fused-dot-product = "fused_dot_product.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fused_dot_product*", "examples*"]

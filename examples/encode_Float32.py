@@ -1,17 +1,7 @@
 import math
 import numpy as np
 
-from fused_dot_product.ast.AST import *
-
-from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.numtypes.StaticTypes import *
-from fused_dot_product.numtypes.Q import *
-from fused_dot_product.numtypes.Tuple import make_Tuple
-from fused_dot_product.numtypes.UQ import *
-from fused_dot_product.numtypes.UQ import _uq_alloc, uq_int_bits
-from fused_dot_product.numtypes.Float import _float32_alloc
-from fused_dot_product.utils.utils import *
-
+from fused_dot_product import *
 
 # TODO: edge case when input is subnormal that after rounding becomes normal
 def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:
@@ -322,7 +312,7 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
             final_m_uq.check(uq_less(final_m_uq, Const(UQ.from_int(1))))
         )
         
-        return _float32_alloc(sign_bit, final_m_uq, final_e_uq)
+        return float32_alloc(sign_bit, final_m_uq, final_e_uq)
     
     return Primitive(
         spec=spec,

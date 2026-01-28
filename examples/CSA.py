@@ -1,8 +1,4 @@
-from fused_dot_product.ast.AST import *
-from fused_dot_product.numtypes.Q import *
-from fused_dot_product.numtypes.StaticTypes import *
-from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.numtypes.Bool import *
+from fused_dot_product import *
 
 from z3 import Real, Solver
 
@@ -170,6 +166,7 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
                      args=[m0, m1, m2, m3],
                      name="CSA_tree4")
 
+
 if __name__ == '__main__':
     # Compile design
     args = [
@@ -182,5 +179,4 @@ if __name__ == '__main__':
     design = CSA_tree4(*args)
     design.print_tree(depth=1)
     design.run_spec_checks()
-
 

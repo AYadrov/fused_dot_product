@@ -21,8 +21,8 @@ install: check-python
 
 unit-tests: install
 	@echo "Running infra/unittests.py..."
-	@cd .. && $(PYTHON) -m fused_dot_product.infra.unittests --seed 0 --num-points 100
+	@$(PYTHON) -m infra.unittests --seed 0 --num-points 100
 	@echo "Complete"
 
-nightly: install
+nightly: check-python
 	bash infra/nightly.sh reports/

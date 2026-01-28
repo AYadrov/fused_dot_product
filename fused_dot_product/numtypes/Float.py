@@ -2,7 +2,7 @@ from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.StaticTypes import *
 from fused_dot_product.ast.AST import *
 
-def _float32_alloc(sign_bit: Node,
+def float32_alloc(sign_bit: Node,
                    mantissa: Node,
                    exponent: Node) -> Op:
     def sign(sign_bit: StaticType, mantissa: StaticType, exponent: StaticType) -> Float32T:
@@ -15,4 +15,4 @@ def _float32_alloc(sign_bit: Node,
         sign=sign,
         impl=impl,
         args=[sign_bit, mantissa, exponent],
-        name="_float32_alloc")
+        name="float32_alloc")
