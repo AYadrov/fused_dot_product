@@ -2,8 +2,8 @@ from fused_dot_product.ast.AST import *
 from fused_dot_product.config import *
 
 from fused_dot_product.utils.composites import *
-from fused_dot_product.designs.encode_Float32 import *
-from fused_dot_product.designs.CSA import CSA_tree4
+from designs.encode_Float32 import *
+from designs.CSA import CSA_tree4
 from fused_dot_product.numtypes.UQ import *
 from fused_dot_product.numtypes.UQ import _uq_alloc
 from fused_dot_product.numtypes.BFloat16 import *
@@ -292,4 +292,3 @@ if __name__ == '__main__':
             a[i].load_val(random_gen())
             b[i].load_val(random_gen())
         print(str(design.evaluate()))
-

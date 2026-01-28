@@ -3,8 +3,8 @@ import time
 import random
 
 from fused_dot_product.config import *
-from fused_dot_product.designs.optimized import Optimized
-from fused_dot_product.designs.conventional import Conventional
+from designs.optimized import Optimized
+from designs.conventional import Conventional
 from fused_dot_product.numtypes.StaticTypes import *
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.ast.AST import *

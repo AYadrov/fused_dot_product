@@ -5,11 +5,11 @@ import importlib
 import argparse
 import numpy as np
 
-from ..designs.optimized import Optimized
-from ..designs.conventional import Conventional
-from ..ast.AST import *
-from ..numtypes.RuntimeTypes import *
-from ..utils.utils import ulp_distance
+from designs.optimized import Optimized
+from designs.conventional import Conventional
+from fused_dot_product.ast.AST import *
+from fused_dot_product.numtypes.RuntimeTypes import *
+from fused_dot_product.utils.utils import ulp_distance
 
 DEFAULT_SEED = 0
 DEFAULT_N_POINTS = 1000
