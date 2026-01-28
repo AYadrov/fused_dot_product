@@ -7,7 +7,7 @@
 
 ### Public API
 
-## Basic bitwise/arithmetic ops (`numtypes/basics.py`)
+## Basic bitwise/arithmetic ops (`fused_dot_product/numtypes/basics.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
 | `basic_mux_2_1` | Op | `Any -> Any -> Any -> T -> T` | 2:1 mux. |
@@ -34,7 +34,7 @@
 | `basic_or_reduce` | Op | `Any -> T -> T` | OR-reduce across bits. |
 | `basic_and_reduce` | Op | `Any -> T -> T` | AND-reduce across bits. |
 
-## Unsigned fixed-point primitives (`numtypes/UQ.py`)
+## Unsigned fixed-point primitives (`fused_dot_product/numtypes/UQ.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
 | `uq_alloc` | Op | `int_bits<Any> -> frac_bits<Any> -> UQ<int_bits.val, frac_bits.val>` | Assemble UQ from integer and fractional bits. |
@@ -57,7 +57,7 @@
 | `uq_select` | Primitive | `UQ<I,F> -> start<int> -> end<int> -> UQ<(start-end+1)-k, k>` where `k = max(0, min(start, F-1)-end+1)` | Bit slice with fractional portion preserved when slicing frac bits. |
 | `uq_resize` | Primitive | `UQ<I,F> -> int_bits<int> -> frac_bits<int> -> UQ<int_bits, frac_bits>` | Resize/round toward zero (no truncation allowed). |
 
-## Signed fixed-point primitives (`numtypes/Q.py`)
+## Signed fixed-point primitives (`fused_dot_product/numtypes/Q.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
 | `q_alloc` | Op | `int_bits<Any> -> frac_bits<Any> -> Q<int_bits.val, frac_bits.val>` | Assemble Q from integer and fractional bits. |
@@ -80,7 +80,7 @@
 | `q_add_sign` | Primitive | `Q<I,F> -> UQ<1,0> -> Q<I,F>` | Apply sign bit to unsigned magnitude. |
 | `q_abs` | Primitive | `Q<I,F> -> Q<I,F>` | Absolute value (safe at min). |
 
-## BF16 helpers (`numtypes/BFloat16.py`)
+## BF16 helpers (`fused_dot_product/numtypes/BFloat16.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
 | `_bf16_mantissa` | Op | `BFloat16 -> UQ<7,0>` | Extract mantissa bits. |
@@ -88,23 +88,23 @@
 | `_bf16_sign` | Op | `BFloat16 -> UQ<1,0>` | Extract sign bit. |
 | `bf16_decode` | Primitive | `BFloat16 -> (UQ<1,0> x UQ<7,0> x UQ<8,0>)` | Split BF16 into sign/mantissa/exponent. |
 
-## Float helpers (`numtypes/Float.py`)
+## Float helpers (`fused_dot_product/numtypes/Float.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
 | `float32_alloc` | Op | `UQ<1,0> -> UQ<23,0> -> UQ<8,0> -> Float32` | Assemble FP32 from sign, mantissa, exponent fields. |
 
-## Tuple helpers (`numtypes/Tuple.py`)
+## Tuple helpers (`fused_dot_product/numtypes/Tuple.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
 | `make_Tuple` | Op | `T0 -> T1 -> ... -> (T0 x T1 x ...)` | Variadic tuple constructor (arity = number of args). |
 
-## Bool helpers (`numtypes/Bool.py`)
+## Bool helpers (`fused_dot_product/numtypes/Bool.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
 | `is_typeof` | Op | `Any -> StaticType -> Bool<1>` | Static type check (returns bool node). |
 | `negate` | Op | `Bool<1> -> Bool<1>` | Boolean negation. |
 
-## General helpers (`ast/AST.py`)
+## General helpers (`fused_dot_product/ast/AST.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
 | `Copy` | Op | `T -> T` | Node copy. |
