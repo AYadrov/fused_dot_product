@@ -13,5 +13,5 @@ REPORTDIR="$1"; shift
 mkdir -p "$REPORTDIR"
 rm -rf "${REPORTDIR:?}/"* || echo "nothing to delete"
 
-cd .. && $PYTHON -m fused_dot_product.infra.unittests --seed "$SEED" --num-points "$N_POINTS"
+$PYTHON -m fused_dot_product.infra.unittests --seed "$SEED" --num-points "$N_POINTS"
 
