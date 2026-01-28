@@ -5,6 +5,8 @@
 - `x`: tuple: explicit output node supplied by caller (shape must match the result).
 - `n<int>, s<int> etc.`: literal integers passed as Python args, not nodes.
 
+### Public API
+
 ## Basic bitwise/arithmetic ops (`numtypes/basics.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
@@ -106,11 +108,17 @@
 | `Copy` | Op | `T -> T` | Node copy. |
 | `Tuple_get_item` | Op | `(T0 x T1 x ...) -> idx<int> -> T_idx` | Tuple selection by constant index. |
 
-## Composite helpers (`utils/composites.py`)
+### Examples
+
+## Common helpers (`examples/common.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
 | `mantissa_add_implicit_bit` | Composite | `UQ<I,0> -> UQ<1,I>` | Prefix implicit leading 1. |
 | `sign_xor` | Primitive | `UQ<1,0> -> UQ<1,0> -> UQ<1,0>` | XOR sign bits. |
+
+## Optimized max exponent (`examples/max_exponent.py`)
+| Name | Kind | Type | Purpose/Notes |
+| --- | --- | --- | --- |
 | `OPTIMIZED_MAX_EXP4` | Primitive | `UQ<I0,0> -> UQ<I1,0> -> UQ<I2,0> -> UQ<I3,0> -> UQ<max(I0,I1,I2,I3), 0>` | Max of four exponents via bitwise tree. |
 
 ## Carry-save adder (`examples/CSA.py`)

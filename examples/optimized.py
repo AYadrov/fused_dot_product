@@ -1,6 +1,8 @@
 from fused_dot_product import *
 from .encode_Float32 import *
 from .CSA import CSA_tree4
+from .common import *
+from .max_exponent import *
 
 import numpy as np
 
@@ -283,3 +285,4 @@ if __name__ == '__main__':
             a[i].load_val(random_gen())
             b[i].load_val(random_gen())
         print(str(design.evaluate()))
+

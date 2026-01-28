@@ -24,7 +24,7 @@ def ulp_distance(x, y):
     
     else:
         raise TypeError(f"Arguments are expected to have the same type, given {x} and {y}")
-        
+
 def round_to_the_nearest_even(x: int, x_len: int, target_len: int) -> int:
     bits_to_truncate = max(0, x_len - target_len)
     
@@ -46,10 +46,10 @@ def round_to_the_nearest_even(x: int, x_len: int, target_len: int) -> int:
         if guard_bit and (round_bit or sticky_bit or lsb):
             x += 1
     return x
-    
+
 def print_runtime_val(x, name: str):
     print(f"{name}: {str(x.node_type.runtime_val)}")
-    
+
 def mask(x, n):
     return x & ((1 << n) - 1)
 
