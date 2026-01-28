@@ -8,22 +8,6 @@ from fused_dot_product.numtypes.Tuple import make_Tuple
 
 ########### Private Helpers ############
 
-# Function does not care about int_bits/frac_bits types, it takes their values
-def _q_alloc(int_bits: Node, frac_bits: Node) -> Op:
-    def sign(x: StaticType, y: StaticType) -> QT:
-        if x.runtime_val is None or y.runtime_val is None:
-            raise TypeError("q_alloc's arguments depend on a variable")
-        return QT(x.runtime_val.val, y.runtime_val.val)
-
-    def impl(x: RuntimeType, y: RuntimeType) -> Q:
-        return Q(0, x.val, y.val)
-
-    return Op(
-        sign=sign,
-        impl=impl,
-        args=[int_bits, frac_bits],
-        name="_q_alloc")
-
 # Does not have spec
 def _q_is_min_val(x: Node) -> Op:
     def impl(x: Q) -> UQ:
@@ -45,11 +29,28 @@ def _q_is_min_val(x: Node) -> Op:
 
 ############# Public API ###############
 
+# Function does not care about int_bits/frac_bits types, it takes their values
+def q_alloc(int_bits: Node, frac_bits: Node) -> Op:
+    def sign(x: StaticType, y: StaticType) -> QT:
+        if x.runtime_val is None or y.runtime_val is None:
+            raise TypeError("q_alloc's arguments depend on a variable")
+        return QT(x.runtime_val.val, y.runtime_val.val)
+
+    def impl(x: RuntimeType, y: RuntimeType) -> Q:
+        return Q(0, x.val, y.val)
+
+    return Op(
+        sign=sign,
+        impl=impl,
+        args=[int_bits, frac_bits],
+        name="q_alloc")
+
+
 def q_signs_xor(x: Node, y: Node) -> Primitive:
     def impl(x: Q, y: Q) -> Bool:
         return basic_xor(
-            q_sign_bit(x), 
-            q_sign_bit(y), 
+            q_sign_bit(x),
+            q_sign_bit(y),
             out=Const(Bool(0))
         )
     
@@ -57,7 +58,7 @@ def q_signs_xor(x: Node, y: Node) -> Primitive:
         return ((x < 0) != (y < 0)) == out
     
     def sign(x: QT, y: QT) -> BoolT:
-        return BoolT()    
+        return BoolT()
     
     return Primitive(
         spec=spec,
@@ -301,7 +302,7 @@ def q_sign_extend(x: Node, n: int) -> Primitive:
         # A little bit ugly, only because of cycles
         int_bits = Const(UQ.from_int(x.node_type.int_bits + n))
         frac_bits = Const(UQ.from_int(x.node_type.frac_bits))
-        out = _q_alloc(int_bits, frac_bits)
+        out = q_alloc(int_bits, frac_bits)
         
         res = basic_concat(
             x=upper_bits,

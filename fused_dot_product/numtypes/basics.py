@@ -1,9 +1,9 @@
 import typing as tp
 
-from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.utils.utils import *
-from fused_dot_product.ast.AST import *
-from fused_dot_product.numtypes.Tuple import _make_fixed_arguments
+from .RuntimeTypes import *
+from ..utils import *
+from ..ast import *
+from .Tuple import _make_fixed_arguments
 
 
 ############ Constructors ##############

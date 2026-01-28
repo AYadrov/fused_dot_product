@@ -1,15 +1,7 @@
-from fused_dot_product.ast.AST import *
-from fused_dot_product.config import *
-
-from fused_dot_product.utils.composites import *
-from designs.encode_Float32 import *
-from fused_dot_product.numtypes.UQ import *
-from fused_dot_product.numtypes.BFloat16 import *
-from fused_dot_product.numtypes.Q import *
-from fused_dot_product.numtypes.Bool import *
+from fused_dot_product import *
+from .encode_Float32 import *
 
 import numpy as np
-
 
 def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
                  b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:

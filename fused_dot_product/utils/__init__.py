@@ -1,4 +1,3 @@
-"""
-This module defines operator and utility functions.
-"""
-__all__ = []
+from .utils import *
+
+# Avoid importing composites here to prevent AST/numtypes import cycles.

@@ -5,7 +5,7 @@ from fused_dot_product.ast.AST import *
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.Q import *
 from fused_dot_product.numtypes.UQ import *
-from fused_dot_product.numtypes.UQ import _uq_alloc
+from fused_dot_product.numtypes.UQ import uq_alloc
 from fused_dot_product.utils.utils import *
 
 
@@ -86,7 +86,7 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
         
         def concat(high: Node, low: Node) -> Node:
             int_bits = uq_add(uq_int_bits(high), uq_int_bits(low))
-            out = _uq_alloc(int_bits, Const(UQ.from_int(0)))
+            out = uq_alloc(int_bits, Const(UQ.from_int(0)))
             return basic_concat(x=high, y=low, out=out)
         
         inputs = [e0, e1, e2, e3]

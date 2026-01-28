@@ -1,4 +1,1 @@
-"""
-This module defines Abstract Syntax Tree (AST)
-"""
-__all__ = []
+from .AST import *
