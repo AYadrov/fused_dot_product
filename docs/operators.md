@@ -113,13 +113,13 @@
 | `sign_xor` | Primitive | `UQ<1,0> -> UQ<1,0> -> UQ<1,0>` | XOR sign bits. |
 | `OPTIMIZED_MAX_EXP4` | Primitive | `UQ<I0,0> -> UQ<I1,0> -> UQ<I2,0> -> UQ<I3,0> -> UQ<max(I0,I1,I2,I3), 0>` | Max of four exponents via bitwise tree. |
 
-## Carry-save adder (`designs/CSA.py`)
+## Carry-save adder (`examples/CSA.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
 | `CSA` | Primitive | `QT<I0, F0> -> QT<I1, F1> -> QT<I2, F2> -> (QT<max(I0, I1, I2), max(F0, F1, F2)> x QT<max(I0, I1, I2) + 1, max(F0, F1, F2)>)` | Carry save adder. |
 | `CSA_tree4` | Composite | `Q<I0,F0> -> Q<I1,F1> -> Q<I2,F2> -> Q<I3,F3> -> Q<max(I0, I1, I2, I3)+3, max(F0, F1, F2, F3)>` | 4-input CSA tree with width alignment. |
 
-## Float32 encoder (`designs/encode_Float32.py`)
+## Float32 encoder (`examples/encode_Float32.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
 | `round_to_the_nearest_even` | Primitive | `UQ<I,F> -> UQ<E,0> -> target_bits<int> -> (UQ<min(I, target_bits), max(target_bits - I, 0)> x UQ<E+1,0>)` | Guard/round/sticky rounding of mantissa and exponent bump. |
@@ -127,14 +127,14 @@
 | `normalize_to_1_xxx` | Primitive | `UQ<I,F> -> Q<E,0> -> (UQ<1, max(I-1,0)+F> x Q<max(E, max(max(1, ceil(log2(I+F+1)))+1, bitlen(I)+1)+2)+1, 0>)` | Normalize mantissa to `1.xxx`; exponent stays signed with fractional bits preserved. |
 | `encode_Float32` | Primitive | `Q<I,F> -> Q<E,0> -> Float32` | Pack sign, exponent, mantissa with subnormal/inf/nan handling. |
 
-## Optimized design helpers (`designs/optimized.py`)
+## Optimized design helpers (`examples/optimized.py`)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
 | `_est_global_shift` | Primitive | `UQ<I,0> -> UQ<J,0> -> s<int> -> UQ<I+s,0>` | Compute global shift `(E_max - E_p) * 2^s`. |
 | `_est_local_shift` | Primitive | `UQ<I,0> -> s<int> -> UQ<s,0>` | Invert low `s` exponent bits for local alignment. |
 | `_prepend_ones` | Primitive | `UQ<I,0> -> s<int> -> UQ<I+s,0>` | Append `s` ones to exponent for normalization. |
 
-## Designs (full composites)
+## Examples (full composites)
 | Name | Kind | Type | Purpose/Notes |
 | --- | --- | --- | --- |
 | `Conventional` | Composite | `BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> BFloat16 -> Float32` | Baseline BF16 dot product (max exponent + global shift). |
