@@ -2,9 +2,9 @@ import inspect
 import typing as tp
 from contextvars import ContextVar
 
-from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.numtypes.StaticTypes import *
-from fused_dot_product.utils.utils import ulp_distance
+from ..numtypes.RuntimeTypes import Bool, RuntimeType, Tuple
+from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
+from ..utils.utils import ulp_distance
 
 
 class Node:

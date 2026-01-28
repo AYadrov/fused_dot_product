@@ -1,9 +1,4 @@
-from fused_dot_product.ast.AST import *
-from fused_dot_product.numtypes.Q import *
-from fused_dot_product.numtypes.StaticTypes import *
-from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.numtypes.Bool import *
-
+from fused_dot_product import *
 
 ############## HELPERS #################
 def exact_xor(a: Node, b: Node):
@@ -162,4 +157,3 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
                      sign=sign,
                      args=[m0, m1, m2, m3],
                      name="CSA_tree4")
-

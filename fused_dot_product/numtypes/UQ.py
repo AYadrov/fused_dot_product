@@ -3,20 +3,20 @@ import typing as tp
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
-from fused_dot_product.numtypes.Q import _q_alloc
+from fused_dot_product.numtypes.Q import q_alloc
 from fused_dot_product.numtypes.Tuple import make_Tuple
 
 
-########### Private Helpers ############
+############## Public API ##############
 
 # Function does not care about int_bits/frac_bits types, it takes their values
 # Allocates UQ at runtime
-def _uq_alloc(int_bits: Node,
+def uq_alloc(int_bits: Node,
               frac_bits: Node) -> Op:
     def sign(int_bits: StaticType, frac_bits: StaticType) -> UQT:
         if int_bits.runtime_val is not None and frac_bits.runtime_val is not None:
             return UQT(int_bits.runtime_val.val, frac_bits.runtime_val.val)
-        raise TypeError("_uq_alloc's arguments depend on a variable")
+        raise TypeError("uq_alloc's arguments depend on a variable")
 
     def impl(int_bits: RuntimeType, frac_bits: RuntimeType) -> UQ:
         return UQ(0, int_bits.val, frac_bits.val)
@@ -25,10 +25,7 @@ def _uq_alloc(int_bits: Node,
         sign=sign,
         impl=impl,
         args=[int_bits, frac_bits],
-        name="_uq_alloc")
-
-
-############## Public API ##############
+        name="uq_alloc")
 
 def uq_less(x: Node, y: Node) -> Primitive:
     def impl(x: Node, y: Node) -> Node:
@@ -195,7 +192,7 @@ def uq_zero_extend(x: Node, n: int) -> Primitive:
     def impl(x: Node) -> Node:
         int_bits = uq_add(uq_int_bits(x), Const(UQ.from_int(n)))
         frac_bits = uq_frac_bits(x)
-        out = _uq_alloc(int_bits, frac_bits)
+        out = uq_alloc(int_bits, frac_bits)
         return basic_identity(x=x, out=out)
     
     return Primitive(
@@ -367,7 +364,7 @@ def uq_to_q(x: Node) -> Primitive:
     def impl(x: Node) -> Node:
         int_bits = uq_add(uq_int_bits(x), Const(UQ.from_int(1)))
         frac_bits = uq_frac_bits(x)
-        out = _q_alloc(int_bits, frac_bits)
+        out = q_alloc(int_bits, frac_bits)
         return basic_identity(x=x, out=out)
     
     def spec(x: float, out: float):
