@@ -219,7 +219,8 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
 
 # Assume that e is biased
 # TODO: loss of accuracy, NaNs
-def encode_Float32(m: Node, e: Node) -> Primitive:
+# subnormal_extra_bits is extra bits that will be used when truncating mantissa to a subnormal format
+def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
     assert e.node_type.frac_bits == 0
     def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
@@ -230,6 +231,10 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
     def impl(m: Node, e: Node) -> Node:
         sign_bit = q_sign_bit(m)
         m_uq = q_to_uq(q_abs(m))
+        m_is_zero = basic_invert(
+            basic_or_reduce(m_uq, Const(UQ(0, 1, 0))),
+            Const(UQ(0, 1, 0)),
+        )
         
         ######### NORMALIZING ##########
         
@@ -258,7 +263,12 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
         )
         
         # Normalize mantissa from 1.xxx to 0.0xxx when subnormal
-        # TODO: A loss of accuracy if working with subnormals
+        int_bits = normalized_m_uq.node_type.int_bits
+        frac_bits = normalized_m_uq.node_type.frac_bits + subnormal_extra_bits
+        normalized_m_uq = basic_lshift(
+                                x=normalized_m_uq,
+                                amount=Const(UQ.from_int(subnormal_extra_bits)),
+                                out=Const(UQ(0, int_bits, frac_bits)))
         normalized_m_uq = uq_rshift(normalized_m_uq, subnormal_shift_amount)
         
         normalized_e_uq = basic_mux_2_1(
@@ -312,6 +322,20 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
             final_m_uq.check(uq_less(final_m_uq, Const(UQ.from_int(1))))
         )
         
+        ######### ZERO HANDLING #########
+        final_m_uq = basic_mux_2_1(
+            sel=m_is_zero,
+            in0=final_m_uq,
+            in1=Const(UQ(0, 1, 0)),
+            out=final_m_uq.copy(),
+        )
+        final_e_uq = basic_mux_2_1(
+            sel=m_is_zero,
+            in0=final_e_uq,
+            in1=Const(UQ(0, 1, 0)),
+            out=final_e_uq.copy(),
+        )
+
         return float32_alloc(sign_bit, final_m_uq, final_e_uq)
     
     return Primitive(
@@ -321,3 +345,9 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
         args=[m, e],
         name="encode_Float32",
     )
+
+
+if __name__ == '__main__':
+    m = -4.02923583984375
+    e = -25.0
+    print(encode_Float32(Const(Q.from_float(m, 5, 28)), Const(Q.from_float(e, 11, 0))).evaluate())
