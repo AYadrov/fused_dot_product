@@ -219,7 +219,8 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
 
 # Assume that e is biased
 # TODO: loss of accuracy, NaNs
-def encode_Float32(m: Node, e: Node) -> Primitive:
+# subnormal_extra_bits is extra bits that will be used when truncating mantissa to a subnormal format
+def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
     assert e.node_type.frac_bits == 0
     def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
@@ -262,11 +263,12 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
         )
         
         # Normalize mantissa from 1.xxx to 0.0xxx when subnormal
-        # TODO: This resizing might be too much.
+        int_bits = normalized_m_uq.node_type.int_bits
+        frac_bits = normalized_m_uq.node_type.frac_bits + subnormal_extra_bits
         normalized_m_uq = basic_lshift(
                                 x=normalized_m_uq,
-                                amount=subnormal_shift_amount,
-                                out=uq_alloc(uq_int_bits(normalized_m_uq), uq_add(uq_frac_bits(normalized_m_uq), subnormal_shift_amount)))
+                                amount=Const(UQ.from_int(subnormal_extra_bits)),
+                                out=Const(UQ(0, int_bits, frac_bits)))
         normalized_m_uq = uq_rshift(normalized_m_uq, subnormal_shift_amount)
         
         normalized_e_uq = basic_mux_2_1(
