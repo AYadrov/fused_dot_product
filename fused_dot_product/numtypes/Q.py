@@ -5,7 +5,7 @@ from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.numtypes.Tuple import make_Tuple
 
-from z3 import Real, Solver
+from z3 import FreshReal, Solver
 
 ########### Private Helpers ############
 
@@ -358,8 +358,7 @@ def q_add(x: Node, y: Node) -> Primitive:
         return basic_add(x_adj, y_adj, x_adj.copy())
     
     def spec(x: float, y: float, s):
-        from random import randint
-        out = Real(f"out{randint(0, 1000)}")
+        out = FreshReal("out")
         s.add(out == x + y)
         return out
     

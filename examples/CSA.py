@@ -1,6 +1,6 @@
 from fused_dot_product import *
 
-from z3 import Real, Solver
+from z3 import FreshReal, Solver
 
 ############## HELPERS #################
 def exact_xor(a: Node, b: Node):
@@ -47,10 +47,9 @@ def exact_or(a: Node, b: Node):
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
 def CSA(x: Node, y: Node, z: Node) -> Primitive:
-    from random import randint
     def spec(x, y, z, s):
-        sum_ = Real(f'sum{randint(0, 1000)}')
-        carry = Real(f'carry{randint(0, 1000)}')
+        sum_ = FreshReal(f'sum')
+        carry = FreshReal(f'carry')
         s.add(sum_ + carry == x + y + z)
         return tuple([sum_, carry])
     
@@ -85,7 +84,7 @@ def CSA(x: Node, y: Node, z: Node) -> Primitive:
 
 def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
     def spec(m0, m1, m2, m3, s):
-        out = Real('out')
+        out = FreshReal('out')
         s.add(out == m0 + m1 + m2 + m3)
         return out
     

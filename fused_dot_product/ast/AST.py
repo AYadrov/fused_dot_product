@@ -6,7 +6,7 @@ from ..numtypes.RuntimeTypes import Bool, RuntimeType, Tuple
 from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
 from ..utils.utils import ulp_distance
 
-from z3 import Solver, Real, unsat
+from z3 import Solver, Real, unsat, sat
 
 
 class Node:
@@ -60,14 +60,21 @@ class Node:
             
             out_ = self.inner_tree.run_spec_checks(s, cache)
             out = self.spec(*inputs, s)
-            s.add(out == out_)
+            
+            # Check that outer spec is not equal to inner spec
+            # The result should be unsat
+            s.add(out != out_)
             cache[self] = out
             
             print(s.to_smt2())
+            print(s.check())
+            
             if s.check() == unsat:
                 print ("proved")
             else:
+                model = s.model()
                 print ("failed to prove")
+                print(f"Counterexample found:\n{model}")
             
             return out
         elif isinstance(self, Primitive):
@@ -82,7 +89,7 @@ class Node:
             cache[self] = out
             return out
         else:
-            raise TypeError("wrong node type at spec check")
+            raise TypeError(f"Found an Op {self.name}. Please, make sure that the provided tree does not contain an Op")
         
     
     def _run_asserts(self, cache=None):
