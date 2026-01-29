@@ -230,6 +230,10 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
     def impl(m: Node, e: Node) -> Node:
         sign_bit = q_sign_bit(m)
         m_uq = q_to_uq(q_abs(m))
+        m_is_zero = basic_invert(
+            basic_or_reduce(m_uq, Const(UQ(0, 1, 0))),
+            Const(UQ(0, 1, 0)),
+        )
         
         ######### NORMALIZING ##########
         
@@ -320,6 +324,20 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
             final_m_uq.check(uq_less(final_m_uq, Const(UQ.from_int(1))))
         )
         
+        ######### ZERO HANDLING ########
+        final_m_uq = basic_mux_2_1(
+            sel=m_is_zero,
+            in0=final_m_uq,
+            in1=Const(UQ(0, 1, 0)),
+            out=final_m_uq.copy(),
+        )
+        final_e_uq = basic_mux_2_1(
+            sel=m_is_zero,
+            in0=final_e_uq,
+            in1=Const(UQ(0, 1, 0)),
+            out=final_e_uq.copy(),
+        )
+
         return float32_alloc(sign_bit, final_m_uq, final_e_uq)
     
     return Primitive(
@@ -332,6 +350,6 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
 
 
 if __name__ == '__main__':
-    m = -4.02923583984375
-    e = -25.0
+    m = 0.0
+    e = 165.0
     print(encode_Float32(Const(Q.from_float(m, 5, 28)), Const(Q.from_float(e, 11, 0))).evaluate())
