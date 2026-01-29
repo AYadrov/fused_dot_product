@@ -261,17 +261,13 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
             out=shift_if_subnormal.copy(),
         )
         
-        # Normalize mantissa from 1.xxx to 0.0xxx when subnormal.
-        shifted_m_uq = uq_rshift(normalized_m_uq, subnormal_shift_amount)
-        # This block makes sure that if any bits were truncated - the tail of normalized_m_uq will have 1
-        shifted_back = basic_lshift(shifted_m_uq, subnormal_shift_amount, out=normalized_m_uq.copy())
-        shifted_out = basic_xor(normalized_m_uq, shifted_back, out=normalized_m_uq.copy())
-        sticky_bit = basic_or_reduce(shifted_out, out=Const(UQ(0, 1, 0)))
-        sticky_ext = basic_identity(
-            sticky_bit,
-            out=Const(UQ(0, normalized_m_uq.node_type.int_bits, normalized_m_uq.node_type.frac_bits)),
-        )
-        normalized_m_uq = basic_or(shifted_m_uq, sticky_ext, out=shifted_m_uq.copy())
+        # Normalize mantissa from 1.xxx to 0.0xxx when subnormal
+        # TODO: This resizing might be too much.
+        normalized_m_uq = basic_lshift(
+                                x=normalized_m_uq,
+                                amount=subnormal_shift_amount,
+                                out=uq_alloc(uq_int_bits(normalized_m_uq), uq_add(uq_frac_bits(normalized_m_uq), subnormal_shift_amount)))
+        normalized_m_uq = uq_rshift(normalized_m_uq, subnormal_shift_amount)
         
         normalized_e_uq = basic_mux_2_1(
             sel=is_subnormal,
@@ -324,7 +320,7 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
             final_m_uq.check(uq_less(final_m_uq, Const(UQ.from_int(1))))
         )
         
-        ######### ZERO HANDLING ########
+        ######### ZERO HANDLING #########
         final_m_uq = basic_mux_2_1(
             sel=m_is_zero,
             in0=final_m_uq,
@@ -350,6 +346,6 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
 
 
 if __name__ == '__main__':
-    m = 0.0
-    e = 165.0
+    m = -4.02923583984375
+    e = -25.0
     print(encode_Float32(Const(Q.from_float(m, 5, 28)), Const(Q.from_float(e, 11, 0))).evaluate())
