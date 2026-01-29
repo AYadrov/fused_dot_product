@@ -100,12 +100,12 @@ class Q(RuntimeType):
         assert self.frac_bits >= 0
         assert self.int_bits + self.frac_bits >= 2
         assert 0 <= self.val < (1 << self.total_bits())
-        
+    
     def __str__(self):
         return f"Q{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
     
     def to_spec(self):
-        sign_bit = self.sign_bit()
+        sign_bit = self.val >> (self.total_bits() - 1)
         if sign_bit == 1:
             signed_val = self.val - (sign_bit << self.total_bits())
             return float(signed_val) / (2 ** self.frac_bits)
@@ -114,7 +114,7 @@ class Q(RuntimeType):
     
     def static_type(self):
         return QT(self.int_bits, self.frac_bits)
-
+    
     def copy(self, val=None):
         if val is None:
             val = self.val
@@ -122,33 +122,42 @@ class Q(RuntimeType):
     
     def total_bits(self):
         return self.int_bits + self.frac_bits
-        
+    
     # Custom methods
     @staticmethod
     def from_int(x: int):
-        return Q(x, max(1, x.bit_length()) + 1, 0)
-    
-    # TO BE DELETED
+        if x < 0:
+            magnitude = abs(x)
+            int_bits = max(2, (magnitude - 1).bit_length() + 1)
+            val = (1 << int_bits) + x
+        else:
+            int_bits = max(2, x.bit_length() + 1)
+            val = x
+        return Q(val, int_bits, 0)
+        
     @staticmethod
-    def sign_extend(x, n: int):
-        assert n >= 0, f"Extend bits can not be negative, {n} is provided"
-        total_bits = x.int_bits + x.frac_bits
-        sign = x.sign_bit()
-        upper_bits = (sign << n) - sign
-        res = x.val | (upper_bits << total_bits)
-        return Q(res, x.int_bits + n, x.frac_bits)
-    
-    # TO BE DELETED
-    def negate(self):
-        total_width = self.total_bits() 
-        neg_val = mask((~self.val + 1), total_width)
-        return Q(neg_val, self.int_bits, self.frac_bits)
-    
-    # TO BE DELETED
-    def sign_bit(self):
-        sign = self.val >> (self.total_bits() - 1)
-        assert sign in (0, 1)
-        return sign
+    def from_float(x: float, target_int: int, target_frac: int):
+        assert target_int >= 2  # need at least sign + 1 bit if signed
+        assert target_frac >= 0
+
+        W = target_int + target_frac
+        scale = 1 << target_frac
+
+        # quantize to integer "scaled" value (signed)
+        q = int(round(x * scale))
+
+        # optional: saturate to representable signed range
+        min_q = -(1 << (W - 1))
+        max_q =  (1 << (W - 1)) - 1
+        if q < min_q:
+            q = min_q
+        elif q > max_q:
+            q = max_q
+
+        # encode to raw two's-complement bits
+        bits = q & ((1 << W) - 1)
+
+        return Q(bits, target_int, target_frac)
     
     def __eq__(self, other):
         return (

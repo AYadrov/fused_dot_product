@@ -257,9 +257,17 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
             out=shift_if_subnormal.copy(),
         )
         
-        # Normalize mantissa from 1.xxx to 0.0xxx when subnormal
-        # TODO: A loss of accuracy if working with subnormals
-        normalized_m_uq = uq_rshift(normalized_m_uq, subnormal_shift_amount)
+        # Normalize mantissa from 1.xxx to 0.0xxx when subnormal.
+        shifted_m_uq = uq_rshift(normalized_m_uq, subnormal_shift_amount)
+        # This block makes sure that if any bits were truncated - the tail of normalized_m_uq will have 1
+        shifted_back = basic_lshift(shifted_m_uq, subnormal_shift_amount, out=normalized_m_uq.copy())
+        shifted_out = basic_xor(normalized_m_uq, shifted_back, out=normalized_m_uq.copy())
+        sticky_bit = basic_or_reduce(shifted_out, out=Const(UQ(0, 1, 0)))
+        sticky_ext = basic_identity(
+            sticky_bit,
+            out=Const(UQ(0, normalized_m_uq.node_type.int_bits, normalized_m_uq.node_type.frac_bits)),
+        )
+        normalized_m_uq = basic_or(shifted_m_uq, sticky_ext, out=shifted_m_uq.copy())
         
         normalized_e_uq = basic_mux_2_1(
             sel=is_subnormal,
@@ -321,3 +329,9 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
         args=[m, e],
         name="encode_Float32",
     )
+
+
+if __name__ == '__main__':
+    m = -4.02923583984375
+    e = -25.0
+    print(encode_Float32(Const(Q.from_float(m, 5, 28)), Const(Q.from_float(e, 11, 0))).evaluate())
