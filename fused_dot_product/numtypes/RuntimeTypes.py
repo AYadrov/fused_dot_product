@@ -135,18 +135,16 @@ class Q(RuntimeType):
             val = x
         return Q(val, int_bits, 0)
         
+    
     @staticmethod
     def from_float(x: float, target_int: int, target_frac: int):
-        assert target_int >= 2  # need at least sign + 1 bit if signed
-        assert target_frac >= 0
-
         W = target_int + target_frac
         scale = 1 << target_frac
 
-        # quantize to integer "scaled" value (signed)
+        # Float -> bits
         q = int(round(x * scale))
 
-        # optional: saturate to representable signed range
+        # Clamps overflow/underflow
         min_q = -(1 << (W - 1))
         max_q =  (1 << (W - 1)) - 1
         if q < min_q:
