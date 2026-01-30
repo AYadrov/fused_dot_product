@@ -1,9 +1,13 @@
 from fused_dot_product import *
+from z3 import FreshReal, Solver, If, Or, And
 
 def mantissa_add_implicit_bit(x: Node) -> Primitive:
     int_bits = x.node_type.int_bits
-    def spec(mantissa: float, out: float):
-        return (float(mantissa) / (2 ** int_bits)) + 1.0 == out
+    def spec(mantissa, s):
+        out = FreshReal('out')
+        s.add(mantissa < (2 ** int_bits))
+        s.add(out == (mantissa / (2 ** int_bits)) + 1.0)
+        return out
     
     def sign(mantissa: UQT) -> UQT:
         assert mantissa.frac_bits == 0
@@ -16,7 +20,7 @@ def mantissa_add_implicit_bit(x: Node) -> Primitive:
             out=Const(UQ(0, 1, int_bits)),
         )
     
-    return Composite(
+    return Primitive(
         spec=spec,
         sign=sign,
         impl=impl,
@@ -25,8 +29,10 @@ def mantissa_add_implicit_bit(x: Node) -> Primitive:
 
 
 def sign_xor(x: Node, y: Node) -> Primitive:
-    def spec(x: float, y: float, out: float):
-        return (0.0 if x == y else 1.0) == out
+    def spec(x, y, s):
+        out = FreshReal('out')
+        s.add(out == If(Or(And(x==0, y==1), And(x==1, y==0)), 1, 0))
+        return out
     
     def sign(x: UQT, y: UQT) -> UQT:
         return UQT(1, 0)

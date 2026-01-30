@@ -6,7 +6,7 @@ from ..numtypes.RuntimeTypes import Bool, RuntimeType, Tuple
 from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
 from ..utils.utils import ulp_distance
 
-from z3 import Solver, Real, unsat, sat
+from z3 import Solver, FreshReal, unsat, sat, RealVal, unknown
 
 
 class Node:
@@ -14,7 +14,7 @@ class Node:
     _eval_cache: ContextVar[tp.Optional[dict["Node", RuntimeType]]] = ContextVar(
         "eval_cache", default=None
     )
-
+    
     def __init__(self, spec: tp.Callable[..., tp.Any],
                        impl: tp.Callable[..., RuntimeType],
                        sign: tp.Callable[..., StaticType],
@@ -67,10 +67,14 @@ class Node:
             cache[self] = out
             
             print(s.to_smt2())
-            print(s.check())
             
-            if s.check() == unsat:
+            res = s.check()
+            print(res)
+            
+            if res == unsat:
                 print ("proved")
+            elif res == unknown:
+                print(s.reason_unknown())
             else:
                 model = s.model()
                 print ("failed to prove")
@@ -84,13 +88,16 @@ class Node:
             out = self.spec(*inputs, s)
             cache[self] = out
             return out
-        elif isinstance(self, Const) or isinstance(self, Var):
-            out = Real(self.name) if self.name else f"{str(self.val)}"
+        elif isinstance(self, Var):
+            out = FreshReal(self.name)
+            cache[self] = out
+            return out
+        elif isinstance(self, Const):
+            out = RealVal(self.node_type.runtime_val.to_spec())
             cache[self] = out
             return out
         else:
             raise TypeError(f"Found an Op {self.name}. Please, make sure that the provided tree does not contain an Op")
-        
     
     def _run_asserts(self, cache=None):
         for to_assert in self._assert_statements:
@@ -382,7 +389,9 @@ def Copy(x: Node) -> Primitive:
         return x
     
     def spec(x, s):
-        return x
+        out = FreshReal('out')
+        s.add(out == x)
+        return out
     
     def impl(x):
         return x
@@ -409,7 +418,7 @@ def Tuple_get_item(x: Node, idx: int) -> Primitive:
         from fused_dot_product.numtypes.basics import _unary_operator
         def basic_get_item(x: Node, out: Node) -> Op:
             return _unary_operator(
-                op=lambda x: x.args[idx],
+                op=lambda x: x.args[idx].val,
                 x=x,
                 out=out,
                 name="basic_get_item",
@@ -417,7 +426,9 @@ def Tuple_get_item(x: Node, idx: int) -> Primitive:
         return basic_get_item(x, Const(x.node_type.args[idx].runtime_type()))
     
     def spec(x, s):
-        return x[idx]
+        out = FreshReal('out')
+        s.add(out == x[idx])
+        return out
 
     return Primitive(
         spec=spec,

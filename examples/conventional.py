@@ -2,19 +2,21 @@ from fused_dot_product import *
 from .encode_Float32 import *
 from .common import *
 
+from z3 import FreshReal
 import numpy as np
 
 def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
                  b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
     
-    def spec(a0: float, a1: float, a2: float, a3: float,
-             b0: float, b1: float, b2: float, b3: float, out: float):
+    def spec(a0, a1, a2, a3, b0, b1, b2, b3, s):
+        out = FreshReal('out')
         res = 0
         res += a0 * b0
         res += a1 * b1
         res += a2 * b2
         res += a3 * b3
-        return float(np.float32(res)) == out
+        s.add(out == res)
+        return out
     
     def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T,
              b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
@@ -188,12 +190,14 @@ if __name__ == '__main__':
     
     design = Conventional(*a, *b)
     design.print_tree(depth=1)
+    design.run_spec_checks()
     
     # Test the design
-    random_gen, exp_reshuffle = BFloat16.random_generator(seed=int(time()), shared_exponent_bits=5)
-    for _ in range(100):
-        exp_reshuffle()
-        for i in range(N):
-            a[i].load_val(random_gen())
-            b[i].load_val(random_gen())
-        print(str(design.evaluate()))
+    # random_gen, exp_reshuffle = BFloat16.random_generator(seed=int(time()), shared_exponent_bits=5)
+    # for _ in range(100):
+    #     exp_reshuffle()
+    #     for i in range(N):
+    #         a[i].load_val(random_gen())
+    #         b[i].load_val(random_gen())
+    #     print(str(design.evaluate()))
+

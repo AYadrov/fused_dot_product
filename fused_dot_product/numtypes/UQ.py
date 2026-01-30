@@ -1,4 +1,5 @@
 import typing as tp
+from z3 import FreshReal, Solver, If
 
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.basics import *
@@ -204,8 +205,10 @@ def uq_zero_extend(x: Node, n: int) -> Primitive:
 
 
 def uq_add(x: Node, y: Node) -> Primitive:
-    def spec(x: float, y: float, out: float):
-        return x + y == out
+    def spec(x, y, s):
+        out = FreshReal("out")
+        s.add(out == x + y)
+        return out
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = max(x.int_bits, y.int_bits) + 1
@@ -235,8 +238,10 @@ def uq_add(x: Node, y: Node) -> Primitive:
 
 
 def uq_sub(x: Node, y: Node) -> Primitive:
-    def spec(x: float, y: float, out: float):
-        return x - y == out
+    def spec(x, y, s):
+        out = FreshReal("out")
+        s.add(out == x - y)
+        return out
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = max(x.int_bits, y.int_bits) + 1
@@ -266,8 +271,10 @@ def uq_sub(x: Node, y: Node) -> Primitive:
 
 
 def uq_max(x: Node, y: Node) -> Primitive:
-    def spec(x: float, y: float, out: float):
-        return max(x, y) == out
+    def spec(x, y, s):
+        out = FreshReal("out")
+        s.add(out == If(x >= y, x, y))
+        return out
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = max(x.int_bits, y.int_bits)
@@ -328,8 +335,10 @@ def uq_min(x: Node, y: Node) -> Primitive:
 
 
 def uq_mul(x: Node, y: Node) -> Primitive:
-    def spec(x: float, y: float, out: float):
-        return x * y == out
+    def spec(x, y, s):
+        out = FreshReal("out")
+        s.add(out == x * y)
+        return out
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = x.int_bits + y.int_bits
@@ -367,8 +376,8 @@ def uq_to_q(x: Node) -> Primitive:
         out = q_alloc(int_bits, frac_bits)
         return basic_identity(x=x, out=out)
     
-    def spec(x: float, out: float):
-        return x == out  # value does not change
+    def spec(x, s):
+        return x
     
     def sign(x: UQT) -> QT:
         return QT(x.int_bits + 1, x.frac_bits)
@@ -392,10 +401,10 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
         )
         return root
     
-    def spec(x: float, amount: float, out: float):
-        raw = int(round(x * (2 ** x_frac_bits)))
-        shifted = raw >> int(amount)
-        return float(shifted) / (2 ** x_frac_bits) == out
+    def spec(x, amount, s):
+        out = FreshReal('out')
+        s.add(out == x / 2 ** amount)
+        return out
     
     # TODO: Would be nice to not care about amount type, just bits amount
     def sign(x: UQT, amount: StaticType) -> UQT:
@@ -469,8 +478,8 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
 
 # TODO: Truncation
 def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Primitive:
-    def spec(x: float, out: float):
-        return x == out  # Truncation is not handled yet
+    def spec(x, s):
+        return x
     
     def impl(x: Node) -> Node:
         assert frac_bits >= x.node_type.frac_bits, "Truncation at uq_resize"

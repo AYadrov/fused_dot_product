@@ -3,6 +3,8 @@ import numpy as np
 
 from fused_dot_product import *
 
+from z3 import FreshReal, ToInt
+
 # TODO: edge case when input is subnormal that after rounding becomes normal
 def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:
     m_frac_bits = m.node_type.frac_bits
@@ -225,8 +227,10 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
     def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
     
-    def spec(m: float, e: float, out: float):
-        return float(np.float32(m * 2 ** (int(e) - 127))) == out
+    def spec(m, e, s):
+        out = FreshReal('out')
+        s.add(out == m * 2 ** (ToInt(e) - 127))
+        return out
 
     def impl(m: Node, e: Node) -> Node:
         sign_bit = q_sign_bit(m)
