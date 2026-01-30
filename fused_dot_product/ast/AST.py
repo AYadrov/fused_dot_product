@@ -56,7 +56,7 @@ class Node:
         if isinstance(self, Composite):
             s = Solver() if s is None else s
             s.add(*pow2_props)
-            s.set("timeout", 300_000)
+            s.set("timeout", 60_000)
             
             inputs = []
             for arg in self.inner_args:

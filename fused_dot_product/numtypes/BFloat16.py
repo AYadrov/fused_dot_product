@@ -1,12 +1,12 @@
 import time
 import random
 import math
-from z3 import FreshReal, Solver, Or, And, ToInt, If
+from z3 import FreshReal, Solver, Or, And, ToInt, If, FreshInt, ToReal
 
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.Tuple import *
 from fused_dot_product.ast.AST import *
-from fused_dot_product.numtypes.z3_utils import pow2_int
+from fused_dot_product.numtypes.z3_utils import pow2_real
 
 ########### Private Helpers ############
 
@@ -53,23 +53,23 @@ def _bf16_sign(x: Node) -> Op:
 
 def bf16_decode(x: Node) -> Primitive:
     def spec(x, s):
-        sign = FreshReal('sign')
-        mantissa = FreshReal('mantissa')
-        exponent = FreshReal('exponent')
-        
-        s.add(sign == ToInt(sign))
-        s.add(mantissa == ToInt(mantissa))
-        s.add(exponent == ToInt(exponent))
+        sign = FreshInt('sign')
+        mantissa = FreshInt('mantissa')
+        exponent = FreshInt('exponent')
         
         s.add(Or(sign == 0, sign == 1))
-        s.add(And(mantissa >= 0, mantissa <= 2**BFloat16.mantissa_bits - 1))
-        s.add(And(exponent >= 0, exponent <= 2**BFloat16.exponent_bits - 1))
+        s.add(And(mantissa >= 0, mantissa <= 10))  # mantissa <= 2**BFloat16.mantissa_bits - 1))
+        s.add(And(exponent >= 0, exponent <= 10))  # exponent <= 2**BFloat16.exponent_bits - 1))
+        
+        sign = ToReal(sign)
+        mantissa = ToReal(mantissa)
+        exponent = ToReal(exponent)
         
         sign_ = If(sign == 0, 1.0, -1.0)
         mantissa_ = 1.0 + (mantissa / 2 ** BFloat16.mantissa_bits)
         exponent_ = exponent - BFloat16.exponent_bias
-       
-        s.add(x == sign_ * mantissa_ * pow2_int(exponent_))
+        
+        s.add(x == sign_ * mantissa_ * pow2_real(exponent_))
         return tuple([sign, mantissa, exponent])
     
     def sign(x: BFloat16T) -> TupleT:
@@ -94,4 +94,4 @@ def bf16_decode(x: Node) -> Primitive:
         args=[x],
         name="bf16_decode")
 
-    
+
