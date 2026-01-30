@@ -56,6 +56,7 @@ class Node:
         if isinstance(self, Composite):
             s = Solver() if s is None else s
             s.add(*pow2_props)
+            s.set("timeout", 300_000)
             
             inputs = []
             for arg in self.inner_args:
@@ -392,9 +393,7 @@ def Copy(x: Node) -> Primitive:
         return x
     
     def spec(x, s):
-        out = FreshReal('out')
-        s.add(out == x)
-        return out
+        return x
     
     def impl(x):
         return x

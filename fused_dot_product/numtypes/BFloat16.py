@@ -62,16 +62,12 @@ def bf16_decode(x: Node) -> Primitive:
         s.add(exponent == ToInt(exponent))
         
         s.add(Or(sign == 0, sign == 1))
-        s.add(And(mantissa >= 0, ToInt(mantissa) <= 2**BFloat16.mantissa_bits - 1))
-        s.add(And(exponent >= 0, ToInt(exponent) <= 2**BFloat16.exponent_bits - 1))
+        s.add(And(mantissa >= 0, mantissa <= 2**BFloat16.mantissa_bits - 1))
+        s.add(And(exponent >= 0, exponent <= 2**BFloat16.exponent_bits - 1))
         
         sign_ = If(sign == 0, 1.0, -1.0)
-        mantissa_ = 1.0 + (ToInt(mantissa) / 2 ** BFloat16.mantissa_bits)
-        exponent_ = ToInt(exponent) - BFloat16.exponent_bias
-        min_exp = -BFloat16.exponent_bias
-        max_exp = (2**BFloat16.exponent_bits - 1) - BFloat16.exponent_bias
-        s.add(exponent_ >= min_exp)
-        s.add(exponent_ <= max_exp)
+        mantissa_ = 1.0 + (mantissa / 2 ** BFloat16.mantissa_bits)
+        exponent_ = exponent - BFloat16.exponent_bias
        
         s.add(x == sign_ * mantissa_ * pow2_int(exponent_))
         return tuple([sign, mantissa, exponent])

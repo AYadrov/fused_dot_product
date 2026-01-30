@@ -5,7 +5,7 @@ def mantissa_add_implicit_bit(x: Node) -> Primitive:
     int_bits = x.node_type.int_bits
     def spec(mantissa, s):
         out = FreshReal('out')
-        s.add(mantissa < (2 ** int_bits))
+        # s.add(mantissa < (2 ** int_bits))
         s.add(out == (mantissa / (2 ** int_bits)) + 1.0)
         return out
     
