@@ -5,7 +5,7 @@ from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.numtypes.Tuple import make_Tuple
 
-from z3 import FreshReal, Solver
+from z3 import FreshReal, Solver, If
 
 ########### Private Helpers ############
 
@@ -481,7 +481,7 @@ def q_rshift(x: Node, n: Node) -> Primitive:
 def q_add_sign(x: Node, s: Node) -> Primitive:
     def spec(x, sign, s):
         out = FreshReal('out')
-        s.add(out == x * (-1 ** sign))
+        s.add(out == x * If(sign == 0, 1.0, -1.0))
         return out
     
     def impl(x: Node, s: Node) -> Node:

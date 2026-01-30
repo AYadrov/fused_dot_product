@@ -2,6 +2,7 @@ import math
 import numpy as np
 
 from fused_dot_product import *
+from fused_dot_product.numtypes.z3_utils import pow2_int
 
 from z3 import FreshReal, ToInt
 
@@ -224,12 +225,20 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
 # subnormal_extra_bits is extra bits that will be used when truncating mantissa to a subnormal format
 def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
     assert e.node_type.frac_bits == 0
+    e_min = -(1 << (e.node_type.int_bits - 1))
+    e_max = (1 << (e.node_type.int_bits - 1)) - 1
+    exp_min = e_min - Float32.exponent_bias
+    exp_max = e_max - Float32.exponent_bias
     def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
     
     def spec(m, e, s):
         out = FreshReal('out')
-        s.add(out == m * 2 ** (ToInt(e) - 127))
+        e_int = ToInt(e)
+        s.add(e == e_int)
+        s.add(e_int >= e_min)
+        s.add(e_int <= e_max)
+        s.add(out == m * pow2_int(e_int - Float32.exponent_bias, exp_min, exp_max))
         return out
 
     def impl(m: Node, e: Node) -> Node:

@@ -1,11 +1,12 @@
 import typing as tp
-from z3 import FreshReal, Solver, If
+from z3 import FreshReal, Solver, If, ToInt
 
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.numtypes.Q import q_alloc
 from fused_dot_product.numtypes.Tuple import make_Tuple
+from fused_dot_product.numtypes.z3_utils import pow2_int
 
 
 ############## Public API ##############
@@ -393,6 +394,7 @@ def uq_to_q(x: Node) -> Primitive:
 # TODO: truncation
 def uq_rshift(x: Node, amount: Node) -> Primitive:
     x_frac_bits = x.node_type.frac_bits
+    max_shift = (1 << amount.node_type.int_bits) - 1
     def impl(x: Node, amount: Node) -> Node:
         root = basic_rshift(
             x=x,
@@ -403,7 +405,11 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
     
     def spec(x, amount, s):
         out = FreshReal('out')
-        s.add(out == x / 2 ** amount)
+        amount_int = ToInt(amount)
+        s.add(amount == amount_int)
+        s.add(amount_int >= 0)
+        s.add(amount_int <= max_shift)
+        s.add(out == x / pow2_int(amount_int, 0, max_shift))
         return out
     
     # TODO: Would be nice to not care about amount type, just bits amount
