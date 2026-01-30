@@ -73,7 +73,7 @@ def bf16_decode(x: Node) -> Primitive:
         s.add(exponent_ >= min_exp)
         s.add(exponent_ <= max_exp)
        
-        s.add(x == sign_ * mantissa_ * pow2_int(exponent_, min_exp, max_exp))
+        s.add(x == sign_ * mantissa_ * pow2_int(exponent_))
         return tuple([sign, mantissa, exponent])
     
     def sign(x: BFloat16T) -> TupleT:

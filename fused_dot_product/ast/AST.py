@@ -5,6 +5,7 @@ from contextvars import ContextVar
 from ..numtypes.RuntimeTypes import Bool, RuntimeType, Tuple
 from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
 from ..utils.utils import ulp_distance
+from ..numtypes.z3_utils import *
 
 from z3 import Solver, FreshReal, unsat, sat, RealVal, unknown
 
@@ -54,6 +55,8 @@ class Node:
             return cache[self]
         if isinstance(self, Composite):
             s = Solver() if s is None else s
+            s.add(*pow2_props)
+            
             inputs = []
             for arg in self.inner_args:
                 inputs.append(arg.run_spec_checks(s, cache))

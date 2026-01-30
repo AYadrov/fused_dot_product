@@ -405,11 +405,9 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
     
     def spec(x, amount, s):
         out = FreshReal('out')
-        amount_int = ToInt(amount)
-        s.add(amount == amount_int)
-        s.add(amount_int >= 0)
-        s.add(amount_int <= max_shift)
-        s.add(out == x / pow2_int(amount_int, 0, max_shift))
+        s.add(amount >= 0)
+        s.add(amount <= max_shift)
+        s.add(out == x / pow2_int(amount))
         return out
     
     # TODO: Would be nice to not care about amount type, just bits amount

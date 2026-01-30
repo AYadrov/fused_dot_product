@@ -238,7 +238,7 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
         s.add(e == e_int)
         s.add(e_int >= e_min)
         s.add(e_int <= e_max)
-        s.add(out == m * pow2_int(e_int - Float32.exponent_bias, exp_min, exp_max))
+        s.add(out == m * pow2_int(e_int - Float32.exponent_bias))
         return out
 
     def impl(m: Node, e: Node) -> Node:
