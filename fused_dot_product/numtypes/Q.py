@@ -5,7 +5,7 @@ from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.numtypes.Tuple import make_Tuple
 
-from z3 import FreshReal, Solver, If
+from cvc5.pythonic import FreshReal, Solver, If
 
 ########### Private Helpers ############
 

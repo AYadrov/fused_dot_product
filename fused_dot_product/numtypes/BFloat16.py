@@ -1,7 +1,7 @@
 import time
 import random
 import math
-from z3 import FreshReal, Solver, Or, And, ToInt, If, FreshInt, ToReal
+from cvc5.pythonic import FreshReal, Solver, Or, And, ToInt, If, FreshInt, ToReal
 
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.Tuple import *
@@ -58,8 +58,8 @@ def bf16_decode(x: Node) -> Primitive:
         exponent = FreshInt('exponent')
         
         s.add(Or(sign == 0, sign == 1))
-        s.add(And(mantissa >= 0, mantissa <= 10))  # mantissa <= 2**BFloat16.mantissa_bits - 1))
-        s.add(And(exponent >= 0, exponent <= 10))  # exponent <= 2**BFloat16.exponent_bits - 1))
+        s.add(And(mantissa >= 0, mantissa <= 1))  # mantissa <= 2**BFloat16.mantissa_bits - 1))
+        s.add(And(exponent >= 0, exponent <= 1))  # exponent <= 2**BFloat16.exponent_bits - 1))
         
         sign = ToReal(sign)
         mantissa = ToReal(mantissa)
@@ -93,5 +93,4 @@ def bf16_decode(x: Node) -> Primitive:
         sign=sign,
         args=[x],
         name="bf16_decode")
-
 

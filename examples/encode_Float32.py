@@ -4,7 +4,7 @@ import numpy as np
 from fused_dot_product import *
 from fused_dot_product.numtypes.z3_utils import *
 
-from z3 import FreshReal, ToInt
+from cvc5.pythonic import FreshReal
 
 # TODO: edge case when input is subnormal that after rounding becomes normal
 def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:

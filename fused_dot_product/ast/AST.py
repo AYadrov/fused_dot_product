@@ -7,7 +7,7 @@ from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
 from ..utils.utils import ulp_distance
 from ..numtypes.z3_utils import *
 
-from z3 import Solver, FreshReal, unsat, sat, RealVal, unknown
+from cvc5.pythonic import Solver, FreshReal, unsat, sat, RealVal, unknown, SolverFor
 
 
 class Node:
@@ -55,8 +55,11 @@ class Node:
             return cache[self]
         if isinstance(self, Composite):
             s = Solver() if s is None else s
+            
+            s.setOption("use-portfolio", "true")
+            s.setOption("portfolio-jobs", "4")
+
             s.add(*pow2_props)
-            s.set("timeout", 60_000)
             
             inputs = []
             for arg in self.inner_args:
@@ -70,7 +73,7 @@ class Node:
             s.add(out != out_)
             cache[self] = out
             
-            print(s.to_smt2())
+            print(s.sexpr())
             
             res = s.check()
             print(res)

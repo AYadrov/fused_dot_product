@@ -1,6 +1,6 @@
 import random
 import time
-from z3 import FreshReal, And
+from cvc5.pythonic import FreshReal, And
 
 from fused_dot_product.config import *
 from fused_dot_product.utils.utils import *

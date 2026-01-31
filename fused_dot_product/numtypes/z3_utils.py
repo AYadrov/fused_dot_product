@@ -1,16 +1,21 @@
 from fractions import Fraction
-from z3 import If, RealVal, Function, RealSort, ForAll, Real
+from cvc5.pythonic import Function, RealSort, RealVal
+
+# Keep pow2 axioms bounded to avoid quantifiers in the solver.
+POW2_MIN_EXP = -256
+POW2_MAX_EXP = 256
 
 pow2 = Function("pow2", RealSort(), RealSort())
-x = Real('x')
-y = Real('y')
+
+def _pow2_const(exp: int):
+    if exp >= 0:
+        return RealVal(2 ** exp)
+    return RealVal(Fraction(1, 2 ** (-exp)))
+
 pow2_props = [
-    pow2(RealVal(0)) == RealVal(1),
-    pow2(RealVal(1)) == RealVal(2),
-    ForAll([x, y], pow2(x + y) == pow2(x) * pow2(y)),
-    ForAll([x, y], pow2(x - y) == pow2(x) / pow2(y))
+    pow2(RealVal(exp)) == _pow2_const(exp)
+    for exp in range(POW2_MIN_EXP, POW2_MAX_EXP + 1)
 ]
 
 def pow2_real(exp):
     return pow2(exp)
-

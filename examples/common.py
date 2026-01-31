@@ -1,5 +1,5 @@
 from fused_dot_product import *
-from z3 import FreshReal, Solver, If, Or, And
+from cvc5.pythonic import FreshReal, Solver, If, Or, And
 
 def mantissa_add_implicit_bit(x: Node) -> Primitive:
     int_bits = x.node_type.int_bits
@@ -50,4 +50,3 @@ def sign_xor(x: Node, y: Node) -> Primitive:
         impl=impl,
         args=[x, y],
         name="sign_xor")
-

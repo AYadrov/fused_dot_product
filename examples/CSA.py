@@ -1,6 +1,6 @@
 from fused_dot_product import *
 
-from z3 import FreshReal, Solver
+from cvc5.pythonic import FreshReal, Solver
 
 ############## HELPERS #################
 def exact_xor(a: Node, b: Node):
@@ -178,4 +178,3 @@ if __name__ == '__main__':
     design = CSA_tree4(*args)
     design.print_tree(depth=1)
     design.run_spec_checks()
-

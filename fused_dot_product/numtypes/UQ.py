@@ -1,5 +1,5 @@
 import typing as tp
-from z3 import FreshReal, Solver, If, ToInt, FreshInt
+from cvc5.pythonic import FreshReal, Solver, If, ToInt, FreshInt
 
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.basics import *

@@ -3,16 +3,29 @@ from fused_dot_product.ast.AST import *
 from fused_dot_product.utils.utils import *
 import inspect
 
-def make_Tuple(*args: Node) -> Op:
+def make_Tuple(*args: Node) -> Primitive:
     def impl(*args: RuntimeType) -> Tuple:
-        return Tuple(*args)
+        from .Tuple import _make_fixed_arguments
+        def basic_tuple_maker(*args):
+            def op(*args):
+                return Tuple(*args)
+            return Op(
+                impl=_make_fixed_arguments(op, RuntimeType, len(args)),
+                sign=_make_fixed_arguments(_sign_constructor(), StaticType, len(args)),
+                args=[*args],
+                name=f"basic_tuple_maker_{len(args)}")
+        return basic_tuple_maker(*args)
     
     def sign(*args: StaticType) -> TupleT:
         return TupleT(*args)
     
+    def spec(*args, s):
+        return tuple(args)
+    
     return Op(
-        impl=_make_fixed_arguments(impl, RuntimeType, len(args)),
-        sign=_make_fixed_arguments(sign, StaticType, len(args)),
+        spec=spec,
+        impl=impl,
+        sign=sign,
         args=args,
         name="Tuple_create")
 
