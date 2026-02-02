@@ -88,7 +88,7 @@ class Node:
                 model = s.model()
                 print ("failed to prove")
                 print(f"Counterexample found:\n{model}")
-            
+
             return out
         elif isinstance(self, Primitive):
             inputs = []

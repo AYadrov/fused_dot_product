@@ -2,14 +2,40 @@ from fused_dot_product import *
 from .encode_Float32 import *
 from .common import *
 
-from cvc5.pythonic import FreshReal
+from cvc5.pythonic import FreshReal, FreshInt, If, ToReal
+from fused_dot_product.numtypes.z3_utils import pow2_real
 import numpy as np
 
 def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Composite:
-    
     def spec(E_a, E_b, M_a, M_b, s):
-        raise NotImplementedError("TODO")
-        return None
+        E_a = list(E_a)
+        E_b = list(E_b)
+        M_a = list(M_a)
+        M_b = list(M_b)
+        n = len(E_a)
+        
+        E_p = [E_a[i] + E_b[i] for i in range(n)]
+        
+        E_m = E_p[0]
+        for i in range(1, n):
+            E_m = If(E_m >= E_p[i], E_m, E_p[i])
+        
+        M_a = [(M_a[i] / (2 ** BFloat16.mantissa_bits)) + 1.0 for i in range(n)]
+        M_b = [(M_b[i] / (2 ** BFloat16.mantissa_bits)) + 1.0 for i in range(n)]
+        M_p = [M_a[i] * M_b[i] for i in range(n)]
+        
+        M_p_q = [FreshReal('m_p') for _ in range(n)]
+        shifts = [FreshInt(f"sh_{i}") for i in range(n)]
+        shift_max = 2 * ((1 << BFloat16.exponent_bits) - 1)
+        
+        for i in range(n):
+            # s.add(E_m >= E_p[i])
+            s.add(ToReal(shifts[i]) == E_m - E_p[i])
+            # s.add(shifts[i] >= 0)
+            # s.add(shifts[i] <= shift_max)
+            s.add(M_p[i] == M_p_q[i] * pow2_real(ToReal(shifts[i])))
+        
+        return (tuple(M_p_q), E_m)
     
     def impl(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Node:
         ########## EXPONENTS ###############

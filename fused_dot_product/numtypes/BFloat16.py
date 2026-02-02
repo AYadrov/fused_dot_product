@@ -58,8 +58,8 @@ def bf16_decode(x: Node) -> Primitive:
         exponent = FreshInt('exponent')
         
         s.add(Or(sign == 0, sign == 1))
-        s.add(And(mantissa >= 0, mantissa <= 1))  # mantissa <= 2**BFloat16.mantissa_bits - 1))
-        s.add(And(exponent >= 0, exponent <= 1))  # exponent <= 2**BFloat16.exponent_bits - 1))
+        s.add(And(mantissa >= 0, mantissa <= 2**BFloat16.mantissa_bits - 1))
+        s.add(And(exponent >= 0, exponent <= 2**BFloat16.exponent_bits - 1))
         
         sign = ToReal(sign)
         mantissa = ToReal(mantissa)

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from cvc5.pythonic import FreshReal
+from cvc5.pythonic import FreshReal, FreshInt, FreshBool, If, ToReal
+from fused_dot_product.numtypes.z3_utils import pow2_real
 
 class StaticType:
     def __init__(self):
@@ -54,7 +55,8 @@ class BoolT(StaticType):
         return BoolT()
     
     def to_smt(self, s):
-        raise NotImplementedError
+        x = FreshBool('x')
+        return x
      
 
 class QT(StaticType):
@@ -87,8 +89,15 @@ class QT(StaticType):
         return QT(self.int_bits, self.frac_bits)
     
     def to_smt(self, s):
-        x = FreshReal('x')
+        if self.frac_bits != 0:
+            x = FreshReal('x')
+            s.add(x < (1 << self.int_bits))
+        else:
+            x = FreshInt('x')
+            s.add(x < (1 << self.int_bits))
+            x = ToReal(x)
         return x
+
 
 
 class UQT(StaticType):
@@ -121,7 +130,15 @@ class UQT(StaticType):
         return UQT(self.int_bits, self.frac_bits)
     
     def to_smt(self, s):
-        x = FreshReal('x')
+        if self.frac_bits != 0:
+            x = FreshReal('x')
+            s.add(x >= 0)
+            s.add(x < (1 << self.int_bits))
+        else:
+            x = FreshInt('x')
+            s.add(x >= 0)
+            s.add(x < (1 << self.int_bits))
+            x = ToReal(x)
         return x
 
 
@@ -224,13 +241,3 @@ class TupleT(StaticType):
     
     def to_smt(self, s):
         return tuple([x.to_smt(s) for x in self.args])
-
-
-if __name__ == '__main__':
-    print(QT(1,3))
-    print(UQT(1,3))
-    print(IntT(1))
-    print(Float32T())
-    print(BFloat16T())
-    print(TupleT(IntT(2)))
-    print(TupleT(IntT(2), QT(1,3)))

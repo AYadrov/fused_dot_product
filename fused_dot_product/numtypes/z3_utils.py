@@ -2,8 +2,8 @@ from fractions import Fraction
 from cvc5.pythonic import Function, RealSort, RealVal
 
 # Keep pow2 axioms bounded to avoid quantifiers in the solver.
-POW2_MIN_EXP = -256
-POW2_MAX_EXP = 256
+POW2_MIN_EXP = -512
+POW2_MAX_EXP = 512
 
 pow2 = Function("pow2", RealSort(), RealSort())
 
