@@ -8,6 +8,7 @@ import numpy as np
 def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Composite:
     
     def spec(E_a, E_b, M_a, M_b, s):
+        raise NotImplementedError()
         return None
     
     def impl(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Node:
@@ -77,10 +78,13 @@ def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> 
             [M_p_q[i].check(is_typeof(M_p_q[i], QT(3, Wf - 2))) for i in range(N)]
         )
         
-        return Tuple(*M_p_q), E_m_q
+        return make_Tuple(make_Tuple(*M_p_q), E_m_q)
     
     def sign(E_a: TupleT, E_b: TupleT, M_a: TupleT, M_b: TupleT) -> TupleT:
-        return TupleT(QT(3, Wf - 2), QT(3, Wf - 2), QT(3, Wf - 2), QT(3, Wf - 2)), QT(10, 0)
+        return TupleT(
+            TupleT(QT(3, Wf - 2), QT(3, Wf - 2), QT(3, Wf - 2), QT(3, Wf - 2)), 
+            QT(10, 0)
+        )
     
     return Composite(
         spec=spec,
@@ -130,7 +134,12 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
             name="BFloat16.exponent_bias",
         )
         
-        M_p_q, E_m_q = conventional_arithmetic_body(E_a, E_b, M_a, M_b)
+        M_p_q, E_m_q = conventional_arithmetic_body(
+                            make_Tuple(*E_a),
+                            make_Tuple(*E_b),
+                            make_Tuple(*M_a),
+                            make_Tuple(*M_b),
+                        )
         
         # Step 4. Adjust sign for mantissas using xor operation
         S_p = [sign_xor(S_a[i], S_b[i]) for i in range(N)]

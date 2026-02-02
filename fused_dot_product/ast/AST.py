@@ -56,8 +56,8 @@ class Node:
         if isinstance(self, Composite):
             s = Solver() if s is None else s
             
-            s.setOption("use-portfolio", "true")
-            s.setOption("portfolio-jobs", "4")
+            # s.setOption("use-portfolio", "true")
+            # s.setOption("portfolio-jobs", "4")
 
             s.add(*pow2_props)
             
@@ -431,9 +431,7 @@ def Tuple_get_item(x: Node, idx: int) -> Primitive:
         return basic_get_item(x, Const(x.node_type.args[idx].runtime_type()))
     
     def spec(x, s):
-        out = FreshReal('out')
-        s.add(out == x[idx])
-        return out
+        return x[idx]
 
     return Primitive(
         spec=spec,

@@ -185,7 +185,7 @@ class TupleT(StaticType):
     def runtime_type(self) -> "RuntimeType":
         from fused_dot_product.numtypes.RuntimeTypes import Tuple
 
-        return Tuple(*[arg.runtime_type for arg in self.args])
+        return Tuple(*[arg.runtime_type() for arg in self.args])
     
     def __repr__(self):
         return f"Tuple<{', '.join([repr(x) for x in self.args])}>"
