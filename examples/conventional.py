@@ -8,7 +8,7 @@ import numpy as np
 def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Composite:
     
     def spec(E_a, E_b, M_a, M_b, s):
-        raise NotImplementedError()
+        raise NotImplementedError("TODO")
         return None
     
     def impl(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Node:

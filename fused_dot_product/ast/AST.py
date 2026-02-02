@@ -68,7 +68,7 @@ class Node:
                 inputs.append(arg.run_spec_checks(s, cache))
             
             out_ = self.inner_tree.run_spec_checks(s, cache)
-            out = self.spec(*inputs, s)
+            out = self.spec(*inputs, s=s)
             
             # Check that outer spec is not equal to inner spec
             # The result should be unsat
@@ -94,7 +94,7 @@ class Node:
             inputs = []
             for child in self.args:
                 inputs.append(child.run_spec_checks(s, cache))
-            out = self.spec(*inputs, s)
+            out = self.spec(*inputs, s=s)
             cache[self] = out
             return out
         elif isinstance(self, Var):
