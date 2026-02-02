@@ -1,6 +1,6 @@
 import random
 import time
-from cvc5.pythonic import FreshReal, And
+from cvc5.pythonic import FreshReal, And, RealVal
 
 from fused_dot_product.config import *
 from fused_dot_product.utils.utils import *
@@ -27,6 +27,9 @@ class RuntimeType:
         raise NotImplementedError
     
     def __eq__(self, other):
+        raise NotImplementedError
+    
+    def to_smt(self, s):
         raise NotImplementedError
 
 
@@ -61,6 +64,9 @@ class Tuple(RuntimeType):
             isinstance(other, Tuple)
             and all([x == y for x, y in zip(self.args, other.args)])
         )
+   
+    def to_smt(self, s):
+        return tuple([x.to_smt(s) for x in self.args])
 
 
 class Bool(RuntimeType):
@@ -90,6 +96,9 @@ class Bool(RuntimeType):
             isinstance(other, Bool)
             and other.val == self.val
         )
+    
+    def to_smt(self, s):
+        raise NotImplementedError()
     
 
 class Q(RuntimeType):
@@ -121,8 +130,8 @@ class Q(RuntimeType):
             val = self.val
         return Q(val, self.int_bits, self.frac_bits)
     
-    def z3_value(self, s):
-        x = FreshReal('x')
+    def to_smt(self, s):
+        x = RealVal(self.to_spec())
         return x
     
     def total_bits(self):
@@ -203,8 +212,8 @@ class UQ(RuntimeType):
     def total_bits(self):
         return self.int_bits + self.frac_bits
     
-    def z3_value(self, s):
-        x = FreshReal('x')
+    def to_smt(self, s):
+        x = RealVal(self.to_spec())
         return x
     
     # Custom methods
@@ -269,8 +278,8 @@ class Float32(RuntimeType):
     def static_type(self):
         return Float32T()
     
-    def z3_value(self, s):
-        x = FreshReal('x')
+    def to_smt(self, s):
+        x = RealVal(self.to_spec())
         return x
     
     @classmethod
@@ -342,11 +351,11 @@ class BFloat16(RuntimeType):
         value = (-1) ** self.sign * frac * (2 ** exp_val)
         return float(value)
     
-    def z3_value(self, s):
-        x = FreshReal('x')
-        max_mantissa = 2 ** mantissa_bits - 1
-        max_exponent = 2 ** exponent_bits - 1 - exponent_bias
-        s.add(And(x >= - max_mantissa * 2 ** max_exponent, x <= max_mantissa * 2 ** max_exponent))
+    def to_smt(self, s):
+        x = RealVal(self.to_spec())
+        # max_mantissa = 2 ** mantissa_bits - 1
+        # max_exponent = 2 ** exponent_bits - 1 - exponent_bias
+        # s.add(And(x >= - max_mantissa * 2 ** max_exponent, x <= max_mantissa * 2 ** max_exponent))
         return x
     
     def static_type(self):

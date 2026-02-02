@@ -9,17 +9,18 @@ def make_Tuple(*args: Node) -> Primitive:
 
     def sign(*args: StaticType) -> TupleT:
         return TupleT(*args)
-
-    def impl(*args: RuntimeType) -> Tuple:
-        def basic_tuple_maker(*args):
-            def op(*args):
-                return Tuple(*args)
-            return Op(
-                impl=_make_fixed_arguments(op, RuntimeType, len(args)),
-                sign=_make_fixed_arguments(sign, StaticType, len(args)),
-                args=[*args],
-                name=f"basic_tuple_maker_{len(args)}")
-        return basic_tuple_maker(*args)
+    
+    sign_fixed = _make_fixed_arguments(sign, StaticType, len(args))
+    
+    def impl(*nodes: Node) -> Node:
+        def op(*vals: RuntimeType) -> Tuple:
+            return Tuple(*vals)
+        return Op(
+            impl=_make_fixed_arguments(op, RuntimeType, len(nodes)),
+            sign=sign_fixed,
+            args=[*nodes],
+            name=f"basic_tuple_maker_{len(nodes)}",
+        )
     
     def spec(*args, s):
         return tuple(args)
@@ -27,7 +28,7 @@ def make_Tuple(*args: Node) -> Primitive:
     return Primitive(
         spec=spec,
         impl=impl,
-        sign=sign,
+        sign=sign_fixed,
         args=args,
         name="make_Tuple")
 

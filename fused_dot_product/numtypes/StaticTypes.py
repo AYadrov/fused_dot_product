@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from cvc5.pythonic import FreshReal
 
 class StaticType:
     def __init__(self):
@@ -25,6 +26,9 @@ class StaticType:
     
     def __eq__(self, other):
         raise NotImplementedError
+    
+    def to_smt(self, s):
+        raise NotImplementedError
 
 
 class BoolT(StaticType):
@@ -48,6 +52,9 @@ class BoolT(StaticType):
         
     def _clone_impl(self) -> "QT":
         return BoolT()
+    
+    def to_smt(self, s):
+        raise NotImplementedError
      
 
 class QT(StaticType):
@@ -78,6 +85,10 @@ class QT(StaticType):
 
     def _clone_impl(self) -> "QT":
         return QT(self.int_bits, self.frac_bits)
+    
+    def to_smt(self, s):
+        x = FreshReal('x')
+        return x
 
 
 class UQT(StaticType):
@@ -108,6 +119,10 @@ class UQT(StaticType):
 
     def _clone_impl(self) -> "UQT":
         return UQT(self.int_bits, self.frac_bits)
+    
+    def to_smt(self, s):
+        x = FreshReal('x')
+        return x
 
 
 class Float32T(StaticType):
@@ -139,7 +154,10 @@ class Float32T(StaticType):
 
     def _clone_impl(self) -> "Float32T":
         return Float32T()
-
+        
+    def to_smt(self, s):
+        x = FreshReal('x')
+        return x
 
 class BFloat16T(StaticType):
     def __init__(self):
@@ -170,6 +188,10 @@ class BFloat16T(StaticType):
 
     def _clone_impl(self) -> "BFloat16T":
         return BFloat16T()
+    
+    def to_smt(self, s):
+        x = FreshReal('x')
+        return x
 
 class TupleT(StaticType):
     def __init__(self, *args: StaticType):
@@ -199,6 +221,9 @@ class TupleT(StaticType):
 
     def _clone_impl(self) -> "TupleT":
         return TupleT(*[arg.copy() for arg in self.args])
+    
+    def to_smt(self, s):
+        return tuple([x.to_smt(s) for x in self.args])
 
 
 if __name__ == '__main__':

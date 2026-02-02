@@ -49,6 +49,8 @@ class Node:
     ############## PRIVATE METHODS ###############
     
     def run_spec_checks(self, s=None, cache=None):
+        print(self.name, self.args)
+
         if cache is None:
             cache = {}
         if self in cache:
@@ -96,11 +98,11 @@ class Node:
             cache[self] = out
             return out
         elif isinstance(self, Var):
-            out = FreshReal(self.name)
+            out = self.node_type.to_smt(s)
             cache[self] = out
             return out
         elif isinstance(self, Const):
-            out = RealVal(self.node_type.runtime_val.to_spec())
+            out = self.node_type.runtime_val.to_smt(s)
             cache[self] = out
             return out
         else:
