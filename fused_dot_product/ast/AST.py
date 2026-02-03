@@ -51,6 +51,9 @@ class Node:
         if isinstance(out1, tuple) and isinstance(out2, tuple):
             for o1, o2 in zip(out1, out2):
                 self._unroller(o1, o2, s)
+        elif isinstance(out1, list) and isinstance(out2, list):
+            for o1, o2 in zip(out1, out2):
+                self._unroller(o1, o2, s)
         else:
             s.add(out1 != out2)
     

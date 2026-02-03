@@ -230,7 +230,7 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
     
     def spec(m, e, s):
         out = FreshReal('out')
-        s.add(out == m * pow2_real(e - Float32.exponent_bias))
+        s.add(out == m * 2 ** (e - Float32.exponent_bias))
         return out
 
     def impl(m: Node, e: Node) -> Node:

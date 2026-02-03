@@ -69,7 +69,7 @@ def bf16_decode(x: Node) -> Primitive:
         mantissa_ = 1.0 + (mantissa / 2 ** BFloat16.mantissa_bits)
         exponent_ = exponent - BFloat16.exponent_bias
         
-        s.add(x == sign_ * mantissa_ * pow2_real(exponent_))
+        s.add(x == sign_ * mantissa_ * 2 ** (exponent_))
         return tuple([sign, mantissa, exponent])
     
     def sign(x: BFloat16T) -> TupleT:
