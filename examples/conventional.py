@@ -240,13 +240,13 @@ if __name__ == '__main__':
     
     design = Conventional(*a, *b)
     design.print_tree(depth=1)
-    design.run_spec_checks()
+    design.run_spec()
     
     # Test the design
-    # random_gen, exp_reshuffle = BFloat16.random_generator(seed=int(time()), shared_exponent_bits=5)
-    # for _ in range(100):
-    #     exp_reshuffle()
-    #     for i in range(N):
-    #         a[i].load_val(random_gen())
-    #         b[i].load_val(random_gen())
-    #     print(str(design.evaluate()))
+    random_gen, exp_reshuffle = BFloat16.random_generator(seed=int(time()), shared_exponent_bits=5)
+    for _ in range(100):
+        exp_reshuffle()
+        for i in range(N):
+            a[i].load_val(random_gen())
+            b[i].load_val(random_gen())
+        print(str(design.evaluate()))

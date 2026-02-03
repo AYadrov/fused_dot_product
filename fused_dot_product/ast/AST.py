@@ -5,8 +5,9 @@ from contextvars import ContextVar
 from ..numtypes.RuntimeTypes import Bool, RuntimeType, Tuple
 from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
 from ..utils.utils import ulp_distance
+from ..utils.smt_utils import cvc5_prove_equal
 
-from cvc5.pythonic import Solver, FreshReal, unsat, sat, RealVal, unknown, SolverFor
+from cvc5.pythonic import Solver
 
 
 class Node:
@@ -24,19 +25,20 @@ class Node:
         # Checks that signature's annotations are StaticType
         self._primitive_signature_check(sign)
         
-        # Wrapper for impl that makes sure that out always matches node_type and satisfies spec
-        def compute(inputs: list[RuntimeType]):
-            out = None
-            if self.node_type.runtime_val is not None:
-                out = self.node_type.runtime_val  # constantly-folded nodes are already checked for type and spec
-            else:
-                out = impl(*inputs)
-                self._dynamic_typecheck(inputs=inputs, out=out)
-                # self.run_spec_checks(inputs=inputs, out=out)
-            return out.copy()
+        # Wrapper for impl that makes sure that out always matches node_type
+        def impl_wrapper(impl):
+            def compute(inputs: list[RuntimeType]):
+                out = None
+                if self.node_type.runtime_val is not None:
+                    out = self.node_type.runtime_val  # constantly-folded nodes are already checked for type
+                else:
+                    out = impl(*inputs)
+                    self._dynamic_typecheck(inputs=inputs, out=out)
+                return out.copy()
+            return compute
         
         self.spec = spec
-        self.impl = compute
+        self.impl = impl_wrapper(impl)
         self.sign = sign
         self.args = args
         self.name = name
@@ -56,65 +58,15 @@ class Node:
         else:
             s.add(out1 != out2)
     
-    def run_spec_checks(self, s=None, cache=None):
+    def run_spec(self, s=None, cache=None):
         if cache is None:
             cache = {}
         if self in cache:
             return cache[self]
-        
-        if isinstance(self, Composite):
-            s_check = Solver()
-            
-            local_cache = {}
-            inputs = []
-            for arg in self.inner_args:
-                inputs.append(arg.run_spec_checks(s_check, local_cache))
-            
-            out_ = self.inner_tree.run_spec_checks(s_check, local_cache)
-            out = self.spec(*inputs, s=s_check)
-            
-            # Check that outer spec is not equal to inner spec
-            # The result should be unsat
-            self._unroller(out, out_, s_check)
-            
-            print(s_check.sexpr())
-            
-            res = s_check.check()
-            print(res)
-            
-            if res == unsat:
-                print ("proved")
-            elif res == unknown:
-                print(s_check.reason_unknown())
-            else:
-                model = s_check.model()
-                print ("failed to prove")
-                print(f"Counterexample found:\n{model}")
-
-            s_parent = s if s is not None else Solver()
-            parent_inputs = []
-            for arg in self.args:
-                parent_inputs.append(arg.run_spec_checks(s_parent, cache))
-            out_parent = self.spec(*parent_inputs, s=s_parent)
-            cache[self] = out_parent
-            return out_parent
-        elif isinstance(self, Primitive):
-            inputs = []
-            for child in self.args:
-                inputs.append(child.run_spec_checks(s, cache))
-            out = self.spec(*inputs, s=s)
-            cache[self] = out
-            return out
-        elif isinstance(self, Var):
-            out = self.node_type.to_smt(s)
-            cache[self] = out
-            return out
-        elif isinstance(self, Const):
-            out = self.node_type.runtime_val.to_smt(s)
-            cache[self] = out
-            return out
-        else:
-            raise TypeError(f"Found an Op {self.name}. Please, make sure that the provided tree does not contain an Op")
+        s = s if s is not None else Solver()
+        out = self._run_spec(s, cache)
+        cache[self] = out
+        return out
     
     def _run_asserts(self, cache=None):
         for to_assert in self._assert_statements:
@@ -252,6 +204,27 @@ class Composite(Node):
                          args=args,
                          name=name)
     
+    def _run_spec(self, outer_solver, outer_cache):
+        ########## INNER SPEC ##########
+        inner_solver = Solver()
+        inner_cache = {}
+        
+        out_inner = self.inner_tree.run_spec(inner_solver, inner_cache)
+        
+        inputs = []
+        for arg in self.inner_args:
+            inputs.append(arg.run_spec(inner_solver, inner_cache))
+        out_outer = self.spec(*inputs, s=inner_solver)
+        
+        cvc5_prove_equal(out_outer, out_inner, inner_solver)
+        ################################
+
+        outer_inputs = []
+        for arg in self.args:
+            outer_inputs.append(arg.run_spec(outer_solver, outer_cache))
+        out_outer = self.spec(*outer_inputs, s=outer_solver)
+        return out_outer
+    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         impl_pt = self.printing_helper(*self.args)  # Constructing a whole tree
         connector = "└── " if is_last else "├── "
@@ -295,6 +268,14 @@ class Primitive(Node):
                          args=args,
                          name=name)
     
+    
+    def _run_spec(self, s, cache):
+        inputs = []
+        for child in self.args:
+            inputs.append(child.run_spec(s, cache))
+        out = self.spec(*inputs, s=s)
+        return out
+    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         impl_pt = self.printing_helper(*self.args)  # Constructing a whole tree
         connector = "└── " if is_last else "├── "
@@ -324,6 +305,9 @@ class Op(Node):
                          sign=sign,
                          args=args,
                          name=name)
+    
+    def _run_spec(self, s, cache):
+        raise TypeError(f"Op {self.name} does not have spec")
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
@@ -360,6 +344,10 @@ class Const(Node):
         
         self.node_type.runtime_val = self.val  # Constant folding
     
+    def _run_spec(self, s, cache):
+        out = self.node_type.runtime_val.to_smt(s)
+        return out
+    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + self.__str__())
@@ -389,6 +377,10 @@ class Var(Node):
                          args=[],
                          name=name)
     
+    def _run_spec(self, s, cache):
+        out = self.node_type.to_smt(s)
+        return out
+            
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.node_type}: {self.name} [Var]")
