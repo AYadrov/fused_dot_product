@@ -1,2 +1,2 @@
 numpy
-z3-solver
+cvc5

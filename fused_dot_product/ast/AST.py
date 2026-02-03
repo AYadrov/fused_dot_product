@@ -47,49 +47,55 @@ class Node:
         self._static_typecheck()
         
     ############## PRIVATE METHODS ###############
+    def _unroller(self, out1, out2, s):
+        if isinstance(out1, tuple) and isinstance(out2, tuple):
+            for o1, o2 in zip(out1, out2):
+                self._unroller(o1, o2, s)
+        else:
+            s.add(out1 != out2)
     
     def run_spec_checks(self, s=None, cache=None):
-        print(self.name, self.args)
-
         if cache is None:
             cache = {}
         if self in cache:
             return cache[self]
+        
         if isinstance(self, Composite):
-            s = Solver() if s is None else s
+            s_check = Solver()
             
-            # s.setOption("use-portfolio", "true")
-            # s.setOption("portfolio-jobs", "4")
-
-            s.add(*pow2_props)
-            
+            local_cache = {}
             inputs = []
             for arg in self.inner_args:
-                inputs.append(arg.run_spec_checks(s, cache))
+                inputs.append(arg.run_spec_checks(s_check, local_cache))
             
-            out_ = self.inner_tree.run_spec_checks(s, cache)
-            out = self.spec(*inputs, s=s)
+            out_ = self.inner_tree.run_spec_checks(s_check, local_cache)
+            out = self.spec(*inputs, s=s_check)
             
             # Check that outer spec is not equal to inner spec
             # The result should be unsat
-            s.add(out != out_)
-            cache[self] = out
+            self._unroller(out, out_, s_check)
             
-            print(s.sexpr())
+            print(s_check.sexpr())
             
-            res = s.check()
+            res = s_check.check()
             print(res)
             
             if res == unsat:
                 print ("proved")
             elif res == unknown:
-                print(s.reason_unknown())
+                print(s_check.reason_unknown())
             else:
-                model = s.model()
+                model = s_check.model()
                 print ("failed to prove")
                 print(f"Counterexample found:\n{model}")
 
-            return out
+            s_parent = s if s is not None else Solver()
+            parent_inputs = []
+            for arg in self.args:
+                parent_inputs.append(arg.run_spec_checks(s_parent, cache))
+            out_parent = self.spec(*parent_inputs, s=s_parent)
+            cache[self] = out_parent
+            return out_parent
         elif isinstance(self, Primitive):
             inputs = []
             for child in self.args:

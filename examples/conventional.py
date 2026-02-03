@@ -2,7 +2,7 @@ from fused_dot_product import *
 from .encode_Float32 import *
 from .common import *
 
-from cvc5.pythonic import FreshReal, FreshInt, If, ToReal
+from cvc5.pythonic import FreshReal, FreshInt, If, ToReal, ToInt
 from fused_dot_product.numtypes.z3_utils import pow2_real
 import numpy as np
 
@@ -25,15 +25,9 @@ def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> 
         M_p = [M_a[i] * M_b[i] for i in range(n)]
         
         M_p_q = [FreshReal('m_p') for _ in range(n)]
-        shifts = [FreshInt(f"sh_{i}") for i in range(n)]
-        shift_max = 2 * ((1 << BFloat16.exponent_bits) - 1)
         
         for i in range(n):
-            # s.add(E_m >= E_p[i])
-            s.add(ToReal(shifts[i]) == E_m - E_p[i])
-            # s.add(shifts[i] >= 0)
-            # s.add(shifts[i] <= shift_max)
-            s.add(M_p[i] == M_p_q[i] * pow2_real(ToReal(shifts[i])))
+            s.add(M_p[i] == M_p_q[i] * 2 ** (E_m - E_p[i]))
         
         return (tuple(M_p_q), E_m)
     
