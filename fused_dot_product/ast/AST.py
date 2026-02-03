@@ -431,15 +431,14 @@ def Tuple_get_item(x: Node, idx: int) -> Primitive:
         return x.args[idx]
 
     def impl(x: Node) -> Node:
-        from fused_dot_product.numtypes.basics import _unary_operator
-        def basic_get_item(x: Node, out: Node) -> Op:
-            return _unary_operator(
-                op=lambda x: x.args[idx].val,
-                x=x,
-                out=out,
-                name="basic_get_item",
-            )
-        return basic_get_item(x, Const(x.node_type.args[idx].runtime_type()))
+        def op(x: Tuple) -> RuntimeType:
+            return x.args[idx]
+        return Op(
+            impl=op,
+            sign=sign,
+            args=[x],
+            name=f"basic_get_item",
+        )
     
     def spec(x, s):
         return x[idx]
