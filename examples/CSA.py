@@ -177,4 +177,4 @@ if __name__ == '__main__':
     
     design = CSA_tree4(*args)
     design.print_tree(depth=1)
-    design.run_spec_checks()
+    design.run_spec()

@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-from cvc5.pythonic import FreshReal, FreshInt, FreshBool, If, ToReal
+from cvc5.pythonic import FreshReal, FreshInt, FreshBool, ToReal
 
 class StaticType:
     def __init__(self):
@@ -50,7 +49,7 @@ class BoolT(StaticType):
     def __eq__(self, other):
         return isinstance(other, BoolT)
         
-    def _clone_impl(self) -> "QT":
+    def _clone_impl(self) -> "BoolT":
         return BoolT()
     
     def to_smt(self, s):
@@ -88,16 +87,17 @@ class QT(StaticType):
         return QT(self.int_bits, self.frac_bits)
     
     def to_smt(self, s):
+        total_bits = self.total_bits
         if self.frac_bits != 0:
             x = FreshReal('x')
-            min_real = - (2 ** (self.int_bits - 1))
+            min_real = -(2 ** (self.int_bits - 1))
             max_real = (2 ** (self.int_bits - 1)) - (2 ** (-self.frac_bits))
             s.add(x >= min_real)
             s.add(x <= max_real)
         else:
             x = FreshInt('x')
-            s.add(x >= -(1 << (self.total_bits - 1)))
-            s.add(x <=  (1 << (self.total_bits - 1)) - 1)
+            s.add(x >= -(1 << (total_bits - 1)))
+            s.add(x <= (1 << (total_bits - 1)) - 1)
             x = ToReal(x)
         return x
 
@@ -222,7 +222,7 @@ class TupleT(StaticType):
     
     @property
     def total_bits(self):
-        return sum([x.total_bits for x in self.args])
+        return sum(x.total_bits for x in self.args)
     
     def runtime_type(self) -> "RuntimeType":
         from fused_dot_product.numtypes.RuntimeTypes import Tuple

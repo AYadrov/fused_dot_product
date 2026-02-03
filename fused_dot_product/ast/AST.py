@@ -4,7 +4,6 @@ from contextvars import ContextVar
 
 from ..numtypes.RuntimeTypes import Bool, RuntimeType, Tuple
 from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
-from ..utils.utils import ulp_distance
 from ..utils.smt_utils import cvc5_prove_equal
 
 from cvc5.pythonic import Solver
@@ -57,7 +56,7 @@ class Node:
                 self._unroller(o1, o2, s)
         else:
             s.add(out1 != out2)
-    
+
     def run_spec(self, s=None, cache=None):
         if cache is None:
             cache = {}
@@ -211,18 +210,14 @@ class Composite(Node):
         
         out_inner = self.inner_tree.run_spec(inner_solver, inner_cache)
         
-        inputs = []
-        for arg in self.inner_args:
-            inputs.append(arg.run_spec(inner_solver, inner_cache))
-        out_outer = self.spec(*inputs, s=inner_solver)
+        inputs = [arg.run_spec(inner_solver, inner_cache) for arg in self.inner_args]
+        out_outer = self.spec(*inputs, inner_solver)
         
         cvc5_prove_equal(out_outer, out_inner, inner_solver)
         ################################
 
-        outer_inputs = []
-        for arg in self.args:
-            outer_inputs.append(arg.run_spec(outer_solver, outer_cache))
-        out_outer = self.spec(*outer_inputs, s=outer_solver)
+        outer_inputs = [arg.run_spec(outer_solver, outer_cache) for arg in self.args]
+        out_outer = self.spec(*outer_inputs, outer_solver)
         return out_outer
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
@@ -270,11 +265,8 @@ class Primitive(Node):
     
     
     def _run_spec(self, s, cache):
-        inputs = []
-        for child in self.args:
-            inputs.append(child.run_spec(s, cache))
-        out = self.spec(*inputs, s=s)
-        return out
+        inputs = [child.run_spec(s, cache) for child in self.args]
+        return self.spec(*inputs, s)
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         impl_pt = self.printing_helper(*self.args)  # Constructing a whole tree
