@@ -6,7 +6,6 @@ from cvc5.pythonic import FreshReal, Solver, Or, And, ToInt, If, FreshInt, ToRea
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.Tuple import *
 from fused_dot_product.ast.AST import *
-from fused_dot_product.numtypes.z3_utils import pow2_real
 
 ########### Private Helpers ############
 

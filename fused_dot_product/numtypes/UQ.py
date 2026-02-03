@@ -6,7 +6,6 @@ from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.numtypes.Q import q_alloc
 from fused_dot_product.numtypes.Tuple import make_Tuple
-from fused_dot_product.numtypes.z3_utils import *
 
 
 ############## Public API ##############
@@ -407,7 +406,7 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
         out = FreshReal('out')
         s.add(amount >= 0)
         s.add(amount <= max_shift)
-        s.add(out == x / pow2_real(amount))
+        s.add(out == x / (2 ** amount))
         return out
     
     # TODO: Would be nice to not care about amount type, just bits amount

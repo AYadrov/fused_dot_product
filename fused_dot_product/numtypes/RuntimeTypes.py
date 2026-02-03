@@ -1,6 +1,6 @@
 import random
 import time
-from cvc5.pythonic import FreshReal, And, RealVal
+from cvc5.pythonic import FreshReal, And, RealVal, BoolVal
 
 from fused_dot_product.config import *
 from fused_dot_product.utils.utils import *
@@ -98,7 +98,7 @@ class Bool(RuntimeType):
         )
     
     def to_smt(self, s):
-        raise NotImplementedError()
+        return BoolVal(True if self.val == 1 else False)
     
 
 class Q(RuntimeType):
@@ -353,9 +353,6 @@ class BFloat16(RuntimeType):
     
     def to_smt(self, s):
         x = RealVal(self.to_spec())
-        # max_mantissa = 2 ** mantissa_bits - 1
-        # max_exponent = 2 ** exponent_bits - 1 - exponent_bias
-        # s.add(And(x >= - max_mantissa * 2 ** max_exponent, x <= max_mantissa * 2 ** max_exponent))
         return x
     
     def static_type(self):

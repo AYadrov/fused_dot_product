@@ -3,7 +3,6 @@ from .encode_Float32 import *
 from .common import *
 
 from cvc5.pythonic import FreshReal, FreshInt, If, ToReal, ToInt
-from fused_dot_product.numtypes.z3_utils import pow2_real
 import numpy as np
 
 def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Composite:

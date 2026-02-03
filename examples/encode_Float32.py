@@ -2,7 +2,6 @@ import math
 import numpy as np
 
 from fused_dot_product import *
-from fused_dot_product.numtypes.z3_utils import *
 
 from cvc5.pythonic import FreshReal
 

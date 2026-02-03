@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from cvc5.pythonic import FreshReal, FreshInt, FreshBool, If, ToReal
-from fused_dot_product.numtypes.z3_utils import pow2_real
 
 class StaticType:
     def __init__(self):
@@ -91,10 +90,14 @@ class QT(StaticType):
     def to_smt(self, s):
         if self.frac_bits != 0:
             x = FreshReal('x')
-            s.add(x < (1 << self.int_bits))
+            min_real = - (2 ** (self.int_bits - 1))
+            max_real = (2 ** (self.int_bits - 1)) - (2 ** (-self.frac_bits))
+            s.add(x >= min_real)
+            s.add(x <= max_real)
         else:
             x = FreshInt('x')
-            s.add(x < (1 << self.int_bits))
+            s.add(x >= -(1 << (self.total_bits - 1)))
+            s.add(x <=  (1 << (self.total_bits - 1)) - 1)
             x = ToReal(x)
         return x
 
@@ -133,11 +136,11 @@ class UQT(StaticType):
         if self.frac_bits != 0:
             x = FreshReal('x')
             s.add(x >= 0)
-            s.add(x < (1 << self.int_bits))
+            s.add(x <= (2 ** self.int_bits) - (2 ** (-self.frac_bits)))
         else:
             x = FreshInt('x')
             s.add(x >= 0)
-            s.add(x < (1 << self.int_bits))
+            s.add(x <= (1 << self.int_bits) - 1)
             x = ToReal(x)
         return x
 

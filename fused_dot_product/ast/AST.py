@@ -5,7 +5,6 @@ from contextvars import ContextVar
 from ..numtypes.RuntimeTypes import Bool, RuntimeType, Tuple
 from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
 from ..utils.utils import ulp_distance
-from ..numtypes.z3_utils import *
 
 from cvc5.pythonic import Solver, FreshReal, unsat, sat, RealVal, unknown, SolverFor
 
