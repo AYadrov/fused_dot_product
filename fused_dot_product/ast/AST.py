@@ -217,7 +217,7 @@ class Composite(Node):
         ################################
 
         outer_inputs = [arg.run_spec(outer_solver, outer_cache) for arg in self.args]
-        out_outer = self.spec(*outer_inputs, outer_solver)
+        out_outer = self.spec(*outer_inputs, s=outer_solver)
         return out_outer
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
@@ -266,7 +266,7 @@ class Primitive(Node):
     
     def _run_spec(self, s, cache):
         inputs = [child.run_spec(s, cache) for child in self.args]
-        return self.spec(*inputs, s)
+        return self.spec(*inputs, s=s)
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         impl_pt = self.printing_helper(*self.args)  # Constructing a whole tree

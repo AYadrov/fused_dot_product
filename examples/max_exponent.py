@@ -1,11 +1,17 @@
 from fused_dot_product import *
+from cvc5.pythonic import FreshReal, If
 
 def OPTIMIZED_MAX_EXP4(e0: Node,
                        e1: Node,
                        e2: Node,
                        e3: Node) -> Primitive:
-    def spec(e0: float, e1: float, e2: float, e3: float, out: float):
-        return max(max(e0, e1), max(e2, e3)) == out
+    def spec(e0, e1, e2, e3, s):
+        out = FreshReal('out')
+        res1 = If(e0 >= e1, e0, e1)
+        res2 = If(e2 >= e3, e2, e3)
+        res3 = If(res1 >= res2, res1, res2)
+        s.add(out == res3)
+        return out
     
     def sign(e0: UQT, e1: UQT, e2: UQT, e3: UQT) -> UQT:
         int_bits = max(max(e0.int_bits, e1.int_bits), max(e2.int_bits, e3.int_bits))

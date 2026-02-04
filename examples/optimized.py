@@ -4,24 +4,27 @@ from .CSA import CSA_tree4
 from .common import *
 from .max_exponent import *
 
+from cvc5.pythonic import FreshReal
 import numpy as np
 
-def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
-    def spec(E_max: float, E_p: float, out: float):
-        return (E_max - E_p) * 2**s == out
+def _est_global_shift(E_max: Node, E_p: Node, s_: int) -> Primitive:
+    def spec(E_max, E_p, s):
+        out = FreshReal('out')
+        s.add((E_max - E_p) * 2**s_ == out)
+        return out
     
     def sign(E_max: UQT, E_p: UQT) -> UQT:
-        return UQT(E_max.int_bits + s, 0)
+        return UQT(E_max.int_bits + s_, 0)
     
     def impl(E_max: Node, E_p: Node) -> Node:
         # out = UQ(E_max.int_bits + s, E_max.frac_bits)
-        out_int_bits = uq_add(uq_int_bits(E_max), Const(UQ.from_int(s)))
+        out_int_bits = uq_add(uq_int_bits(E_max), Const(UQ.from_int(s_)))
         out_frac_bits = uq_frac_bits(E_max)
         out = uq_alloc(out_int_bits, out_frac_bits)
         
         return basic_concat(
             x=uq_sub(E_max, E_p),  # In theory produces UQ<7,0>, in practice UQ<8,0> (can be neglected)
-            y=Const(UQ(0, s, 0)),
+            y=Const(UQ(0, s_, 0)),
             out=out,
         )
     
@@ -33,15 +36,18 @@ def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
         name="_est_global_shift")
 
 
-def _est_local_shift(E_p: Node, s: int) -> Primitive:
-    def spec(x: float, out: float):
-        return (2**s - 1) - (x % (2 ** s)) == out
+def _est_local_shift(E_p: Node, s_: int) -> Primitive:
+    def spec(x, s):
+        out = FreshReal('out')
+        x = ToInt(x * 2 ** E_p.node_type.frac_bits)
+        s.add(out == (2**s_ - 1) - (x % (2 ** s_)))
+        return out
     
     def sign(E_p: UQT) -> UQT:
-        return UQT(s, 0)
+        return UQT(s_, 0)
     
     def impl(E_p: Node) -> Node:
-        trailing_bits = uq_select(E_p, s-1, 0)
+        trailing_bits = uq_select(E_p, s_-1, 0)
         out = basic_invert(x=trailing_bits, out=trailing_bits.copy())
         return out
     
@@ -53,22 +59,24 @@ def _est_local_shift(E_p: Node, s: int) -> Primitive:
         name="_est_local_shift")
 
 # xxx. -> xxx11.
-def _prepend_ones(x: Node, s: int) -> Primitive:
-    def spec(x: float, out: float):
-        return x * 2**s + (2 ** s - 1) == out
+def _prepend_ones(x: Node, s_: int) -> Primitive:
+    def spec(x, s):
+        out = FreshReal('out')
+        s.add(x * 2**s_ + (2**s_ - 1) == out)
+        return out
     
     def sign(x: UQT) -> UQT:
-        return UQT(x.int_bits + s, 0)
+        return UQT(x.int_bits + s_, 0)
     
     def impl(x: Node) -> Node:
         # out = UQ(E_max.int_bits + s, E_max.frac_bits)
-        out_int_bits = uq_add(uq_int_bits(x), Const(UQ.from_int(s)))
+        out_int_bits = uq_add(uq_int_bits(x), Const(UQ.from_int(s_)))
         out_frac_bits = uq_frac_bits(x)
         out = uq_alloc(out_int_bits, out_frac_bits)
         
         return basic_concat(
             x=x,
-            y=Const(UQ.from_int((1 << s) - 1)),
+            y=Const(UQ.from_int((1 << s_) - 1)),
             out=out,
         )
     
@@ -80,47 +88,11 @@ def _prepend_ones(x: Node, s: int) -> Primitive:
         name="_prepend_ones")
 
 
-def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
-              b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
+def optimized_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Composite:
+    def spec(E_a, E_b, M_a, M_b, s):
+        return None
     
-    def spec(a0: float, a1: float, a2: float, a3: float,
-             b0: float, b1: float, b2: float, b3: float, out: float):
-        res = 0
-        res += a0 * b0
-        res += a1 * b1
-        res += a2 * b2
-        res += a3 * b3
-        return float(np.float32(res)) == out
-    
-    def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T,
-             b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
-        return Float32T()
-    
-    def impl(a0: Node, a1: Node, a2: Node, a3: Node,
-             b0: Node, b1: Node, b2: Node, b3: Node) -> Node:
-        
-        ############## INPUT ###############
-        
-        S_a, M_a, E_a = [0] * N, [0] * N, [0] * N
-        S_b, M_b, E_b = [0] * N, [0] * N, [0] * N
-        
-        S_a[0], M_a[0], E_a[0] = bf16_decode(a0)
-        S_a[1], M_a[1], E_a[1] = bf16_decode(a1)
-        S_a[2], M_a[2], E_a[2] = bf16_decode(a2)
-        S_a[3], M_a[3], E_a[3] = bf16_decode(a3)
-        
-        S_b[0], M_b[0], E_b[0] = bf16_decode(b0)
-        S_b[1], M_b[1], E_b[1] = bf16_decode(b1)
-        S_b[2], M_b[2], E_b[2] = bf16_decode(b2)
-        S_b[3], M_b[3], E_b[3] = bf16_decode(b3)
-        
-        ############ CONSTANTS #############
-        
-        bf16_bias = Const(
-            val=Q.from_int(BFloat16.exponent_bias),
-            name="BFloat16.exponent_bias",
-        )
-        
+    def impl(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Node:
         ############ EXPONENTS #############
         
         # Step 1. Exponents add. Each E_p is shifted by bias twice!
@@ -153,6 +125,18 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         G_shifts = [_est_global_shift(E_m, E_lead[i], s) for i in range(N)]
         (
             [sh.check(is_typeof(sh, UQT(9, 0))) for sh in G_shifts]
+        )
+        
+        # Append {s} 1s at the end of the max exponent for a normalization
+        E_m = _prepend_ones(E_m, s)
+        (
+            E_m.check(is_typeof(E_m, UQT(9, 0)))
+        )
+        
+        # Subtract bias since E_m is biased twice
+        E_m = uq_to_q(E_m)
+        (
+            E_m.check(is_typeof(E_m, QT(10, 0)))
         )
         
         ############# MANTISSAS ############
@@ -195,15 +179,81 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
             [M_p[i].check(is_typeof(M_p[i], UQT(2, Wf + (2**s - 1) - 2))) for i in range(N)]
         )
         
+        M_p = [uq_to_q(M_p[i]) for i in range(N)]
+        (
+            [M_p[i].check(is_typeof(M_p[i], QT(3, Wf + (2**s - 1) - 2))) for i in range(N)]
+        )
+        
+        return make_Tuple(make_Tuple(*M_p), E_m)
+    
+    def sign(E_a: TupleT, E_b: TupleT, M_a: TupleT, M_b: TupleT) -> TupleT:
+        return TupleT(
+            TupleT(QT(3, Wf + (2**s - 1) - 2), QT(3, Wf + (2**s - 1) - 2), QT(3, Wf + (2**s - 1) - 2), QT(3, Wf + (2**s - 1) - 2)), 
+            QT(10, 0)
+        )
+    
+    return Composite(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[E_a, E_b, M_a, M_b],
+        name="optimized_arithmetic_body")
+
+
+def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
+              b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
+    
+    def spec(a0, a1, a2, a3,
+             b0, b1, b2, b3, s):
+        out = FreshReal('out')
+        res = 0
+        res += a0 * b0
+        res += a1 * b1
+        res += a2 * b2
+        res += a3 * b3
+        s.add(res == out)
+        return out
+    
+    def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T,
+             b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
+        return Float32T()
+    
+    def impl(a0: Node, a1: Node, a2: Node, a3: Node,
+             b0: Node, b1: Node, b2: Node, b3: Node) -> Node:
+        
+        ############## INPUT ###############
+        
+        S_a, M_a, E_a = [0] * N, [0] * N, [0] * N
+        S_b, M_b, E_b = [0] * N, [0] * N, [0] * N
+        
+        S_a[0], M_a[0], E_a[0] = bf16_decode(a0)
+        S_a[1], M_a[1], E_a[1] = bf16_decode(a1)
+        S_a[2], M_a[2], E_a[2] = bf16_decode(a2)
+        S_a[3], M_a[3], E_a[3] = bf16_decode(a3)
+        
+        S_b[0], M_b[0], E_b[0] = bf16_decode(b0)
+        S_b[1], M_b[1], E_b[1] = bf16_decode(b1)
+        S_b[2], M_b[2], E_b[2] = bf16_decode(b2)
+        S_b[3], M_b[3], E_b[3] = bf16_decode(b3)
+        
+        ############ CONSTANTS #############
+        
+        bf16_bias = Const(
+            val=Q.from_int(BFloat16.exponent_bias),
+            name="BFloat16.exponent_bias",
+        )
+        
+        M_p, E_m = optimized_arithmetic_body(
+            make_Tuple(*E_a), 
+            make_Tuple(*E_b), 
+            make_Tuple(*M_a), 
+            make_Tuple(*M_b),
+        )
+        
         # Step 5. Adjust signs using xor operation
         S_p = [sign_xor(S_a[i], S_b[i]) for i in range(N)]
         (
             [S_p[i].check(is_typeof(S_p[i], UQT(1, 0))) for i in range(N)]
-        )
-        
-        M_p = [uq_to_q(M_p[i]) for i in range(N)]
-        (
-            [M_p[i].check(is_typeof(M_p[i], QT(3, Wf + (2**s - 1) - 2))) for i in range(N)]
         )
         
         M_p = [q_add_sign(M_p[i], S_p[i]) for i in range(N)]
@@ -224,17 +274,6 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         )
         
         ############# RESULT ###############
-        # Append {s} 1s at the end of the max exponent for a normalization
-        E_m = _prepend_ones(E_m, s)
-        (
-            E_m.check(is_typeof(E_m, UQT(9, 0)))
-        )
-        
-        # Subtract bias since E_m is biased twice
-        E_m = uq_to_q(E_m)
-        (
-            E_m.check(is_typeof(E_m, QT(10, 0)))
-        )
         
         E_m = q_sub(E_m, bf16_bias)
         (
@@ -276,6 +315,7 @@ if __name__ == '__main__':
     
     design = Optimized(*a, *b)
     design.print_tree(depth=1)
+    design.run_spec()
     
     # Test the design
     random_gen, exp_reshuffle = BFloat16.random_generator(seed=0, shared_exponent_bits=5)

@@ -455,13 +455,14 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
     frac_bits = max(0, min(start, x_frac_bits - 1) - end + 1) if x_frac_bits > 0 else 0
     int_bits = width - frac_bits
     
-    def spec(x: float, out: float):
-        # Interpret `x` using its fractional layout, then slice bits [start:end].
-        raw = int(round(x * (2 ** x_frac_bits)))
-        sliced = (raw >> end) & ((1 << width) - 1)
-        # The output fractional width mirrors `_uq_select_shape`.
-        out_frac_bits = max(0, min(start, x_frac_bits - 1) - end + 1) if x_frac_bits > 0 else 0
-        return float(sliced) / (2 ** out_frac_bits) == out
+    def spec(x, s):
+        out = FreshReal('out')
+        raw = ToInt(x * (2**x_frac_bits))          # Real -> Int (trunc; OK for unsigned)
+        div = raw / (2**end)
+        sliced = div % (2**width)    # shift right then mask
+        value = ToReal(sliced) / (2**frac_bits)  # Int -> Real
+        s.add(out == value)
+        return out
     
     def sign(x: UQT) -> UQT:
         return UQT(int_bits, frac_bits)
