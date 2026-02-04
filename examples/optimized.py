@@ -4,7 +4,7 @@ from .CSA import CSA_tree4
 from .common import *
 from .max_exponent import *
 
-from cvc5.pythonic import FreshReal, IntVal, RealVal, ToReal
+from cvc5.pythonic import FreshReal, FreshInt, Int2BV, Extract, BV2Int, IntVal, ToReal
 import numpy as np
 
 def _est_global_shift(E_max: Node, E_p: Node, s_: int) -> Primitive:
@@ -40,13 +40,17 @@ def _est_local_shift(E_p: Node, s_: int) -> Primitive:
     def spec(x, s):
         out = FreshReal('out')
         frac_bits = E_p.node_type.frac_bits
+        total_bits = E_p.node_type.total_bits
 
-        scale = RealVal(2 ** frac_bits)     # 2^frac_bits as a Real constant
-        mod_base = IntVal(2 ** s_)          # 2^S as an Int constant
+        raw = FreshInt("raw")
+        s.add(raw >= 0, raw <= (2**total_bits) - 1)
+        s.add(x == ToReal(raw) / (2**frac_bits))
 
-        x_i = ToInt(x * scale)              # Int
+        bv_raw = Int2BV(raw, total_bits)
+        bv_slice = Extract(s_ - 1, 0, bv_raw)
+        mask = IntVal((1 << s_) - 1)
 
-        s.add(out == RealVal((2 ** s_) - 1) - ToReal(x_i % mod_base))
+        s.add(out == ToReal(mask - BV2Int(bv_slice)))
         return out
     
     def sign(E_p: UQT) -> UQT:
@@ -350,4 +354,3 @@ if __name__ == '__main__':
             a[i].load_val(random_gen())
             b[i].load_val(random_gen())
         print(str(design.evaluate()))
-
