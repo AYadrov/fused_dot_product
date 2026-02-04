@@ -7,10 +7,6 @@ import numpy as np
 
 def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Composite:
     def spec(E_a, E_b, M_a, M_b, s):
-        E_a = list(E_a)
-        E_b = list(E_b)
-        M_a = list(M_a)
-        M_b = list(M_b)
         n = len(E_a)
         
         E_p = [E_a[i] + E_b[i] for i in range(n)]

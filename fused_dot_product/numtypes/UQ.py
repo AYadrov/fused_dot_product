@@ -1,5 +1,5 @@
 import typing as tp
-from cvc5.pythonic import FreshReal, Solver, If, ToInt, FreshInt
+from cvc5.pythonic import FreshReal, Solver, If, ToInt, FreshInt, Int2BV, Extract, BV2Int
 
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.basics import *
@@ -451,16 +451,23 @@ def uq_lshift(x: Node, amount: Node) -> Primitive:
 def uq_select(x: Node, start: int, end: int) -> Primitive:
     width = start - end + 1
     x_frac_bits = x.node_type.frac_bits
+    x_total_bits = x.node_type.total_bits
     
     frac_bits = max(0, min(start, x_frac_bits - 1) - end + 1) if x_frac_bits > 0 else 0
     int_bits = width - frac_bits
     
     def spec(x, s):
         out = FreshReal('out')
-        raw = ToInt(x * (2**x_frac_bits))          # Real -> Int (trunc; OK for unsigned)
-        div = raw / (2**end)
-        sliced = div % (2**width)    # shift right then mask
-        value = ToReal(sliced) / (2**frac_bits)  # Int -> Real
+        
+        raw = FreshInt("raw")
+        s.add(raw >= 0, raw <= (2**x_total_bits) - 1)
+        s.add(x == ToReal(raw) / (2**x_frac_bits))
+
+        bv_raw = Int2BV(raw, x_total_bits)
+        bv_slice = Extract(start, end, bv_raw)
+        value = ToReal(BV2Int(bv_slice)) / (2**frac_bits)
+
+
         s.add(out == value)
         return out
     

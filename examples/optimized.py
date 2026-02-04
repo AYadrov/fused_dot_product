@@ -4,7 +4,7 @@ from .CSA import CSA_tree4
 from .common import *
 from .max_exponent import *
 
-from cvc5.pythonic import FreshReal
+from cvc5.pythonic import FreshReal, IntVal, RealVal, ToReal
 import numpy as np
 
 def _est_global_shift(E_max: Node, E_p: Node, s_: int) -> Primitive:
@@ -39,8 +39,14 @@ def _est_global_shift(E_max: Node, E_p: Node, s_: int) -> Primitive:
 def _est_local_shift(E_p: Node, s_: int) -> Primitive:
     def spec(x, s):
         out = FreshReal('out')
-        x = ToInt(x * 2 ** E_p.node_type.frac_bits)
-        s.add(out == (2**s_ - 1) - (x % (2 ** s_)))
+        frac_bits = E_p.node_type.frac_bits
+
+        scale = RealVal(2 ** frac_bits)     # 2^frac_bits as a Real constant
+        mod_base = IntVal(2 ** s_)          # 2^S as an Int constant
+
+        x_i = ToInt(x * scale)              # Int
+
+        s.add(out == RealVal((2 ** s_) - 1) - ToReal(x_i % mod_base))
         return out
     
     def sign(E_p: UQT) -> UQT:
@@ -90,7 +96,26 @@ def _prepend_ones(x: Node, s_: int) -> Primitive:
 
 def optimized_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Composite:
     def spec(E_a, E_b, M_a, M_b, s):
-        return None
+        n = len(E_a)
+        
+        E_p = [E_a[i] + E_b[i] for i in range(n)]
+        
+        E_m = E_p[0]
+        for i in range(1, n):
+            E_m = If(E_m >= E_p[i], E_m, E_p[i])
+        E_m = ToInt(E_m) / 2**s_
+        E_m = E_m * 2**s_ + 2**s_ - 1
+        
+        M_a = [(M_a[i] / (2 ** BFloat16.mantissa_bits)) + 1.0 for i in range(n)]
+        M_b = [(M_b[i] / (2 ** BFloat16.mantissa_bits)) + 1.0 for i in range(n)]
+        M_p = [M_a[i] * M_b[i] for i in range(n)]
+        
+        M_p_q = [FreshReal('m_p') for _ in range(n)]
+        
+        for i in range(n):
+            s.add(M_p[i] == M_p_q[i] * 2 ** (E_m - E_p[i]))
+        
+        return (tuple(M_p_q), E_m)
     
     def impl(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Node:
         ############ EXPONENTS #############
@@ -103,32 +128,32 @@ def optimized_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Com
         )
         
         # Step 2. Estimate local shifts
-        L_shifts = [_est_local_shift(E_p[i], s) for i in range(N)]
+        L_shifts = [_est_local_shift(E_p[i], s_) for i in range(N)]
         (
-            [sh.check(is_typeof(sh, UQT(s, 0))) for sh in L_shifts]
+            [sh.check(is_typeof(sh, UQT(s_, 0))) for sh in L_shifts]
         )
         
         # Step 3. Take leading {9-s} bits for max exponent and a global shift
-        E_lead = [uq_select(E_p[i], 8, s) for i in range(N)]
+        E_lead = [uq_select(E_p[i], 8, s_) for i in range(N)]
         (
-            [e.check(is_typeof(e, UQT(9-s, 0))) for e in E_lead]
+            [e.check(is_typeof(e, UQT(9-s_, 0))) for e in E_lead]
         )
         
         # Step 4. Take max exponent
         E_m = OPTIMIZED_MAX_EXP4(*E_lead)
         (
-            [E_m.check(is_typeof(E_m, UQT(9-s, 0)))],
+            [E_m.check(is_typeof(E_m, UQT(9-s_, 0)))],
             [E_m.check(uq_greater_or_equal(E_m, E_lead[i])) for i in range(N)]  # actually a max
         )
         
         # Step 5. Calculate global shifts as {(max_exp - exp) * 2**s}
-        G_shifts = [_est_global_shift(E_m, E_lead[i], s) for i in range(N)]
+        G_shifts = [_est_global_shift(E_m, E_lead[i], s_) for i in range(N)]
         (
             [sh.check(is_typeof(sh, UQT(9, 0))) for sh in G_shifts]
         )
         
         # Append {s} 1s at the end of the max exponent for a normalization
-        E_m = _prepend_ones(E_m, s)
+        E_m = _prepend_ones(E_m, s_)
         (
             E_m.check(is_typeof(E_m, UQT(9, 0)))
         )
@@ -157,38 +182,38 @@ def optimized_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Com
         
         # Step 3. Locally shift mantissas by the inverted last {s} bits of E_p
         # Make room for the right shift
-        M_p = [uq_resize(M_p[i], 2, 14 + 2**s - 1) for i in range(N)]
+        M_p = [uq_resize(M_p[i], 2, 14 + 2**s_ - 1) for i in range(N)]
         (
-            [M_p[i].check(is_typeof(M_p[i], UQT(2, 14 + (2**s - 1)))) for i in range(N)]
+            [M_p[i].check(is_typeof(M_p[i], UQT(2, 14 + (2**s_ - 1)))) for i in range(N)]
         )
         
         M_p = [uq_rshift(M_p[i], L_shifts[i]) for i in range(N)]
         (
-            [M_p[i].check(is_typeof(M_p[i], UQT(2, 14 + (2**s - 1)))) for i in range(N)]
+            [M_p[i].check(is_typeof(M_p[i], UQT(2, 14 + (2**s_ - 1)))) for i in range(N)]
         )
         
         # Step 4. Globally shift mantissas by G_shifts[i] amount
         # Make room for the right shift
-        M_p = [uq_resize(M_p[i], 2, Wf - 2 + 2**s - 1) for i in range(N)]
+        M_p = [uq_resize(M_p[i], 2, Wf - 2 + 2**s_ - 1) for i in range(N)]
         (
-            [M_p[i].check(is_typeof(M_p[i], UQT(2, Wf + (2**s - 1) - 2))) for i in range(N)]
+            [M_p[i].check(is_typeof(M_p[i], UQT(2, Wf + (2**s_ - 1) - 2))) for i in range(N)]
         )
         
         M_p = [uq_rshift(M_p[i], G_shifts[i]) for i in range(N)]
         (
-            [M_p[i].check(is_typeof(M_p[i], UQT(2, Wf + (2**s - 1) - 2))) for i in range(N)]
+            [M_p[i].check(is_typeof(M_p[i], UQT(2, Wf + (2**s_ - 1) - 2))) for i in range(N)]
         )
         
         M_p = [uq_to_q(M_p[i]) for i in range(N)]
         (
-            [M_p[i].check(is_typeof(M_p[i], QT(3, Wf + (2**s - 1) - 2))) for i in range(N)]
+            [M_p[i].check(is_typeof(M_p[i], QT(3, Wf + (2**s_ - 1) - 2))) for i in range(N)]
         )
         
         return make_Tuple(make_Tuple(*M_p), E_m)
     
     def sign(E_a: TupleT, E_b: TupleT, M_a: TupleT, M_b: TupleT) -> TupleT:
         return TupleT(
-            TupleT(QT(3, Wf + (2**s - 1) - 2), QT(3, Wf + (2**s - 1) - 2), QT(3, Wf + (2**s - 1) - 2), QT(3, Wf + (2**s - 1) - 2)), 
+            TupleT(QT(3, Wf + (2**s_ - 1) - 2), QT(3, Wf + (2**s_ - 1) - 2), QT(3, Wf + (2**s_ - 1) - 2), QT(3, Wf + (2**s_ - 1) - 2)), 
             QT(10, 0)
         )
     
@@ -258,13 +283,13 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         
         M_p = [q_add_sign(M_p[i], S_p[i]) for i in range(N)]
         (
-            [M_p[i].check(is_typeof(M_p[i], QT(3, Wf + (2**s - 1) - 2))) for i in range(N)]
+            [M_p[i].check(is_typeof(M_p[i], QT(3, Wf + (2**s_ - 1) - 2))) for i in range(N)]
         )
         
         # Step 6. Adder Tree
         M_sum = CSA_tree4(*M_p)
         (
-            M_sum.check(is_typeof(M_sum, QT(6, Wf + (2**s - 1) - 2))),
+            M_sum.check(is_typeof(M_sum, QT(6, Wf + (2**s_ - 1) - 2))),
             M_sum.check(
                 q_equal(
                     M_sum, 

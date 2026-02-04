@@ -211,7 +211,7 @@ class Composite(Node):
         out_inner = self.inner_tree.run_spec(inner_solver, inner_cache)
         
         inputs = [arg.run_spec(inner_solver, inner_cache) for arg in self.inner_args]
-        out_outer = self.spec(*inputs, inner_solver)
+        out_outer = self.spec(*inputs, s=inner_solver)
         
         cvc5_prove_equal(out_outer, out_inner, inner_solver)
         ################################
