@@ -205,8 +205,8 @@ def uq_zero_extend(x: Node, n: int) -> Primitive:
 
 
 def uq_add(x: Node, y: Node) -> Primitive:
-    def spec(x, y, s):
-        out = FreshReal("out")
+    def spec(prim, x, y, s):
+        out = prim._spec_outputs(s)
         s.add(out == x + y)
         return out
     
@@ -238,8 +238,8 @@ def uq_add(x: Node, y: Node) -> Primitive:
 
 
 def uq_sub(x: Node, y: Node) -> Primitive:
-    def spec(x, y, s):
-        out = FreshReal("out")
+    def spec(prim, x, y, s):
+        out = prim._spec_outputs(s)
         s.add(out == x - y)
         return out
     
@@ -271,8 +271,8 @@ def uq_sub(x: Node, y: Node) -> Primitive:
 
 
 def uq_max(x: Node, y: Node) -> Primitive:
-    def spec(x, y, s):
-        out = FreshReal("out")
+    def spec(prim, x, y, s):
+        out = prim._spec_outputs(s)
         s.add(out == If(x >= y, x, y))
         return out
     
@@ -335,8 +335,8 @@ def uq_min(x: Node, y: Node) -> Primitive:
 
 
 def uq_mul(x: Node, y: Node) -> Primitive:
-    def spec(x, y, s):
-        out = FreshReal("out")
+    def spec(prim, x, y, s):
+        out = prim._spec_outputs(s)
         s.add(out == x * y)
         return out
     
@@ -376,7 +376,7 @@ def uq_to_q(x: Node) -> Primitive:
         out = q_alloc(int_bits, frac_bits)
         return basic_identity(x=x, out=out)
     
-    def spec(x, s):
+    def spec(prim, x, s):
         return x
     
     def sign(x: UQT) -> QT:
@@ -402,8 +402,8 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
         )
         return root
     
-    def spec(x, amount, s):
-        out = FreshReal('out')
+    def spec(prim, x, amount, s):
+        out = prim._spec_outputs(s)
         s.add(amount >= 0)
         s.add(amount <= max_shift)
         s.add(out == x / (2 ** amount))
@@ -431,7 +431,7 @@ def uq_lshift(x: Node, amount: Node) -> Primitive:
             out=x.copy(),
         )
         return root
-        
+    
     def spec(x: float, amount: float, out: float):
         raw = int(round(x * (2 ** x_frac_bits)))
         shifted = (raw << int(amount)) & ((1 << x_total_bits) - 1)
@@ -456,19 +456,14 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
     frac_bits = max(0, min(start, x_frac_bits - 1) - end + 1) if x_frac_bits > 0 else 0
     int_bits = width - frac_bits
     
-    def spec(x, s):
-        out = FreshReal('out')
+    def spec(prim, x, s):
+        out = prim._spec_outputs(s)
         
         raw = FreshInt("raw")
         s.add(raw >= 0, raw <= (2**x_total_bits) - 1)
         s.add(x == ToReal(raw) / (2**x_frac_bits))
-
-        bv_raw = Int2BV(raw, x_total_bits)
-        bv_slice = Extract(start, end, bv_raw)
-        value = ToReal(BV2Int(bv_slice)) / (2**frac_bits)
-
-
-        s.add(out == value)
+        
+        s.add(out == (raw / 2**end) % 2**width)
         return out
     
     def sign(x: UQT) -> UQT:
@@ -489,7 +484,7 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
 
 # TODO: Truncation
 def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Primitive:
-    def spec(x, s):
+    def spec(prim, x, s):
         return x
     
     def impl(x: Node) -> Node:

@@ -47,9 +47,8 @@ def exact_or(a: Node, b: Node):
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
 def CSA(x: Node, y: Node, z: Node) -> Primitive:
-    def spec(x, y, z, s):
-        sum_ = FreshReal(f'sum')
-        carry = FreshReal(f'carry')
+    def spec(prim, x, y, z, s):
+        sum_, carry = prim._spec_outputs(s)
         s.add(sum_ + carry == x + y + z)
         return tuple([sum_, carry])
     
@@ -83,8 +82,8 @@ def CSA(x: Node, y: Node, z: Node) -> Primitive:
 
 
 def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
-    def spec(m0, m1, m2, m3, s):
-        out = FreshReal('out')
+    def spec(prim, m0, m1, m2, m3, s):
+        out = prim._spec_outputs(s)
         s.add(out == m0 + m1 + m2 + m3)
         return out
     

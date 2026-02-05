@@ -3,8 +3,8 @@ from cvc5.pythonic import FreshReal, Solver, If, Or, And
 
 def mantissa_add_implicit_bit(x: Node) -> Primitive:
     int_bits = x.node_type.int_bits
-    def spec(mantissa, s):
-        out = FreshReal('out')
+    def spec(prim, mantissa, s):
+        out = prim._spec_outputs(s)
         s.add(out == (mantissa / (2 ** int_bits)) + 1.0)
         return out
     
@@ -28,8 +28,8 @@ def mantissa_add_implicit_bit(x: Node) -> Primitive:
 
 
 def sign_xor(x: Node, y: Node) -> Primitive:
-    def spec(x, y, s):
-        out = FreshReal('out')
+    def spec(prim, x, y, s):
+        out = prim._spec_outputs(s)
         s.add(out == If(Or(And(x==0, y==1), And(x==1, y==0)), 1, 0))
         return out
     

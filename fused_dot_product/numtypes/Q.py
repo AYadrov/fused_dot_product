@@ -357,8 +357,8 @@ def q_add(x: Node, y: Node) -> Primitive:
         )
         return basic_add(x_adj, y_adj, x_adj.copy())
     
-    def spec(x, y, s):
-        out = FreshReal("out")
+    def spec(prim, x, y, s):
+        out = prim._spec_outputs(s)
         s.add(out == x + y)
         return out
     
@@ -387,8 +387,8 @@ def q_sub(x: Node, y: Node) -> Primitive:
         root = basic_sub(x_adj, y_adj, x_adj.copy())
         return root
     
-    def spec(x, y, s):
-        out = FreshReal("out")
+    def spec(prim, x, y, s):
+        out = prim._spec_outputs(s)
         s.add(out == x - y)
         return out
     
@@ -479,8 +479,8 @@ def q_rshift(x: Node, n: Node) -> Primitive:
 
 
 def q_add_sign(x: Node, s: Node) -> Primitive:
-    def spec(x, sign, s):
-        out = FreshReal('out')
+    def spec(prim, x, sign, s):
+        out = prim._spec_outputs(s)
         s.add(out == x * If(sign == 0, 1.0, -1.0))
         return out
     

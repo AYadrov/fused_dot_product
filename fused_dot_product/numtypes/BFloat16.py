@@ -51,18 +51,8 @@ def _bf16_sign(x: Node) -> Op:
 ############## Public API ##############
 
 def bf16_decode(x: Node) -> Primitive:
-    def spec(x, s):
-        sign = FreshInt('sign')
-        mantissa = FreshInt('mantissa')
-        exponent = FreshInt('exponent')
-        
-        s.add(Or(sign == 0, sign == 1))
-        s.add(And(mantissa >= 0, mantissa <= 2**BFloat16.mantissa_bits - 1))
-        s.add(And(exponent >= 0, exponent <= 2**BFloat16.exponent_bits - 1))
-        
-        sign = ToReal(sign)
-        mantissa = ToReal(mantissa)
-        exponent = ToReal(exponent)
+    def spec(prim, x, s):
+        sign, mantissa, exponent = prim._spec_outputs(s)
         
         sign_ = If(sign == 0, 1.0, -1.0)
         mantissa_ = 1.0 + (mantissa / 2 ** BFloat16.mantissa_bits)

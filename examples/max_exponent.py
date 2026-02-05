@@ -5,8 +5,8 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
                        e1: Node,
                        e2: Node,
                        e3: Node) -> Primitive:
-    def spec(e0, e1, e2, e3, s):
-        out = FreshReal('out')
+    def spec(prim, e0, e1, e2, e3, s):
+        out = prim._spec_outputs(s)
         res1 = If(e0 >= e1, e0, e1)
         res2 = If(e2 >= e3, e2, e3)
         res3 = If(res1 >= res2, res1, res2)

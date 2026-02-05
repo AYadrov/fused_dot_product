@@ -227,8 +227,8 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
     def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
     
-    def spec(m, e, s):
-        out = FreshReal('out')
+    def spec(prim, m, e, s):
+        out = prim._spec_outputs(s)
         s.add(out == m * 2 ** (e - Float32.exponent_bias))
         return out
 

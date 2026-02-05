@@ -22,7 +22,7 @@ def make_Tuple(*args: Node) -> Primitive:
             name=f"basic_tuple_maker_{len(nodes)}",
         )
     
-    def spec(*args, s):
+    def spec(prim, *args, s):
         return tuple(args)
     
     return Primitive(

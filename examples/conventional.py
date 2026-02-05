@@ -6,7 +6,8 @@ from cvc5.pythonic import FreshReal, FreshInt, If, ToReal, ToInt
 import numpy as np
 
 def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Composite:
-    def spec(E_a, E_b, M_a, M_b, s):
+    def spec(prim, E_a, E_b, M_a, M_b, s):
+        M_p_q, E_m = prim._spec_outputs(s)
         n = len(E_a)
         
         E_p = [E_a[i] + E_b[i] for i in range(n)]
@@ -19,7 +20,7 @@ def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> 
         M_b = [(M_b[i] / (2 ** BFloat16.mantissa_bits)) + 1.0 for i in range(n)]
         M_p = [M_a[i] * M_b[i] for i in range(n)]
         
-        M_p_q = [FreshReal('m_p') for _ in range(n)]
+        
         
         for i in range(n):
             s.add(M_p[i] == M_p_q[i] * 2 ** (E_m - E_p[i]))
@@ -111,8 +112,8 @@ def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> 
 def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
                  b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
     
-    def spec(a0, a1, a2, a3, b0, b1, b2, b3, s):
-        out = FreshReal('out')
+    def spec(prim, a0, a1, a2, a3, b0, b1, b2, b3, s):
+        out = prim._spec_outputs(s)
         res = 0
         res += a0 * b0
         res += a1 * b1

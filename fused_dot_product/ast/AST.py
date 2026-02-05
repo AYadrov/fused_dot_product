@@ -47,16 +47,9 @@ class Node:
         self._static_typecheck()
         
     ############## PRIVATE METHODS ###############
-    def _unroller(self, out1, out2, s):
-        if isinstance(out1, tuple) and isinstance(out2, tuple):
-            for o1, o2 in zip(out1, out2):
-                self._unroller(o1, o2, s)
-        elif isinstance(out1, list) and isinstance(out2, list):
-            for o1, o2 in zip(out1, out2):
-                self._unroller(o1, o2, s)
-        else:
-            s.add(out1 != out2)
-
+    def _spec_outputs(self, s):
+        return self.node_type.to_smt(s)
+ 
     def run_spec(self, s=None, cache=None):
         if cache is None:
             cache = {}
@@ -211,13 +204,13 @@ class Composite(Node):
         out_inner = self.inner_tree.run_spec(inner_solver, inner_cache)
         
         inputs = [arg.run_spec(inner_solver, inner_cache) for arg in self.inner_args]
-        out_outer = self.spec(*inputs, s=inner_solver)
+        out_outer = self.spec(self, *inputs, s=inner_solver)
         
         cvc5_prove_equal(out_outer, out_inner, inner_solver)
         ################################
 
         outer_inputs = [arg.run_spec(outer_solver, outer_cache) for arg in self.args]
-        out_outer = self.spec(*outer_inputs, s=outer_solver)
+        out_outer = self.spec(self, *outer_inputs, s=outer_solver)
         return out_outer
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
@@ -266,7 +259,7 @@ class Primitive(Node):
     
     def _run_spec(self, s, cache):
         inputs = [child.run_spec(s, cache) for child in self.args]
-        return self.spec(*inputs, s=s)
+        return self.spec(self, *inputs, s=s)
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         impl_pt = self.printing_helper(*self.args)  # Constructing a whole tree
@@ -389,7 +382,7 @@ def Copy(x: Node) -> Primitive:
     def sign(x: StaticType) -> StaticType:
         return x
     
-    def spec(x, s):
+    def spec(prim, x, s):
         return x
     
     def impl(x):
@@ -423,7 +416,7 @@ def Tuple_get_item(x: Node, idx: int) -> Primitive:
             name=f"basic_get_item",
         )
     
-    def spec(x, s):
+    def spec(prim, x, s):
         return x[idx]
 
     return Primitive(

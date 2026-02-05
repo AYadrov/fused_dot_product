@@ -8,8 +8,8 @@ from cvc5.pythonic import FreshReal, FreshInt, Int2BV, Extract, BV2Int, IntVal, 
 import numpy as np
 
 def _est_global_shift(E_max: Node, E_p: Node, s_: int) -> Primitive:
-    def spec(E_max, E_p, s):
-        out = FreshReal('out')
+    def spec(prim, E_max, E_p, s):
+        out = prim._spec_outputs(s)
         s.add((E_max - E_p) * 2**s_ == out)
         return out
     
@@ -37,20 +37,15 @@ def _est_global_shift(E_max: Node, E_p: Node, s_: int) -> Primitive:
 
 
 def _est_local_shift(E_p: Node, s_: int) -> Primitive:
-    def spec(x, s):
-        out = FreshReal('out')
+    def spec(prim, x, s):
+        out = prim._spec_outputs(s)
         frac_bits = E_p.node_type.frac_bits
         total_bits = E_p.node_type.total_bits
 
         raw = FreshInt("raw")
         s.add(raw >= 0, raw <= (2**total_bits) - 1)
         s.add(x == ToReal(raw) / (2**frac_bits))
-
-        bv_raw = Int2BV(raw, total_bits)
-        bv_slice = Extract(s_ - 1, 0, bv_raw)
-        mask = IntVal((1 << s_) - 1)
-
-        s.add(out == ToReal(mask - BV2Int(bv_slice)))
+        s.add(out == ToReal(raw % 2**s_))
         return out
     
     def sign(E_p: UQT) -> UQT:
@@ -70,8 +65,8 @@ def _est_local_shift(E_p: Node, s_: int) -> Primitive:
 
 # xxx. -> xxx11.
 def _prepend_ones(x: Node, s_: int) -> Primitive:
-    def spec(x, s):
-        out = FreshReal('out')
+    def spec(prim, x, s):
+        out = prim._spec_outputs(s)
         s.add(x * 2**s_ + (2**s_ - 1) == out)
         return out
     
@@ -99,7 +94,8 @@ def _prepend_ones(x: Node, s_: int) -> Primitive:
 
 
 def optimized_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Composite:
-    def spec(E_a, E_b, M_a, M_b, s):
+    def spec(prim, E_a, E_b, M_a, M_b, s):
+        M_p_q, E_m = prim._spec_outputs(s)
         n = len(E_a)
         
         E_p = [E_a[i] + E_b[i] for i in range(n)]
@@ -114,10 +110,8 @@ def optimized_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Com
         M_b = [(M_b[i] / (2 ** BFloat16.mantissa_bits)) + 1.0 for i in range(n)]
         M_p = [M_a[i] * M_b[i] for i in range(n)]
         
-        M_p_q = [FreshReal('m_p') for _ in range(n)]
-        
         for i in range(n):
-            s.add(M_p[i] == M_p_q[i] * 2 ** (E_m - E_p[i]))
+            s.add(M_p[i] == M_p_q[i] * 2 ** ToInt((E_m - E_p[i])))
         
         return (tuple(M_p_q), E_m)
     
@@ -232,9 +226,9 @@ def optimized_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Com
 def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
               b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
     
-    def spec(a0, a1, a2, a3,
+    def spec(prim, a0, a1, a2, a3,
              b0, b1, b2, b3, s):
-        out = FreshReal('out')
+        out = prim._spec_outputs(s)
         res = 0
         res += a0 * b0
         res += a1 * b1
