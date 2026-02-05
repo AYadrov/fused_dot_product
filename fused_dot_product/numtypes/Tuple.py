@@ -3,18 +3,34 @@ from fused_dot_product.ast.AST import *
 from fused_dot_product.utils.utils import *
 import inspect
 
-def make_Tuple(*args: Node) -> Op:
-    def impl(*args: RuntimeType) -> Tuple:
-        return Tuple(*args)
-    
+def make_Tuple(*args: Node) -> Primitive:
+    if not args:
+        raise TypeError("Tuple cannot be empty")
+
     def sign(*args: StaticType) -> TupleT:
         return TupleT(*args)
     
-    return Op(
-        impl=_make_fixed_arguments(impl, RuntimeType, len(args)),
-        sign=_make_fixed_arguments(sign, StaticType, len(args)),
+    sign_fixed = _make_fixed_arguments(sign, StaticType, len(args))
+    
+    def impl(*nodes: Node) -> Node:
+        def op(*vals: RuntimeType) -> Tuple:
+            return Tuple(*vals)
+        return Op(
+            impl=_make_fixed_arguments(op, RuntimeType, len(nodes)),
+            sign=sign_fixed,
+            args=[*nodes],
+            name=f"basic_tuple_maker_{len(nodes)}",
+        )
+    
+    def spec(prim, *args, s):
+        return tuple(args)
+    
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign_fixed,
         args=args,
-        name="Tuple_create")
+        name="make_Tuple")
 
 
 # Helper function for creating annotation with fixed number of arguments

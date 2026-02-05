@@ -16,13 +16,13 @@ check-python:
 
 install: check-python
 	@echo "Installing dependencies"
-	@$(PYTHON) -m pip install --upgrade pip
-	@$(PYTHON) -m pip install -r requirements.txt
+	@$(PYTHON) -m pip install --user --upgrade pip
+	@$(PYTHON) -m pip install --user -r requirements.txt
 
 unit-tests: install
 	@echo "Running infra/unittests.py..."
 	@$(PYTHON) -m infra.unittests --seed 0 --num-points 100
 	@echo "Complete"
 
-nightly: check-python
+nightly: install check-python
 	bash infra/nightly.sh reports/

@@ -1,5 +1,7 @@
 from fused_dot_product import *
 
+from cvc5.pythonic import FreshReal, Solver
+
 ############## HELPERS #################
 def exact_xor(a: Node, b: Node):
     a_, b_ = q_aligner(
@@ -45,8 +47,10 @@ def exact_or(a: Node, b: Node):
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
 def CSA(x: Node, y: Node, z: Node) -> Primitive:
-    def spec(x: float, y: float, z: float, out: tuple) -> bool:
-        return x + y + z == out[0] + out[1]
+    def spec(prim, x, y, z, s):
+        sum_, carry = prim._spec_outputs(s)
+        s.add(sum_ + carry == x + y + z)
+        return tuple([sum_, carry])
     
     def sign(x: QT, y: QT, z: QT) -> TupleT:
         frac_bits = max(max(x.frac_bits, y.frac_bits), z.frac_bits)
@@ -78,8 +82,10 @@ def CSA(x: Node, y: Node, z: Node) -> Primitive:
 
 
 def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
-    def spec(m0: float, m1: float, m2: float, m3: float, out: float) -> float:
-        return m0 + m1 + m2 + m3 == out
+    def spec(prim, m0, m1, m2, m3, s):
+        out = prim._spec_outputs(s)
+        s.add(out == m0 + m1 + m2 + m3)
+        return out
     
     def sign(m0: QT, m1: QT, m2: QT, m3: QT) -> QT:
         frac_bits = max(max(m0.frac_bits, m1.frac_bits), max(m2.frac_bits, m3.frac_bits))
@@ -157,3 +163,17 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
                      sign=sign,
                      args=[m0, m1, m2, m3],
                      name="CSA_tree4")
+
+
+if __name__ == '__main__':
+    # Compile design
+    args = [
+        Var(name="a_0", sign=QT(3, 4)),
+        Var(name="a_1", sign=QT(8, 3)),
+        Var(name="a_2", sign=QT(5, 0)),
+        Var(name="a_3", sign=QT(1, 5)),
+    ]
+    
+    design = CSA_tree4(*args)
+    design.print_tree(depth=1)
+    design.run_spec()

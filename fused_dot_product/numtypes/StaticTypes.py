@@ -1,6 +1,4 @@
-from dataclasses import dataclass
-
-from fused_dot_product.numtypes.RuntimeTypes import *
+from cvc5.pythonic import FreshReal, FreshInt, FreshBool, ToReal
 
 class StaticType:
     def __init__(self):
@@ -11,6 +9,9 @@ class StaticType:
         new = self._clone_impl()
         new.runtime_val = self.runtime_val
         return new
+    
+    def runtime_type(self) -> "RuntimeType":
+        raise NotImplementedError
 
     def _clone_impl(self) -> "StaticType":
         raise NotImplementedError
@@ -24,6 +25,9 @@ class StaticType:
     
     def __eq__(self, other):
         raise NotImplementedError
+    
+    def to_smt(self, s):
+        raise NotImplementedError
 
 
 class BoolT(StaticType):
@@ -34,14 +38,23 @@ class BoolT(StaticType):
     def total_bits(self):
         return 1
     
+    def runtime_type(self) -> "RuntimeType":
+        from fused_dot_product.numtypes.RuntimeTypes import Bool
+
+        return Bool(0)
+    
     def __repr__(self):
         return f"Bool<1>"
     
     def __eq__(self, other):
         return isinstance(other, BoolT)
         
-    def _clone_impl(self) -> "QT":
+    def _clone_impl(self) -> "BoolT":
         return BoolT()
+    
+    def to_smt(self, s):
+        x = FreshBool('x')
+        return x
      
 
 class QT(StaticType):
@@ -55,6 +68,11 @@ class QT(StaticType):
     def total_bits(self):
         return self.int_bits + self.frac_bits
     
+    def runtime_type(self) -> "RuntimeType":
+        from fused_dot_product.numtypes.RuntimeTypes import Q
+
+        return Q(0, self.int_bits, self.frac_bits)
+    
     def __repr__(self):
         return f"Q<{self.int_bits},{self.frac_bits}>"
     
@@ -67,6 +85,22 @@ class QT(StaticType):
 
     def _clone_impl(self) -> "QT":
         return QT(self.int_bits, self.frac_bits)
+    
+    def to_smt(self, s):
+        total_bits = self.total_bits
+        if self.frac_bits != 0:
+            x = FreshReal('x')
+            min_real = -(2 ** (self.int_bits - 1))
+            max_real = (2 ** (self.int_bits - 1)) - (2 ** (-self.frac_bits))
+            s.add(x >= min_real)
+            s.add(x <= max_real)
+        else:
+            x = FreshInt('x')
+            s.add(x >= -(1 << (total_bits - 1)))
+            s.add(x <= (1 << (total_bits - 1)) - 1)
+            x = ToReal(x)
+        return x
+
 
 
 class UQT(StaticType):
@@ -80,6 +114,11 @@ class UQT(StaticType):
     def total_bits(self):
         return self.int_bits + self.frac_bits
     
+    def runtime_type(self) -> "RuntimeType":
+        from fused_dot_product.numtypes.RuntimeTypes import UQ
+
+        return UQ(0, self.int_bits, self.frac_bits)
+    
     def __repr__(self):
         return f"UQ<{self.int_bits},{self.frac_bits}>"
     
@@ -92,6 +131,18 @@ class UQT(StaticType):
 
     def _clone_impl(self) -> "UQT":
         return UQT(self.int_bits, self.frac_bits)
+    
+    def to_smt(self, s):
+        if self.frac_bits != 0:
+            x = FreshReal('x')
+            s.add(x >= 0)
+            s.add(x <= (2 ** self.int_bits) - (2 ** (-self.frac_bits)))
+        else:
+            x = FreshInt('x')
+            s.add(x >= 0)
+            s.add(x <= (1 << self.int_bits) - 1)
+            x = ToReal(x)
+        return x
 
 
 class Float32T(StaticType):
@@ -104,6 +155,11 @@ class Float32T(StaticType):
     @property
     def total_bits(self):
         return self.sign_bits + self.mantissa_bits + self.exponent_bits
+    
+    def runtime_type(self) -> "RuntimeType":
+        from fused_dot_product.numtypes.RuntimeTypes import Float32
+
+        return Float32(0, 0, 0)
     
     def __repr__(self):
         return f"Float<32>"
@@ -118,7 +174,10 @@ class Float32T(StaticType):
 
     def _clone_impl(self) -> "Float32T":
         return Float32T()
-
+        
+    def to_smt(self, s):
+        x = FreshReal('x')
+        return x
 
 class BFloat16T(StaticType):
     def __init__(self):
@@ -130,6 +189,11 @@ class BFloat16T(StaticType):
     @property
     def total_bits(self):
         return self.sign_bits + self.mantissa_bits + self.exponent_bits
+    
+    def runtime_type(self) -> "RuntimeType":
+        from fused_dot_product.numtypes.RuntimeTypes import BFloat16
+
+        return BFloat16(0, 0, 0)
     
     def __repr__(self):
         return f"BFloat<16>"
@@ -144,6 +208,10 @@ class BFloat16T(StaticType):
 
     def _clone_impl(self) -> "BFloat16T":
         return BFloat16T()
+    
+    def to_smt(self, s):
+        x = FreshReal('x')
+        return x
 
 class TupleT(StaticType):
     def __init__(self, *args: StaticType):
@@ -154,7 +222,12 @@ class TupleT(StaticType):
     
     @property
     def total_bits(self):
-        return sum([x.total_bits for x in self.args])
+        return sum(x.total_bits for x in self.args)
+    
+    def runtime_type(self) -> "RuntimeType":
+        from fused_dot_product.numtypes.RuntimeTypes import Tuple
+
+        return Tuple(*[arg.runtime_type() for arg in self.args])
     
     def __repr__(self):
         return f"Tuple<{', '.join([repr(x) for x in self.args])}>"
@@ -168,14 +241,6 @@ class TupleT(StaticType):
 
     def _clone_impl(self) -> "TupleT":
         return TupleT(*[arg.copy() for arg in self.args])
-
-
-if __name__ == '__main__':
-    print(QT(1,3))
-    print(UQT(1,3))
-    print(IntT(1))
-    print(Float32T())
-    print(BFloat16T())
-    print(TupleT(IntT(2)))
-    print(TupleT(IntT(2), QT(1,3)))
-
+    
+    def to_smt(self, s):
+        return tuple([x.to_smt(s) for x in self.args])
