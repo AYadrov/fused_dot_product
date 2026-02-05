@@ -20,10 +20,8 @@ def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> 
         M_b = [(M_b[i] / (2 ** BFloat16.mantissa_bits)) + 1.0 for i in range(n)]
         M_p = [M_a[i] * M_b[i] for i in range(n)]
         
-        
-        
         for i in range(n):
-            s.add(M_p[i] == M_p_q[i] * 2 ** (E_m - E_p[i]))
+            s.add(M_p[i] == M_p_q[i] * 2 ** ToInt(E_m - E_p[i]))
         
         return (tuple(M_p_q), E_m)
     

@@ -94,6 +94,11 @@ def _prepend_ones(x: Node, s_: int) -> Primitive:
 
 
 def optimized_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Composite:
+    e_p_int_bits = max(E_a.node_type.args[0].int_bits, E_b.node_type.args[0].int_bits) + 1
+    max_shift = (1 << e_p_int_bits) - 1
+    shift_bit_count = max_shift.bit_length()
+    pow2_bit_factors = [ToReal(IntVal(1 << (1 << bit))) for bit in range(shift_bit_count)]
+
     def spec(prim, E_a, E_b, M_a, M_b, s):
         M_p_q, E_m = prim._spec_outputs(s)
         n = len(E_a)
@@ -111,7 +116,18 @@ def optimized_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Com
         M_p = [M_a[i] * M_b[i] for i in range(n)]
         
         for i in range(n):
-            s.add(M_p[i] == M_p_q[i] * 2 ** ToInt((E_m - E_p[i])))
+            # s.add(M_p[i] == M_p_q[i] * 2 ** ToInt((E_m - E_p[i])))
+            shift_i = FreshInt(f"shift_{i}")
+            s.add(shift_i == ToInt(E_m - E_p[i]))
+            s.add(shift_i >= 0, shift_i <= max_shift)
+
+            # Encode multiplication by 2**shift_i using shift bits.
+            scaled = M_p_q[i]
+            for bit, factor in enumerate(pow2_bit_factors):
+                shift_bit = FreshInt(f"shift_{i}_bit_{bit}")
+                s.add(shift_bit == (shift_i / (2**bit)) % 2)
+                scaled = If(shift_bit == 1, scaled * factor, scaled)
+            s.add(M_p[i] == scaled)
         
         return (tuple(M_p_q), E_m)
     

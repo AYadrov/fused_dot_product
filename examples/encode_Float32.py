@@ -3,7 +3,23 @@ import numpy as np
 
 from fused_dot_product import *
 
-from cvc5.pythonic import FreshReal
+from cvc5.pythonic import FreshReal, IntVal, ToReal, If, ToInt
+
+
+def _scale_by_pow2_shift(base, shift_int, max_abs_shift: int):
+    # Encode base * 2**shift_int without symbolic POW.
+    bit_count = max_abs_shift.bit_length()
+    pos_shift = If(shift_int >= 0, shift_int, IntVal(0))
+    neg_shift = If(shift_int < 0, -shift_int, IntVal(0))
+
+    scaled = base
+    for bit in range(bit_count):
+        factor = ToReal(IntVal(1 << (1 << bit)))
+        pos_bit = (pos_shift / (2**bit)) % 2
+        neg_bit = (neg_shift / (2**bit)) % 2
+        scaled = If(pos_bit == 1, scaled * factor, scaled)
+        scaled = If(neg_bit == 1, scaled / factor, scaled)
+    return scaled
 
 # TODO: edge case when input is subnormal that after rounding becomes normal
 def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:
@@ -224,12 +240,17 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
 # subnormal_extra_bits is extra bits that will be used when truncating mantissa to a subnormal format
 def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
     assert e.node_type.frac_bits == 0
+    max_abs_shift = (1 << (e.node_type.int_bits - 1)) + Float32.exponent_bias
     def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
     
     def spec(prim, m, e, s):
         out = prim._spec_outputs(s)
-        s.add(out == m * 2 ** (e - Float32.exponent_bias))
+        # s.add(out == m * 2 ** (e - Float32.exponent_bias))
+        shift_int = ToInt(e) - Float32.exponent_bias
+        s.add(shift_int >= -max_abs_shift)
+        s.add(shift_int <= max_abs_shift)
+        s.add(out == _scale_by_pow2_shift(m, shift_int, max_abs_shift))
         return out
 
     def impl(m: Node, e: Node) -> Node:

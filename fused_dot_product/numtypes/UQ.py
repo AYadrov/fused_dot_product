@@ -393,7 +393,10 @@ def uq_to_q(x: Node) -> Primitive:
 # TODO: truncation
 def uq_rshift(x: Node, amount: Node) -> Primitive:
     x_frac_bits = x.node_type.frac_bits
+    x_total_bits = x.node_type.total_bits
     max_shift = (1 << amount.node_type.int_bits) - 1
+    shift_bit_count = max_shift.bit_length()
+    shift_divisors = [1 << (1 << bit) for bit in range(shift_bit_count)]
     def impl(x: Node, amount: Node) -> Node:
         root = basic_rshift(
             x=x,
@@ -404,9 +407,29 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
     
     def spec(prim, x, amount, s):
         out = prim._spec_outputs(s)
-        s.add(amount >= 0)
-        s.add(amount <= max_shift)
-        s.add(out == x / (2 ** amount))
+        # s.add(amount >= 0)
+        # s.add(amount <= max_shift)
+        # s.add(out == x / (2 ** amount))
+
+        
+        
+        raw = FreshInt("raw")
+        shift = FreshInt("shift")
+
+        s.add(raw >= 0, raw <= (2 ** x_total_bits) - 1)
+        s.add(x == ToReal(raw) / (2 ** x_frac_bits))
+
+        s.add(amount == ToReal(shift))
+        s.add(shift >= 0)
+        s.add(shift <= max_shift)
+
+        shifted_raw = raw
+        for bit, divisor in enumerate(shift_divisors):
+            shift_bit = FreshInt(f"shift_bit_{bit}")
+            s.add(shift_bit == (shift / (2 ** bit)) % 2)
+            shifted_raw = If(shift_bit == 1, shifted_raw / divisor, shifted_raw)
+
+        s.add(out == ToReal(shifted_raw) / (2 ** x_frac_bits))
         return out
     
     # TODO: Would be nice to not care about amount type, just bits amount
@@ -463,7 +486,8 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
         s.add(raw >= 0, raw <= (2**x_total_bits) - 1)
         s.add(x == ToReal(raw) / (2**x_frac_bits))
         
-        s.add(out == (raw / 2**end) % 2**width)
+        selected_raw = (raw / (2**end)) % (2**width)   # Int
+        s.add(out == ToReal(selected_raw) / (2**frac_bits))
         return out
     
     def sign(x: UQT) -> UQT:
