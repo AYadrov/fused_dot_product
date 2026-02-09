@@ -1,4 +1,20 @@
-from cvc5.pythonic import Solver, unsat, sat, unknown
+from cvc5.pythonic import Solver, unsat, sat, unknown, If, IntVal, ToReal
+
+
+def pow2(base, shift_int, max_abs_shift: int):
+    # Encode base * 2**shift_int without symbolic POW.
+    bit_count = max_abs_shift.bit_length()
+    pos_shift = If(shift_int >= 0, shift_int, IntVal(0))
+    neg_shift = If(shift_int < 0, -shift_int, IntVal(0))
+
+    scaled = base
+    for bit in range(bit_count):
+        factor = ToReal(IntVal(1 << (1 << bit)))
+        pos_bit = (pos_shift / (2 ** bit)) % 2
+        neg_bit = (neg_shift / (2 ** bit)) % 2
+        scaled = If(pos_bit == 1, scaled * factor, scaled)
+        scaled = If(neg_bit == 1, scaled / factor, scaled)
+    return scaled
 
 def _unroller(query1, query2, s):
     if isinstance(query1, tuple) and isinstance(query2, tuple):

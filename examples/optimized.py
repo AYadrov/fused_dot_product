@@ -1,11 +1,11 @@
 from fused_dot_product import *
+from fused_dot_product.utils.smt_utils import pow2
 from .encode_Float32 import *
 from .CSA import CSA_tree4
 from .common import *
 from .max_exponent import *
 
-from cvc5.pythonic import FreshReal, FreshInt, Int2BV, Extract, BV2Int, IntVal, ToReal
-import numpy as np
+from cvc5.pythonic import FreshInt, ToReal
 
 def _est_global_shift(E_max: Node, E_p: Node, s_: int) -> Primitive:
     def spec(prim, E_max, E_p, s):
@@ -96,8 +96,6 @@ def _prepend_ones(x: Node, s_: int) -> Primitive:
 def optimized_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Composite:
     e_p_int_bits = max(E_a.node_type.args[0].int_bits, E_b.node_type.args[0].int_bits) + 1
     max_shift = (1 << e_p_int_bits) - 1
-    shift_bit_count = max_shift.bit_length()
-    pow2_bit_factors = [ToReal(IntVal(1 << (1 << bit))) for bit in range(shift_bit_count)]
 
     def spec(prim, E_a, E_b, M_a, M_b, s):
         M_p_q, E_m = prim._spec_outputs(s)
@@ -117,17 +115,8 @@ def optimized_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Com
         
         for i in range(n):
             # s.add(M_p[i] == M_p_q[i] * 2 ** ToInt((E_m - E_p[i])))
-            shift_i = FreshInt(f"shift_{i}")
-            s.add(shift_i == ToInt(E_m - E_p[i]))
-            s.add(shift_i >= 0, shift_i <= max_shift)
-
-            # Encode multiplication by 2**shift_i using shift bits.
-            scaled = M_p_q[i]
-            for bit, factor in enumerate(pow2_bit_factors):
-                shift_bit = FreshInt(f"shift_{i}_bit_{bit}")
-                s.add(shift_bit == (shift_i / (2**bit)) % 2)
-                scaled = If(shift_bit == 1, scaled * factor, scaled)
-            s.add(M_p[i] == scaled)
+            shift_i = ToInt(E_m - E_p[i])
+            s.add(M_p[i] == pow2(M_p_q[i], shift_i, max_shift))
         
         return (tuple(M_p_q), E_m)
     

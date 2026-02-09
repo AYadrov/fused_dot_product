@@ -6,6 +6,7 @@ from cvc5.pythonic import FreshReal, FreshInt, If, ToReal, ToInt
 import numpy as np
 
 def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Composite:
+    pow2_max_bits = max(max([E_a[i].node_type.int_bits for i in range(N)]), max([E_b[i].node_type.int_bits for i in range(N)]))
     def spec(prim, E_a, E_b, M_a, M_b, s):
         M_p_q, E_m = prim._spec_outputs(s)
         n = len(E_a)
@@ -21,7 +22,7 @@ def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> 
         M_p = [M_a[i] * M_b[i] for i in range(n)]
         
         for i in range(n):
-            s.add(M_p[i] == M_p_q[i] * 2 ** ToInt(E_m - E_p[i]))
+            s.add(M_p[i] == pow2(M_p_q[i], ToInt(E_m - E_p[i]), pow2_max_bits))
         
         return (tuple(M_p_q), E_m)
     
@@ -196,7 +197,6 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         
         ########## RESULT ##################
          # Subtract bias that is left!
-        
         
         E_m_q_biased = q_sub(E_m_q, bf16_bias)
         (
