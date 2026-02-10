@@ -6,6 +6,7 @@ from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.numtypes.Q import q_alloc
 from fused_dot_product.numtypes.Tuple import make_Tuple
+from fused_dot_product.utils.smt_utils import pow2
 
 
 ############## Public API ##############
@@ -395,8 +396,6 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
     x_frac_bits = x.node_type.frac_bits
     x_total_bits = x.node_type.total_bits
     max_shift = (1 << amount.node_type.int_bits) - 1
-    shift_bit_count = max_shift.bit_length()
-    shift_divisors = [1 << (1 << bit) for bit in range(shift_bit_count)]
     def impl(x: Node, amount: Node) -> Node:
         root = basic_rshift(
             x=x,
@@ -407,28 +406,16 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
     
     def spec(prim, x, amount, s):
         out = prim._spec_outputs(s)
-        # s.add(amount >= 0)
-        # s.add(amount <= max_shift)
-        # s.add(out == x / (2 ** amount))
-
-        
-        
         raw = FreshInt("raw")
-        shift = FreshInt("shift")
+        shift = amount # ToInt(amount)
 
         s.add(raw >= 0, raw <= (2 ** x_total_bits) - 1)
         s.add(x == ToReal(raw) / (2 ** x_frac_bits))
 
-        s.add(amount == ToReal(shift))
         s.add(shift >= 0)
         s.add(shift <= max_shift)
 
-        shifted_raw = raw
-        for bit, divisor in enumerate(shift_divisors):
-            shift_bit = FreshInt(f"shift_bit_{bit}")
-            s.add(shift_bit == (shift / (2 ** bit)) % 2)
-            shifted_raw = If(shift_bit == 1, shifted_raw / divisor, shifted_raw)
-
+        shifted_raw = ToInt(pow2(ToReal(raw), -shift, max_shift))
         s.add(out == ToReal(shifted_raw) / (2 ** x_frac_bits))
         return out
     
@@ -472,22 +459,55 @@ def uq_lshift(x: Node, amount: Node) -> Primitive:
 
 
 def uq_select(x: Node, start: int, end: int) -> Primitive:
-    width = start - end + 1
+    assert isinstance(start, int) and isinstance(end, int), "start/end must be integers"
+    assert start >= end and end >= 0, "Bad indexing"
+
     x_frac_bits = x.node_type.frac_bits
     x_total_bits = x.node_type.total_bits
+    assert start < x_total_bits, f"start index {start} is out of range for width {x_total_bits}"
     
+    width = start - end + 1
     frac_bits = max(0, min(start, x_frac_bits - 1) - end + 1) if x_frac_bits > 0 else 0
     int_bits = width - frac_bits
+    lo_width = end
+    hi_width = x_total_bits - (start + 1)
     
     def spec(prim, x, s):
         out = prim._spec_outputs(s)
-        
+
         raw = FreshInt("raw")
-        s.add(raw >= 0, raw <= (2**x_total_bits) - 1)
-        s.add(x == ToReal(raw) / (2**x_frac_bits))
+        lo_raw = FreshInt("lo_raw")
+        mid_raw = FreshInt("mid_raw")
+        hi_raw = FreshInt("hi_raw")
+
+        lo = FreshReal("lo")
+        mid = FreshReal("mid")
+        hi = FreshReal("hi")
+
+        s.add(raw >= 0, raw <= (2 ** x_total_bits) - 1)
+        s.add(lo_raw >= 0, lo_raw < (2 ** lo_width))
+        s.add(mid_raw >= 0, mid_raw < (2 ** width))
+        s.add(hi_raw >= 0, hi_raw < (2 ** hi_width))
+
+        s.add(
+            raw
+            == lo_raw
+            + (mid_raw * (2 ** end))
+            + (hi_raw * (2 ** (start + 1)))
+        )
+
+        x_real = x if x.is_real() else ToReal(x)
+        s.add(x_real == ToReal(raw) / (2 ** x_frac_bits))
         
-        selected_raw = (raw / (2**end)) % (2**width)   # Int
-        s.add(out == ToReal(selected_raw) / (2**frac_bits))
+        s.add(lo == ToReal(lo_raw) / (2 ** x_frac_bits))
+        s.add(mid == ToReal(mid_raw * (2 ** end)) / (2 ** x_frac_bits))
+        s.add(hi == ToReal(hi_raw * (2 ** (start + 1))) / (2 ** x_frac_bits))
+        s.add(x_real == lo + mid + hi)
+        
+        if frac_bits == 0:
+            s.add(out == mid_raw)
+        else:
+            s.add(out == ToReal(mid_raw) / (2 ** frac_bits))
         return out
     
     def sign(x: UQT) -> UQT:

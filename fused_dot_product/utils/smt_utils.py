@@ -1,17 +1,22 @@
-from cvc5.pythonic import Solver, unsat, sat, unknown, If, IntVal, ToReal
+from cvc5.pythonic import Solver, unsat, sat, unknown, If, IntVal, ToReal, Int2BV, Extract, BV2Int
 
 
 def pow2(base, shift_int, max_abs_shift: int):
     # Encode base * 2**shift_int without symbolic POW.
     bit_count = max_abs_shift.bit_length()
+    if bit_count == 0:
+        return base
+
     pos_shift = If(shift_int >= 0, shift_int, IntVal(0))
     neg_shift = If(shift_int < 0, -shift_int, IntVal(0))
+    pos_shift_bv = Int2BV(pos_shift, bit_count)
+    neg_shift_bv = Int2BV(neg_shift, bit_count)
 
     scaled = base
     for bit in range(bit_count):
         factor = ToReal(IntVal(1 << (1 << bit)))
-        pos_bit = (pos_shift / (2 ** bit)) % 2
-        neg_bit = (neg_shift / (2 ** bit)) % 2
+        pos_bit = BV2Int(Extract(bit, bit, pos_shift_bv))
+        neg_bit = BV2Int(Extract(bit, bit, neg_shift_bv))
         scaled = If(pos_bit == 1, scaled * factor, scaled)
         scaled = If(neg_bit == 1, scaled / factor, scaled)
     return scaled

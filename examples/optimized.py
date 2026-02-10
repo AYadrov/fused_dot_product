@@ -106,7 +106,7 @@ def optimized_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Com
         E_m = E_p[0]
         for i in range(1, n):
             E_m = If(E_m >= E_p[i], E_m, E_p[i])
-        E_m = ToInt(E_m) / 2**s_
+        E_m = E_m / 2**s_ # ToInt(E_m) / 2**s_
         E_m = E_m * 2**s_ + 2**s_ - 1
         
         M_a = [(M_a[i] / (2 ** BFloat16.mantissa_bits)) + 1.0 for i in range(n)]
@@ -115,7 +115,7 @@ def optimized_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Com
         
         for i in range(n):
             # s.add(M_p[i] == M_p_q[i] * 2 ** ToInt((E_m - E_p[i])))
-            shift_i = ToInt(E_m - E_p[i])
+            shift_i = E_m - E_p[i] # ToInt(E_m - E_p[i])
             s.add(M_p[i] == pow2(M_p_q[i], shift_i, max_shift))
         
         return (tuple(M_p_q), E_m)

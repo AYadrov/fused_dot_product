@@ -141,7 +141,7 @@ class UQT(StaticType):
             x = FreshInt('x')
             s.add(x >= 0)
             s.add(x <= (1 << self.int_bits) - 1)
-            x = ToReal(x)
+            # x = ToReal(x)
         return x
 
 

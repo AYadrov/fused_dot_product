@@ -196,7 +196,7 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
             sel=shift_sign_uq,
             in0=left_m_uq,
             in1=right_m_uq,
-            out=Const(UQ(0, m_int_target_bits, m_frac_target_bits)),  
+            out=Const(UQ(0, m_int_target_bits, m_frac_target_bits)),
         )
         
         left_e_q = q_sub(e, shift_magnitude_q)
@@ -205,6 +205,7 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
             sel=shift_sign_uq,
             in0=left_e_q,
             in1=right_e_q,
+            
             out=right_e_q.copy(),
         )
         
