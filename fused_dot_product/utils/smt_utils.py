@@ -1,4 +1,66 @@
-from cvc5.pythonic import Solver, unsat, sat, unknown, If, IntVal, ToReal, Int2BV, Extract, BV2Int
+from cvc5.pythonic import (
+    Solver,
+    unsat,
+    sat,
+    unknown,
+    If,
+    Function,
+    ForAll,
+    FreshConst,
+    RealSort,
+    IntSort,
+    IntVal,
+    RealVal,
+    ToInt,
+    ToReal,
+    Int2BV,
+    Extract,
+    BV2Int,
+)
+
+
+_POW = Function("pow", RealSort(), IntSort(), RealSort())
+_POW_AXIOMS_ATTACHED: set[int] = set()
+
+
+def _attach_pow_axioms(solver):
+    solver_id = id(solver)
+    if solver_id in _POW_AXIOMS_ATTACHED:
+        return
+
+    x = FreshConst(RealSort())
+    y = FreshConst(IntSort())
+    c = FreshConst(IntSort())
+
+    solver.add(ForAll([x], _POW(x, IntVal(0)) == RealVal("1")))
+    solver.add(ForAll([x], _POW(x, IntVal(1)) == RealVal("1")))
+    solver.add(ForAll([x, y, c], _POW(x, y + c) == _POW(x, y) * _POW(x, c)))
+    solver.add(ForAll([x, y, c], _POW(x, y - c) == _POW(x, y) / _POW(x, c)))
+    solver.add(ForAll([x, y], _POW(x, y) / _POW(x, y) == 1))
+
+    _POW_AXIOMS_ATTACHED.add(solver_id)
+
+
+def pow_(base, exponent, solver=None):
+    base_real = base
+    if hasattr(base, "is_int") and base.is_int():
+        base_real = ToReal(base)
+    elif not hasattr(base, "is_real"):
+        if isinstance(base, int):
+            base_real = ToReal(IntVal(base))
+        else:
+            base_real = RealVal(str(base))
+
+    exp_int = exponent
+    if hasattr(exponent, "is_real") and exponent.is_real():
+        exp_int = ToInt(exponent)
+    elif not hasattr(exponent, "is_int"):
+        exp_int = IntVal(int(exponent))
+
+    if solver is not None:
+        _attach_pow_axioms(solver)
+
+    return _POW(base_real, exp_int)
 
 
 def pow2(base, shift_int, max_abs_shift: int):
@@ -20,6 +82,29 @@ def pow2(base, shift_int, max_abs_shift: int):
         scaled = If(pos_bit == 1, scaled * factor, scaled)
         scaled = If(neg_bit == 1, scaled / factor, scaled)
     return scaled
+
+
+def pow2_int(shift, max_abs_shift: int = 256):
+
+    shift_int = shift
+    if hasattr(shift, "is_real") and shift.is_real():
+        shift_int = ToInt(shift)
+    elif not hasattr(shift, "is_int"):
+        shift_int = IntVal(int(shift))
+
+    bit_count = max_abs_shift.bit_length()
+    if bit_count == 0:
+        return IntVal(1)
+
+    shift_nonneg = If(shift_int >= 0, shift_int, IntVal(0))
+    shift_bv = Int2BV(shift_nonneg, bit_count)
+
+    out = IntVal(1)
+    for bit in range(bit_count):
+        factor = IntVal(1 << (1 << bit))
+        bit_is_set = BV2Int(Extract(bit, bit, shift_bv))
+        out = If(bit_is_set == 1, out * factor, out)
+    return out
 
 def _unroller(query1, query2, s):
     if isinstance(query1, tuple) and isinstance(query2, tuple):

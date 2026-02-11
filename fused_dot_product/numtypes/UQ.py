@@ -1,12 +1,12 @@
 import typing as tp
-from cvc5.pythonic import FreshReal, Solver, If, ToInt, FreshInt, Int2BV, Extract, BV2Int
+from cvc5.pythonic import FreshReal, If, FreshInt
 
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.numtypes.Q import q_alloc
 from fused_dot_product.numtypes.Tuple import make_Tuple
-from fused_dot_product.utils.smt_utils import pow2
+from fused_dot_product.utils.smt_utils import pow2_int
 
 
 ############## Public API ##############
@@ -415,7 +415,7 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
         s.add(shift >= 0)
         s.add(shift <= max_shift)
 
-        shifted_raw = ToInt(pow2(ToReal(raw), -shift, max_shift))
+        shifted_raw = raw / pow2_int(shift, max_shift)
         s.add(out == ToReal(shifted_raw) / (2 ** x_frac_bits))
         return out
     

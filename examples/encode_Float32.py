@@ -1,7 +1,7 @@
 import math
 
 from fused_dot_product import *
-from fused_dot_product.utils.smt_utils import pow2
+from fused_dot_product.utils.smt_utils import pow2, pow2_int, pow_
 
 from cvc5.pythonic import ToInt
 
@@ -235,7 +235,7 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
         
         # s.add(out == m * 2 ** (e - Float32.exponent_bias))
         shift_int = ToInt(e) - Float32.exponent_bias
-        s.add(out == pow2(m, shift_int, max_abs_shift=max_abs_shift))
+        s.add(out == m * pow_(2, shift_int, solver=s))
         return out
     
     def impl(m: Node, e: Node) -> Node:

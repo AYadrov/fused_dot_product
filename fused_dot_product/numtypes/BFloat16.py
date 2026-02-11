@@ -1,9 +1,9 @@
-from cvc5.pythonic import ToInt, If
+from cvc5.pythonic import ToInt, If, Or
 
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.Tuple import *
 from fused_dot_product.ast.AST import *
-from fused_dot_product.utils.smt_utils import pow2
+from fused_dot_product.utils.smt_utils import pow2, pow2_int, pow_
 ########### Private Helpers ############
 
 def _bf16_mantissa(x: Node) -> Op:
@@ -56,7 +56,7 @@ def bf16_decode(x: Node) -> Primitive:
         exponent_int = exponent - BFloat16.exponent_bias # ToInt(exponent) - BFloat16.exponent_bias
         # s.add(x == sign_ * mantissa_ * 2 ** (exponent_))
 
-        s.add(x == pow2(sign_ * mantissa_, exponent_int, 2 ** BFloat16.exponent_bits))
+        s.add(x == sign_ * mantissa_ * pow_(2, exponent_int, solver=s))
         return tuple([sign, mantissa, exponent])
     
     def sign(x: BFloat16T) -> TupleT:

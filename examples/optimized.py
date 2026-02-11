@@ -1,5 +1,5 @@
 from fused_dot_product import *
-from fused_dot_product.utils.smt_utils import pow2
+from fused_dot_product.utils.smt_utils import pow2, pow2_int, pow_
 from .encode_Float32 import *
 from .CSA import CSA_tree4
 from .common import *
@@ -116,7 +116,9 @@ def optimized_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Com
         for i in range(n):
             # s.add(M_p[i] == M_p_q[i] * 2 ** ToInt((E_m - E_p[i])))
             shift_i = E_m - E_p[i] # ToInt(E_m - E_p[i])
-            s.add(M_p[i] == pow2(M_p_q[i], shift_i, max_shift))
+            s.add(shift_i >= 0)
+            s.add(M_p[i] == M_p_q[i] * pow_(2, shift_i, solver=s))
+            s.add(M_p[i] <= M_p_q[i])
         
         return (tuple(M_p_q), E_m)
     
@@ -272,9 +274,9 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
         )
         
         M_p, E_m = optimized_arithmetic_body(
-            make_Tuple(*E_a), 
-            make_Tuple(*E_b), 
-            make_Tuple(*M_a), 
+            make_Tuple(*E_a),
+            make_Tuple(*E_b),
+            make_Tuple(*M_a),
             make_Tuple(*M_b),
         )
         
@@ -295,7 +297,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
             M_sum.check(is_typeof(M_sum, QT(6, Wf + (2**s_ - 1) - 2))),
             M_sum.check(
                 q_equal(
-                    M_sum, 
+                    M_sum,
                     q_add(q_add(M_p[0], M_p[1]), q_add(M_p[2], M_p[3])),
                 )
             )
@@ -353,3 +355,4 @@ if __name__ == '__main__':
             a[i].load_val(random_gen())
             b[i].load_val(random_gen())
         print(str(design.evaluate()))
+
