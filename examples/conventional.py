@@ -22,12 +22,12 @@ def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> 
         M_p = [M_a[i] * M_b[i] for i in range(n)]
         
         for i in range(n):
-            s.add(M_p[i] == pow2(M_p_q[i], E_m - E_p[i], pow2_max_bits))  # ToInt(E_m - E_p[i]), pow2_max_bits))
+            s.add(M_p[i] == pow_(M_p_q[i], E_m - E_p[i]))  # ToInt(E_m - E_p[i]), pow2_max_bits))
         
         return (tuple(M_p_q), E_m)
     
     def impl(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> Node:
-        ########## EXPONENTS ###############
+        ############ EXPONENTS #############
         
         # Step 1. Exponents add. Each E_p is shifted by bias twice!
         E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]
@@ -55,7 +55,7 @@ def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> 
             E_m_q.check(is_typeof(E_m_q, QT(10, 0)))
         )
         
-        ########## MANTISSAS ###############
+        ############ MANTISSAS #############
         
         # Step 1. Convert mantissas to UQ1.7
         M_a = [mantissa_add_implicit_bit(M_a[i]) for i in range(N)]
@@ -127,7 +127,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     
     def impl(a0: Node, a1: Node, a2: Node, a3: Node,
              b0: Node, b1: Node, b2: Node, b3: Node) -> Node:
-        ########## INPUT ###################
+        ############# INPUT ################
         
         S_a, M_a, E_a = [0] * N, [0] * N, [0] * N
         S_b, M_b, E_b = [0] * N, [0] * N, [0] * N
@@ -142,7 +142,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         S_b[2], M_b[2], E_b[2] = bf16_decode(b2)
         S_b[3], M_b[3], E_b[3] = bf16_decode(b3)
         
-        ########## CONSTANTS ###############
+        ############ CONSTANTS #############
         
         bf16_bias = Const(
             val=Q.from_int(BFloat16.exponent_bias),
@@ -195,7 +195,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
             )
         )
         
-        ########## RESULT ##################
+        ############ RESULT ################
          # Subtract bias that is left!
         
         E_m_q_biased = q_sub(E_m_q, bf16_bias)

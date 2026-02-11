@@ -33,10 +33,10 @@ def _attach_pow_axioms(solver):
     c = FreshConst(IntSort())
 
     solver.add(ForAll([x], _POW(x, IntVal(0)) == RealVal("1")))
-    solver.add(ForAll([x], _POW(x, IntVal(1)) == RealVal("1")))
+    solver.add(ForAll([x], _POW(x, IntVal(1)) == x))
     solver.add(ForAll([x, y, c], _POW(x, y + c) == _POW(x, y) * _POW(x, c)))
-    solver.add(ForAll([x, y, c], _POW(x, y - c) == _POW(x, y) / _POW(x, c)))
-    solver.add(ForAll([x, y], _POW(x, y) / _POW(x, y) == 1))
+    # solver.add(ForAll([x, y, c], _POW(x, y - c) == _POW(x, y) / _POW(x, c)))
+    # solver.add(ForAll([x, y], _POW(IntVal(2), y) == pow2_int(y, 512)))
 
     _POW_AXIOMS_ATTACHED.add(solver_id)
 
