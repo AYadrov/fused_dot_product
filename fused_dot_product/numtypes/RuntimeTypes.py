@@ -1,5 +1,6 @@
 import random
 import time
+from cvc5.pythonic import FreshReal, And, RealVal, BoolVal
 
 from fused_dot_product.config import *
 from fused_dot_product.utils.utils import *
@@ -26,6 +27,9 @@ class RuntimeType:
         raise NotImplementedError
     
     def __eq__(self, other):
+        raise NotImplementedError
+    
+    def to_smt(self, s):
         raise NotImplementedError
 
 
@@ -60,6 +64,9 @@ class Tuple(RuntimeType):
             isinstance(other, Tuple)
             and all([x == y for x, y in zip(self.args, other.args)])
         )
+   
+    def to_smt(self, s):
+        return tuple([x.to_smt(s) for x in self.args])
 
 
 class Bool(RuntimeType):
@@ -90,6 +97,9 @@ class Bool(RuntimeType):
             and other.val == self.val
         )
     
+    def to_smt(self, s):
+        return BoolVal(True if self.val == 1 else False)
+    
 
 class Q(RuntimeType):
     """Signed fixed-point type."""
@@ -119,6 +129,10 @@ class Q(RuntimeType):
         if val is None:
             val = self.val
         return Q(val, self.int_bits, self.frac_bits)
+    
+    def to_smt(self, s):
+        x = RealVal(self.to_spec())
+        return x
     
     def total_bits(self):
         return self.int_bits + self.frac_bits
@@ -198,6 +212,10 @@ class UQ(RuntimeType):
     def total_bits(self):
         return self.int_bits + self.frac_bits
     
+    def to_smt(self, s):
+        x = RealVal(self.to_spec())
+        return x
+    
     # Custom methods
     @staticmethod
     def from_int(x: int):
@@ -259,6 +277,10 @@ class Float32(RuntimeType):
     
     def static_type(self):
         return Float32T()
+    
+    def to_smt(self, s):
+        x = RealVal(self.to_spec())
+        return x
     
     @classmethod
     def nInf(cls):
@@ -328,6 +350,10 @@ class BFloat16(RuntimeType):
         
         value = (-1) ** self.sign * frac * (2 ** exp_val)
         return float(value)
+    
+    def to_smt(self, s):
+        x = RealVal(self.to_spec())
+        return x
     
     def static_type(self):
         return BFloat16T()

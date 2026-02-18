@@ -1,10 +1,9 @@
-import time
-import random
-import math
+from cvc5.pythonic import ToInt, If, Or
 
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.Tuple import *
 from fused_dot_product.ast.AST import *
+from fused_dot_product.utils.smt_utils import pow2, pow2_int, pow_
 
 ########### Private Helpers ############
 
@@ -50,11 +49,16 @@ def _bf16_sign(x: Node) -> Op:
 ############## Public API ##############
 
 def bf16_decode(x: Node) -> Primitive:
-    def spec(x: float, out: tuple) -> tuple[float]:
-        sign = (-1) ** out[0]
-        mantissa = 1.0 + (out[1] / 2 ** BFloat16.mantissa_bits)
-        exponent = out[2] - BFloat16.exponent_bias
-        return x == sign * mantissa * 2 ** exponent
+    def spec(prim, x, s):
+        sign, mantissa, exponent = prim._spec_outputs(s)
+        
+        s.add(Or(sign == 0.0, sign == 1.0))
+        sign_ = If(sign == 0, 1.0, -1.0)
+        mantissa_ = 1.0 + (mantissa / 2 ** BFloat16.mantissa_bits)
+        shift = exponent - BFloat16.exponent_bias
+        
+        s.add(x == sign_ * mantissa_ * pow_(2, shift, solver=s))
+        return tuple([sign, mantissa, exponent])
     
     def sign(x: BFloat16T) -> TupleT:
         return TupleT(
@@ -77,8 +81,4 @@ def bf16_decode(x: Node) -> Primitive:
         sign=sign,
         args=[x],
         name="bf16_decode")
-
-
-
-
 

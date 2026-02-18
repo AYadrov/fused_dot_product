@@ -1,10 +1,12 @@
 import typing as tp
+from cvc5.pythonic import If, FreshInt
 
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.numtypes.Q import q_alloc
 from fused_dot_product.numtypes.Tuple import make_Tuple
+from fused_dot_product.utils.smt_utils import *
 
 
 ############## Public API ##############
@@ -204,8 +206,10 @@ def uq_zero_extend(x: Node, n: int) -> Primitive:
 
 
 def uq_add(x: Node, y: Node) -> Primitive:
-    def spec(x: float, y: float, out: float):
-        return x + y == out
+    def spec(prim, x, y, s):
+        out = prim._spec_outputs(s)
+        s.add(out == x + y)
+        return out
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = max(x.int_bits, y.int_bits) + 1
@@ -235,8 +239,10 @@ def uq_add(x: Node, y: Node) -> Primitive:
 
 
 def uq_sub(x: Node, y: Node) -> Primitive:
-    def spec(x: float, y: float, out: float):
-        return x - y == out
+    def spec(prim, x, y, s):
+        out = prim._spec_outputs(s)
+        s.add(out == x - y)
+        return out
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = max(x.int_bits, y.int_bits) + 1
@@ -266,8 +272,10 @@ def uq_sub(x: Node, y: Node) -> Primitive:
 
 
 def uq_max(x: Node, y: Node) -> Primitive:
-    def spec(x: float, y: float, out: float):
-        return max(x, y) == out
+    def spec(prim, x, y, s):
+        out = prim._spec_outputs(s)
+        s.add(out == If(x >= y, x, y))
+        return out
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = max(x.int_bits, y.int_bits)
@@ -328,8 +336,10 @@ def uq_min(x: Node, y: Node) -> Primitive:
 
 
 def uq_mul(x: Node, y: Node) -> Primitive:
-    def spec(x: float, y: float, out: float):
-        return x * y == out
+    def spec(prim, x, y, s):
+        out = prim._spec_outputs(s)
+        s.add(out == x * y)
+        return out
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = x.int_bits + y.int_bits
@@ -367,8 +377,8 @@ def uq_to_q(x: Node) -> Primitive:
         out = q_alloc(int_bits, frac_bits)
         return basic_identity(x=x, out=out)
     
-    def spec(x: float, out: float):
-        return x == out  # value does not change
+    def spec(prim, x, s):
+        return x
     
     def sign(x: UQT) -> QT:
         return QT(x.int_bits + 1, x.frac_bits)
@@ -384,6 +394,8 @@ def uq_to_q(x: Node) -> Primitive:
 # TODO: truncation
 def uq_rshift(x: Node, amount: Node) -> Primitive:
     x_frac_bits = x.node_type.frac_bits
+    x_total_bits = x.node_type.total_bits
+    max_shift = (1 << amount.node_type.int_bits) - 1
     def impl(x: Node, amount: Node) -> Node:
         root = basic_rshift(
             x=x,
@@ -392,10 +404,10 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
         )
         return root
     
-    def spec(x: float, amount: float, out: float):
-        raw = int(round(x * (2 ** x_frac_bits)))
-        shifted = raw >> int(amount)
-        return float(shifted) / (2 ** x_frac_bits) == out
+    def spec(prim, x, amount, s):
+        out = prim._spec_outputs(s)
+        s.add(out == x / pow_(2, amount, solver=s))
+        return out
     
     # TODO: Would be nice to not care about amount type, just bits amount
     def sign(x: UQT, amount: StaticType) -> UQT:
@@ -419,7 +431,7 @@ def uq_lshift(x: Node, amount: Node) -> Primitive:
             out=x.copy(),
         )
         return root
-        
+    
     def spec(x: float, amount: float, out: float):
         raw = int(round(x * (2 ** x_frac_bits)))
         shifted = (raw << int(amount)) & ((1 << x_total_bits) - 1)
@@ -437,19 +449,56 @@ def uq_lshift(x: Node, amount: Node) -> Primitive:
 
 
 def uq_select(x: Node, start: int, end: int) -> Primitive:
-    width = start - end + 1
+    assert isinstance(start, int) and isinstance(end, int), "start/end must be integers"
+    assert start >= end and end >= 0, "Bad indexing"
+
     x_frac_bits = x.node_type.frac_bits
+    x_total_bits = x.node_type.total_bits
+    assert start < x_total_bits, f"start index {start} is out of range for width {x_total_bits}"
     
+    width = start - end + 1
     frac_bits = max(0, min(start, x_frac_bits - 1) - end + 1) if x_frac_bits > 0 else 0
     int_bits = width - frac_bits
     
-    def spec(x: float, out: float):
-        # Interpret `x` using its fractional layout, then slice bits [start:end].
-        raw = int(round(x * (2 ** x_frac_bits)))
-        sliced = (raw >> end) & ((1 << width) - 1)
-        # The output fractional width mirrors `_uq_select_shape`.
-        out_frac_bits = max(0, min(start, x_frac_bits - 1) - end + 1) if x_frac_bits > 0 else 0
-        return float(sliced) / (2 ** out_frac_bits) == out
+    def spec(prim, x, s):
+        mid = prim._spec_outputs(s)
+        lo = FreshReal('lo')
+        hi = FreshReal('hi')
+        
+        s.add(lo >= 0)
+        s.add(lo < 2 ** (end - x_frac_bits))
+        
+        s.add(mid < 2 ** (start - x_frac_bits))
+        s.add(mid >= 2 ** (end - x_frac_bits))
+        
+        s.add(hi >= 2 ** (start - x_frac_bits))
+        
+        s.add(x == lo + mid + hi)
+        
+        
+        
+
+        # raw = FreshInt("raw")
+        # shifted_raw = FreshInt("shifted_raw")
+        # mid_raw = FreshInt("mid_raw")
+        # mid_q = FreshInt("mid_q")
+
+        # s.add(raw >= 0, raw <= (2 ** x_total_bits) - 1)
+        # s.add(mid_raw >= 0, mid_raw < (2 ** width))
+
+        # x_real = x if x.is_real() else ToReal(x)
+        # s.add(x_real == ToReal(raw) / (2 ** x_frac_bits))
+
+        # shifted_raw = floor(raw / 2**end), mid_raw = shifted_raw mod 2**width
+        # s.add(shifted_raw == raw / (2 ** end))
+        # s.add(mid_q >= 0)
+        # s.add(shifted_raw == mid_q * (2 ** width) + mid_raw)
+        
+        # if frac_bits == 0:
+        #     s.add(out == mid_raw)
+        # else:
+        #     s.add(out == ToReal(mid_raw) / (2 ** frac_bits))
+        return mid
     
     def sign(x: UQT) -> UQT:
         return UQT(int_bits, frac_bits)
@@ -469,8 +518,8 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
 
 # TODO: Truncation
 def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Primitive:
-    def spec(x: float, out: float):
-        return x == out  # Truncation is not handled yet
+    def spec(prim, x, s):
+        return x
     
     def impl(x: Node) -> Node:
         assert frac_bits >= x.node_type.frac_bits, "Truncation at uq_resize"

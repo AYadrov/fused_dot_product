@@ -1,7 +1,9 @@
 import math
-import numpy as np
 
 from fused_dot_product import *
+from fused_dot_product.utils.smt_utils import pow2, pow2_int, pow_
+
+from cvc5.pythonic import ToInt
 
 # TODO: edge case when input is subnormal that after rounding becomes normal
 def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:
@@ -194,7 +196,7 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
             sel=shift_sign_uq,
             in0=left_m_uq,
             in1=right_m_uq,
-            out=Const(UQ(0, m_int_target_bits, m_frac_target_bits)),  
+            out=Const(UQ(0, m_int_target_bits, m_frac_target_bits)),
         )
         
         left_e_q = q_sub(e, shift_magnitude_q)
@@ -203,6 +205,7 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
             sel=shift_sign_uq,
             in0=left_e_q,
             in1=right_e_q,
+            
             out=right_e_q.copy(),
         )
         
@@ -222,12 +225,17 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
 # subnormal_extra_bits is extra bits that will be used when truncating mantissa to a subnormal format
 def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
     assert e.node_type.frac_bits == 0
+    
     def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
     
-    def spec(m: float, e: float, out: float):
-        return float(np.float32(m * 2 ** (int(e) - 127))) == out
-
+    def spec(prim, m, e, s):
+        out = prim._spec_outputs(s)
+        
+        shift = e - Float32.exponent_bias
+        s.add(out == m * pow_(2, shift, solver=s))
+        return out
+    
     def impl(m: Node, e: Node) -> Node:
         sign_bit = q_sign_bit(m)
         m_uq = q_to_uq(q_abs(m))

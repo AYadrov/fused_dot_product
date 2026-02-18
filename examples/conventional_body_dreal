@@ -1,0 +1,359 @@
+((x4 == (1 + (x0 / 128)))
+ and
+ (x9 == (1 + (x5 / 128)))
+ and
+ (x10 == (x4 * x9))
+ and
+ (x19 == (x11 + x15))
+ and
+ (x20 == (x12 + x16))
+ and
+ (x21 == (if (x19 >= x20) then x19 else x20))
+ and
+ (x22 == (x13 + x17))
+ and
+ (x23 == (x14 + x18))
+ and
+ (x24 == (if (x22 >= x23) then x22 else x23))
+ and
+ (x25 == (if (x21 >= x24) then x21 else x24))
+ and
+ (x26 == (- x19 + x25))
+ and
+ (x27 == (x10 / pow (2 ,x26)))
+ and
+ (x29 == (1 + (x1 / 128)))
+ and
+ (x30 == (1 + (x6 / 128)))
+ and
+ (x31 == (x29 * x30))
+ and
+ (x32 == (- x20 + x25))
+ and
+ (x33 == (x31 / pow (2 ,x32)))
+ and
+ (x34 == (1 + (x2 / 128)))
+ and
+ (x35 == (1 + (x7 / 128)))
+ and
+ (x36 == (x34 * x35))
+ and
+ (x37 == (- x22 + x25))
+ and
+ (x38 == (x36 / pow (2 ,x37)))
+ and
+ (x39 == (1 + (x3 / 128)))
+ and
+ (x40 == (1 + (x8 / 128)))
+ and
+ (x41 == (x39 * x40))
+ and
+ (x42 == (- x23 + x25))
+ and
+ (x43 == (x41 / pow (2 ,x42)))
+ and
+ (((1 + (x0 / 128)) * (1 + (x5 / 128))) ==
+                                        (pow (2 ,(- x11
+                                                    -
+                                                    x15
+                                                    +
+                                                    (if ((if ((if ((x11 + x15) >= (x12 + x16))
+                                                                  then
+                                                                  (x11 + x15)
+                                                                  else
+                                                                  (x12 + x16))
+                                                              >=
+                                                              (x13 + x17))
+                                                             then
+                                                             (if ((x11 + x15) >= (x12 + x16))
+                                                                 then
+                                                                 (x11 + x15)
+                                                                 else
+                                                                 (x12 + x16))
+                                                             else
+                                                             (x13 + x17))
+                                                         >=
+                                                         (x14 + x18))
+                                                        then
+                                                        (if ((if ((x11 + x15) >= (x12 + x16))
+                                                                 then
+                                                                 (x11 + x15)
+                                                                 else
+                                                                 (x12 + x16))
+                                                             >=
+                                                             (x13 + x17))
+                                                            then
+                                                            (if ((x11 + x15) >= (x12 + x16))
+                                                                then
+                                                                (x11 + x15)
+                                                                else
+                                                                (x12 + x16))
+                                                            else
+                                                            (x13 + x17))
+                                                        else
+                                                        (x14 + x18))))
+                                             *
+                                             x44))
+ and
+ (((1 + (x1 / 128)) * (1 + (x6 / 128))) ==
+                                        (pow (2 ,(- x12
+                                                    -
+                                                    x16
+                                                    +
+                                                    (if ((if ((if ((x11 + x15) >= (x12 + x16))
+                                                                  then
+                                                                  (x11 + x15)
+                                                                  else
+                                                                  (x12 + x16))
+                                                              >=
+                                                              (x13 + x17))
+                                                             then
+                                                             (if ((x11 + x15) >= (x12 + x16))
+                                                                 then
+                                                                 (x11 + x15)
+                                                                 else
+                                                                 (x12 + x16))
+                                                             else
+                                                             (x13 + x17))
+                                                         >=
+                                                         (x14 + x18))
+                                                        then
+                                                        (if ((if ((x11 + x15) >= (x12 + x16))
+                                                                 then
+                                                                 (x11 + x15)
+                                                                 else
+                                                                 (x12 + x16))
+                                                             >=
+                                                             (x13 + x17))
+                                                            then
+                                                            (if ((x11 + x15) >= (x12 + x16))
+                                                                then
+                                                                (x11 + x15)
+                                                                else
+                                                                (x12 + x16))
+                                                            else
+                                                            (x13 + x17))
+                                                        else
+                                                        (x14 + x18))))
+                                             *
+                                             x45))
+ and
+ (((1 + (x2 / 128)) * (1 + (x7 / 128))) ==
+                                        (pow (2 ,(- x13
+                                                    -
+                                                    x17
+                                                    +
+                                                    (if ((if ((if ((x11 + x15) >= (x12 + x16))
+                                                                  then
+                                                                  (x11 + x15)
+                                                                  else
+                                                                  (x12 + x16))
+                                                              >=
+                                                              (x13 + x17))
+                                                             then
+                                                             (if ((x11 + x15) >= (x12 + x16))
+                                                                 then
+                                                                 (x11 + x15)
+                                                                 else
+                                                                 (x12 + x16))
+                                                             else
+                                                             (x13 + x17))
+                                                         >=
+                                                         (x14 + x18))
+                                                        then
+                                                        (if ((if ((x11 + x15) >= (x12 + x16))
+                                                                 then
+                                                                 (x11 + x15)
+                                                                 else
+                                                                 (x12 + x16))
+                                                             >=
+                                                             (x13 + x17))
+                                                            then
+                                                            (if ((x11 + x15) >= (x12 + x16))
+                                                                then
+                                                                (x11 + x15)
+                                                                else
+                                                                (x12 + x16))
+                                                            else
+                                                            (x13 + x17))
+                                                        else
+                                                        (x14 + x18))))
+                                             *
+                                             x46))
+ and
+ (((1 + (x3 / 128)) * (1 + (x8 / 128))) ==
+                                        (pow (2 ,(- x14
+                                                    -
+                                                    x18
+                                                    +
+                                                    (if ((if ((if ((x11 + x15) >= (x12 + x16))
+                                                                  then
+                                                                  (x11 + x15)
+                                                                  else
+                                                                  (x12 + x16))
+                                                              >=
+                                                              (x13 + x17))
+                                                             then
+                                                             (if ((x11 + x15) >= (x12 + x16))
+                                                                 then
+                                                                 (x11 + x15)
+                                                                 else
+                                                                 (x12 + x16))
+                                                             else
+                                                             (x13 + x17))
+                                                         >=
+                                                         (x14 + x18))
+                                                        then
+                                                        (if ((if ((x11 + x15) >= (x12 + x16))
+                                                                 then
+                                                                 (x11 + x15)
+                                                                 else
+                                                                 (x12 + x16))
+                                                             >=
+                                                             (x13 + x17))
+                                                            then
+                                                            (if ((x11 + x15) >= (x12 + x16))
+                                                                then
+                                                                (x11 + x15)
+                                                                else
+                                                                (x12 + x16))
+                                                            else
+                                                            (x13 + x17))
+                                                        else
+                                                        (x14 + x18))))
+                                             *
+                                             x47))
+ and
+ (x0 >= 0)
+ and
+ (x1 >= 0)
+ and
+ (x2 >= 0)
+ and
+ (x3 >= 0)
+ and
+ (x4 >= 0)
+ and
+ (x5 >= 0)
+ and
+ (x6 >= 0)
+ and
+ (x7 >= 0)
+ and
+ (x8 >= 0)
+ and
+ (x9 >= 0)
+ and
+ (x10 >= 0)
+ and
+ (x11 >= 0)
+ and
+ (x12 >= 0)
+ and
+ (x13 >= 0)
+ and
+ (x14 >= 0)
+ and
+ (x15 >= 0)
+ and
+ (x16 >= 0)
+ and
+ (x17 >= 0)
+ and
+ (x18 >= 0)
+ and
+ (x19 >= 0)
+ and
+ (x20 >= 0)
+ and
+ (x21 >= 0)
+ and
+ (x22 >= 0)
+ and
+ (x23 >= 0)
+ and
+ (x24 >= 0)
+ and
+ (x25 >= 0)
+ and
+ (x26 >= 0)
+ and
+ (x27 >= 0)
+ and
+ (x29 >= 0)
+ and
+ (x30 >= 0)
+ and
+ (x31 >= 0)
+ and
+ (x32 >= 0)
+ and
+ (x33 >= 0)
+ and
+ (x34 >= 0)
+ and
+ (x35 >= 0)
+ and
+ (x36 >= 0)
+ and
+ (x37 >= 0)
+ and
+ (x38 >= 0)
+ and
+ (x39 >= 0)
+ and
+ (x40 >= 0)
+ and
+ (x41 >= 0)
+ and
+ (x42 >= 0)
+ and
+ (x43 >= 0)
+ and
+ (((- x25
+      +
+      (if ((if ((if ((x11 + x15) >= (x12 + x16))
+                    then
+                    (x11 + x15)
+                    else
+                    (x12 + x16))
+                >=
+                (x13 + x17))
+               then
+               (if ((x11 + x15) >= (x12 + x16))
+                   then
+                   (x11 + x15)
+                   else
+                   (x12 + x16))
+               else
+               (x13 + x17))
+           >=
+           (x14 + x18))
+          then
+          (if ((if ((x11 + x15) >= (x12 + x16))
+                   then
+                   (x11 + x15)
+                   else
+                   (x12 + x16))
+               >=
+               (x13 + x17))
+              then
+              (if ((x11 + x15) >= (x12 + x16))
+                  then
+                  (x11 + x15)
+                  else
+                  (x12 + x16))
+              else
+              (x13 + x17))
+          else
+          (x14 + x18)))
+   >=
+   0)
+  or
+  ((- x27 + x44) >= 0)
+  or
+  ((- x33 + x45) >= 0)
+  or
+  ((- x38 + x46) >= 0)
+  or
+  ((- x43 + x47) >= 0)))
