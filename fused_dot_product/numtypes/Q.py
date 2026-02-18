@@ -481,7 +481,7 @@ def q_rshift(x: Node, n: Node) -> Primitive:
 def q_add_sign(x: Node, s: Node) -> Primitive:
     def spec(prim, x, sign, s):
         out = prim._spec_outputs(s)
-        s.add(out == x * If(sign == 0, 1.0, -1.0))
+        s.add(out == x * If(sign == 0.0, 1.0, -1.0))
         return out
     
     def impl(x: Node, s: Node) -> Node:

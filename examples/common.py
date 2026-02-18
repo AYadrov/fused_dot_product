@@ -30,7 +30,7 @@ def mantissa_add_implicit_bit(x: Node) -> Primitive:
 def sign_xor(x: Node, y: Node) -> Primitive:
     def spec(prim, x, y, s):
         out = prim._spec_outputs(s)
-        s.add(out == If(Or(And(x==0, y==1), And(x==1, y==0)), 1, 0))
+        s.add(out == If(Or(And(x==0.0, y==1.0), And(x==1.0, y==0.0)), 1.0, 0.0))
         return out
     
     def sign(x: UQT, y: UQT) -> UQT:

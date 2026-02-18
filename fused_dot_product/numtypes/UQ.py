@@ -1,12 +1,12 @@
 import typing as tp
-from cvc5.pythonic import FreshReal, If, FreshInt
+from cvc5.pythonic import If, FreshInt
 
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.basics import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.numtypes.Q import q_alloc
 from fused_dot_product.numtypes.Tuple import make_Tuple
-from fused_dot_product.utils.smt_utils import pow2_int
+from fused_dot_product.utils.smt_utils import *
 
 
 ############## Public API ##############
@@ -406,17 +406,7 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
     
     def spec(prim, x, amount, s):
         out = prim._spec_outputs(s)
-        raw = FreshInt("raw")
-        shift = amount # ToInt(amount)
-
-        s.add(raw >= 0, raw <= (2 ** x_total_bits) - 1)
-        s.add(x == ToReal(raw) / (2 ** x_frac_bits))
-
-        s.add(shift >= 0)
-        s.add(shift <= max_shift)
-
-        shifted_raw = raw / pow2_int(shift, max_shift)
-        s.add(out == ToReal(shifted_raw) / (2 ** x_frac_bits))
+        s.add(out == x / pow_(2, amount, solver=s))
         return out
     
     # TODO: Would be nice to not care about amount type, just bits amount
@@ -469,46 +459,46 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
     width = start - end + 1
     frac_bits = max(0, min(start, x_frac_bits - 1) - end + 1) if x_frac_bits > 0 else 0
     int_bits = width - frac_bits
-    lo_width = end
-    hi_width = x_total_bits - (start + 1)
     
     def spec(prim, x, s):
-        out = prim._spec_outputs(s)
-
-        raw = FreshInt("raw")
-        lo_raw = FreshInt("lo_raw")
-        mid_raw = FreshInt("mid_raw")
-        hi_raw = FreshInt("hi_raw")
-
-        lo = FreshReal("lo")
-        mid = FreshReal("mid")
-        hi = FreshReal("hi")
-
-        s.add(raw >= 0, raw <= (2 ** x_total_bits) - 1)
-        s.add(lo_raw >= 0, lo_raw < (2 ** lo_width))
-        s.add(mid_raw >= 0, mid_raw < (2 ** width))
-        s.add(hi_raw >= 0, hi_raw < (2 ** hi_width))
-
-        s.add(
-            raw
-            == lo_raw
-            + (mid_raw * (2 ** end))
-            + (hi_raw * (2 ** (start + 1)))
-        )
-
-        x_real = x if x.is_real() else ToReal(x)
-        s.add(x_real == ToReal(raw) / (2 ** x_frac_bits))
+        mid = prim._spec_outputs(s)
+        lo = FreshReal('lo')
+        hi = FreshReal('hi')
         
-        s.add(lo == ToReal(lo_raw) / (2 ** x_frac_bits))
-        s.add(mid == ToReal(mid_raw * (2 ** end)) / (2 ** x_frac_bits))
-        s.add(hi == ToReal(hi_raw * (2 ** (start + 1))) / (2 ** x_frac_bits))
-        s.add(x_real == lo + mid + hi)
+        s.add(lo >= 0)
+        s.add(lo < 2 ** (end - x_frac_bits))
         
-        if frac_bits == 0:
-            s.add(out == mid_raw)
-        else:
-            s.add(out == ToReal(mid_raw) / (2 ** frac_bits))
-        return out
+        s.add(mid < 2 ** (start - x_frac_bits))
+        s.add(mid >= 2 ** (end - x_frac_bits))
+        
+        s.add(hi >= 2 ** (start - x_frac_bits))
+        
+        s.add(x == lo + mid + hi)
+        
+        
+        
+
+        # raw = FreshInt("raw")
+        # shifted_raw = FreshInt("shifted_raw")
+        # mid_raw = FreshInt("mid_raw")
+        # mid_q = FreshInt("mid_q")
+
+        # s.add(raw >= 0, raw <= (2 ** x_total_bits) - 1)
+        # s.add(mid_raw >= 0, mid_raw < (2 ** width))
+
+        # x_real = x if x.is_real() else ToReal(x)
+        # s.add(x_real == ToReal(raw) / (2 ** x_frac_bits))
+
+        # shifted_raw = floor(raw / 2**end), mid_raw = shifted_raw mod 2**width
+        # s.add(shifted_raw == raw / (2 ** end))
+        # s.add(mid_q >= 0)
+        # s.add(shifted_raw == mid_q * (2 ** width) + mid_raw)
+        
+        # if frac_bits == 0:
+        #     s.add(out == mid_raw)
+        # else:
+        #     s.add(out == ToReal(mid_raw) / (2 ** frac_bits))
+        return mid
     
     def sign(x: UQT) -> UQT:
         return UQT(int_bits, frac_bits)

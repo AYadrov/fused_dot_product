@@ -52,13 +52,13 @@ def bf16_decode(x: Node) -> Primitive:
     def spec(prim, x, s):
         sign, mantissa, exponent = prim._spec_outputs(s)
         
+        s.add(Or(sign == 0.0, sign == 1.0))
         sign_ = If(sign == 0, 1.0, -1.0)
-        mantissa_ = 1.0 + (ToReal(mantissa) / 2 ** BFloat16.mantissa_bits)
-        exponent_int = exponent - BFloat16.exponent_bias # ToInt(exponent) - BFloat16.exponent_bias
-        # s.add(x == sign_ * mantissa_ * 2 ** (exponent_))
+        mantissa_ = 1.0 + (mantissa / 2 ** BFloat16.mantissa_bits)
+        shift = exponent - BFloat16.exponent_bias
         
-        s.add(x == sign_ * mantissa_ * pow_(2, exponent_int, solver=s))
-        return tuple([sign, ToReal(mantissa), exponent])
+        s.add(x == sign_ * mantissa_ * pow_(2, shift, solver=s))
+        return tuple([sign, mantissa, exponent])
     
     def sign(x: BFloat16T) -> TupleT:
         return TupleT(

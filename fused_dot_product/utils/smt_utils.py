@@ -4,6 +4,9 @@ from cvc5.pythonic import (
     sat,
     unknown,
     If,
+    Or,
+    And,
+    BoolVal,
     Function,
     ForAll,
     FreshConst,
@@ -19,7 +22,7 @@ from cvc5.pythonic import (
 )
 
 
-_POW = Function("pow", RealSort(), IntSort(), RealSort())
+_POW = Function("pow", RealSort(), RealSort(), RealSort())
 _POW_AXIOMS_ATTACHED: set[int] = set()
 
 
@@ -29,38 +32,21 @@ def _attach_pow_axioms(solver):
         return
 
     x = FreshConst(RealSort())
-    y = FreshConst(IntSort())
-    c = FreshConst(IntSort())
+    y = FreshConst(RealSort())
+    c = FreshConst(RealSort())
 
-    solver.add(ForAll([x], _POW(x, IntVal(0)) == RealVal("1")))
-    solver.add(ForAll([x], _POW(x, IntVal(1)) == x))
+    solver.add(ForAll([x], _POW(x, RealVal(0)) == RealVal("1")))
+    solver.add(ForAll([x], _POW(x, RealVal(1)) == x))
     solver.add(ForAll([x, y, c], _POW(x, y + c) == _POW(x, y) * _POW(x, c)))
-    # solver.add(ForAll([x, y, c], _POW(x, y - c) == _POW(x, y) / _POW(x, c)))
-    # solver.add(ForAll([x, y], _POW(IntVal(2), y) == pow2_int(y, 512)))
+    solver.add(ForAll([x, y, c], _POW(x, y - c) == _POW(x, y) / _POW(x, c)))
 
     _POW_AXIOMS_ATTACHED.add(solver_id)
 
 
 def pow_(base, exponent, solver=None):
-    base_real = base
-    if hasattr(base, "is_int") and base.is_int():
-        base_real = ToReal(base)
-    elif not hasattr(base, "is_real"):
-        if isinstance(base, int):
-            base_real = ToReal(IntVal(base))
-        else:
-            base_real = RealVal(str(base))
-
-    exp_int = exponent
-    if hasattr(exponent, "is_real") and exponent.is_real():
-        exp_int = ToInt(exponent)
-    elif not hasattr(exponent, "is_int"):
-        exp_int = IntVal(int(exponent))
-
     if solver is not None:
         _attach_pow_axioms(solver)
-
-    return _POW(base_real, exp_int)
+    return _POW(base, exponent)
 
 
 def pow2(base, shift_int, max_abs_shift: int):
@@ -106,31 +92,40 @@ def pow2_int(shift, max_abs_shift: int = 256):
         out = If(bit_is_set == 1, out * factor, out)
     return out
 
-def _unroller(query1, query2, s):
+def _unroller(query1, query2):
     if isinstance(query1, tuple) and isinstance(query2, tuple):
+        assert len(query1) == len(query2), "Tuple lengths must match"
+        clauses = []
         for q1, q2 in zip(query1, query2):
-            _unroller(q1, q2, s)
+            clauses.extend(_unroller(q1, q2))
+        return clauses
     elif isinstance(query1, list) and isinstance(query2, list):
+        assert len(query1) == len(query2), "List lengths must match"
+        clauses = []
         for q1, q2 in zip(query1, query2):
-            _unroller(q1, q2, s)
+            clauses.extend(_unroller(q1, q2))
+        return clauses
     else:
-        s.add(query1 != query2)
-    return None
+        return [query1 != query2]
 
 
 def cvc5_prove_equal(query1, query2, solver):
-    _unroller(query1, query2, solver)
+    constraints = _unroller(query1, query2)
     
-    print(solver.sexpr())
-    
-    res = solver.check()
-    print(res)
-    
-    if res == unsat:
-        print("proved")
-    elif res == unknown:
-        print(solver.reason_unknown())
-    else:
-        model = solver.model()
-        print("failed to prove")
+    for c in constraints:
+        solver.add(c)
+        
+        print(solver.sexpr())
+        
+        res = solver.check()
+        print(res)
+        
+        if res == unsat:
+            print("proved")
+        elif res == unknown:
+            print(solver.reason_unknown())
+        else:
+            model = solver.model()
+            print("failed to prove")
         print(f"Counterexample found:\n{model}")
+

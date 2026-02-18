@@ -225,7 +225,6 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
 # subnormal_extra_bits is extra bits that will be used when truncating mantissa to a subnormal format
 def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
     assert e.node_type.frac_bits == 0
-    max_abs_shift = 256
     
     def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
@@ -233,9 +232,8 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
     def spec(prim, m, e, s):
         out = prim._spec_outputs(s)
         
-        # s.add(out == m * 2 ** (e - Float32.exponent_bias))
-        shift_int = ToInt(e) - Float32.exponent_bias
-        s.add(out == m * pow_(2, shift_int, solver=s))
+        shift = e - Float32.exponent_bias
+        s.add(out == m * pow_(2, shift, solver=s))
         return out
     
     def impl(m: Node, e: Node) -> Node:
