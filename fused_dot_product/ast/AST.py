@@ -23,18 +23,20 @@ class Node:
         self._primitive_signature_check(sign)
         
         # Wrapper for impl that makes sure that out always matches node_type and satisfies spec
-        def compute(inputs: list[RuntimeType]):
-            out = None
-            if self.node_type.runtime_val is not None:
-                out = self.node_type.runtime_val  # constantly-folded nodes are already checked for type and spec
-            else:
-                out = impl(*inputs)
-                self._dynamic_typecheck(inputs=inputs, out=out)
-                self._run_spec_checks(inputs=inputs, out=out)
-            return out.copy()
+        def impl_wrapper(impl):
+            def compute(inputs: list[RuntimeType]):
+                out = None
+                if self.node_type.runtime_val is not None:
+                    out = self.node_type.runtime_val  # constantly-folded nodes are already checked for type and spec
+                else:
+                    out = impl(*inputs)
+                    self._dynamic_typecheck(inputs=inputs, out=out)
+                    self._run_spec_checks(inputs=inputs, out=out)
+                return out.copy()
+            return compute
         
         self.spec = spec
-        self.impl = compute
+        self.impl = impl_wrapper(impl)
         self.sign = sign
         self.args = args
         self.name = name
@@ -50,7 +52,8 @@ class Node:
         if not isinstance(self, Op):
             spec_inputs = [x.to_spec() for x in inputs]
             spec_out = out.to_spec()
-            res = self.spec(*spec_inputs, spec_out)
+            # TODO: ugly that spec should have "out" arguments
+            res = self.spec(*spec_inputs, out=spec_out)
             assert isinstance(res, bool), "Boolean is expected from specification"
             err_msg = (
                 f"[{self.name}] mismatch:\n"
@@ -180,15 +183,15 @@ class Composite(Node):
         self.printing_helper = impl
         
         # Args will preserve runtime values of arguments
-        args_ = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val is not None else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
+        self.inner_args = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val is not None else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         # Pointer to the inner tree
-        inner_tree = impl(*args_)
+        self.inner_tree = impl(*self.inner_args)
         
         def impl_(*args):
-            for var, arg in zip(args_, args):
+            for var, arg in zip(self.inner_args, args):
                 if isinstance(var, Var):
                     var.load_val(arg)
-            return inner_tree.evaluate()
+            return self.inner_tree.evaluate()
         
         super().__init__(spec=spec,
                          impl=impl_,
@@ -223,15 +226,15 @@ class Primitive(Node):
         self.printing_helper = impl
         
         # Args will preserve runtime values of arguments
-        args_ = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val is not None else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
+        self.inner_args = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val is not None else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         # Pointer to the inner tree
-        inner_tree = impl(*args_)
+        self.inner_tree = impl(*self.inner_args)
         
         def impl_(*args):
-            for var, arg in zip(args_, args):
+            for var, arg in zip(self.inner_args, args):
                 if isinstance(var, Var):
                     var.load_val(arg)
-            return inner_tree.evaluate()
+            return self.inner_tree.evaluate()
         
         super().__init__(spec=spec,
                          impl=impl_,
@@ -345,33 +348,48 @@ class Var(Node):
         return f"{self.node_type}: {self.name} [Var]"
 
 
-def Copy(x: Node) -> Op:
+def Copy(x: Node) -> Primitive:
     def sign(x: StaticType) -> StaticType:
         return x
+    
+    def spec(x, out):
+        return x == out
     
     def impl(x):
         return x
     
-    return Op(
+    return Primitive(
         sign=sign,
+        spec=spec,
         impl=impl,
         args=[x],
         name="Copy")
 
 
-# TODO: to be moved somewhere, it's here due to loading cycles
-def Tuple_get_item(x: Node, idx: int) -> Op:
+def Tuple_get_item(x: Node, idx: int) -> Primitive:
+    if idx >= len(x.node_type.args) or idx < 0:
+        raise IndexError(f"Index is out of range for tuple {str(x)}, given {str(idx)}")
+    
     def sign(x: TupleT) -> StaticType:
         if not isinstance(x, TupleT):
-            raise TypeError(f"{x} is not an instance of TupleT to iterate over it")
+            raise IndexError(f"{x} is not an instance of TupleT to iterate over it")
         return x.args[idx]
 
-    def impl(x: Tuple) -> RuntimeType:
-        if idx >= len(x.args) or idx < 0:
-            raise ValueError(f"Index is out of range for tuple {str(x)}, given {str(idx)}")
-        return x.args[idx]
+    def impl(x: Node) -> Node:
+        def op(x: Tuple) -> RuntimeType:
+            return x.args[idx]
+        return Op(
+            impl=op,
+            sign=sign,
+            args=[x],
+            name=f"basic_get_item",
+        )
+    
+    def spec(x, out):
+        return x[idx] == out
 
-    return Op(
+    return Primitive(
+        spec=spec,
         impl=impl,
         sign=sign,
         args=[x],
