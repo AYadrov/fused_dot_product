@@ -22,7 +22,7 @@ def conventional_arithmetic_body(E_a: Node, E_b: Node, M_a: Node, M_b: Node) -> 
         M_p = [M_a[i] * M_b[i] for i in range(n)]
         
         for i in range(n):
-            s.add(M_p[i] == M_p_q[i] * pow_(3.0, E_m - E_p[i]))
+            s.add(M_p[i] == M_p_q[i] * pow_(2.0, E_m - E_p[i]))
         
         return (tuple(M_p_q), E_m)
     
