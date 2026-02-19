@@ -1,0 +1,45 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Datatypes
+
+(datatype Math
+  (Num BigRat)
+  (Var String)
+  (Add Math Math)
+  (Sub Math Math))
+
+(rewrite (Add a b) (Add b a))
+
+;; Associativity
+(rewrite (Add a (Add b c)) (Add (Add a b) c))
+(rewrite (Add (Add a b) c) (Add a (Add b c)))
+(rewrite (Add a (Sub b c)) (Sub (Add a b) c))
+(rewrite (Add (Sub a b) c) (Sub a (Sub b c)))
+(rewrite (Sub a (Add b c)) (Sub (Sub a b) c))
+(rewrite (Sub (Add a b) c) (Add a (Sub b c)))
+(rewrite (Sub (Sub a b) c) (Sub a (Add b c)))
+(rewrite (Sub a (Sub b c)) (Add (Sub a b) c))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Testing
+;; -------
+;; In actuality, herbie would be responsible for plugging exprs in here.
+;; For our purposes, we take some test cases from herbie
+;; (src/core/simplify.rkt)
+
+(let m1 (Var "m1"))
+(let m2 (Var "m2"))
+(let m3 (Var "m3"))
+(let m4 (Var "m4"))
+(let carry1 (Var "carry1"))
+(let carry2 (Var "carry2"))
+(let sum1 (Var "sum1"))
+(let sum2 (Var "sum2"))
+                        
+(union (Add carry1 sum1) (Add (Add m1 m2) m3))
+(union (Add carry2 sum2) (Add (Add carry1 sum1) m4))    
+
+
+(run 5)
+(check (= (Add carry2 sum2) (Add (Add (Add m1 m2) m3) m4)))
