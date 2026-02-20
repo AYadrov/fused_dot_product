@@ -21,12 +21,6 @@
 (rewrite (Sub a (Sub b c)) (Add (Sub a b) c))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Testing
-;; -------
-;; In actuality, herbie would be responsible for plugging exprs in here.
-;; For our purposes, we take some test cases from herbie
-;; (src/core/simplify.rkt)
 
 (let $m1 (Var "m1"))
 (let $m2 (Var "m2"))

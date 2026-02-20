@@ -24,7 +24,6 @@
 (let $neg-one (Neg $one))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Pow axioms (SMT forall-axioms -> egglog rewrites)
 
 ;; Associativity
 (rewrite (Add a (Add b c)) (Add (Add a b) c))
@@ -72,7 +71,6 @@
 (rewrite (Div (Mul b c) a) (Mul (Div b a) (Div c a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 
 ;; Inputs
 (let $a_0 (Var "a_0"))
