@@ -23,7 +23,6 @@
 (let $neg-one (Neg $one))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Pow axioms (SMT forall-axioms -> egglog rewrites)
 
 ;; Associativity
 (rewrite (Add a (Add b c)) (Add (Add a b) c))
@@ -72,82 +71,110 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(let $const_128 (Num (bigrat (bigint 128) (bigint 1))))
+(let $const_1 (Num (bigrat (bigint 1) (bigint 1))))
+(let $const_2 (Num (bigrat (bigint 2) (bigint 1))))
+
 ;; Input mantissas
-(let $x0  (Var "x0"))
-(let $x5  (Var "x5"))
+(let $m_a_0 (Var "m_a_0"))
+(let $m_a_1 (Var "m_a_1"))
+(let $m_a_2 (Var "m_a_2"))
+(let $m_a_3 (Var "m_a_3"))
+
+(let $m_b_0 (Var "m_b_0"))
+(let $m_b_1 (Var "m_b_1"))
+(let $m_b_2 (Var "m_b_2"))
+(let $m_b_3 (Var "m_b_3"))
 
 ;; Input exponents
-(let $x11 (Var "x11"))
-(let $x12 (Var "x12"))
-(let $x13 (Var "x13"))
-(let $x14 (Var "x14"))
-(let $x15 (Var "x15"))
-(let $x16 (Var "x16"))
-(let $x17 (Var "x17"))
-(let $x18 (Var "x18"))
+(let $e_a_0 (Var "e_a_0"))
+(let $e_a_1 (Var "e_a_1"))
+(let $e_a_2 (Var "e_a_2"))
+(let $e_a_3 (Var "e_a_3"))
 
-(let $x44 (Var "x44"))
+(let $e_b_0 (Var "e_b_0"))
+(let $e_b_1 (Var "e_b_1"))
+(let $e_b_2 (Var "e_b_2"))
+(let $e_b_3 (Var "e_b_3"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Mantissa implicit bit
-(let $x4 (Add (Div $x0 (Num (bigrat (bigint 128) (bigint 1)))) (Num (bigrat (bigint 1) (bigint 1)))))
-(let $x9 (Add (Div $x5 (Num (bigrat (bigint 128) (bigint 1)))) (Num (bigrat (bigint 1) (bigint 1)))))
+;; INNER SPEC
 
 ;; Mantissa product
-(let $x10 (Mul $x4 $x9))
+(let $m_p_0 (Mul (Add (Div $m_a_0 $const_128) $const_1) (Add (Div $m_b_0 $const_128) $const_1)))
+(let $m_p_1 (Mul (Add (Div $m_a_1 $const_128) $const_1) (Add (Div $m_b_1 $const_128) $const_1)))
+(let $m_p_2 (Mul (Add (Div $m_a_2 $const_128) $const_1) (Add (Div $m_b_2 $const_128) $const_1)))
+(let $m_p_3 (Mul (Add (Div $m_a_3 $const_128) $const_1) (Add (Div $m_b_3 $const_128) $const_1)))
+
+;; Exponent sums
+(let $e_p_0 (Add $e_a_0 $e_b_0))
+(let $e_p_1 (Add $e_a_1 $e_b_1))
+(let $e_p_2 (Add $e_a_2 $e_b_2))
+(let $e_p_3 (Add $e_a_3 $e_b_3))
 
 ;; Max exponent
-(let $x19 (Add $x11 $x15))
-(let $x20 (Add $x12 $x16))
-(let $x22 (Add $x13 $x17))
-(let $x23 (Add $x14 $x18))
-
-(let $x21 (If (Ge $x19 $x20) $x19 $x20))
-(let $x24 (If (Ge $x22 $x23) $x22 $x23))
-(let $x25 (If (Ge $x21 $x24) $x21 $x24))
+(let $local_max1 (If (Ge $e_p_0 $e_p_1) $e_p_0 $e_p_1))
+(let $local_max2 (If (Ge $e_p_2 $e_p_3) $e_p_2 $e_p_3))
+(let $e_m (If (Ge $local_max1 $local_max2) $local_max1 $local_max2))
 
 ;; Shift amount
-(let $x26 (Sub $x25 $x19))
+(let $sh_0 (Sub $e_m $e_p_0))
+(let $sh_1 (Sub $e_m $e_p_1))
+(let $sh_2 (Sub $e_m $e_p_2))
+(let $sh_3 (Sub $e_m $e_p_3))
 
 ;; Shifted mantissa
-(let $x27 (Div $x10 (Pow (Num (bigrat (bigint 2) (bigint 1))) $x26)))
+(let $m_p_0_shifted (Div $m_p_0 (Pow $const_2 $sh_0)))
+(let $m_p_1_shifted (Div $m_p_1 (Pow $const_2 $sh_1)))
+(let $m_p_2_shifted (Div $m_p_2 (Pow $const_2 $sh_2)))
+(let $m_p_3_shifted (Div $m_p_3 (Pow $const_2 $sh_3)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(let $_let_1 (Add $x11 $x15))
-(let $_let_2 (Add $x14 $x18))
-(let $_let_3 (Add $x13 $x17))
-(let $_let_4 (Add $x12 $x16))
-(let $_let_5 (If (Ge $_let_1 $_let_4) $_let_1 $_let_4))
-(let $_let_6 (If (Ge $_let_5 $_let_3) $_let_5 $_let_3))
-(let $_let_7 (If (Ge $_let_6 $_let_2) $_let_6 $_let_2))
+;; OUTER SPEC
 
+;; Max exponent for OUTER SPEC
+(let $e_p_0_outer (Add $e_a_0 $e_b_0))
+(let $e_p_1_outer (Add $e_a_1 $e_b_1))
+(let $e_p_2_outer (Add $e_a_2 $e_b_2))
+(let $e_p_3_outer (Add $e_a_3 $e_b_3))
+
+(let $_let_5 (If (Ge $e_p_0_outer $e_p_1_outer) $e_p_0_outer $e_p_1_outer))
+(let $_let_6 (If (Ge $e_p_2_outer $e_p_3_outer) $e_p_2_outer $e_p_3_outer))
+(let $e_m_outer (If (Ge $_let_6 $_let_5) $_let_6 $_let_5))
+
+(let $m_p_0_shifted_outer (Var "m_p_0_shifted_outer"))
+(let $m_p_1_shifted_outer (Var "m_p_1_shifted_outer"))
+(let $m_p_2_shifted_outer (Var "m_p_2_shifted_outer"))
+(let $m_p_3_shifted_outer (Var "m_p_3_shifted_outer"))
+
+;; Shifted mantissa for OUTER SPEC
 (union
-  (Mul (Add (Div $x0 (Num (bigrat (bigint 128) (bigint 1)))) (Num (bigrat (bigint 1) (bigint 1))))
-       (Add (Div $x5 (Num (bigrat (bigint 128) (bigint 1)))) (Num (bigrat (bigint 1) (bigint 1)))))
-  (Mul $x44
-       (Pow (Num (bigrat (bigint 2) (bigint 1))) (Sub $_let_7 $_let_1))))
-
+  (Mul (Add (Div $m_a_0 $const_128) $const_1) (Add (Div $m_b_0 $const_128) $const_1))
+  (Mul $m_p_0_shifted_outer (Pow $const_2 (Sub $e_m_outer $e_p_0_outer))))
+(union
+  (Mul (Add (Div $m_a_1 $const_128) $const_1) (Add (Div $m_b_1 $const_128) $const_1))
+  (Mul $m_p_1_shifted_outer (Pow $const_2 (Sub $e_m_outer $e_p_1_outer))))
+(union
+  (Mul (Add (Div $m_a_2 $const_128) $const_1) (Add (Div $m_b_2 $const_128) $const_1))
+  (Mul $m_p_2_shifted_outer (Pow $const_2 (Sub $e_m_outer $e_p_2_outer))))
+(union
+  (Mul (Add (Div $m_a_3 $const_128) $const_1) (Add (Div $m_b_3 $const_128) $const_1))
+  (Mul $m_p_3_shifted_outer (Pow $const_2 (Sub $e_m_outer $e_p_3_outer))))
+  
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Run & Check
 
 (run 7)
 
-;; Checks that max exponents are equal
-(check (= $_let_7 $x25))
-;; Checks that mantissa products are the same
-(check (=
-          (Mul (Add (Div $x0 (Num (bigrat (bigint 128) (bigint 1)))) (Num (bigrat (bigint 1) (bigint 1))))
-            (Add (Div $x5 (Num (bigrat (bigint 128) (bigint 1)))) (Num (bigrat (bigint 1) (bigint 1)))))
-          $x10))
-;; Checks that shifts are the same
-(check (=
-         (Sub $_let_7 $_let_1)
-         $x26))
+(check (= $m_p_0_shifted $m_p_0_shifted_outer))
+(check (= $m_p_1_shifted $m_p_1_shifted_outer))
+(check (= $m_p_2_shifted $m_p_2_shifted_outer))
+(check (= $m_p_3_shifted $m_p_3_shifted_outer))
 
-(check (=
-        (Mul $x44 (Pow (Num (bigrat (bigint 2) (bigint 1))) $x26))
-        $x10))
+(check (= $e_m $e_m_outer))
 
-(check (= $x44 $x27))
+
+
+
