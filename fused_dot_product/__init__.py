@@ -10,3 +10,4 @@ from .numtypes.UQ import *
 from .numtypes.Float import *
 from .numtypes.BFloat16 import *
 from .utils import *
+from .egglog import *

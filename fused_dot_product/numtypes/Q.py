@@ -356,8 +356,8 @@ def q_add(x: Node, y: Node) -> Primitive:
         )
         return basic_add(x_adj, y_adj, x_adj.copy())
     
-    def spec(x: float, y: float, out: float):
-        return x + y == out
+    def spec(x, y, egraph):
+        return x + y
     
     def sign(x: QT, y: QT) -> QT:
         frac_bits = max(x.frac_bits, y.frac_bits)
@@ -384,8 +384,8 @@ def q_sub(x: Node, y: Node) -> Primitive:
         root = basic_sub(x_adj, y_adj, x_adj.copy())
         return root
     
-    def spec(x: float, y: float, out: float):
-        return x - y == out
+    def spec(x, y, egraph):
+        return x + (- y)
     
     def sign(x: QT, y: QT) -> QT:
         frac_bits = max(x.frac_bits, y.frac_bits)
@@ -474,11 +474,8 @@ def q_rshift(x: Node, n: Node) -> Primitive:
 
 
 def q_add_sign(x: Node, s: Node) -> Primitive:
-    def spec(x: float, s: float, out: float):
-        if x == 0.0:
-            return 0.0 == out
-        else:
-            return x * (-1) ** s == out
+    def spec(x, s, egraph):
+        return x * ((- Math.lit(1)) ** s)
     
     def impl(x: Node, s: Node) -> Node:
         return basic_mux_2_1(

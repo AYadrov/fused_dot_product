@@ -6,6 +6,8 @@ from ..numtypes.RuntimeTypes import Bool, RuntimeType, Tuple
 from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
 from ..utils.utils import ulp_distance
 
+from egglog import EGraph
+
 
 class Node:
     # Shared cache for a single evaluation call-chain.
@@ -31,7 +33,6 @@ class Node:
                 else:
                     out = impl(*inputs)
                     self._dynamic_typecheck(inputs=inputs, out=out)
-                    self._run_spec_checks(inputs=inputs, out=out)
                 return out.copy()
             return compute
         
@@ -47,21 +48,15 @@ class Node:
         
     ############## PRIVATE METHODS ###############
     
-    def _run_spec_checks(self, inputs: list[RuntimeType], out: RuntimeType):
-        # Op does not have a spec
-        if not isinstance(self, Op):
-            spec_inputs = [x.to_spec() for x in inputs]
-            spec_out = out.to_spec()
-            # TODO: ugly that spec should have "out" arguments
-            res = self.spec(*spec_inputs, out=spec_out)
-            assert isinstance(res, bool), "Boolean is expected from specification"
-            err_msg = (
-                f"[{self.name}] mismatch:\n"
-                f"  spec: {spec_inputs}\n"
-                f"  out: {spec_out}\n"
-                f"  res: {res}\n"
-            )
-            assert res, err_msg
+    def run_spec(self, egraph=None, cache=None):
+        if cache is None:
+            cache = {}
+        if self in cache:
+            return cache[self]
+        egraph = egraph if egraph is not None else EGraph()
+        out = self._run_spec(egraph, cache)
+        cache[self] = out
+        return out
     
     def _run_asserts(self, cache=None):
         for to_assert in self._assert_statements:
@@ -199,6 +194,25 @@ class Composite(Node):
                          args=args,
                          name=name)
     
+    def _run_spec(self, outer_egraph, outer_cache):
+        ########## INNER SPEC ##########
+        inner_egraph = EGraph()
+        inner_cache = {}
+        
+        out_inner = self.inner_tree.run_spec(inner_egraph, inner_cache)
+        
+        inputs = [arg.run_spec(inner_egraph, inner_cache) for arg in self.inner_args]
+        out_outer = self.spec(self, *inputs, egraph=inner_egraph)
+        
+        print(out_outer)
+        print(out_inner)
+        # egraph_check(out_outer, out_inner, inner_egraph)
+        ################################
+
+        outer_inputs = [arg.run_spec(outer_egraph, outer_cache) for arg in self.args]
+        out_outer = self.spec(self, *outer_inputs, e=outer_egraph)
+        return out_outer
+    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         impl_pt = self.printing_helper(*self.args)  # Constructing a whole tree
         connector = "└── " if is_last else "├── "
@@ -241,6 +255,10 @@ class Primitive(Node):
                          sign=sign,
                          args=args,
                          name=name)
+    
+    def _run_spec(self, egraph, cache):
+        inputs = [child.run_spec(egraph, cache) for child in self.args]
+        return self.spec(self, *inputs, egraph=egraph)
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         impl_pt = self.printing_helper(*self.args)  # Constructing a whole tree
@@ -307,6 +325,9 @@ class Const(Node):
         
         self.node_type.runtime_val = self.val  # Constant folding
     
+    def _run_spec(self, s, cache):
+        return Math.lit(self.node_type.runtime_val.to_spec())
+    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + self.__str__())
@@ -335,6 +356,9 @@ class Var(Node):
                          sign=signature,
                          args=[],
                          name=name)
+    
+    def _run_spec(self, s, cache):
+        return Math.var(name)
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
