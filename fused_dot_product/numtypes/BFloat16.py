@@ -8,8 +8,6 @@ from fused_dot_product.numtypes.Tuple import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.egglog import *
 
-_bf16_sym_counter = count()
-
 ########### Private Helpers ############
 
 def _bf16_mantissa(x: Node) -> Op:
@@ -55,11 +53,10 @@ def _bf16_sign(x: Node) -> Op:
 
 def bf16_decode(x: Node) -> Primitive:
     def spec(x, egraph):
-        sym_id = next(_bf16_sym_counter)
-        sign = Math.var(f"sign_{sym_id}")
-        mantissa = Math.var(f"mantissa_{sym_id}")
-        exponent = Math.var(f"exponent_{sym_id}")
-    
+        sign = Math.fresh_var(f"sign")
+        mantissa = Math.fresh_var(f"mantissa")
+        exponent = Math.fresh_var(f"exponent")
+        
         mantissa_ = Math.lit(1) + (mantissa * Math.exp2(- Math.lit(BFloat16.mantissa_bits)))
         exponent_ = exponent + (- Math.lit(BFloat16.exponent_bias))
         egraph.register(
@@ -87,6 +84,4 @@ def bf16_decode(x: Node) -> Primitive:
         sign=sign,
         args=[x],
         name="bf16_decode")
-
-
 

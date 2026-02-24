@@ -4,6 +4,7 @@ from fractions import Fraction
 from typing import TypeAlias
 
 from random import randint
+from itertools import count
 
 from egglog import *
 
@@ -22,6 +23,8 @@ from egglog import *
   (Ge Math Math)
   (Neg Math))
 """
+
+_sym_counter = count()
 
 
 class Math(Expr):
@@ -60,4 +63,11 @@ class Math(Expr):
     @classmethod
     def lit(cls, value: i64Like) -> Math:
         return cls.num(BigRat(value, 1))
+
+
+def _fresh_var(cls, base: str) -> Math:
+    return cls.var(f"{base}_{next(_sym_counter)}")
+
+Math.fresh_var = classmethod(_fresh_var)
+
 

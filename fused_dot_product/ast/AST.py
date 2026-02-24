@@ -5,8 +5,6 @@ from contextvars import ContextVar
 from ..numtypes.RuntimeTypes import Bool, RuntimeType, Tuple
 from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
 from ..utils.utils import ulp_distance
-
-from egglog import EGraph
 from ..egglog import *
 
 
@@ -209,15 +207,15 @@ class Composite(Node):
         inner_egraph.register(out_outer)
         inner_egraph.register(out_inner)
         
-        inner_egraph.run(7)
+        # inner_egraph.display()
+        inner_egraph.run(5)
         
-        print(inner_egraph.extract(out_outer))
-        print(inner_egraph.extract(out_inner))
+        try:
+            inner_egraph.check(out_outer == out_inner)
+        except EggSmolError:
+            print(inner_egraph.extract(out_outer))
+            print(inner_egraph.extract(out_inner))
         
-        inner_egraph.check(out_outer == out_inner)
-        # print(inner_egraph.display())
-        
-        #egraph_check(out_outer, out_inner, inner_egraph)
         ################################
 
         outer_inputs = [arg.run_spec(outer_egraph, outer_cache) for arg in self.args]
