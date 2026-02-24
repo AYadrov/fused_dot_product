@@ -212,9 +212,14 @@ class Composite(Node):
         
         try:
             inner_egraph.check(out_outer == out_inner)
+            print(f"{self.name} Composite was verified using egglog")
         except EggSmolError:
+            print(f"{self.name} Composite was NOT verified using egglog")
+            print("Simplified outer spec:")
             print(inner_egraph.extract(out_outer))
+            print("\nSimplified inner spec:")
             print(inner_egraph.extract(out_inner))
+        print("\n")
         
         ################################
 
