@@ -8,7 +8,6 @@ from ..utils.utils import ulp_distance
 
 from egglog import EGraph
 from ..egglog import *
-from random import randint
 
 
 class Node:
@@ -199,6 +198,7 @@ class Composite(Node):
     def _run_spec(self, outer_egraph, outer_cache):
         ########## INNER SPEC ##########
         inner_egraph = EGraph()
+        load_rules(inner_egraph)
         inner_cache = {}
         
         out_inner = self.inner_tree.run_spec(inner_egraph, inner_cache)
@@ -209,12 +209,15 @@ class Composite(Node):
         inner_egraph.register(out_outer)
         inner_egraph.register(out_inner)
         
-        print(out_outer)
-        print("\n")
-        print(out_inner)
-        print("\n")
-        print(inner_egraph.display())
-        # egraph_check(out_outer, out_inner, inner_egraph)
+        inner_egraph.run(7)
+        
+        print(inner_egraph.extract(out_outer))
+        print(inner_egraph.extract(out_inner))
+        
+        inner_egraph.check(out_outer == out_inner)
+        # print(inner_egraph.display())
+        
+        #egraph_check(out_outer, out_inner, inner_egraph)
         ################################
 
         outer_inputs = [arg.run_spec(outer_egraph, outer_cache) for arg in self.args]
@@ -366,7 +369,7 @@ class Var(Node):
                          name=name)
     
     def _run_spec(self, egraph, cache):
-        return egraph.let("var" + str(randint(0, 100000)), Math.var(self.name))
+        return Math.var(self.name)
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "

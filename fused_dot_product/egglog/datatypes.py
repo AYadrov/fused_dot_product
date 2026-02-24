@@ -43,9 +43,6 @@ class Math(Expr):
     @method(egg_fn="Mul")
     def __mul__(self, other: Math) -> Math: ...
     
-    @method(egg_fn="Pow")
-    def __pow__(self, other: Math) -> Math: ...
-    
     @method(egg_fn="Exp2")
     @classmethod
     def exp2(cls, exponent: Math) -> Math: ...

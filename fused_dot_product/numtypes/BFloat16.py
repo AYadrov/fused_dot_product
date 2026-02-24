@@ -1,13 +1,14 @@
 import time
 import random
 import math
+from itertools import count
 
 from fused_dot_product.numtypes.RuntimeTypes import *
 from fused_dot_product.numtypes.Tuple import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.egglog import *
 
-from random import randint
+_bf16_sym_counter = count()
 
 ########### Private Helpers ############
 
@@ -54,16 +55,15 @@ def _bf16_sign(x: Node) -> Op:
 
 def bf16_decode(x: Node) -> Primitive:
     def spec(x, egraph):
-        rnd = str(randint(0, 10000))
-        sign = egraph.let("sign" + rnd, Math.var("sign" + rnd))
-        mantissa = egraph.let("mantissa" + rnd, Math.var("mantissa" + rnd))
-        exponent = egraph.let("exponent" + rnd, Math.var("exponent" + rnd))
+        sym_id = next(_bf16_sym_counter)
+        sign = Math.var(f"sign_{sym_id}")
+        mantissa = Math.var(f"mantissa_{sym_id}")
+        exponent = Math.var(f"exponent_{sym_id}")
     
-        sign_ = (- Math.lit(1)) ** sign
         mantissa_ = Math.lit(1) + (mantissa * Math.exp2(- Math.lit(BFloat16.mantissa_bits)))
         exponent_ = exponent + (- Math.lit(BFloat16.exponent_bias))
         egraph.register(
-            union(x).with_(sign_ * mantissa_ * Math.exp2(exponent_)))
+            union(x).with_(sign * mantissa_ * Math.exp2(exponent_)))
         return tuple([sign, mantissa, exponent])
     
     def sign(x: BFloat16T) -> TupleT:
@@ -87,7 +87,6 @@ def bf16_decode(x: Node) -> Primitive:
         sign=sign,
         args=[x],
         name="bf16_decode")
-
 
 
 
