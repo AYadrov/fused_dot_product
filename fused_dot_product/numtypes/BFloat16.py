@@ -7,6 +7,8 @@ from fused_dot_product.numtypes.Tuple import *
 from fused_dot_product.ast.AST import *
 from fused_dot_product.egglog import *
 
+from random import randint
+
 ########### Private Helpers ############
 
 def _bf16_mantissa(x: Node) -> Op:
@@ -52,9 +54,10 @@ def _bf16_sign(x: Node) -> Op:
 
 def bf16_decode(x: Node) -> Primitive:
     def spec(x, egraph):
-        sign = egraph.let("sign", Math.var("sign"))
-        mantissa = egraph.let("mantissa", Math.var("mantissa"))
-        exponent = egraph.let("exponent", Math.var("exponent"))
+        rnd = str(randint(0, 10000))
+        sign = egraph.let("sign" + rnd, Math.var("sign" + rnd))
+        mantissa = egraph.let("mantissa" + rnd, Math.var("mantissa" + rnd))
+        exponent = egraph.let("exponent" + rnd, Math.var("exponent" + rnd))
     
         sign_ = (- Math.lit(1)) ** sign
         mantissa_ = Math.lit(1) + (mantissa * Math.exp2(- Math.lit(BFloat16.mantissa_bits)))

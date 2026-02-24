@@ -7,6 +7,8 @@ from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
 from ..utils.utils import ulp_distance
 
 from egglog import EGraph
+from ..egglog import *
+from random import randint
 
 
 class Node:
@@ -202,15 +204,21 @@ class Composite(Node):
         out_inner = self.inner_tree.run_spec(inner_egraph, inner_cache)
         
         inputs = [arg.run_spec(inner_egraph, inner_cache) for arg in self.inner_args]
-        out_outer = self.spec(self, *inputs, egraph=inner_egraph)
+        out_outer = self.spec(*inputs, egraph=inner_egraph)
+        
+        inner_egraph.register(out_outer)
+        inner_egraph.register(out_inner)
         
         print(out_outer)
+        print("\n")
         print(out_inner)
+        print("\n")
+        print(inner_egraph.display())
         # egraph_check(out_outer, out_inner, inner_egraph)
         ################################
 
         outer_inputs = [arg.run_spec(outer_egraph, outer_cache) for arg in self.args]
-        out_outer = self.spec(self, *outer_inputs, e=outer_egraph)
+        out_outer = self.spec(*outer_inputs, egraph=outer_egraph)
         return out_outer
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
@@ -258,7 +266,7 @@ class Primitive(Node):
     
     def _run_spec(self, egraph, cache):
         inputs = [child.run_spec(egraph, cache) for child in self.args]
-        return self.spec(self, *inputs, egraph=egraph)
+        return self.spec(*inputs, egraph=egraph)
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         impl_pt = self.printing_helper(*self.args)  # Constructing a whole tree
@@ -325,8 +333,8 @@ class Const(Node):
         
         self.node_type.runtime_val = self.val  # Constant folding
     
-    def _run_spec(self, s, cache):
-        return Math.lit(self.node_type.runtime_val.to_spec())
+    def _run_spec(self, egraph, cache):
+        return Math.lit(int(self.node_type.runtime_val.to_spec()))
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
@@ -357,8 +365,8 @@ class Var(Node):
                          args=[],
                          name=name)
     
-    def _run_spec(self, s, cache):
-        return Math.var(name)
+    def _run_spec(self, egraph, cache):
+        return egraph.let("var" + str(randint(0, 100000)), Math.var(self.name))
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
@@ -376,8 +384,8 @@ def Copy(x: Node) -> Primitive:
     def sign(x: StaticType) -> StaticType:
         return x
     
-    def spec(x, out):
-        return x == out
+    def spec(x, egraph):
+        return x
     
     def impl(x):
         return x
@@ -409,8 +417,8 @@ def Tuple_get_item(x: Node, idx: int) -> Primitive:
             name=f"basic_get_item",
         )
     
-    def spec(x, out):
-        return x[idx] == out
+    def spec(x, egraph):
+        return x[idx]
 
     return Primitive(
         spec=spec,

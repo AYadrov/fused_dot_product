@@ -31,12 +31,8 @@ class Math(Expr):
     
     @method(egg_fn="Var")
     @classmethod
-    def _var(cls, name: StringLike) -> Math: ...
+    def var(cls, name: StringLike) -> Math: ...
     
-    @classmethod
-    def var(cls, name: StringLike) -> Math:
-        cls._var(name + str(randint(0, 10000)))
-
     # @method(egg_fn="Sign")
     # @classmethod
     # def sign(cls, name: StringLike) -> Math: ...
