@@ -12,9 +12,6 @@ def load_rules(egraph: EGraph) -> None:
     one = Math.lit(1)
     two = Math.lit(2)
 
-    max_ab = Math.if_(a >= b, a, b)
-    max_cb = Math.if_(c >= b, c, b)
-
     egraph.register(
         # Associativity
         rewrite(a + (b + c)).to((a + b) + c),
@@ -42,16 +39,14 @@ def load_rules(egraph: EGraph) -> None:
         rewrite(Math.exp2(e1 + e2)).to(Math.exp2(e1) * Math.exp2(e2)),
         rewrite(Math.exp2(x) * Math.exp2(-x)).to(one),
         rewrite(Math.exp2(-x) * Math.exp2(x)).to(one),
-        # Normalize negation on sums so exp2 rules can fire.
+        
         rewrite(-(a + b)).to((-a) + (-b)),
+        rewrite((-a) + (-b)).to(-(a + b)),
         rewrite(-(a + (-b))).to((-a) + b),
-        # Cancel the exponent-alignment max term in conventional spec.
-        rewrite(Math.exp2(-(a + (-b))) * Math.exp2(a + c)).to(Math.exp2(b + c)),
+        rewrite((-a) + b).to(-(a + (-b))),
         
-        rewrite(Math.exp2(a + c) * Math.exp2(-(a + (-b)))).to(Math.exp2(b + c)),
-        
-        rewrite(Math.if_(c >= max_ab, c, max_ab)).to(Math.if_(a >= max_cb, a, max_cb)),
-        rewrite(max_ab).to(Math.if_(b >= a, b, a)),
+        rewrite(Math.max(a, b)).to(Math.max(b, a)),
+        rewrite(Math.max(Math.max(a, b), c)).to(Math.max(Math.max(a, c), b)),
         
         rewrite(- (-x)).to(x),
         rewrite(x + (-x)).to(zero),

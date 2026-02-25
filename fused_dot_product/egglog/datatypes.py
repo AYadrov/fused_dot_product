@@ -50,15 +50,12 @@ class Math(Expr):
     @classmethod
     def exp2(cls, exponent: Math) -> Math: ...
 
-    @method(egg_fn="Ge")
-    def __ge__(self, other: Math) -> Math: ...
-
     @method(egg_fn="Neg")
     def __neg__(self) -> Math: ...
 
-    @method(egg_fn="If")
+    @method(egg_fn="Max")
     @classmethod
-    def if_(cls, cond: Math, then_expr: Math, else_expr: Math) -> Math: ...
+    def max(cls, expr1: Math, expr2: Math) -> Math: ...
 
     @classmethod
     def lit(cls, value: i64Like) -> Math:

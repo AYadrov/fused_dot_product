@@ -267,7 +267,7 @@ def uq_sub(x: Node, y: Node) -> Primitive:
 
 def uq_max(x: Node, y: Node) -> Primitive:
     def spec(x, y, egraph):
-        return Math.if_(x >= y, x, y)
+        return Math.max(x, y)
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = max(x.int_bits, y.int_bits)

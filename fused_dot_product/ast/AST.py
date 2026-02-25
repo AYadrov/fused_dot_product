@@ -208,7 +208,7 @@ class Composite(Node):
         inner_egraph.register(out_inner)
         
         # inner_egraph.display()
-        inner_egraph.run(5)
+        inner_egraph.run(6)
         
         try:
             inner_egraph.check(out_outer == out_inner)
