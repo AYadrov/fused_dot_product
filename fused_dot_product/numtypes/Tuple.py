@@ -22,8 +22,8 @@ def make_Tuple(*args: Node) -> Primitive:
             name=f"basic_tuple_maker_{len(nodes)}",
         )
     
-    def spec(*args, out):
-        return tuple(args) == out
+    def spec(*args, egraph):
+        return tuple(args)
     
     return Primitive(
         spec=spec,

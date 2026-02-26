@@ -2,6 +2,8 @@ import inspect
 import typing as tp
 from contextvars import ContextVar
 
+from egglog import eq
+
 from ..numtypes.RuntimeTypes import Bool, RuntimeType, Tuple
 from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
 from ..utils.utils import ulp_distance
@@ -211,7 +213,7 @@ class Composite(Node):
         inner_egraph.run(6)
         
         try:
-            inner_egraph.check(out_outer == out_inner)
+            inner_egraph.check(eq(out_outer).to(out_inner))
             print(f"{self.name} Composite was verified using egglog")
         except EggSmolError:
             print(f"{self.name} Composite was NOT verified using egglog")
