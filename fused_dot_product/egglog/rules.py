@@ -17,9 +17,9 @@ def load_rules(egraph: EGraph) -> None:
         # Constant folding
         rewrite(Math.num(k) + Math.num(j)).to(Math.num(k + j)),
         rewrite(-Math.num(k)).to(Math.num(-k)),
-        # rewrite(Math.exp2(Math.num(k))).to(Math.num(BigRat(2, 1) ** k)), Errors if k is not an integer
+        rewrite(Math.exp2(Math.num(k))).to(Math.num(BigRat(2, 1) ** k), eq(k.denom).to(1)),
         rewrite(Math.num(k) * Math.num(j)).to(Math.num(k * j)),
-    
+        
         # Associativity
         rewrite(a + (b + c)).to((a + b) + c),
         rewrite((a + b) + c).to(a + (b + c)),
