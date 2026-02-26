@@ -7,12 +7,19 @@ from .datatypes import Math
 
 def load_rules(egraph: EGraph) -> None:
     a, b, c, e1, e2, x = vars_("a b c e1 e2 x", Math)
-
+    k, j = vars_("k j", BigRat)
+    
     zero = Math.lit(0)
     one = Math.lit(1)
     two = Math.lit(2)
 
     egraph.register(
+        # Constant folding
+        rewrite(Math.num(k) + Math.num(j)).to(Math.num(k + j)),
+        rewrite(-Math.num(k)).to(Math.num(-k)),
+        # rewrite(Math.exp2(Math.num(k))).to(Math.num(BigRat(2, 1) ** k)), Errors if k is not an integer
+        rewrite(Math.num(k) * Math.num(j)).to(Math.num(k * j)),
+    
         # Associativity
         rewrite(a + (b + c)).to((a + b) + c),
         rewrite((a + b) + c).to(a + (b + c)),
@@ -62,7 +69,6 @@ def load_rules(egraph: EGraph) -> None:
         
         # Negation/constants
         rewrite(- (-x)).to(x),
-        rewrite(-zero).to(zero),
         rewrite(x + (-x)).to(zero),
         rewrite((-x) + x).to(zero),
         rewrite(x * one).to(x),
