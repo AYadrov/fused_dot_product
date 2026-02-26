@@ -465,6 +465,57 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
         name="uq_select")
 
 
+def uq_split(x: Node, idx: int) -> Primitive:
+    # Returns Tuple(lo, hi), where lo are the lowest `idx` bits.
+    assert isinstance(idx, int), f"idx must be int, given: {idx}"
+    total_bits = x.node_type.total_bits
+    if idx <= 0 or idx >= total_bits:
+        raise ValueError(f"idx must be in (0, {total_bits}), given: {idx}")
+
+    x_int_bits = x.node_type.int_bits
+    x_frac_bits = x.node_type.frac_bits
+
+    lo_width = idx
+    lo_frac_bits = min(x_frac_bits, lo_width)
+    lo_int_bits = lo_width - lo_frac_bits
+
+    hi_width = total_bits - lo_width
+    hi_frac_bits = x_frac_bits - lo_frac_bits
+    hi_int_bits = hi_width - hi_frac_bits
+
+    def spec(x, egraph):
+        lo = Math.fresh_var("lo")
+        hi = Math.fresh_var("hi")
+        
+        # x = hi * 2^lo_int_bits + lo * 2^-hi_frac_bits
+        egraph.register(
+            union(x).with_(
+                hi * Math.exp2(Math.lit(lo_int_bits))
+                + lo * Math.exp2(-Math.lit(hi_frac_bits))
+            )
+        )
+        return tuple([lo, hi])
+
+    def sign(x: UQT) -> TupleT:
+        return TupleT(UQT(lo_int_bits, lo_frac_bits), UQT(hi_int_bits, hi_frac_bits))
+
+    def impl(x: Node) -> Node:
+        lo = Const(UQ(0, lo_int_bits, lo_frac_bits))
+        lo = basic_select(x, idx - 1, 0, lo)
+
+        hi = Const(UQ(0, hi_int_bits, hi_frac_bits))
+        hi = basic_select(x, total_bits - 1, idx, hi)
+
+        return make_Tuple(lo, hi)
+
+    return Primitive(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[x],
+        name="uq_split",
+    )
+
 def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Primitive:
     def spec(x, egraph):
         return x 
