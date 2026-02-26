@@ -16,32 +16,36 @@ def load_rules(egraph: EGraph) -> None:
         # Associativity
         rewrite(a + (b + c)).to((a + b) + c),
         rewrite((a + b) + c).to(a + (b + c)),
-        rewrite(a + (b + (- c))).to(a + b + (- c)),
-        rewrite((a + (- b)) + c).to(a + (- (b + (- c)))),
         rewrite(a * (b * c)).to((a * b) * c),
         rewrite((a * b) * c).to(a * (b * c)),
+        
         # Commutativity
         rewrite(a + b).to(b + a),
         rewrite(a * b).to(b * a),
+        
         # Distributivity
-        rewrite(a * (b + c)).to((a * b) + (a * c)),
-        rewrite(a * (b + c)).to((b * a) + (c * a)),
         rewrite((a * b) + (a * c)).to(a * (b + c)),
         rewrite((b * a) + (c * a)).to(a * (b + c)),
+        
+        rewrite(a * (b + c)).to((a * b) + (a * c)),
+        rewrite(a * (b + c)).to((b * a) + (c * a)),
         
         # Rules with exp2
         rewrite(Math.exp2(zero)).to(one),
         rewrite(one).to(Math.exp2(zero)),
+        
         rewrite(Math.exp2(one)).to(two),
         rewrite(two).to(Math.exp2(one)),
+        
         rewrite(Math.exp2(e1 + e2)).to(Math.exp2(e1) * Math.exp2(e2)),
         rewrite(Math.exp2(e1) * Math.exp2(e2)).to(Math.exp2(e1 + e2)),
+        
         rewrite(Math.exp2(x) * Math.exp2(-x)).to(one),
-        rewrite(Math.exp2(-x) * Math.exp2(x)).to(one),
         
         # Rules with negation of addition
         rewrite(-(a + b)).to((-a) + (-b)),
         rewrite((-a) + (-b)).to(-(a + b)),
+        
         rewrite(-(a + (-b))).to((-a) + b),
         rewrite((-a) + b).to(-(a + (-b))),
         
@@ -49,14 +53,16 @@ def load_rules(egraph: EGraph) -> None:
         rewrite(-(a * b)).to((-a) * b),
         rewrite(-(a * b)).to(a * (-b)),
         rewrite((-a) * (-b)).to(a * b),
-        rewrite(a * b).to((-a) * (-b)),
+        rewrite(-(a * (-b))).to(a * b),
         
         # Rules with max operations
         rewrite(Math.max(a, b)).to(Math.max(b, a)),
         rewrite(Math.max(Math.max(a, b), c)).to(Math.max(Math.max(a, c), b)),
+        rewrite(Math.max(a, a)).to(a),
         
         # Negation/constants
         rewrite(- (-x)).to(x),
+        rewrite(-zero).to(zero),
         rewrite(x + (-x)).to(zero),
         rewrite((-x) + x).to(zero),
         rewrite(x * one).to(x),
