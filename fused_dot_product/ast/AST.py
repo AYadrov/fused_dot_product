@@ -2,7 +2,7 @@ import inspect
 import typing as tp
 from contextvars import ContextVar
 
-from egglog import eq
+from egglog import BigRat, eq
 
 from ..numtypes.RuntimeTypes import Bool, RuntimeType, Tuple
 from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
@@ -327,8 +327,8 @@ class Const(Node):
         def impl():
             return self.val
         
-        def spec(out):
-            return self.val.to_spec() == out
+        def spec(egraph):
+            return Math.lit(self.val.to_spec())
         
         def sign() -> StaticType:
             return self.val.static_type()
@@ -342,7 +342,7 @@ class Const(Node):
         self.node_type.runtime_val = self.val  # Constant folding
     
     def _run_spec(self, egraph, cache):
-        return Math.lit(int(self.node_type.runtime_val.to_spec()))
+        return self.spec(egraph)
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
@@ -360,9 +360,8 @@ class Var(Node):
             assert self.val is not None, f"Variable {self.name} not bound to a value"
             return self.val
         
-        def spec(out):
-            assert self.val is not None, f"Variable {self.name} not bound to a value"
-            return self.val.to_spec() == out
+        def spec(egraph):
+            return Math.fresh_var(self.name)
         
         def signature() -> StaticType:
             return sign
@@ -374,7 +373,7 @@ class Var(Node):
                          name=name)
     
     def _run_spec(self, egraph, cache):
-        return Math.var(self.name)
+        return self.spec(egraph)
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "

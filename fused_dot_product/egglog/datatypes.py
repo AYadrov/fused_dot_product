@@ -27,23 +27,23 @@ class Math(Expr):
     # @method(egg_fn="Sign")
     # @classmethod
     # def sign(cls, name: StringLike) -> Math: ...
-
+    
     @method(egg_fn="Add")
     def __add__(self, other: Math) -> Math: ...
-
+    
     @method(egg_fn="Mul")
     def __mul__(self, other: Math) -> Math: ...
     
     @method(egg_fn="Exp2")
     @classmethod
     def exp2(cls, exponent: Math) -> Math: ...
-
+    
     @method(egg_fn="Neg")
     def __neg__(self) -> Math: ...
     
     @method(egg_fn="Abs")
     def __abs__(self) -> Math: ...
-
+    
     @method(egg_fn="Max")
     @classmethod
     def max(cls, expr1: Math, expr2: Math) -> Math: ...
@@ -51,10 +51,6 @@ class Math(Expr):
     @method(egg_fn="Min")
     @classmethod
     def min(cls, expr1: Math, expr2: Math) -> Math: ...
-
-    @classmethod
-    def lit(cls, value: i64Like) -> Math:
-        return cls.num(BigRat(value, 1))
     
     # Boolean logic
     @method(egg_fn="Lt")
@@ -80,8 +76,13 @@ class Math(Expr):
     def if_(cls, cnd: MathBool, tru: Math, fls: Math) -> Math: ...
 
 
+def _lit(cls, value) -> Math:
+    assert float(value) == float(int(value))
+    return cls.num(BigRat(int(value), 1))
+
 def _fresh_var(cls, base: str) -> Math:
     return cls.var(f"{base}_{next(_sym_counter)}")
 
 Math.fresh_var = classmethod(_fresh_var)
+Math.lit = classmethod(_lit)
 
