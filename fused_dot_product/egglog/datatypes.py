@@ -11,9 +11,17 @@ from egglog import *
 _sym_counter = count()
 
 class MathBool(Expr):
-    @method(egg_fn="Neg")
+    @method(egg_fn="BoolNeg")
     @classmethod
     def not_(cls, value: MathBool) -> MathBool: ...
+    
+    @method(egg_fn="BoolVar")
+    @classmethod
+    def var(cls, name: StringLike) -> MathBool: ...
+    
+    @method(egg_fn="BoolVal")
+    @classmethod
+    def val(cls, name: BoolLike) -> MathBool: ...
 
 class Math(Expr):
     @method(egg_fn="Num")
@@ -80,9 +88,13 @@ def _lit(cls, value) -> Math:
     assert float(value) == float(int(value))
     return cls.num(BigRat(int(value), 1))
 
-def _fresh_var(cls, base: str) -> Math:
+def _math_fresh_var(cls, base: str) -> Math:
+    return cls.var(f"{base}_{next(_sym_counter)}")
+    
+def _mathbool_fresh_var(cls, base: str) -> MathBool:
     return cls.var(f"{base}_{next(_sym_counter)}")
 
-Math.fresh_var = classmethod(_fresh_var)
+Math.fresh_var = classmethod(_math_fresh_var)
+MathBool.fresh_var = classmethod(_mathbool_fresh_var)
 Math.lit = classmethod(_lit)
 

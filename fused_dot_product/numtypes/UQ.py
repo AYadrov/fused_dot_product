@@ -32,7 +32,7 @@ def uq_less(x: Node, y: Node) -> Primitive:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_less(aligned_x, aligned_y, out=Const(Bool(0)))
     
-    def spec(x, y, egraph):
+    def spec(x, y, asserts):
         return x < y
     
     def sign(x: UQT, y: UQT) -> BoolT:
@@ -51,7 +51,7 @@ def uq_less_or_equal(x: Node, y: Node) -> Primitive:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_less_or_equal(aligned_x, aligned_y, out=Const(Bool(0)))
     
-    def spec(x, y, egraph):
+    def spec(x, y, asserts):
         return x <= y
     
     def sign(x: UQT, y: UQT) -> BoolT:
@@ -70,7 +70,7 @@ def uq_greater(x: Node, y: Node) -> Primitive:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_greater(aligned_x, aligned_y, out=Const(Bool(0)))
     
-    def spec(x, y, egraph):
+    def spec(x, y, asserts):
         return x > y
     
     def sign(x: UQT, y: UQT) -> BoolT:
@@ -89,7 +89,7 @@ def uq_greater_or_equal(x: Node, y: Node) -> Primitive:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_greater_or_equal(aligned_x, aligned_y, out=Const(Bool(0)))
     
-    def spec(x, y, egraph):
+    def spec(x, y, asserts):
         return x >= y
     
     def sign(x: UQT, y: UQT) -> BoolT:
@@ -108,7 +108,7 @@ def uq_equal(x: Node, y: Node) -> Primitive:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_equal(aligned_x, aligned_y, out=Const(Bool(0)))
     
-    def spec(x, y, egraph): 
+    def spec(x, y, asserts): 
         return x == y
     
     def sign(x: UQT, y: UQT) -> BoolT:
@@ -127,7 +127,7 @@ def uq_not_equal(x: Node, y: Node) -> Primitive:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_not_equal(aligned_x, aligned_y, out=Const(Bool(0)))
     
-    def spec(x, y, egraph): 
+    def spec(x, y, asserts): 
         return x != y
     
     def sign(x: UQT, y: UQT) -> BoolT:
@@ -151,7 +151,7 @@ def uq_aligner(x: Node,
     def sign(x: UQT, y: UQT) -> TupleT:
         return TupleT(UQT(int_bits, frac_bits), UQT(int_bits, frac_bits))
     
-    def spec(x, y, egraph):
+    def spec(x, y, asserts):
         return tuple([x, y])
     
     def impl(x: Node, y: Node) -> Node:
@@ -186,7 +186,7 @@ def uq_zero_extend(x: Node, n: int) -> Primitive:
     def sign(x: UQT) -> UQT:
         return UQT(x.int_bits + n, x.frac_bits)
     
-    def spec(x, egraph):
+    def spec(x, asserts):
         return x
     
     def impl(x: Node) -> Node:
@@ -204,7 +204,7 @@ def uq_zero_extend(x: Node, n: int) -> Primitive:
 
 
 def uq_add(x: Node, y: Node) -> Primitive:
-    def spec(x, y, egraph):
+    def spec(x, y, asserts):
         return x + y
     
     def sign(x: UQT, y: UQT) -> UQT:
@@ -235,7 +235,7 @@ def uq_add(x: Node, y: Node) -> Primitive:
 
 
 def uq_sub(x: Node, y: Node) -> Primitive:
-    def spec(x, y, egraph):
+    def spec(x, y, asserts):
         return x + (- y)
     
     def sign(x: UQT, y: UQT) -> UQT:
@@ -266,7 +266,7 @@ def uq_sub(x: Node, y: Node) -> Primitive:
 
 
 def uq_max(x: Node, y: Node) -> Primitive:
-    def spec(x, y, egraph):
+    def spec(x, y, asserts):
         return Math.max(x, y)
     
     def sign(x: UQT, y: UQT) -> UQT:
@@ -297,7 +297,7 @@ def uq_max(x: Node, y: Node) -> Primitive:
 
 
 def uq_min(x: Node, y: Node) -> Primitive:
-    def spec(x, y, egraph):
+    def spec(x, y, asserts):
         return Math.min(x, y)
     
     def sign(x: UQT, y: UQT) -> UQT:
@@ -328,7 +328,7 @@ def uq_min(x: Node, y: Node) -> Primitive:
 
 
 def uq_mul(x: Node, y: Node) -> Primitive:
-    def spec(x, y, egraph):
+    def spec(x, y, asserts):
         return x * y
     
     def sign(x: UQT, y: UQT) -> UQT:
@@ -367,7 +367,7 @@ def uq_to_q(x: Node) -> Primitive:
         out = q_alloc(int_bits, frac_bits)
         return basic_identity(x=x, out=out)
     
-    def spec(x, egraph):
+    def spec(x, asserts):
         return x
     
     def sign(x: UQT) -> QT:
@@ -392,7 +392,7 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
         )
         return root
     
-    def spec(x, amount, egraph):
+    def spec(x, amount, asserts):
         return x * Math.exp2(- amount)
     
     # TODO: Would be nice to not care about amount type, just bits amount
@@ -418,7 +418,7 @@ def uq_lshift(x: Node, amount: Node) -> Primitive:
         )
         return root
         
-    def spec(x, amount, egraph):
+    def spec(x, amount, asserts):
         return x * Math.exp2(amount)
     
     def sign(x: UQT, amount: StaticType) -> UQT:
@@ -439,10 +439,10 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
     frac_bits = max(0, min(start, x_frac_bits - 1) - end + 1) if x_frac_bits > 0 else 0
     int_bits = width - frac_bits
     
-    def spec(x, egraph):
+    def spec(x, asserts):
         slice1 = Math.fresh_var("slice1")
         slice2 = Math.fresh_var("slice2")
-        egraph.register(
+        asserts.append(
             union(x).with_(slice1 + slice2))
         return slice1
     
@@ -480,12 +480,12 @@ def uq_split(x: Node, idx: int) -> Primitive:
     hi_frac_bits = x_frac_bits - lo_frac_bits
     hi_int_bits = hi_width - hi_frac_bits
 
-    def spec(x, egraph):
+    def spec(x, asserts):
         lo = Math.fresh_var("lo")
         hi = Math.fresh_var("hi")
         
         # x = hi * 2^lo_int_bits + lo * 2^-hi_frac_bits
-        egraph.register(
+        asserts.append(
             union(x).with_(
                 hi * Math.exp2(Math.lit(lo_int_bits))
                 + lo * Math.exp2(-Math.lit(hi_frac_bits))
@@ -514,7 +514,7 @@ def uq_split(x: Node, idx: int) -> Primitive:
     )
 
 def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Primitive:
-    def spec(x, egraph):
+    def spec(x, asserts):
         return x
     
     def impl(x: Node) -> Node:

@@ -48,47 +48,35 @@ class Node:
         
     ############## PRIVATE METHODS ###############
     
-    def run_spec(self, egraph=None, cache=None):
+    def run_spec(self, asserts=None, cache=None):
         if cache is None:
             cache = {}
-        if egraph is None:
-            egraph = EGraph()
-            load_rules(egraph)
+        if asserts is None:
+            asserts = []
         
         if self in cache:
             return cache[self]
-            
-        if isinstance(self, Composite):
-            inner_egraph = EGraph()
-            load_rules(inner_egraph)
-            inner_cache = {}
-            
-            out_inner = self.inner_tree.run_spec(inner_egraph, inner_cache)
-            
-            inputs = [arg.run_spec(inner_egraph, inner_cache) for arg in self.inner_args]
-            out_outer = self.spec(*inputs, egraph=inner_egraph)
-            
-            inner_egraph.register(out_outer)
-            inner_egraph.register(out_inner)
-            
-            # inner_egraph.display()
-            inner_egraph.run(6)
-            
-            try:
-                inner_egraph.check(eq(out_outer).to(out_inner))
-                print(f"{self.name} Composite was verified using egglog")
-            except EggSmolError:
-                print(f"{self.name} Composite was NOT verified using egglog")
-                print("Simplified outer spec:")
-                print(inner_egraph.extract(out_outer))
-                print("\nSimplified inner spec:")
-                print(inner_egraph.extract(out_inner))
-            print("\n")
         
+        if isinstance(self, Composite):
+            # TODO: maybe inner cache is useless
+            inner_cache = {}
+            inner_asserts = []
+            
+            out_inner = self.inner_tree.run_spec(inner_asserts, inner_cache)
+            
+            inputs = [arg.run_spec(inner_asserts, inner_cache) for arg in self.inner_args]
+            out_outer = self.spec(*inputs, asserts=inner_asserts)
+            
+            egglog_check_eq(
+                out_inner, 
+                out_outer, 
+                inner_asserts, 
+                iterations=6
+            )        
         
         # Main flow - just evaluate given spec
-        inputs = [arg.run_spec(egraph, cache) for arg in self.args]
-        output = self.spec(*inputs, egraph=egraph)
+        inputs = [arg.run_spec(asserts, cache) for arg in self.args]
+        output = self.spec(*inputs, asserts=asserts)
         cache[self] = output
         return output
     
@@ -228,40 +216,6 @@ class Composite(Node):
                          args=args,
                          name=name)
     
-    def _run_spec(self, outer_egraph, outer_cache):
-        ########## INNER SPEC ##########
-        inner_egraph = EGraph()
-        load_rules(inner_egraph)
-        inner_cache = {}
-        
-        out_inner = self.inner_tree.run_spec(inner_egraph, inner_cache)
-        
-        inputs = [arg.run_spec(inner_egraph, inner_cache) for arg in self.inner_args]
-        out_outer = self.spec(*inputs, egraph=inner_egraph)
-        
-        inner_egraph.register(out_outer)
-        inner_egraph.register(out_inner)
-        
-        # inner_egraph.display()
-        inner_egraph.run(6)
-        
-        try:
-            inner_egraph.check(eq(out_outer).to(out_inner))
-            print(f"{self.name} Composite was verified using egglog")
-        except EggSmolError:
-            print(f"{self.name} Composite was NOT verified using egglog")
-            print("Simplified outer spec:")
-            print(inner_egraph.extract(out_outer))
-            print("\nSimplified inner spec:")
-            print(inner_egraph.extract(out_inner))
-        print("\n")
-        
-        ################################
-
-        outer_inputs = [arg.run_spec(outer_egraph, outer_cache) for arg in self.args]
-        out_outer = self.spec(*outer_inputs, egraph=outer_egraph)
-        return out_outer
-    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         impl_pt = self.printing_helper(*self.args)  # Constructing a whole tree
         connector = "└── " if is_last else "├── "
@@ -304,10 +258,6 @@ class Primitive(Node):
                          sign=sign,
                          args=args,
                          name=name)
-    
-    def _run_spec(self, egraph, cache):
-        inputs = [child.run_spec(egraph, cache) for child in self.args]
-        return self.spec(*inputs, egraph=egraph)
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         impl_pt = self.printing_helper(*self.args)  # Constructing a whole tree
@@ -360,8 +310,8 @@ class Const(Node):
         def impl():
             return self.val
         
-        def spec(egraph):
-            return Math.lit(self.val.to_spec())
+        def spec(asserts):
+            return self.val.to_spec()
         
         def sign() -> StaticType:
             return self.val.static_type()
@@ -373,9 +323,6 @@ class Const(Node):
                          name=name)
         
         self.node_type.runtime_val = self.val  # Constant folding
-    
-    def _run_spec(self, egraph, cache):
-        return self.spec(egraph)
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
@@ -393,8 +340,8 @@ class Var(Node):
             assert self.val is not None, f"Variable {self.name} not bound to a value"
             return self.val
         
-        def spec(egraph):
-            return Math.fresh_var(self.name)
+        def spec(asserts):
+            return sign.to_spec(self.name)
         
         def signature() -> StaticType:
             return sign
@@ -404,9 +351,6 @@ class Var(Node):
                          sign=signature,
                          args=[],
                          name=name)
-    
-    def _run_spec(self, egraph, cache):
-        return self.spec(egraph)
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
@@ -424,7 +368,7 @@ def Copy(x: Node) -> Primitive:
     def sign(x: StaticType) -> StaticType:
         return x
     
-    def spec(x, egraph):
+    def spec(x, asserts):
         return x
     
     def impl(x):
@@ -457,7 +401,7 @@ def Tuple_get_item(x: Node, idx: int) -> Primitive:
             name=f"basic_get_item",
         )
     
-    def spec(x, egraph):
+    def spec(x, asserts):
         return x[idx]
 
     return Primitive(

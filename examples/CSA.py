@@ -45,10 +45,10 @@ def exact_or(a: Node, b: Node):
 # This is due to signed fixed points that we use
 # A lose of sign can happen if the lengths of inputs to CSA are not equal
 def CSA(x: Node, y: Node, z: Node) -> Primitive:
-    def spec(x, y, z, egraph):
+    def spec(x, y, z, asserts):
         carry = Math.fresh_var("carry")
         sum_ = Math.fresh_var("sum")
-        egraph.register(union(x + y + z).with_(carry + sum_))
+        asserts.append(union(x + y + z).with_(carry + sum_))
         return sum_, carry
     
     def sign(x: QT, y: QT, z: QT) -> TupleT:
@@ -81,7 +81,7 @@ def CSA(x: Node, y: Node, z: Node) -> Primitive:
 
 
 def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
-    def spec(m0, m1, m2, m3, egraph):
+    def spec(m0, m1, m2, m3, asserts):
         return m0 + m1 + m2 + m3
     
     def sign(m0: QT, m1: QT, m2: QT, m3: QT) -> QT:

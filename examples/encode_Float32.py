@@ -225,7 +225,7 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
     def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
     
-    def spec(m, e, egraph):
+    def spec(m, e, asserts):
         return m * Math.exp2(e + (- Math.lit(127)))
 
     def impl(m: Node, e: Node) -> Node:

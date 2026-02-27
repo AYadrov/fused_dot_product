@@ -52,14 +52,14 @@ def _bf16_sign(x: Node) -> Op:
 ############## Public API ##############
 
 def bf16_decode(x: Node) -> Primitive:
-    def spec(x, egraph):
+    def spec(x, asserts):
         sign = Math.fresh_var(f"sign")
         mantissa = Math.fresh_var(f"mantissa")
         exponent = Math.fresh_var(f"exponent")
         
         mantissa_ = Math.lit(1) + (mantissa * Math.exp2(- Math.lit(BFloat16.mantissa_bits)))
         exponent_ = exponent + (- Math.lit(BFloat16.exponent_bias))
-        egraph.register(
+        asserts.append(
             union(x).with_(sign * mantissa_ * Math.exp2(exponent_)))
         return tuple([sign, mantissa, exponent])
     

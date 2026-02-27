@@ -4,7 +4,7 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
                        e1: Node,
                        e2: Node,
                        e3: Node) -> Primitive:
-    def spec(e0, e1, e2, e3, egraph):
+    def spec(e0, e1, e2, e3, asserts):
         return Math.max(Math.max(e0, e1), Math.max(e2, e3))
     
     def sign(e0: UQT, e1: UQT, e2: UQT, e3: UQT) -> UQT:

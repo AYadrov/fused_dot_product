@@ -14,10 +14,10 @@ DEFAULT_N_POINTS = 1000
 
 def dot_product_spec(a_0, a_1, a_2, a_3, b_0, b_1, b_2, b_3):
         res = 0.0
-        res += a_0.evaluate().to_spec() * b_0.evaluate().to_spec()
-        res += a_1.evaluate().to_spec() * b_1.evaluate().to_spec()
-        res += a_2.evaluate().to_spec() * b_2.evaluate().to_spec()
-        res += a_3.evaluate().to_spec() * b_3.evaluate().to_spec()
+        res += a_0.evaluate().to_val() * b_0.evaluate().to_val()
+        res += a_1.evaluate().to_val() * b_1.evaluate().to_val()
+        res += a_2.evaluate().to_val() * b_2.evaluate().to_val()
+        res += a_3.evaluate().to_val() * b_3.evaluate().to_val()
         return float(np.float32(res))
 
 
@@ -70,8 +70,8 @@ class TestFusedDotProduct():
                     a[i].load_val(random_gen())
                     b[i].load_val(random_gen())
                 
-                con_res = conventional.evaluate().to_spec()
-                opt_res = optimized.evaluate().to_spec()
+                con_res = conventional.evaluate().to_val()
+                opt_res = optimized.evaluate().to_val()
                 spec_res = dot_product_spec(*a, *b)
                 msg = f"optimized impl={opt_res}, conventional impl={con_res}, double-precision spec={spec_res}"
                 assert ulp_distance(opt_res, con_res) == 0 and ulp_distance(opt_res, spec_res) == 0, msg

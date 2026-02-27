@@ -21,7 +21,7 @@ def is_typeof(x: Node, t: StaticType) -> Op:
 
 def negate(x: Node) -> Primitive:
     assert isinstance(x.node_type, BoolT)
-    def spec(x, egraph):
+    def spec(x, asserts):
         return MathBool.not_(x)
     
     def impl(x: Bool):

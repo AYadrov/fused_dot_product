@@ -8,7 +8,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
                  b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
                  
     def spec(a0: Math, a1: Math, a2: Math, a3: Math,
-                    b0: Math, b1: Math, b2: Math, b3: Math, egraph):
+                    b0: Math, b1: Math, b2: Math, b3: Math, asserts):
         return a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3
     
     def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T,
