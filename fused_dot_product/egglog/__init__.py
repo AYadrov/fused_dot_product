@@ -1,3 +1,3 @@
 from .datatypes import Math
 from .rules import load_rules
-from egglog import union, EGraph, EggSmolError
+from egglog import union, EGraph, EggSmolError, check, eq

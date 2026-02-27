@@ -6,8 +6,8 @@ from .datatypes import Math
 
 
 def load_rules(egraph: EGraph) -> None:
-    a, b, c, e1, e2, x = vars_("a b c e1 e2 x", Math)
-    k, j = vars_("k j", BigRat)
+    a, b, c, x = vars_("a b c x", Math)
+    m, n = vars_("m n", BigRat)
     
     zero = Math.lit(0)
     one = Math.lit(1)
@@ -15,10 +15,10 @@ def load_rules(egraph: EGraph) -> None:
 
     egraph.register(
         # Constant folding
-        rewrite(Math.num(k) + Math.num(j)).to(Math.num(k + j)),
-        rewrite(-Math.num(k)).to(Math.num(-k)),
-        rewrite(Math.exp2(Math.num(k))).to(Math.num(BigRat(2, 1) ** k), eq(k.denom).to(1)),
-        rewrite(Math.num(k) * Math.num(j)).to(Math.num(k * j)),
+        rewrite(Math.num(m) + Math.num(n)).to(Math.num(m + n)),
+        rewrite(-Math.num(m)).to(Math.num(-m)),
+        rewrite(Math.exp2(Math.num(m))).to(Math.num(BigRat(2, 1) ** m), eq(m.denom).to(1)),
+        rewrite(Math.num(m) * Math.num(n)).to(Math.num(m * n)),
         
         # Associativity
         rewrite(a + (b + c)).to((a + b) + c),
@@ -44,8 +44,8 @@ def load_rules(egraph: EGraph) -> None:
         rewrite(Math.exp2(one)).to(two),
         rewrite(two).to(Math.exp2(one)),
         
-        rewrite(Math.exp2(e1 + e2)).to(Math.exp2(e1) * Math.exp2(e2)),
-        rewrite(Math.exp2(e1) * Math.exp2(e2)).to(Math.exp2(e1 + e2)),
+        rewrite(Math.exp2(a + b)).to(Math.exp2(a) * Math.exp2(b)),
+        rewrite(Math.exp2(a) * Math.exp2(b)).to(Math.exp2(a + b)),
         
         rewrite(Math.exp2(x) * Math.exp2(-x)).to(one),
         

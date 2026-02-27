@@ -52,7 +52,7 @@ class Math(Expr):
     @classmethod
     def min(cls, expr1: Math, expr2: Math) -> Math: ...
     
-    # Boolean logic
+    ######## BOOLEAN LOGIC THAT IS NOT CURRENTLY USED ######
     @method(egg_fn="Lt")
     def __lt__(self, other: Math) -> MathBool: ...
     
@@ -69,7 +69,7 @@ class Math(Expr):
     def __ne__(self, other: Math) -> MathBool: ...
     
     @method(egg_fn="Eq")
-    def __eq__(self, other: Math) -> MathBool: ...  # type: ignore[override]
+    def __eq__(self, other: Math) -> MathBool: ...
     
     @method(egg_fn="If")
     @classmethod

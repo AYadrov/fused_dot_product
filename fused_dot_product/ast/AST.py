@@ -2,7 +2,6 @@ import inspect
 import typing as tp
 from contextvars import ContextVar
 
-from egglog import BigRat, eq
 
 from ..numtypes.RuntimeTypes import Bool, RuntimeType, Tuple
 from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
@@ -25,12 +24,12 @@ class Node:
         # Checks that signature's annotations are StaticType
         self._primitive_signature_check(sign)
         
-        # Wrapper for impl that makes sure that out always matches node_type and satisfies spec
+        # Wrapper for impl that makes sure that out always matches node_type
         def impl_wrapper(impl):
             def compute(inputs: list[RuntimeType]):
                 out = None
                 if self.node_type.runtime_val is not None:
-                    out = self.node_type.runtime_val  # constantly-folded nodes are already checked for type and spec
+                    out = self.node_type.runtime_val  # constantly-folded nodes are already checked for type
                 else:
                     out = impl(*inputs)
                     self._dynamic_typecheck(inputs=inputs, out=out)
@@ -52,12 +51,46 @@ class Node:
     def run_spec(self, egraph=None, cache=None):
         if cache is None:
             cache = {}
+        if egraph is None:
+            egraph = EGraph()
+            load_rules(egraph)
+        
         if self in cache:
             return cache[self]
-        egraph = egraph if egraph is not None else EGraph()
-        out = self._run_spec(egraph, cache)
-        cache[self] = out
-        return out
+            
+        if isinstance(self, Composite):
+            inner_egraph = EGraph()
+            load_rules(inner_egraph)
+            inner_cache = {}
+            
+            out_inner = self.inner_tree.run_spec(inner_egraph, inner_cache)
+            
+            inputs = [arg.run_spec(inner_egraph, inner_cache) for arg in self.inner_args]
+            out_outer = self.spec(*inputs, egraph=inner_egraph)
+            
+            inner_egraph.register(out_outer)
+            inner_egraph.register(out_inner)
+            
+            # inner_egraph.display()
+            inner_egraph.run(6)
+            
+            try:
+                inner_egraph.check(eq(out_outer).to(out_inner))
+                print(f"{self.name} Composite was verified using egglog")
+            except EggSmolError:
+                print(f"{self.name} Composite was NOT verified using egglog")
+                print("Simplified outer spec:")
+                print(inner_egraph.extract(out_outer))
+                print("\nSimplified inner spec:")
+                print(inner_egraph.extract(out_inner))
+            print("\n")
+        
+        
+        # Main flow - just evaluate given spec
+        inputs = [arg.run_spec(egraph, cache) for arg in self.args]
+        output = self.spec(*inputs, egraph=egraph)
+        cache[self] = output
+        return output
     
     def _run_asserts(self, cache=None):
         for to_assert in self._assert_statements:
@@ -256,7 +289,7 @@ class Primitive(Node):
         self.printing_helper = impl
         
         # Args will preserve runtime values of arguments
-        self.inner_args = [Const(name=f"arg_{i}", val=x.node_type.runtime_val) if x.node_type.runtime_val is not None else Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
+        self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         # Pointer to the inner tree
         self.inner_tree = impl(*self.inner_args)
         
