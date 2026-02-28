@@ -1,5 +1,5 @@
 from ..types.runtime import *
-from ..ast.AST import *
+from ..ast import *
 from ..utils.utils import *
 import inspect
 

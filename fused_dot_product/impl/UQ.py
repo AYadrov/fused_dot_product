@@ -4,7 +4,7 @@ from ..types.runtime import *
 from .basics import *
 from .Q import q_alloc
 from .Tuple import make_Tuple
-from ..ast.AST import *
+from ..ast import *
 
 
 

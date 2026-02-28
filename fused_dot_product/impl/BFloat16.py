@@ -5,7 +5,7 @@ from itertools import count
 
 from ..types.runtime import *
 from .Tuple import *
-from ..ast.AST import *
+from ..ast import *
 from ..egglog import *
 
 ########### Private Helpers ############

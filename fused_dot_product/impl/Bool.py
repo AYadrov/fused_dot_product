@@ -1,6 +1,6 @@
 from .basics import _unary_operator, _binary_operator, basic_invert
 from ..types import *
-from ..ast.AST import *
+from ..ast import *
 from ..egglog import *
 
 def is_typeof(x: Node, t: StaticType) -> Op:

@@ -1,5 +1,5 @@
 from ..types import *
-from ..ast.AST import *
+from ..ast import *
 
 def float32_alloc(sign_bit: Node,
                    mantissa: Node,
