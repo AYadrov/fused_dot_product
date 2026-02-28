@@ -1,11 +1,11 @@
 import typing as tp
 
-from ..types.runtime import *
+from ..types import *
 from .basics import *
 from .Q import q_alloc
 from .Tuple import make_Tuple
 from ..ast import *
-
+from ..egglog import *
 
 
 ############## Public API ##############

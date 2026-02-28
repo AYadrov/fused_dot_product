@@ -1,4 +1,4 @@
-from ..egglog import *
+from ..egglog import Math, MathBool
 
 class StaticType:
     def __init__(self):
@@ -180,3 +180,14 @@ class TupleT(StaticType):
     
     def to_spec(self, name=""):
         return tuple([Math.fresh_var(str(f"{name}_{i}")) for i in range(len(self.args))])
+
+
+__all__ = [
+    "StaticType",
+    "BoolT",
+    "QT",
+    "UQT",
+    "Float32T",
+    "BFloat16T",
+    "TupleT",
+]

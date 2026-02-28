@@ -1,8 +1,8 @@
 import random
 import time
 
-from ..egglog import *
-from .static import *
+from ..egglog import Math, MathBool
+from .static import BFloat16T, BoolT, Float32T, QT, TupleT, UQT
 
 class RuntimeType:
     def to_spec(self):
@@ -377,3 +377,14 @@ class BFloat16(RuntimeType):
             isinstance(other, BFloat16)
             and self.val == other.val
         )
+
+
+__all__ = [
+    "RuntimeType",
+    "Tuple",
+    "Bool",
+    "Q",
+    "UQ",
+    "Float32",
+    "BFloat16",
+]

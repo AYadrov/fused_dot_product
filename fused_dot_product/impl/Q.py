@@ -1,6 +1,6 @@
 import struct
 
-from ..types.runtime import *
+from ..types import *
 from .basics import *
 from .Tuple import make_Tuple
 from ..ast import *

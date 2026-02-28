@@ -1,4 +1,4 @@
-from ..types.runtime import *
+from ..types import *
 from ..ast import *
 from ..utils.utils import *
 import inspect

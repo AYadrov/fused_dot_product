@@ -3,7 +3,7 @@ import random
 import math
 from itertools import count
 
-from ..types.runtime import *
+from ..types import *
 from .Tuple import *
 from ..ast import *
 from ..egglog import *
