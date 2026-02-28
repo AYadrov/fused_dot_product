@@ -3,10 +3,10 @@ import random
 import math
 from itertools import count
 
-from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.numtypes.Tuple import *
-from fused_dot_product.ast.AST import *
-from fused_dot_product.egglog import *
+from .RuntimeTypes import *
+from .Tuple import *
+from ..ast.AST import *
+from ..egglog import *
 
 ########### Private Helpers ############
 
@@ -84,4 +84,3 @@ def bf16_decode(x: Node) -> Primitive:
         sign=sign,
         args=[x],
         name="bf16_decode")
-

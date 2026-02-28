@@ -3,8 +3,8 @@ import typing as tp
 from contextvars import ContextVar
 
 
-from ..numtypes.RuntimeTypes import Bool, RuntimeType, Tuple
-from ..numtypes.StaticTypes import BoolT, StaticType, TupleT
+from ..impl.RuntimeTypes import Bool, RuntimeType, Tuple
+from ..impl.StaticTypes import BoolT, StaticType, TupleT
 from ..utils.utils import ulp_distance
 from ..egglog import *
 

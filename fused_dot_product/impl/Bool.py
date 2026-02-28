@@ -1,8 +1,8 @@
-from fused_dot_product.numtypes.basics import _unary_operator, _binary_operator, basic_invert
-from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.numtypes.StaticTypes import *
-from fused_dot_product.ast.AST import *
-from fused_dot_product.egglog.datatypes import MathBool
+from .basics import _unary_operator, _binary_operator, basic_invert
+from .RuntimeTypes import *
+from .StaticTypes import *
+from ..ast.AST import *
+from ..egglog import *
 
 def is_typeof(x: Node, t: StaticType) -> Op:
     if x.node_type != t:

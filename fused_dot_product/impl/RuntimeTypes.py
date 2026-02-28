@@ -1,10 +1,7 @@
 import random
 import time
 
-from fused_dot_product.config import *
-from fused_dot_product.utils.utils import *
-from fused_dot_product.numtypes.StaticTypes import *
-from ..egglog import *
+from .StaticTypes import *
 
 class RuntimeType:
     def to_spec(self):
@@ -75,7 +72,7 @@ class Bool(RuntimeType):
         return f"Bool({self.val})"
     
     def to_val(self):
-        return True if self.val == 1 else 0
+        return self.val == 1
     
     def to_spec(self):
         return MathBool.val(self.to_val())
@@ -379,4 +376,3 @@ class BFloat16(RuntimeType):
             isinstance(other, BFloat16)
             and self.val == other.val
         )
-

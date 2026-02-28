@@ -1,10 +1,12 @@
 import typing as tp
 
-from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.numtypes.basics import *
-from fused_dot_product.ast.AST import *
-from fused_dot_product.numtypes.Q import q_alloc
-from fused_dot_product.numtypes.Tuple import make_Tuple
+from .RuntimeTypes import *
+from .basics import *
+from .Q import q_alloc
+from .Tuple import make_Tuple
+
+from ..ast.AST import *
+
 
 
 ############## Public API ##############

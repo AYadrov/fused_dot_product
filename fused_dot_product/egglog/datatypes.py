@@ -97,4 +97,3 @@ def _mathbool_fresh_var(cls, base: str) -> MathBool:
 Math.fresh_var = classmethod(_math_fresh_var)
 MathBool.fresh_var = classmethod(_mathbool_fresh_var)
 Math.lit = classmethod(_lit)
-

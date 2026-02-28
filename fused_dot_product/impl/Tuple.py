@@ -1,6 +1,6 @@
-from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.ast.AST import *
-from fused_dot_product.utils.utils import *
+from .RuntimeTypes import *
+from ..ast.AST import *
+from ..utils.utils import *
 import inspect
 
 def make_Tuple(*args: Node) -> Primitive:

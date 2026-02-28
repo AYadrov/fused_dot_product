@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from fused_dot_product.numtypes.RuntimeTypes import *
+from .RuntimeTypes import *
 from ..egglog import *
 
 class StaticType:

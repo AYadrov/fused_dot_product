@@ -1,9 +1,9 @@
 import struct
 
-from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.numtypes.basics import *
-from fused_dot_product.ast.AST import *
-from fused_dot_product.numtypes.Tuple import make_Tuple
+from .RuntimeTypes import *
+from .basics import *
+from .Tuple import make_Tuple
+from ..ast.AST import *
 
 
 ########### Private Helpers ############
