@@ -18,7 +18,7 @@ class Composite(Node):
         self.printing_helper = impl
 
         # Args will preserve runtime values of arguments
-        self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy())]
+        self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         # Pointer to the inner tree
         self.inner_tree = impl(*self.inner_args)
 

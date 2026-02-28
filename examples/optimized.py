@@ -34,7 +34,7 @@ def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
 
 
 def _est_local_shift(E_trail: Node) -> Primitive:
-    E_trail_width = E_trail.node_type.total_bits
+    E_trail_width = E_trail.node_type.total_bits()
     
     def spec(x, asserts):
         return (Math.exp2(Math.lit(E_trail_width)) + (- Math.lit(1))) + (- x)

@@ -466,7 +466,7 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
 def uq_split(x: Node, idx: int) -> Primitive:
     # Returns Tuple(lo, hi), where lo are the lowest `idx` bits.
     assert isinstance(idx, int), f"idx must be int, given: {idx}"
-    total_bits = x.node_type.total_bits
+    total_bits = x.node_type.total_bits()
     if idx <= 0 or idx >= total_bits:
         raise ValueError(f"idx must be in (0, {total_bits}), given: {idx}")
 
