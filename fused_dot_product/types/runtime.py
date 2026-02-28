@@ -1,7 +1,8 @@
 import random
 import time
 
-from .StaticTypes import *
+from ..egglog import *
+from .static import *
 
 class RuntimeType:
     def to_spec(self):

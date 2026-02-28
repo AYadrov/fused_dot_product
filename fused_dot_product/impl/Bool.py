@@ -1,6 +1,5 @@
 from .basics import _unary_operator, _binary_operator, basic_invert
-from .RuntimeTypes import *
-from .StaticTypes import *
+from ..types import *
 from ..ast.AST import *
 from ..egglog import *
 

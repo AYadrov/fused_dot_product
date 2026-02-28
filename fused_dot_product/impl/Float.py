@@ -1,5 +1,4 @@
-from .RuntimeTypes import *
-from .StaticTypes import *
+from ..types import *
 from ..ast.AST import *
 
 def float32_alloc(sign_bit: Node,

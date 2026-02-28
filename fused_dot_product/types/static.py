@@ -1,6 +1,3 @@
-from dataclasses import dataclass
-
-from .RuntimeTypes import *
 from ..egglog import *
 
 class StaticType:
@@ -200,4 +197,3 @@ if __name__ == '__main__':
     print(BFloat16T())
     print(TupleT(IntT(2)))
     print(TupleT(IntT(2), QT(1,3)))
-
