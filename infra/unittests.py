@@ -3,7 +3,7 @@ import argparse
 import time
 import unittest
 import numpy as np
-from pprint import pprint
+from pprint import pprint, pformat
 
 from fused_dot_product import *
 from examples.optimized import Optimized
@@ -99,7 +99,7 @@ class TestFusedDotProduct(unittest.TestCase):
         overall_report = merge_spec_reports([report1, report2, report3])
         
         pprint(overall_report)
-        self.assertTrue(overall_report["equivalent"])
+        self.assertTrue(overall_report["equivalent"], pformat(overall_report))
     
     def test_designs_difference_with_fp_spec(self):
         SEED = self.SEED
