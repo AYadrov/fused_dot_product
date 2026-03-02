@@ -208,7 +208,8 @@ if __name__ == '__main__':
     
     design = Optimized(*a, *b)
     design.print_tree(depth=1)
-    design.run_spec()
+    res = design.check_spec()
+    print(f"verified = {res}\n")
     
     # Test the design
     random_gen, exp_reshuffle = BFloat16.random_generator(seed=0, shared_exponent_bits=5)

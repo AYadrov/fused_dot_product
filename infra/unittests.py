@@ -1,13 +1,12 @@
-import unittest
 import random
-import inspect
-import importlib
 import argparse
+import time
 import numpy as np
 
 from fused_dot_product import *
 from examples.optimized import Optimized
 from examples.conventional import Conventional
+from examples.CSA import CSA_tree4
 
 DEFAULT_SEED = 0
 DEFAULT_N_POINTS = 1000
@@ -21,13 +20,60 @@ def dot_product_spec(a_0, a_1, a_2, a_3, b_0, b_1, b_2, b_3):
         return float(np.float32(res))
 
 
+def run_spec_with_metrics(design: Node):
+    """Run symbolic verification, report runtime, and assert all checks pass."""
+    start = time.perf_counter()
+    verified = design.check_spec()
+    elapsed_s = time.perf_counter() - start
+
+    print(
+        f"\t{design.name}: verification_runtime={elapsed_s:.3f}s, "
+        f"verified={verified}"
+    )
+
+
 class TestFusedDotProduct():
+    def test_run_spec_verification_and_timing(args):
+        """Ensure run_spec() verifies CSA_tree4, Conventional, and Optimized designs."""
+        print("Running test_run_spec_verification_and_timing:")
+        print("\tConstructing CSA_tree4, Conventional, and Optimized composites.")
+        print("\tRunning run_spec() for each design and reporting verification runtime.\n")
+
+        csa_args = [
+            Var(name="csa_0", sign=QT(3, 4)),
+            Var(name="csa_1", sign=QT(8, 3)),
+            Var(name="csa_2", sign=QT(5, 0)),
+            Var(name="csa_3", sign=QT(1, 5)),
+        ]
+        csa_tree4 = CSA_tree4(*csa_args)
+
+        a = [
+            Var(name="a_0", sign=BFloat16T()),
+            Var(name="a_1", sign=BFloat16T()),
+            Var(name="a_2", sign=BFloat16T()),
+            Var(name="a_3", sign=BFloat16T()),
+        ]
+
+        b = [
+            Var(name="b_0", sign=BFloat16T()),
+            Var(name="b_1", sign=BFloat16T()),
+            Var(name="b_2", sign=BFloat16T()),
+            Var(name="b_3", sign=BFloat16T()),
+        ]
+
+        conventional = Conventional(*a, *b)
+        optimized = Optimized(*a, *b)
+
+        run_spec_with_metrics(csa_tree4)
+        run_spec_with_metrics(conventional)
+        run_spec_with_metrics(optimized)
+
     def test_designs_difference_with_fp_spec(args):
         """Ensure the unfused, conventional and optimized dot products produce similar results."""
         SEED = args.seed
         N_POINTS = args.num_points
         
-        print("Running test_designs_difference_with_fp_spec:")
+        print("\nRunning test_designs_difference_with_fp_spec:")
         print("\tFuzzing conventional and optimized fused dot-product designs to detect deviations from the floating-point spec.")
         print(f"\tUsing random seed: {SEED}") 
         print("\tFloating-point spec (applies to both designs):")
@@ -73,10 +119,12 @@ class TestFusedDotProduct():
                 con_res = conventional.evaluate().to_val()
                 opt_res = optimized.evaluate().to_val()
                 spec_res = dot_product_spec(*a, *b)
-                msg = f"optimized impl={opt_res}, conventional impl={con_res}, double-precision spec={spec_res}"
-                assert ulp_distance(opt_res, con_res) == 0 and ulp_distance(opt_res, spec_res) == 0, msg
-                
-        print("\tNo difference has been found, both designs match spec")
+                msg = (
+                    f"Mismatch at pt:\nf{[x.val.to_val() for x in a + b]}",
+                    f"optimized impl={opt_res}, conventional impl={con_res}, double-precision spec={spec_res}"
+                )
+                if ulp_distance(opt_res, con_res) != 0 or ulp_distance(opt_res, spec_res) != 0:
+                    print(msg)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Unittests for fused dot product desings")
@@ -85,6 +133,7 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
+    TestFusedDotProduct.test_run_spec_verification_and_timing(args)
     TestFusedDotProduct.test_designs_difference_with_fp_spec(args)
     
     

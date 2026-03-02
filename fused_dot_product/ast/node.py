@@ -50,35 +50,34 @@ class Node:
 
     ############## PRIVATE METHODS ###############
 
-    def run_spec(self, asserts=None, cache=None):
+    def check_spec(self, asserts=None, cache=None):
         from .nodes import Composite  # cycles
+        assert isinstance(self, Composite)
+
         if cache is None:
             cache = {}
         if asserts is None:
             asserts = []
+        
+        spec_inner = self.inner_tree._evaluate_spec(asserts, cache)
 
+        inputs = [arg._evaluate_spec(asserts, cache) for arg in self.inner_args]
+        spec_outer = self.spec(*inputs, asserts=asserts)
+
+        res = egglog_check_eq(
+            spec_inner,
+            spec_outer,
+            asserts,
+            iterations=6,
+        )
+        
+        return res
+        
+            
+    def _evaluate_spec(self, asserts, cache):
         if self in cache:
             return cache[self]
-
-        if isinstance(self, Composite):
-            # TODO: maybe inner cache is useless
-            inner_cache = {}
-            inner_asserts = []
-
-            out_inner = self.inner_tree.run_spec(inner_asserts, inner_cache)
-
-            inputs = [arg.run_spec(inner_asserts, inner_cache) for arg in self.inner_args]
-            out_outer = self.spec(*inputs, asserts=inner_asserts)
-
-            egglog_check_eq(
-                out_inner,
-                out_outer,
-                inner_asserts,
-                iterations=6,
-            )
-
-        # Main flow - just evaluate given spec
-        inputs = [arg.run_spec(asserts, cache) for arg in self.args]
+        inputs = [arg._evaluate_spec(asserts, cache) for arg in self.args]
         output = self.spec(*inputs, asserts=asserts)
         cache[self] = output
         return output

@@ -115,7 +115,8 @@ if __name__ == '__main__':
     
     design = Conventional(*a, *b)
     design.print_tree(depth=1)
-    design.run_spec()
+    res = design.check_spec()
+    print(f"verified = {res}\n")
     
     # Test the design
     random_gen, exp_reshuffle = BFloat16.random_generator(seed=int(time()), shared_exponent_bits=5)

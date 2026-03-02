@@ -1,11 +1,11 @@
-PYTHON ?= python3
+PYTHON ?= python
 
 .PHONY: nightly install check-python unit-tests
 
 check-python:
 	@echo "Checking Python installation"
 	@command -v $(PYTHON) >/dev/null 2>&1 || { \
-		echo "$(PYTHON) not found. Please install Python 3.8+."; \
+		echo "$(PYTHON) not found. Please install Python 3.11."; \
 		exit 1; \
 	}
 	@echo "Python found: $$($(PYTHON) --version)"

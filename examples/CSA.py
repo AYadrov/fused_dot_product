@@ -172,5 +172,6 @@ if __name__ == '__main__':
     
     design = CSA_tree4(*args)
     design.print_tree(depth=1)
-    design.run_spec()
+    res = design.check_spec()
+    print(f"verified = {res}\n")
 
