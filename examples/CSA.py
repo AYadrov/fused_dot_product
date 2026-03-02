@@ -162,6 +162,7 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
                      name="CSA_tree4")
 
 if __name__ == '__main__':
+    from pprint import pprint
     # Compile design
     args = [
         Var(name="a_0", sign=QT(3, 4)),
@@ -172,6 +173,6 @@ if __name__ == '__main__':
     
     design = CSA_tree4(*args)
     design.print_tree(depth=1)
-    res = design.check_spec()
-    print(f"verified = {res}\n")
+    report = design.check_spec()
+    pprint(report)
 

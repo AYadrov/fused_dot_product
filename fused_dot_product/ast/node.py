@@ -53,7 +53,7 @@ class Node:
     def check_spec(self, asserts=None, cache=None):
         from .nodes import Composite  # cycles
         assert isinstance(self, Composite)
-
+        
         if cache is None:
             cache = {}
         if asserts is None:
@@ -64,14 +64,13 @@ class Node:
         inputs = [arg._evaluate_spec(asserts, cache) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, asserts=asserts)
 
-        res = egglog_check_eq(
+        return egglog_check_eq(
             spec_inner,
             spec_outer,
-            asserts,
+            asserts=asserts,
+            name=self.name,
             iterations=6,
         )
-        
-        return res
         
             
     def _evaluate_spec(self, asserts, cache):

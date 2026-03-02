@@ -1,7 +1,9 @@
 import random
 import argparse
 import time
+import unittest
 import numpy as np
+from pprint import pprint
 
 from fused_dot_product import *
 from examples.optimized import Optimized
@@ -19,26 +21,52 @@ def dot_product_spec(a_0, a_1, a_2, a_3, b_0, b_1, b_2, b_3):
         res += a_3.evaluate().to_val() * b_3.evaluate().to_val()
         return float(np.float32(res))
 
-
 def run_spec_with_metrics(design: Node):
-    """Run symbolic verification, report runtime, and assert all checks pass."""
-    start = time.perf_counter()
-    verified = design.check_spec()
-    elapsed_s = time.perf_counter() - start
-
-    print(
-        f"\t{design.name}: verification_runtime={elapsed_s:.3f}s, "
-        f"verified={verified}"
-    )
+    return design.check_spec()
 
 
-class TestFusedDotProduct():
-    def test_run_spec_verification_and_timing(args):
-        """Ensure run_spec() verifies CSA_tree4, Conventional, and Optimized designs."""
-        print("Running test_run_spec_verification_and_timing:")
+def merge_spec_reports(reports: list[dict]):
+    merged_rule_application_counts = {}
+    
+    runtime_s_by_design = {}
+    equivalent_by_design = {}
+    
+    total_runtime_s = 0.0
+    all_equivalent = True
+    
+    for report in reports:
+        design_name = report['name']
+        runtime_s = float(report.get("runtime_s", 0.0))
+        equivalent = bool(report.get("equivalent", False))
+        
+        runtime_s_by_design[design_name] = runtime_s
+        equivalent_by_design[design_name] = equivalent
+        total_runtime_s += runtime_s
+        all_equivalent = all_equivalent and equivalent
+        
+        for rule, count in report.get("rule_application_counts", {}).items():
+            merged_rule_application_counts[rule] = (
+                merged_rule_application_counts.get(rule, 0) + int(count)
+            )
+    
+    return {
+        "equivalent": all_equivalent,
+        "runtime_s_total": total_runtime_s,
+        "runtime_s_by_design": runtime_s_by_design,
+        "equivalent_by_design": equivalent_by_design,
+        "rule_application_counts": dict(sorted(merged_rule_application_counts.items())),
+    }
+
+
+class TestFusedDotProduct(unittest.TestCase):
+    SEED = DEFAULT_SEED
+    N_POINTS = DEFAULT_N_POINTS
+
+    def test_run_spec_verification_and_timing(self):
+        print("\nRunning test_run_spec_verification_and_timing:")
         print("\tConstructing CSA_tree4, Conventional, and Optimized composites.")
         print("\tRunning run_spec() for each design and reporting verification runtime.\n")
-
+        
         csa_args = [
             Var(name="csa_0", sign=QT(3, 4)),
             Var(name="csa_1", sign=QT(8, 3)),
@@ -46,32 +74,36 @@ class TestFusedDotProduct():
             Var(name="csa_3", sign=QT(1, 5)),
         ]
         csa_tree4 = CSA_tree4(*csa_args)
-
+        
         a = [
             Var(name="a_0", sign=BFloat16T()),
             Var(name="a_1", sign=BFloat16T()),
             Var(name="a_2", sign=BFloat16T()),
             Var(name="a_3", sign=BFloat16T()),
         ]
-
+        
         b = [
             Var(name="b_0", sign=BFloat16T()),
             Var(name="b_1", sign=BFloat16T()),
             Var(name="b_2", sign=BFloat16T()),
             Var(name="b_3", sign=BFloat16T()),
         ]
-
+        
         conventional = Conventional(*a, *b)
         optimized = Optimized(*a, *b)
-
-        run_spec_with_metrics(csa_tree4)
-        run_spec_with_metrics(conventional)
-        run_spec_with_metrics(optimized)
-
-    def test_designs_difference_with_fp_spec(args):
-        """Ensure the unfused, conventional and optimized dot products produce similar results."""
-        SEED = args.seed
-        N_POINTS = args.num_points
+        
+        report1 = run_spec_with_metrics(csa_tree4)
+        report2 = run_spec_with_metrics(conventional)
+        report3 = run_spec_with_metrics(optimized)
+        
+        overall_report = merge_spec_reports([report1, report2, report3])
+        
+        pprint(overall_report)
+        self.assertTrue(overall_report["equivalent"])
+    
+    def test_designs_difference_with_fp_spec(self):
+        SEED = self.SEED
+        N_POINTS = self.N_POINTS
         
         print("\nRunning test_designs_difference_with_fp_spec:")
         print("\tFuzzing conventional and optimized fused dot-product designs to detect deviations from the floating-point spec.")
@@ -124,16 +156,17 @@ class TestFusedDotProduct():
                     f"optimized impl={opt_res}, conventional impl={con_res}, double-precision spec={spec_res}"
                 )
                 if ulp_distance(opt_res, con_res) != 0 or ulp_distance(opt_res, spec_res) != 0:
-                    print(msg)
+                    self.fail(str(msg))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Unittests for fused dot product desings")
     parser.add_argument("-s", "--seed", help="Random seed", default=DEFAULT_SEED, type=int)
     parser.add_argument("-pt", "--num-points", help=f"Number of points to run per shared exponent", default=DEFAULT_N_POINTS, type=int)
     
-    args = parser.parse_args()
-    
-    TestFusedDotProduct.test_run_spec_verification_and_timing(args)
-    TestFusedDotProduct.test_designs_difference_with_fp_spec(args)
-    
-    
+    args, unittest_args = parser.parse_known_args()
+
+    TestFusedDotProduct.SEED = args.seed
+    TestFusedDotProduct.N_POINTS = args.num_points
+
+    unittest.main(argv=[__file__, *unittest_args])
+

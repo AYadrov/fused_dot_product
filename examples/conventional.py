@@ -97,7 +97,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
 
 if __name__ == '__main__':
     from time import time
-    
+    from pprint import pprint
     # Compile design
     a = [
         Var(name="a_0", sign=BFloat16T()),
@@ -115,14 +115,6 @@ if __name__ == '__main__':
     
     design = Conventional(*a, *b)
     design.print_tree(depth=1)
-    res = design.check_spec()
-    print(f"verified = {res}\n")
-    
-    # Test the design
-    random_gen, exp_reshuffle = BFloat16.random_generator(seed=int(time()), shared_exponent_bits=5)
-    for _ in range(100):
-        exp_reshuffle()
-        for i in range(N):
-            a[i].load_val(random_gen())
-            b[i].load_val(random_gen())
-        print(str(design.evaluate()))
+    report = design.check_spec()
+    pprint(report)
+
