@@ -210,7 +210,7 @@ if __name__ == "__main__":
     TestFusedDotProduct.SEED = args.seed
     TestFusedDotProduct.N_POINTS = args.num_points
     
-    unittest.main(argv=[__file__, *unittest_args], exit=False)
+    unittest.main(argv=[__file__, *unittest_args])
     
     if args.json_report:
         report = build_unittest_report(
