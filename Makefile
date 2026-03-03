@@ -39,4 +39,6 @@ nightly: install
 	@echo "Running infra/nightly.sh with seed $(SEED)..."
 	@PYTHON=$(VENV_PYTHON) \
 		bash infra/nightly.sh -output-dir "$(REPORTS_DIR)" -seed "$(SEED)" -num-points "$(NIGHTLY_NUM_POINTS)"
+	@echo "Generating $(REPORTS_DIR)/index.html from report.json..."
+	@$(VENV_PYTHON) -m infra.make_html --report-dir "$(REPORTS_DIR)"
 	@echo "Complete"
