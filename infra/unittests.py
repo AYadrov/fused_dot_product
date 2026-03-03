@@ -2,8 +2,10 @@ import random
 import argparse
 import time
 import unittest
+import json
 import numpy as np
 from pprint import pprint, pformat
+from pathlib import Path
 
 from fused_dot_product import *
 from examples.optimized import Optimized
@@ -23,7 +25,6 @@ def dot_product_spec(a_0, a_1, a_2, a_3, b_0, b_1, b_2, b_3):
 
 def run_spec_with_metrics(design: Node):
     return design.check_spec()
-
 
 def merge_spec_reports(reports: list[dict]):
     merged_rule_application_counts = {}
@@ -61,6 +62,8 @@ def merge_spec_reports(reports: list[dict]):
 class TestFusedDotProduct(unittest.TestCase):
     SEED = DEFAULT_SEED
     N_POINTS = DEFAULT_N_POINTS
+    SPEC_REPORT = None
+    IMPL_REPORT = None
 
     def test_run_spec_verification_and_timing(self):
         print("\nRunning test_run_spec_verification_and_timing:")
@@ -97,6 +100,7 @@ class TestFusedDotProduct(unittest.TestCase):
         report3 = run_spec_with_metrics(optimized)
         
         overall_report = merge_spec_reports([report1, report2, report3])
+        TestFusedDotProduct.SPEC_REPORT = overall_report
         
         pprint(overall_report)
         self.assertTrue(overall_report["equivalent"], pformat(overall_report))
@@ -104,6 +108,9 @@ class TestFusedDotProduct(unittest.TestCase):
     def test_designs_difference_with_fp_spec(self):
         SEED = self.SEED
         N_POINTS = self.N_POINTS
+        TOTAL_POINTS = 0
+        conventional_runtime_s = 0.0
+        optimized_runtime_s = 0.0
         
         print("\nRunning test_designs_difference_with_fp_spec:")
         print("\tFuzzing conventional and optimized fused dot-product designs to detect deviations from the floating-point spec.")
@@ -140,16 +147,25 @@ class TestFusedDotProduct(unittest.TestCase):
         optimized = Optimized(*a, *b)
         
         for shared_bits in range(5, BFloat16.exponent_bits+1):
+            TOTAL_POINTS += N_POINTS
+            
             random_gen, exp_reshuffle = BFloat16.random_generator(seed=SEED, shared_exponent_bits=shared_bits)
             print(f"\tRunning {N_POINTS} random points with {shared_bits} shared leading exponent bits for each generated input.")
+            
             for _ in range(N_POINTS):
                 exp_reshuffle()
                 for i in range(N):
                     a[i].load_val(random_gen())
                     b[i].load_val(random_gen())
                 
+                t0 = time.perf_counter()
                 con_res = conventional.evaluate().to_val()
+                conventional_runtime_s += time.perf_counter() - t0
+
+                t0 = time.perf_counter()
                 opt_res = optimized.evaluate().to_val()
+                optimized_runtime_s += time.perf_counter() - t0
+
                 spec_res = dot_product_spec(*a, *b)
                 msg = (
                     f"Mismatch at pt:\nf{[x.val.to_val() for x in a + b]}",
@@ -157,16 +173,49 @@ class TestFusedDotProduct(unittest.TestCase):
                 )
                 if ulp_distance(opt_res, con_res) != 0 or ulp_distance(opt_res, spec_res) != 0:
                     self.fail(str(msg))
+                    
+        TestFusedDotProduct.IMPL_REPORT = {
+            "seed": SEED,
+            "total_num_points": TOTAL_POINTS,
+            "conventional_runtime_per_point": conventional_runtime_s/TOTAL_POINTS,
+            "optimized_runtime_per_point": optimized_runtime_s/TOTAL_POINTS,
+            "conventional_runtime_s_total": conventional_runtime_s,
+            "optimized_runtime_s_total": optimized_runtime_s,
+        }
+
+        pprint(TestFusedDotProduct.IMPL_REPORT)
+
+
+def build_unittest_report(seed: int, spec_report: dict, impl_report: dict):
+    return {
+        "seed": seed,
+        "run_spec_report": spec_report,
+        "impl_report": impl_report,
+    }
+
+
+def write_unittest_report(path: str, report: dict):
+    report_path = Path(path)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Unittests for fused dot product desings")
     parser.add_argument("-s", "--seed", help="Random seed", default=DEFAULT_SEED, type=int)
     parser.add_argument("-pt", "--num-points", help=f"Number of points to run per shared exponent", default=DEFAULT_N_POINTS, type=int)
+    parser.add_argument("--json-report", help="Write unittest summary report to this JSON file", default=None)
     
     args, unittest_args = parser.parse_known_args()
-
+    
     TestFusedDotProduct.SEED = args.seed
     TestFusedDotProduct.N_POINTS = args.num_points
-
-    unittest.main(argv=[__file__, *unittest_args])
-
+    
+    unittest.main(argv=[__file__, *unittest_args], exit=False)
+    
+    if args.json_report:
+        report = build_unittest_report(
+            seed=args.seed,
+            spec_report=TestFusedDotProduct.SPEC_REPORT,
+            impl_report=TestFusedDotProduct.IMPL_REPORT,
+        )
+        write_unittest_report(args.json_report, report)

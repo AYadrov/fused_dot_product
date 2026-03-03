@@ -1,16 +1,42 @@
 #!/bin/bash
 
+# bash infra/nightly.sh [-output-dir DIR] [-seed N] [-num-points N]
+
 # exit immediately upon first error, log every command executed
 set -e -x
 
 PYTHON="${PYTHON:-python3}"
-N_POINTS="1000"
+N_POINTS="${N_POINTS:-1000}"
+REPORTS_DIR="${REPORTS_DIR:-reports}"
+SEED="${SEED:-0}"
 
-# Seed is fixed for the whole day; this way two branches run the same seed
-SEED=$(date "+%Y%j")
-REPORTDIR="$1"; shift
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -output-dir)
+            REPORTS_DIR="$2"
+            shift 2
+            ;;
+        -seed)
+            SEED="$2"
+            shift 2
+            ;;
+        -num-points)
+            N_POINTS="$2"
+            shift 2
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            usage >&2
+            exit 1
+            ;;
+        *) echo "Unknown argument: $1" >&2; usage >&2; exit 1 ;;
+    esac
+done
 
-mkdir -p "$REPORTDIR"
-rm -rf "${REPORTDIR:?}/"* || echo "nothing to delete"
+REPORT_PATH="${REPORTS_DIR}/report.json"
 
-"$PYTHON" -m infra.unittests --seed "$SEED" --num-points "$N_POINTS"
+mkdir -p "$REPORTS_DIR"
+rm -f "$REPORT_PATH"
+
+"$PYTHON" -m infra.unittests --seed "$SEED" --num-points "$N_POINTS" --json-report "$REPORT_PATH"
+echo "Nightly report written to: $REPORT_PATH"

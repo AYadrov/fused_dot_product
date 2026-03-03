@@ -1,10 +1,12 @@
 PYTHON ?= python
 VENV_DIR ?= .venv
 VENV_PYTHON := $(VENV_DIR)/bin/python
-REQUIREMENTS_STAMP := $(VENV_DIR)/.requirements.stamp
 REPORTS_DIR ?= reports
+NIGHTLY_NUM_POINTS ?= 1000
+UNITTESTS_NUM_POINTS ?= 100
+SEED ?= $(shell date "+%Y%j")
 
-.PHONY: nightly install check-python unit-tests
+.PHONY: nightly install check-python unit-tests venv
 
 check-python:
 	@echo "Checking Python installation"
@@ -18,22 +20,23 @@ check-python:
 		exit 1; \
 	}
 
-$(VENV_PYTHON):
-	@echo "Creating virtual environment in $(VENV_DIR)"
-	@$(PYTHON) -m venv $(VENV_DIR)
+venv: check-python
+	@echo "Ensuring virtual environment exists in $(VENV_DIR)"
+	@if [ ! -x "$(VENV_PYTHON)" ]; then \
+		$(PYTHON) -m venv $(VENV_DIR); \
+	fi
 
-$(REQUIREMENTS_STAMP): requirements.txt | $(VENV_PYTHON)
+install: venv
 	@echo "Installing dependencies into $(VENV_DIR)"
-	@$(VENV_PYTHON) -m pip install --upgrade pip
 	@$(VENV_PYTHON) -m pip install -r requirements.txt
-	@touch $(REQUIREMENTS_STAMP)
-
-install: check-python $(REQUIREMENTS_STAMP)
 
 unit-tests: install
 	@echo "Running infra/unittests.py..."
-	@$(VENV_PYTHON) -m infra.unittests --seed 0 --num-points 100
+	@$(VENV_PYTHON) -m infra.unittests --seed 0 --num-points "$(UNITTESTS_NUM_POINTS)"
 	@echo "Complete"
 
 nightly: install
-	@PYTHON=$(VENV_PYTHON) bash infra/nightly.sh $(REPORTS_DIR)/
+	@echo "Running infra/nightly.sh with seed $(SEED)..."
+	@PYTHON=$(VENV_PYTHON) \
+		bash infra/nightly.sh -output-dir "$(REPORTS_DIR)" -seed "$(SEED)" -num-points "$(NIGHTLY_NUM_POINTS)"
+	@echo "Complete"
