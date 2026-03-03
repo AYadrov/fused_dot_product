@@ -1,9 +1,8 @@
 import random
 import time
 
-from fused_dot_product.config import *
-from fused_dot_product.utils.utils import *
-from fused_dot_product.numtypes.StaticTypes import *
+from ..egglog import Math, MathBool
+from .static import BFloat16T, BoolT, Float32T, QT, TupleT, UQT
 
 class RuntimeType:
     def to_spec(self):
@@ -40,6 +39,9 @@ class Tuple(RuntimeType):
         
         self.args = args
     
+    def to_val(self):
+        return tuple(x.to_val() for x in self.args)
+    
     def to_spec(self):
         return tuple(x.to_spec() for x in self.args)
     
@@ -70,8 +72,11 @@ class Bool(RuntimeType):
     def __str__(self):
         return f"Bool({self.val})"
     
+    def to_val(self):
+        return self.val == 1
+    
     def to_spec(self):
-        return self.val
+        return MathBool.val(self.to_val())
     
     def static_type(self):
         return BoolT()
@@ -102,15 +107,18 @@ class Q(RuntimeType):
         assert 0 <= self.val < (1 << self.total_bits())
     
     def __str__(self):
-        return f"Q{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
+        return f"Q{self.int_bits}.{self.frac_bits}({str(self.to_val())})"
     
-    def to_spec(self):
+    def to_val(self):
         sign_bit = self.val >> (self.total_bits() - 1)
         if sign_bit == 1:
             signed_val = self.val - (sign_bit << self.total_bits())
             return float(signed_val) / (2 ** self.frac_bits)
         else:
             return float(self.val) / (2 ** self.frac_bits)
+    
+    def to_spec(self):
+        return Math.lit(self.to_val())
     
     def static_type(self):
         return QT(self.int_bits, self.frac_bits)
@@ -182,10 +190,13 @@ class UQ(RuntimeType):
         self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
     
     def __str__(self):
-        return f"UQ{self.int_bits}.{self.frac_bits}({str(self.to_spec())})"
+        return f"UQ{self.int_bits}.{self.frac_bits}({str(self.to_val())})"
+    
+    def to_val(self):
+        return float(self.val) / (2 ** self.frac_bits)
     
     def to_spec(self):
-        return float(self.val) / (2 ** self.frac_bits)
+        return Math.lit(self.to_val())
     
     def static_type(self):
         return UQT(self.int_bits, self.frac_bits)
@@ -235,9 +246,9 @@ class Float32(RuntimeType):
         self.exponent = exponent
     
     def __str__(self):
-        return f"Float({str(self.to_spec())})"
+        return f"Float({str(self.to_val())})"
     
-    def to_spec(self):
+    def to_val(self):
         """Converts to actual floating-point value (IEEE754-style)."""
         # Infinity
         if self.exponent == self.inf_code and self.mantissa == 0:
@@ -256,6 +267,10 @@ class Float32(RuntimeType):
             frac = 1.0 + self.mantissa / (2 ** self.mantissa_bits)
             exp_val = self.exponent - self.exponent_bias
             return float((-1) ** self.sign * frac * (2 ** exp_val))
+    
+    # TODO: that's sketchy
+    def to_spec(self):
+        return Math.lit(self.to_val())
     
     def static_type(self):
         return Float32T()
@@ -312,22 +327,20 @@ class BFloat16(RuntimeType):
         self.exponent = exponent
     
     def __str__(self):
-        # out = f"BFloat16(\n"
-        # out += f"\tsign={self.sign}\n"
-        # out += f"\tmantissa={self.mantissa}\n"
-        # out += f"\texponent={self.exponent}\n"
-        # out += f"\tval={str(self.to_spec())}\n)"
-        # return out
-        return f"BFloat16({str(self.to_spec())})"
+        return f"BFloat16({str(self.to_val())})"
     
     # TODO: add Subnormals
-    def to_spec(self):
+    def to_val(self):
         """Converts to IEEE754-style float value."""
         frac = 1.0 + self.mantissa / (2 ** self.mantissa_bits)
         exp_val = self.exponent - self.exponent_bias
         
         value = (-1) ** self.sign * frac * (2 ** exp_val)
         return float(value)
+    
+    # TODO: that's sketchy
+    def to_spec(self):
+        return Math.lit(self.to_val())
     
     def static_type(self):
         return BFloat16T()
@@ -366,9 +379,12 @@ class BFloat16(RuntimeType):
         )
 
 
-if __name__ == '__main__':
-    s = Tuple(Int(2), Q(2, 2, 3))
-    print(s)
-    print(s.to_spec())
-    print(s.static_type())
-    
+__all__ = [
+    "RuntimeType",
+    "Tuple",
+    "Bool",
+    "Q",
+    "UQ",
+    "Float32",
+    "BFloat16",
+]

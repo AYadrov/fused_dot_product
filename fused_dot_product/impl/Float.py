@@ -1,6 +1,5 @@
-from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.numtypes.StaticTypes import *
-from fused_dot_product.ast.AST import *
+from ..types import *
+from ..ast import *
 
 def float32_alloc(sign_bit: Node,
                    mantissa: Node,

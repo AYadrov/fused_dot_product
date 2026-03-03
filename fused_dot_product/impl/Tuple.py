@@ -1,6 +1,6 @@
-from fused_dot_product.numtypes.RuntimeTypes import *
-from fused_dot_product.ast.AST import *
-from fused_dot_product.utils.utils import *
+from ..types import *
+from ..ast import *
+from ..utils.utils import *
 import inspect
 
 def make_Tuple(*args: Node) -> Primitive:
@@ -22,8 +22,8 @@ def make_Tuple(*args: Node) -> Primitive:
             name=f"basic_tuple_maker_{len(nodes)}",
         )
     
-    def spec(*args, out):
-        return tuple(args) == out
+    def spec(*args, asserts):
+        return tuple(args)
     
     return Primitive(
         spec=spec,

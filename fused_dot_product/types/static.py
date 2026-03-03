@@ -1,6 +1,4 @@
-from dataclasses import dataclass
-
-from fused_dot_product.numtypes.RuntimeTypes import *
+from ..egglog import Math, MathBool
 
 class StaticType:
     def __init__(self):
@@ -15,7 +13,6 @@ class StaticType:
     def _clone_impl(self) -> "StaticType":
         raise NotImplementedError
     
-    @property
     def total_bits(self):
         raise NotImplementedError
     
@@ -24,13 +21,15 @@ class StaticType:
     
     def __eq__(self, other):
         raise NotImplementedError
+    
+    def to_spec(self):
+        raise NotImplementedError
 
 
 class BoolT(StaticType):
     def __init__(self):
         super().__init__()
     
-    @property
     def total_bits(self):
         return 1
     
@@ -42,6 +41,9 @@ class BoolT(StaticType):
         
     def _clone_impl(self) -> "QT":
         return BoolT()
+    
+    def to_spec(self, name=""):
+        return MathBool.fresh_var(name)
      
 
 class QT(StaticType):
@@ -51,7 +53,6 @@ class QT(StaticType):
         assert int_bits + frac_bits >= 1
         self.int_bits, self.frac_bits = int_bits, frac_bits
     
-    @property
     def total_bits(self):
         return self.int_bits + self.frac_bits
     
@@ -67,6 +68,9 @@ class QT(StaticType):
 
     def _clone_impl(self) -> "QT":
         return QT(self.int_bits, self.frac_bits)
+    
+    def to_spec(self, name=""):
+        return Math.fresh_var(name)
 
 
 class UQT(StaticType):
@@ -76,7 +80,6 @@ class UQT(StaticType):
         assert int_bits + frac_bits >= 1
         self.int_bits, self.frac_bits = int_bits, frac_bits
     
-    @property
     def total_bits(self):
         return self.int_bits + self.frac_bits
     
@@ -92,6 +95,9 @@ class UQT(StaticType):
 
     def _clone_impl(self) -> "UQT":
         return UQT(self.int_bits, self.frac_bits)
+    
+    def to_spec(self, name=""):
+        return Math.fresh_var(name)
 
 
 class Float32T(StaticType):
@@ -101,7 +107,6 @@ class Float32T(StaticType):
         self.mantissa_bits = 23
         self.exponent_bits = 8
     
-    @property
     def total_bits(self):
         return self.sign_bits + self.mantissa_bits + self.exponent_bits
     
@@ -118,6 +123,9 @@ class Float32T(StaticType):
 
     def _clone_impl(self) -> "Float32T":
         return Float32T()
+    
+    def to_spec(self, name=""):
+        return Math.fresh_var(name)
 
 
 class BFloat16T(StaticType):
@@ -127,7 +135,6 @@ class BFloat16T(StaticType):
         self.mantissa_bits = 7
         self.exponent_bits = 8
     
-    @property
     def total_bits(self):
         return self.sign_bits + self.mantissa_bits + self.exponent_bits
     
@@ -144,6 +151,9 @@ class BFloat16T(StaticType):
 
     def _clone_impl(self) -> "BFloat16T":
         return BFloat16T()
+    
+    def to_spec(self, name=""):
+        return Math.fresh_var(name)
 
 class TupleT(StaticType):
     def __init__(self, *args: StaticType):
@@ -152,9 +162,8 @@ class TupleT(StaticType):
             assert isinstance(x, StaticType), f"TupleT can not contain non-StaticType, given: {x}"
         self.args = args
     
-    @property
     def total_bits(self):
-        return sum([x.total_bits for x in self.args])
+        return sum([x.total_bits() for x in self.args])
     
     def __repr__(self):
         return f"Tuple<{', '.join([repr(x) for x in self.args])}>"
@@ -168,14 +177,17 @@ class TupleT(StaticType):
 
     def _clone_impl(self) -> "TupleT":
         return TupleT(*[arg.copy() for arg in self.args])
+    
+    def to_spec(self, name=""):
+        return tuple([Math.fresh_var(str(f"{name}_{i}")) for i in range(len(self.args))])
 
 
-if __name__ == '__main__':
-    print(QT(1,3))
-    print(UQT(1,3))
-    print(IntT(1))
-    print(Float32T())
-    print(BFloat16T())
-    print(TupleT(IntT(2)))
-    print(TupleT(IntT(2), QT(1,3)))
-
+__all__ = [
+    "StaticType",
+    "BoolT",
+    "QT",
+    "UQT",
+    "Float32T",
+    "BFloat16T",
+    "TupleT",
+]

@@ -1,6 +1,6 @@
 import typing as tp
 
-from .RuntimeTypes import *
+from ..types import *
 from ..utils import *
 from ..ast import *
 from .Tuple import _make_fixed_arguments
