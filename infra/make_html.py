@@ -85,7 +85,7 @@ def build_html(report: dict, source_path: Path) -> str:
 
     speedup = None
     if conventional_per_point is not None and optimized_per_point and optimized_per_point > 0:
-        speedup = conventional_per_point / optimized_per_point
+        speedup = optimized_per_point / conventional_per_point
 
     impl_bars: list[tuple[str, float]] = []
     if conventional_total is not None:

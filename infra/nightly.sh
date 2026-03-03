@@ -12,15 +12,15 @@ SEED="${SEED:-0}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -output-dir)
+        --report-dir)
             REPORTS_DIR="$2"
             shift 2
             ;;
-        -seed)
+        --seed)
             SEED="$2"
             shift 2
             ;;
-        -num-points)
+        --num-points)
             N_POINTS="$2"
             shift 2
             ;;

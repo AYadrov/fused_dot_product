@@ -3,6 +3,7 @@ import argparse
 import time
 import unittest
 import json
+import sys
 import numpy as np
 from pprint import pprint, pformat
 from pathlib import Path
@@ -206,11 +207,11 @@ if __name__ == "__main__":
     parser.add_argument("--json-report", help="Write unittest summary report to this JSON file", default=None)
     
     args, unittest_args = parser.parse_known_args()
-    
+
     TestFusedDotProduct.SEED = args.seed
     TestFusedDotProduct.N_POINTS = args.num_points
     
-    unittest.main(argv=[__file__, *unittest_args])
+    program = unittest.main(argv=[__file__, *unittest_args], exit=False)
     
     if args.json_report:
         report = build_unittest_report(
@@ -219,3 +220,6 @@ if __name__ == "__main__":
             impl_report=TestFusedDotProduct.IMPL_REPORT,
         )
         write_unittest_report(args.json_report, report)
+
+    exit_code = 0 if program.result.wasSuccessful() else 1
+    sys.exit(exit_code)
