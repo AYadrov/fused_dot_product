@@ -1,6 +1,6 @@
-PYTHON ?= python
+PYTHON ?= python3
 VENV_DIR ?= .venv
-VENV_PYTHON := $(VENV_DIR)/bin/python
+VENV_PYTHON := $(VENV_DIR)/bin/python3
 REPORTS_DIR ?= reports
 NIGHTLY_NUM_POINTS ?= 1000
 UNITTESTS_NUM_POINTS ?= 100
@@ -11,7 +11,7 @@ SEED ?= $(shell date "+%Y%j")
 check-python:
 	@echo "Checking Python installation"
 	@command -v $(PYTHON) >/dev/null 2>&1 || { \
-		echo "$(PYTHON) not found. Please install Python 3.11."; \
+		echo "$(PYTHON) not found. Please install Python 3.11+."; \
 		exit 1; \
 	}
 	@echo "Python found: $$($(PYTHON) --version)"

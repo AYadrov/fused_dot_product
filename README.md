@@ -8,7 +8,7 @@ Python model of the fused dot product described by Kaul et al. (2019). The proje
 - `docs/operators.md` – Tables of all basic operators, fixed-point primitives, and composites.
 
 ## Quick start
-1) Ensure Python 3.10+ is available (CI uses 3.13).  
+1) Ensure Python 3.11+ is available.  
 2) Install deps:
 ```
 make install
