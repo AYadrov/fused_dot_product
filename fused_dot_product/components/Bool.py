@@ -2,6 +2,7 @@ from .basics import _unary_operator, _binary_operator, basic_invert
 from ..types import *
 from ..ast import *
 from ..egglog import *
+from ..spec import *
 
 def is_typeof(x: Node, t: StaticType) -> Op:
     if x.node_type != t:
@@ -20,8 +21,8 @@ def is_typeof(x: Node, t: StaticType) -> Op:
 
 def negate(x: Node) -> Primitive:
     assert isinstance(x.node_type, BoolT)
-    def spec(x, asserts):
-        return MathBool.not_(x)
+    def spec(x, ctx):
+        return Not(x)
     
     def impl(x: Bool):
         return basic_invert(x, out=Const(Bool(0)))

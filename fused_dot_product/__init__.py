@@ -10,3 +10,4 @@ from .components.Float import *
 from .components.BFloat16 import *
 from .utils import *
 from .egglog import *
+from .spec import *

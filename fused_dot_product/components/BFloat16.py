@@ -7,6 +7,7 @@ from ..types import *
 from .Tuple import *
 from ..ast import *
 from ..egglog import *
+from ..spec import *
 
 ########### Private Helpers ############
 
@@ -52,15 +53,14 @@ def _bf16_sign(x: Node) -> Op:
 ############## Public API ##############
 
 def bf16_decode(x: Node) -> Primitive:
-    def spec(x, asserts):
-        sign = Math.fresh_var(f"sign")
-        mantissa = Math.fresh_var(f"mantissa")
-        exponent = Math.fresh_var(f"exponent")
+    def spec(x, ctx):
+        sign = ctx.fresh_real(f"sign")
+        mantissa = ctx.fresh_real(f"mantissa")
+        exponent = ctx.fresh_real(f"exponent")
         
-        mantissa_ = Math.lit(1) + (mantissa * Math.exp2(- Math.lit(BFloat16.mantissa_bits)))
-        exponent_ = exponent + (- Math.lit(BFloat16.exponent_bias))
-        asserts.append(
-            union(x).with_(sign * mantissa_ * Math.exp2(exponent_)))
+        mantissa_ = Add(ctx.real_val(1), Mul(mantissa, Exp2(Neg(ctx.real_val(BFloat16.mantissa_bits)))))
+        exponent_ = Sub(exponent, ctx.real_val(BFloat16.exponent_bias))
+        ctx.assume(Eq(x, Mul(sign, Mul(mantissa_, Exp2(exponent_)))))
         return tuple([sign, mantissa, exponent])
     
     def sign(x: BFloat16T) -> TupleT:

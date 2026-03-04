@@ -9,72 +9,72 @@ def load_rules(egraph: EGraph) -> None:
     a, b, c, x = vars_("a b c x", Math)
     m, n = vars_("m n", BigRat)
     
-    zero = Math.lit(0)
-    one = Math.lit(1)
-    two = Math.lit(2)
+    zero = Math.Num(BigRat(0, 1))
+    one = Math.Num(BigRat(1, 1))
+    two = Math.Num(BigRat(2, 1))
 
     egraph.register(
         # Constant folding
-        rewrite(Math.num(m) + Math.num(n)).to(Math.num(m + n)),
-        rewrite(-Math.num(m)).to(Math.num(-m)),
-        rewrite(Math.exp2(Math.num(m))).to(Math.num(BigRat(2, 1) ** m), eq(m.denom).to(1)),
-        rewrite(Math.num(m) * Math.num(n)).to(Math.num(m * n)),
+        rewrite(Math.Add(Math.Num(m), Math.Num(n))).to(Math.Num(m + n)),
+        rewrite(Math.Neg(Math.Num(m))).to(Math.Num(-m)),
+        rewrite(Math.Exp2(Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),
+        rewrite(Math.Mul(Math.Num(m), Math.Num(n))).to(Math.Num(m * n)),
         
         # Associativity
-        rewrite(a + (b + c)).to((a + b) + c),
-        rewrite((a + b) + c).to(a + (b + c)),
-        rewrite(a * (b * c)).to((a * b) * c),
-        rewrite((a * b) * c).to(a * (b * c)),
+        rewrite(Math.Add(a, Math.Add(b, c))).to(Math.Add(Math.Add(a, b), c)),
+        rewrite(Math.Add(Math.Add(a, b), c)).to(Math.Add(a, Math.Add(b, c))),
+        rewrite(Math.Mul(a, Math.Mul(b, c))).to(Math.Mul(Math.Mul(a, b), c)),
+        rewrite(Math.Mul(Math.Mul(a, b), c)).to(Math.Mul(a, Math.Mul(b, c))),
         
         # Commutativity
-        rewrite(a + b).to(b + a),
-        rewrite(a * b).to(b * a),
+        rewrite(Math.Add(a, b)).to(Math.Add(b, a)),
+        rewrite(Math.Mul(a, b)).to(Math.Mul(b, a)),
         
         # Distributivity
-        rewrite((a * b) + (a * c)).to(a * (b + c)),
-        rewrite((b * a) + (c * a)).to(a * (b + c)),
+        rewrite(Math.Add(Math.Mul(a, b), Math.Mul(a, c))).to(Math.Mul(a, Math.Add(b, c))),
+        rewrite(Math.Add(Math.Mul(b, a), Math.Mul(c, a))).to(Math.Mul(a, Math.Add(b, c))),
         
-        rewrite(a * (b + c)).to((a * b) + (a * c)),
-        rewrite(a * (b + c)).to((b * a) + (c * a)),
+        rewrite(Math.Mul(a, Math.Add(b, c))).to(Math.Add(Math.Mul(a, b), Math.Mul(a, c))),
+        rewrite(Math.Mul(a, Math.Add(b, c))).to(Math.Add(Math.Mul(b, a), Math.Mul(c, a))),
         
         # Rules with exp2
-        rewrite(Math.exp2(zero)).to(one),
-        rewrite(one).to(Math.exp2(zero)),
+        rewrite(Math.Exp2(zero)).to(one),
+        rewrite(one).to(Math.Exp2(zero)),
         
-        rewrite(Math.exp2(one)).to(two),
-        rewrite(two).to(Math.exp2(one)),
+        rewrite(Math.Exp2(one)).to(two),
+        rewrite(two).to(Math.Exp2(one)),
         
-        rewrite(Math.exp2(a + b)).to(Math.exp2(a) * Math.exp2(b)),
-        rewrite(Math.exp2(a) * Math.exp2(b)).to(Math.exp2(a + b)),
+        rewrite(Math.Exp2(Math.Add(a, b))).to(Math.Mul(Math.Exp2(a), Math.Exp2(b))),
+        rewrite(Math.Mul(Math.Exp2(a), Math.Exp2(b))).to(Math.Exp2(Math.Add(a, b))),
         
-        rewrite(Math.exp2(x) * Math.exp2(-x)).to(one),
+        rewrite(Math.Mul(Math.Exp2(x), Math.Exp2(Math.Neg(x)))).to(one),
         
         # Rules with negation of addition
-        rewrite(-(a + b)).to((-a) + (-b)),
-        rewrite((-a) + (-b)).to(-(a + b)),
+        rewrite(Math.Neg(Math.Add(a, b))).to(Math.Add(Math.Neg(a), Math.Neg(b))),
+        rewrite(Math.Add(Math.Neg(a), Math.Neg(b))).to(Math.Neg(Math.Add(a, b))),
         
-        rewrite(-(a + (-b))).to((-a) + b),
-        rewrite((-a) + b).to(-(a + (-b))),
+        rewrite(Math.Neg(Math.Add(a, Math.Neg(b)))).to(Math.Add(Math.Neg(a), b)),
+        rewrite(Math.Add(Math.Neg(a), b)).to(Math.Neg(Math.Add(a, Math.Neg(b)))),
         
         # Rules with negation of multiplication
-        rewrite(-(a * b)).to((-a) * b),
-        rewrite(-(a * b)).to(a * (-b)),
-        rewrite((-a) * (-b)).to(a * b),
-        rewrite(-(a * (-b))).to(a * b),
+        rewrite(Math.Neg(Math.Mul(a, b))).to(Math.Mul(Math.Neg(a), b)),
+        rewrite(Math.Neg(Math.Mul(a, b))).to(Math.Mul(a, Math.Neg(b))),
+        rewrite(Math.Mul(Math.Neg(a), Math.Neg(b))).to(Math.Mul(a, b)),
+        rewrite(Math.Neg(Math.Mul(a, Math.Neg(b)))).to(Math.Mul(a, b)),
         
         # Rules with max operations
-        rewrite(Math.max(a, b)).to(Math.max(b, a)),
-        rewrite(Math.max(Math.max(a, b), c)).to(Math.max(Math.max(a, c), b)),
-        rewrite(Math.max(a, a)).to(a),
+        rewrite(Math.Max(a, b)).to(Math.Max(b, a)),
+        rewrite(Math.Max(Math.Max(a, b), c)).to(Math.Max(Math.Max(a, c), b)),
+        rewrite(Math.Max(a, a)).to(a),
         
         # Negation/constants
-        rewrite(- (-x)).to(x),
-        rewrite(x + (-x)).to(zero),
-        rewrite((-x) + x).to(zero),
-        rewrite(x * one).to(x),
-        rewrite(one * x).to(x),
-        rewrite(x * zero).to(zero),
-        rewrite(zero * x).to(zero),
-        rewrite(x + zero).to(x),
-        rewrite(zero + x).to(x),
+        rewrite(Math.Neg(Math.Neg(x))).to(x),
+        rewrite(Math.Add(x, Math.Neg(x))).to(zero),
+        rewrite(Math.Add(Math.Neg(x), x)).to(zero),
+        rewrite(Math.Mul(x, one)).to(x),
+        rewrite(Math.Mul(one, x)).to(x),
+        rewrite(Math.Mul(x, zero)).to(zero),
+        rewrite(Math.Mul(zero, x)).to(zero),
+        rewrite(Math.Add(x, zero)).to(x),
+        rewrite(Math.Add(zero, x)).to(x),
     )

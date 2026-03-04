@@ -5,6 +5,7 @@ from contextvars import ContextVar
 from ..types.runtime import Bool, RuntimeType
 from ..types.static import BoolT, StaticType
 from ..egglog import egglog_check_eq
+from ..spec import *
 
 
 class Node:
@@ -49,35 +50,12 @@ class Node:
         self._static_typecheck()
 
     ############## PRIVATE METHODS ###############
-
-    def check_spec(self, asserts=None, cache=None):
-        from .nodes import Composite  # cycles
-        assert isinstance(self, Composite)
-        
-        if cache is None:
-            cache = {}
-        if asserts is None:
-            asserts = []
-        
-        spec_inner = self.inner_tree._evaluate_spec(asserts, cache)
-
-        inputs = [arg._evaluate_spec(asserts, cache) for arg in self.inner_args]
-        spec_outer = self.spec(*inputs, asserts=asserts)
-
-        return egglog_check_eq(
-            spec_inner,
-            spec_outer,
-            asserts=asserts,
-            name=self.name,
-            iterations=6,
-        )
-        
             
-    def _evaluate_spec(self, asserts, cache):
+    def _evaluate_spec(self, ctx, cache):
         if self in cache:
             return cache[self]
-        inputs = [arg._evaluate_spec(asserts, cache) for arg in self.args]
-        output = self.spec(*inputs, asserts=asserts)
+        inputs = [arg._evaluate_spec(ctx, cache) for arg in self.args]
+        output = self.spec(*inputs, ctx=ctx)
         cache[self] = output
         return output
 
@@ -149,6 +127,29 @@ class Node:
         assert isinstance(out, sign.return_annotation), output_msg
 
     ################ PUBLIC API ##################
+    
+    def check_spec(self, ctx=None, cache=None):
+        from .nodes import Composite  # cycles
+        assert isinstance(self, Composite)
+        
+        if cache is None:
+            cache = {}
+        if ctx is None:
+            ctx = SpecContext()
+        
+        spec_inner = self.inner_tree._evaluate_spec(ctx, cache)
+
+        inputs = [arg._evaluate_spec(ctx, cache) for arg in self.inner_args]
+        spec_outer = self.spec(*inputs, ctx=ctx)
+        
+        # TODO, does not allow spec here
+        ctx.check(Eq(spec_inner, spec_outer))
+        
+        return egglog_check_eq(
+            ctx,
+            name=self.name,
+            iterations=6,
+        )
 
     def copy(self):
         from .helpers import Copy

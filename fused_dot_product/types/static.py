@@ -22,7 +22,7 @@ class StaticType:
     def __eq__(self, other):
         raise NotImplementedError
     
-    def to_spec(self):
+    def to_spec(self, name, ctx):
         raise NotImplementedError
 
 
@@ -42,8 +42,8 @@ class BoolT(StaticType):
     def _clone_impl(self) -> "QT":
         return BoolT()
     
-    def to_spec(self, name=""):
-        return MathBool.fresh_var(name)
+    def to_spec(self, name, ctx):
+        return ctx.fresh_bool(name)
      
 
 class QT(StaticType):
@@ -69,8 +69,8 @@ class QT(StaticType):
     def _clone_impl(self) -> "QT":
         return QT(self.int_bits, self.frac_bits)
     
-    def to_spec(self, name=""):
-        return Math.fresh_var(name)
+    def to_spec(self, name, ctx):
+        return ctx.fresh_real(name)
 
 
 class UQT(StaticType):
@@ -96,8 +96,8 @@ class UQT(StaticType):
     def _clone_impl(self) -> "UQT":
         return UQT(self.int_bits, self.frac_bits)
     
-    def to_spec(self, name=""):
-        return Math.fresh_var(name)
+    def to_spec(self, name, ctx):
+        return ctx.fresh_real(name)
 
 
 class Float32T(StaticType):
@@ -124,8 +124,8 @@ class Float32T(StaticType):
     def _clone_impl(self) -> "Float32T":
         return Float32T()
     
-    def to_spec(self, name=""):
-        return Math.fresh_var(name)
+    def to_spec(self, name, ctx):
+        return ctx.fresh_real(name)
 
 
 class BFloat16T(StaticType):
@@ -152,8 +152,8 @@ class BFloat16T(StaticType):
     def _clone_impl(self) -> "BFloat16T":
         return BFloat16T()
     
-    def to_spec(self, name=""):
-        return Math.fresh_var(name)
+    def to_spec(self, name, ctx):
+        return ctx.fresh_real(name)
 
 class TupleT(StaticType):
     def __init__(self, *args: StaticType):
@@ -178,8 +178,8 @@ class TupleT(StaticType):
     def _clone_impl(self) -> "TupleT":
         return TupleT(*[arg.copy() for arg in self.args])
     
-    def to_spec(self, name=""):
-        return tuple([Math.fresh_var(str(f"{name}_{i}")) for i in range(len(self.args))])
+    def to_spec(self, name, ctx):
+        return tuple([x.to_spec(name=f"{name}_{i}", ctx=ctx) for i, x in enumerate(self.args)])
 
 
 __all__ = [

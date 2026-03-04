@@ -8,7 +8,7 @@ def Copy(x: Node) -> Primitive:
     def sign(x: StaticType) -> StaticType:
         return x
 
-    def spec(x, asserts):
+    def spec(x, ctx):
         return x
 
     def impl(x):
@@ -43,7 +43,7 @@ def Tuple_get_item(x: Node, idx: int) -> Primitive:
             name="basic_get_item",
         )
 
-    def spec(x, asserts):
+    def spec(x, ctx):
         return x[idx]
 
     return Primitive(

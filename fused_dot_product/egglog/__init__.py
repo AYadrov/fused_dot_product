@@ -1,3 +1,3 @@
 from .datatypes import Math, MathBool
-from egglog import union
-from .egraph import egglog_check_eq
+from egglog import union, BigRat
+from .egraph import eq, egglog_check_eq, create_egraph

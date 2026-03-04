@@ -10,14 +10,10 @@ def create_egraph() -> EGraph:
     load_rules(egraph)
     return egraph
 
-def egglog_check_eq(expr1, expr2, asserts, name, iterations=6):
+def egglog_check_eq(ctx, name, iterations=6):
     egraph = create_egraph()
     
-    for assert_ in asserts:
-        egraph.register(assert_)
-    
-    egraph.register(expr1)
-    egraph.register(expr2)
+    to_check = ctx.to_egglog(egraph)
     
     run_started_at = perf_counter()
     run_report = egraph.run(iterations)
@@ -30,7 +26,8 @@ def egglog_check_eq(expr1, expr2, asserts, name, iterations=6):
     
     equivalent = False
     try:
-        egraph.check(eq(expr1).to(expr2))
+        for check in to_check:
+            egraph.check(check)
         equivalent = True
     except EggSmolError:
         equivalent = False
