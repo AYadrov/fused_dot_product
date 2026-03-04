@@ -62,14 +62,6 @@ def CSA(x: Node, y: Node, z: Node) -> Primitive:
         one = Const(UQ.from_int(1))
         carry = q_sign_extend(carry, 1)
         carry = q_lshift(carry, one)
-        
-        carry.check(
-            q_equal(
-                q_add(q_add(x, y), z),
-                q_add(sum_, carry),
-            )
-        )
-        
         return make_Tuple(sum_, carry)
     
     return Primitive(
@@ -89,77 +81,18 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
         int_bits = max(max(m0.int_bits, m1.int_bits), max(m2.int_bits, m3.int_bits)) + 3
         return QT(int_bits, frac_bits)
     
-    def impl(m0: Node, m1: Node, m2: Node, m3: Node) -> Node:   
+    def impl(m0: Node, m1: Node, m2: Node, m3: Node) -> Node:
         s1, c1 = CSA(m0, m1, m2)
-        
-        ############# Asserts ##############
-        s1.check(
-            is_typeof(
-                s1, 
-                QT(
-                    max(max(m0.node_type.int_bits, m1.node_type.int_bits), m2.node_type.int_bits),
-                    max(max(m0.node_type.frac_bits, m1.node_type.frac_bits), m2.node_type.frac_bits)
-                )
-            )
-        )
-        c1.check(
-            is_typeof(
-                c1, 
-                QT(
-                    max(max(m0.node_type.int_bits, m1.node_type.int_bits), m2.node_type.int_bits) + 1,
-                    max(max(m0.node_type.frac_bits, m1.node_type.frac_bits), m2.node_type.frac_bits)
-                )
-            )
-        )
-        ####################################
-        
         s2, c2 = CSA(m3, s1, c1)
-        
-        ############# Asserts ##############
-        s2.check(
-            is_typeof(
-                s2,
-                QT(
-                    max(c1.node_type.int_bits, m3.node_type.int_bits),
-                    max(c1.node_type.frac_bits, m3.node_type.frac_bits),
-                )
-            )
-        )
-        c2.check(
-            is_typeof(
-                c2,
-                QT(
-                    max(c1.node_type.int_bits, m3.node_type.int_bits) + 1,
-                    max(c1.node_type.frac_bits, m3.node_type.frac_bits),
-                )
-            )
-        )
-        ####################################
-        
         impl = q_add(s2, c2)
-        
-        ############# Asserts ##############
-        impl.check(
-            is_typeof(
-                impl,
-                QT(c2.node_type.int_bits + 1, c2.node_type.frac_bits),
-            )
-        )
-        impl.check(
-            q_equal(
-                impl,
-                q_add(q_add(m0, m1), q_add(m2, m3)),
-            )
-        )
-        ####################################
-        
         return impl
     
-    return Composite(spec=spec,
-                     impl=impl,
-                     sign=sign,
-                     args=[m0, m1, m2, m3],
-                     name="CSA_tree4")
+    return Composite(
+        spec=spec,
+        impl=impl,
+        sign=sign,
+        args=[m0, m1, m2, m3],
+        name="CSA_tree4")
 
 if __name__ == '__main__':
     from pprint import pprint

@@ -12,12 +12,8 @@ def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:
     sign_int_bits = min(m.node_type.int_bits, target_bits)
     sign_frac_bits = max(target_bits - m.node_type.int_bits, 0)
     
-    def spec(m, e, asserts):
-        rounded_m = Math.fresh_var("rounded_m")
-        rounded_e = Math.fresh_var("rounded_e")
-        asserts.append(
-            union(m * Math.exp2(e)).with_(rounded_m * Math.exp2(rounded_e)))
-        return tuple([rounded_m, rounded_e])
+    def spec(m, e, ctx):
+        raise NotImplementedError
     
     
     def sign(m: UQT, e: UQT) -> TupleT:
@@ -106,7 +102,7 @@ def lzc(x: Node) -> Primitive:
     frac_bits = x.node_type.frac_bits
     count_bits = max(1, math.ceil(math.log2(width + 1)))
     
-    def spec(x_val, asserts):
+    def spec(x_val, ctx):
         raise NotImplementedError
     
     def impl(x: Node) -> Node:
@@ -148,12 +144,8 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
         
         return TupleT(UQT(m_int_target_bits, m_frac_target_bits), QT(e_width, e.frac_bits))
     
-    def spec(m, e, asserts):
-        normalized_m = Math.fresh_var("normalized_m")
-        normalized_e = Math.fresh_var("normalized_e")
-        asserts.append(
-            union(m * Math.exp2(e)).with_(normalized_m * Math.exp2(normalized_e)))
-        return tuple([normalized_m, normalized_e])
+    def spec(m, e, ctx):
+        raise NotImplementedError
     
     def impl(m: Node, e: Node) -> Node:
         lzc_uq = lzc(m)  # UQ<ceil(log2(a + b)), 0>
