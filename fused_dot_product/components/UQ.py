@@ -5,7 +5,6 @@ from .basics import *
 from .Q import q_alloc
 from .Tuple import make_Tuple
 from ..ast import *
-from ..egglog import *
 from ..spec import *
 
 
@@ -154,7 +153,7 @@ def uq_aligner(x: Node,
         return TupleT(UQT(int_bits, frac_bits), UQT(int_bits, frac_bits))
     
     def spec(x, y, ctx):
-        return tuple([x, y])
+        return (x, y)
     
     def impl(x: Node, y: Node) -> Node:
         def align(x):
@@ -493,7 +492,7 @@ def uq_split(x: Node, idx: int) -> Primitive:
                  )
             )
         )
-        return tuple([lo, hi])
+        return (lo, hi)
 
     def sign(x: UQT) -> TupleT:
         return TupleT(UQT(lo_int_bits, lo_frac_bits), UQT(hi_int_bits, hi_frac_bits))
@@ -541,6 +540,3 @@ def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Primitive:
         sign=sign,
         args=[x],
         name="uq_resize")
-
-if __name__ == '__main__':
-    x = uq_to_q(Const(UQ.from_int(23)))

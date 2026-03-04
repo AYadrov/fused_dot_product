@@ -2,8 +2,6 @@ from fused_dot_product import *
 from .encode_Float32 import *
 from .common import *
 
-import numpy as np
-
 def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
                  b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
                  
@@ -117,4 +115,3 @@ if __name__ == '__main__':
     design.print_tree(depth=1)
     report = design.check_spec()
     pprint(report)
-

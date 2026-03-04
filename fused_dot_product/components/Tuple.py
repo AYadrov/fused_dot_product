@@ -1,7 +1,7 @@
+import inspect
+
 from ..types import *
 from ..ast import *
-from ..utils.utils import *
-import inspect
 
 def make_Tuple(*args: Node) -> Primitive:
     if not args:
@@ -71,10 +71,3 @@ def _make_fixed_arguments(f, default_type, N):
     wrapper.__doc__ = f.__doc__
 
     return wrapper
-
-
-
-if __name__ == '__main__':
-    x = Const(Int(2))
-    y = Const(Int(3))
-    make_Tuple(x, y).print_tree()

@@ -1,12 +1,6 @@
-import time
-import random
-import math
-from itertools import count
-
 from ..types import *
-from .Tuple import *
+from .Tuple import make_Tuple
 from ..ast import *
-from ..egglog import *
 from ..spec import *
 
 ########### Private Helpers ############
@@ -61,7 +55,7 @@ def bf16_decode(x: Node) -> Primitive:
         mantissa_ = Add(ctx.real_val(1), Mul(mantissa, Exp2(Neg(ctx.real_val(BFloat16.mantissa_bits)))))
         exponent_ = Sub(exponent, ctx.real_val(BFloat16.exponent_bias))
         ctx.assume(Eq(x, Mul(sign, Mul(mantissa_, Exp2(exponent_)))))
-        return tuple([sign, mantissa, exponent])
+        return (sign, mantissa, exponent)
     
     def sign(x: BFloat16T) -> TupleT:
         return TupleT(

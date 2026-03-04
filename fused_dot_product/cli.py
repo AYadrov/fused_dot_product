@@ -25,7 +25,6 @@ def main(argv=None):
     )
 
     args = parser.parse_args(argv)
-    print(args)
 
     random.seed(args.seed)
 

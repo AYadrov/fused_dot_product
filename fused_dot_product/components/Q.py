@@ -1,5 +1,3 @@
-import struct
-
 from ..types import *
 from .basics import *
 from .Tuple import make_Tuple
@@ -225,7 +223,7 @@ def q_aligner(x: Node,
         return TupleT(QT(int_bits, frac_bits), QT(int_bits, frac_bits))
     
     def spec(x, y, ctx):
-        return tuple([x, y])
+        return (x, y)
     
     def impl(x: Q, y: Q) -> Tuple:
         def align(x):

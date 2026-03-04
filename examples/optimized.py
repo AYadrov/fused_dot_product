@@ -4,8 +4,6 @@ from .CSA import CSA_tree4
 from .common import *
 from .max_exponent import *
 
-import numpy as np
-
 def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
     def spec(E_max, E_p, ctx):
         return Mul(Sub(E_max, E_p), Exp2(ctx.real_val(s)))
@@ -210,4 +208,3 @@ if __name__ == '__main__':
     design.print_tree(depth=1)
     report = design.check_spec()
     pprint(report)
-

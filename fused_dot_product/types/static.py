@@ -1,5 +1,3 @@
-from ..egglog import Math, MathBool
-
 class StaticType:
     def __init__(self):
         self.runtime_val = None
@@ -179,7 +177,7 @@ class TupleT(StaticType):
         return TupleT(*[arg.copy() for arg in self.args])
     
     def to_spec(self, name, ctx):
-        return tuple([x.to_spec(name=f"{name}_{i}", ctx=ctx) for i, x in enumerate(self.args)])
+        return tuple(x.to_spec(name=f"{name}_{i}", ctx=ctx) for i, x in enumerate(self.args))
 
 
 __all__ = [

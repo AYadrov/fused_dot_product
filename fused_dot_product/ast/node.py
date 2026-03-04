@@ -141,9 +141,23 @@ class Node:
 
         inputs = [arg._evaluate_spec(ctx, cache) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, ctx=ctx)
-        
-        # TODO, does not allow spec here
-        ctx.check(Eq(spec_inner, spec_outer))
+
+        def enqueue_equivalence(lhs, rhs):
+            if isinstance(lhs, tuple) or isinstance(rhs, tuple):
+                if not (lhs_is_tuple and rhs_is_tuple):
+                    raise TypeError(
+                        "Spec shape mismatch: one side is a tuple and the other is not"
+                    )
+                if len(lhs) != len(rhs):
+                    raise TypeError(
+                        f"Spec tuple arity mismatch: {len(lhs)} != {len(rhs)}"
+                    )
+                for lhs_item, rhs_item in zip(lhs, rhs):
+                    enqueue_equivalence(lhs_item, rhs_item)
+                return
+            ctx.check(Eq(lhs, rhs))
+
+        enqueue_equivalence(spec_inner, spec_outer)
         
         return egglog_check_eq(
             ctx,
@@ -192,4 +206,3 @@ class Node:
 
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         raise NotImplementedError
-

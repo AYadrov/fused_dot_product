@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from itertools import count
 
-from .spec_ast import BoolExpr, BoolLit, BoolVar, RealVar, RealExpr, RealLit, Eq, children
+from .spec_ast import BoolExpr, BoolLit, BoolVar, Eq, RealLit, RealVar
 from ..egglog import *
 
 class SpecContext:
@@ -11,7 +11,6 @@ class SpecContext:
     def __init__(self):
         self.assumes: list[BoolExpr] = []
         self.checks: list[BoolExpr] = []
-        self._statements: list[Assume | Check] = []
         self._sym_counter = count()
     
     def assume(self, condition: BoolExpr) -> None:
@@ -35,16 +34,22 @@ class SpecContext:
                     union(assume.lhs.to_egglog()).with_(assume.rhs.to_egglog())
                 )
             else:
-                print(f"assume is not skipped for this statement: {assume}")
+                raise NotImplementedError(
+                    f"Only Eq assumptions are supported, got {type(assume).__name__}"
+                )
         
         to_check = []
         for check in self.checks:
-            if isinstance(check, Eq):
-                to_check.append(eq(check.lhs.to_egglog()).to(check.rhs.to_egglog()))
-            elif isinstance(check, NotEq):
-                to_check.append(ne(check.lhs.to_egglog()).to(check.rhs.to_egglog()))
-            else:
-                raise NotImplementedError
+            if not isinstance(check, Eq):
+                raise NotImplementedError(
+                    f"Only Eq checks are supported, got {type(check).__name__}"
+                )
+
+            lhs = check.lhs.to_egglog()
+            rhs = check.rhs.to_egglog()
+            egraph.register(lhs)
+            egraph.register(rhs)
+            to_check.append(eq(lhs).to(rhs))
         return to_check
     
     def real_val(self, value: int | float):
@@ -74,7 +79,6 @@ class SpecContext:
     def reset(self) -> None:
         self.assumes.clear()
         self.checks.clear()
-        self._statements.clear()
         self._sym_counter = count()
 
 __all__ = ["SpecContext"]

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from fractions import Fraction
-from typing import Iterator
 
 from ..egglog import *
 
@@ -187,6 +185,3 @@ def children(node: SpecNode) -> tuple[SpecNode, ...]:
     ):
         return (node.lhs, node.rhs)
     raise TypeError(f"Unsupported node type: {type(node).__name__}")
-
-if __name__ == '__main__':
-    print(Neg(RealVar("allo")).to_egglog())

@@ -1,5 +1,4 @@
 import math
-import numpy as np
 
 from fused_dot_product import *
 

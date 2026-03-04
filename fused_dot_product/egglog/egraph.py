@@ -1,4 +1,3 @@
-from pprint import pprint
 from time import perf_counter
 
 from egglog import *

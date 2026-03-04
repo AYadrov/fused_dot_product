@@ -1,7 +1,6 @@
 import random
 import time
 
-from ..egglog import Math, MathBool
 from .static import BFloat16T, BoolT, Float32T, QT, TupleT, UQT
 
 class RuntimeType:
