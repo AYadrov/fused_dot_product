@@ -4,9 +4,8 @@ from contextvars import ContextVar
 
 from ..types.runtime import Bool, RuntimeType
 from ..types.static import BoolT, StaticType
-from ..egglog import egglog_check_eq
 from ..spec import *
-from ..smt import *
+from ..solver import check_equivalence
 
 
 class Node:
@@ -129,7 +128,7 @@ class Node:
 
     ################ PUBLIC API ##################
     
-    def check_spec(self, ctx=None, cache=None):
+    def check_spec(self, ctx=None, cache=None, z3_timeout_ms: int = 10000, egglog_iterations=6):
         from .nodes import Composite  # cycles
         assert isinstance(self, Composite)
         
@@ -143,26 +142,8 @@ class Node:
         inputs = [arg._evaluate_spec(ctx, cache) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, ctx=ctx)
 
-        def enqueue_equivalence(lhs, rhs):
-            if isinstance(lhs, tuple) or isinstance(rhs, tuple):
-                if not (lhs_is_tuple and rhs_is_tuple):
-                    raise TypeError(
-                        "Spec shape mismatch: one side is a tuple and the other is not"
-                    )
-                if len(lhs) != len(rhs):
-                    raise TypeError(
-                        f"Spec tuple arity mismatch: {len(lhs)} != {len(rhs)}"
-                    )
-                for lhs_item, rhs_item in zip(lhs, rhs):
-                    enqueue_equivalence(lhs_item, rhs_item)
-                return
-            ctx.check(Eq(lhs, rhs))
-        
-        enqueue_equivalence(spec_inner, spec_outer)
-        
-        z3_check(ctx)
-        
-        return egglog_check_eq(ctx, iterations=6)
+        certificate = check_equivalence(spec_inner, spec_outer, ctx=ctx)
+        return certificate
 
     def copy(self):
         from .helpers import Copy

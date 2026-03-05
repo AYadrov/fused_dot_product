@@ -14,9 +14,6 @@ class SpecNode:
     def to_z3(self):
         raise NotImplementedError
 
-    def to_cvc5(self):
-        raise NotImplementedError
-
 
 class RealExpr(SpecNode):
     pass

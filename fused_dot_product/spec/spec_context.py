@@ -56,7 +56,6 @@ class SpecContext:
                 raise NotImplementedError(
                     f"Only Eq checks are supported, got {type(check).__name__}"
                 )
-
             lhs = check.lhs.to_egglog()
             rhs = check.rhs.to_egglog()
             egraph.register(lhs)

@@ -2,7 +2,6 @@ from time import perf_counter
 
 from egglog import *
 
-from ..spec import SpecContext
 from .rules import load_rules
 
 def create_egraph() -> EGraph:
@@ -10,7 +9,7 @@ def create_egraph() -> EGraph:
     load_rules(egraph)
     return egraph
 
-def egglog_check_eq(ctx: SpecContext, iterations=6):
+def egglog_check_eq(ctx: "SpecContext", iterations=6):
     egraph = create_egraph()
     
     to_check = ctx.to_egglog(egraph)
@@ -18,7 +17,7 @@ def egglog_check_eq(ctx: SpecContext, iterations=6):
     run_started_at = perf_counter()
     run_report = egraph.run(iterations)
     run_runtime_s = perf_counter() - run_started_at
-
+    
     rule_application_counts = {
         str(rule): int(num_matches)
         for rule, num_matches in run_report.num_matches_per_rule.items()
@@ -31,12 +30,21 @@ def egglog_check_eq(ctx: SpecContext, iterations=6):
         equivalent = True
     except EggSmolError:
         equivalent = False
-        
+    
     report = {
         "name": ctx.name,
         "equivalent": equivalent,
         "runtime_s": run_runtime_s,
         "rule_application_counts": rule_application_counts,
+        "egraph": egraph,
     }
+    
+    return equivalent, report
 
-    return report
+def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
+    def simplify(expr: Math | MathBool, egraph: EGraph):
+        return from_egglog(egraph.extract(expr.to_egglog()))
+    
+    
+        
+    
