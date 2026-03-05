@@ -2,6 +2,7 @@ from time import perf_counter
 
 from egglog import *
 
+from ..spec import SpecContext
 from .rules import load_rules
 
 def create_egraph() -> EGraph:
@@ -9,7 +10,7 @@ def create_egraph() -> EGraph:
     load_rules(egraph)
     return egraph
 
-def egglog_check_eq(ctx, name, iterations=6):
+def egglog_check_eq(ctx: SpecContext, iterations=6):
     egraph = create_egraph()
     
     to_check = ctx.to_egglog(egraph)
@@ -32,7 +33,7 @@ def egglog_check_eq(ctx, name, iterations=6):
         equivalent = False
         
     report = {
-        "name": name,
+        "name": ctx.name,
         "equivalent": equivalent,
         "runtime_s": run_runtime_s,
         "rule_application_counts": rule_application_counts,

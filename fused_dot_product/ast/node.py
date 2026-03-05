@@ -6,6 +6,7 @@ from ..types.runtime import Bool, RuntimeType
 from ..types.static import BoolT, StaticType
 from ..egglog import egglog_check_eq
 from ..spec import *
+from ..smt import *
 
 
 class Node:
@@ -135,7 +136,7 @@ class Node:
         if cache is None:
             cache = {}
         if ctx is None:
-            ctx = SpecContext()
+            ctx = SpecContext(self.name)
         
         spec_inner = self.inner_tree._evaluate_spec(ctx, cache)
 
@@ -156,14 +157,12 @@ class Node:
                     enqueue_equivalence(lhs_item, rhs_item)
                 return
             ctx.check(Eq(lhs, rhs))
-
+        
         enqueue_equivalence(spec_inner, spec_outer)
         
-        return egglog_check_eq(
-            ctx,
-            name=self.name,
-            iterations=6,
-        )
+        z3_check(ctx)
+        
+        return egglog_check_eq(ctx, iterations=6)
 
     def copy(self):
         from .helpers import Copy

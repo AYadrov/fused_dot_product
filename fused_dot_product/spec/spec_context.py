@@ -5,13 +5,17 @@ from itertools import count
 from .spec_ast import BoolExpr, BoolLit, BoolVar, Eq, RealLit, RealVar
 from ..egglog import *
 
+import z3
+
+
 class SpecContext:
     """Builder API for creating spec programs over the spec AST."""
 
-    def __init__(self):
+    def __init__(self, name: str):
         self.assumes: list[BoolExpr] = []
         self.checks: list[BoolExpr] = []
         self._sym_counter = count()
+        self.name = name
     
     def assume(self, condition: BoolExpr) -> None:
         if not isinstance(condition, BoolExpr):
@@ -26,6 +30,14 @@ class SpecContext:
                 f"SpecContext.check expects BoolExpr, got {type(condition).__name__}"
             )
         self.checks.append(condition)
+    
+    def to_z3(self):
+        def assert_not_empty(terms):
+            return terms + [z3.BoolVal(True)]
+        assume_terms = assert_not_empty([assume.to_z3() for assume in self.assumes])
+        check_terms = assert_not_empty([check.to_z3() for check in self.checks])
+        
+        return z3.And(z3.And(*assume_terms), z3.Not(z3.And(*check_terms)))
     
     def to_egglog(self, egraph):
         for assume in self.assumes:
