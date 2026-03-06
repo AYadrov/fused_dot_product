@@ -5,12 +5,13 @@ from itertools import count
 from .spec_ast import BoolExpr, BoolLit, BoolVar, Eq, RealLit, RealVar
 from ..egglog import *
 
+import copy
 import z3
 
 
 class SpecContext:
     """Builder API for creating spec programs over the spec AST."""
-
+    
     def __init__(self, name: str):
         self.assumes: list[BoolExpr] = []
         self.checks: list[BoolExpr] = []
@@ -91,5 +92,17 @@ class SpecContext:
         self.assumes.clear()
         self.checks.clear()
         self._sym_counter = count()
-
+    
+    def copy(self, assumes=None, checks=None):
+        if assumes is None:
+            assumes = copy.deepcopy(self.assumes)
+        if checks is None:
+            checks = copy.deepcopy(self.checks)
+            
+        new_ctx = SpecContext(self.name)
+        new_ctx.assumes = assumes
+        new_ctx.checks = checks
+        new_ctx._sym_counter = copy.deepcopy(self._sym_counter)
+        return new_ctx
+    
 __all__ = ["SpecContext"]

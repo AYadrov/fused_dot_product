@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ..spec import SpecContext, Eq, SpecNode
-from ..egglog import egglog_check_eq
+from ..egglog import egglog_check_eq, egglog_simplify_ctx
 from ..smt import z3_check
 
 # Unrolls tuples
@@ -34,8 +34,8 @@ def check_equivalence(
     _enqueue_equivalence(query1, query2, ctx=ctx)
     
     certificate = {}
-    egglog_equivalence, certificate['egglog'] = egglog_check_eq(ctx, iterations=6)
-    egglog_simplify_ctx(ctx, certificate)
+    egglog_equivalence, certificate["egglog"] = egglog_check_eq(ctx, iterations=6)
+    # ctx = egglog_simplify_ctx(ctx, certificate["egglog"]["egraph"])
     
     z3_equivalence, certificate["z3"] = z3_check(ctx, timeout_ms=10000)
     return certificate
