@@ -96,9 +96,9 @@ class TestFusedDotProduct(unittest.TestCase):
         conventional = Conventional(*a, *b)
         optimized = Optimized(*a, *b)
         
-        report1 = run_spec_with_metrics(csa_tree4)
-        report2 = run_spec_with_metrics(conventional)
-        report3 = run_spec_with_metrics(optimized)
+        report1 = run_spec_with_metrics(csa_tree4)['egglog']
+        report2 = run_spec_with_metrics(conventional)['egglog']
+        report3 = run_spec_with_metrics(optimized)['egglog']
         
         overall_report = merge_spec_reports([report1, report2, report3])
         TestFusedDotProduct.SPEC_REPORT = overall_report
