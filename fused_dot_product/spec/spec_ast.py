@@ -29,7 +29,7 @@ class RealVar(RealExpr):
     
     def to_egglog(self):
         return Math.Var(self.name)
-        
+    
     def to_z3(self):
         return z3.Real(self.name)
 
@@ -40,7 +40,7 @@ class BoolVar(BoolExpr):
     
     def to_egglog(self):
         return MathBool.Var(self.name)
-        
+    
     def to_z3(self):
         return z3.Bool(self.name)
 
@@ -52,7 +52,7 @@ class RealLit(RealExpr):
     def to_egglog(self):
         assert float(self.value) == float(int(self.value)), "only integers are working rn in egglog"
         return Math.Num(BigRat(int(self.value), 1))
-
+    
     def to_z3(self):
         return z3.RealVal(str(self.value))
 
@@ -60,10 +60,10 @@ class RealLit(RealExpr):
 @dataclass(frozen=True)
 class BoolLit(BoolExpr):
     value: bool
-
+    
     def to_egglog(self):
         return MathBool.True_() if self.value else MathBool.False_()
-
+    
     def to_z3(self):
         return z3.BoolVal(self.value)
 
@@ -72,10 +72,10 @@ class BoolLit(BoolExpr):
 class Add(RealExpr):
     lhs: RealExpr
     rhs: RealExpr
-
+    
     def to_egglog(self):
         return Math.Add(self.lhs.to_egglog(), self.rhs.to_egglog())
-
+    
     def to_z3(self):
         return self.lhs.to_z3() + self.rhs.to_z3()
 
@@ -84,10 +84,10 @@ class Add(RealExpr):
 class Sub(RealExpr):
     lhs: RealExpr
     rhs: RealExpr
-
+    
     def to_egglog(self):
         return Math.Add(self.lhs.to_egglog(), Math.Neg(self.rhs.to_egglog()))
-
+    
     def to_z3(self):
         return self.lhs.to_z3() - self.rhs.to_z3()
 
@@ -96,10 +96,10 @@ class Sub(RealExpr):
 class Mul(RealExpr):
     lhs: RealExpr
     rhs: RealExpr
-
+    
     def to_egglog(self):
         return Math.Mul(self.lhs.to_egglog(), self.rhs.to_egglog())
-
+    
     def to_z3(self):
         return self.lhs.to_z3() * self.rhs.to_z3()
 
@@ -107,10 +107,10 @@ class Mul(RealExpr):
 @dataclass(frozen=True)
 class Neg(RealExpr):
     value: RealExpr
-
+    
     def to_egglog(self):
         return Math.Neg(self.value.to_egglog())
-
+    
     def to_z3(self):
         return -self.value.to_z3()
 
@@ -118,10 +118,10 @@ class Neg(RealExpr):
 @dataclass(frozen=True)
 class Abs(RealExpr):
     value: RealExpr
-
+    
     def to_egglog(self):
         return Math.Abs(self.value.to_egglog())
-
+    
     def to_z3(self):
         return z3.Abs(self.value.to_z3())
 
@@ -129,10 +129,10 @@ class Abs(RealExpr):
 @dataclass(frozen=True)
 class Exp2(RealExpr):
     exponent: RealExpr
-
+    
     def to_egglog(self):
         return Math.Exp2(self.exponent.to_egglog())
-
+    
     def to_z3(self):
         return z3.RealVal(2) ** self.exponent.to_z3()
 
@@ -141,10 +141,10 @@ class Exp2(RealExpr):
 class Max(RealExpr):
     lhs: RealExpr
     rhs: RealExpr
-
+    
     def to_egglog(self):
         return Math.Max(self.lhs.to_egglog(), self.rhs.to_egglog())
-
+    
     def to_z3(self):
         lhs = self.lhs.to_z3()
         rhs = self.rhs.to_z3()
@@ -155,10 +155,10 @@ class Max(RealExpr):
 class Min(RealExpr):
     lhs: RealExpr
     rhs: RealExpr
-
+    
     def to_egglog(self):
         return Math.Min(self.lhs.to_egglog(), self.rhs.to_egglog())
-
+    
     def to_z3(self):
         lhs = self.lhs.to_z3()
         rhs = self.rhs.to_z3()
@@ -170,14 +170,14 @@ class If(RealExpr):
     cond: BoolExpr
     on_true: RealExpr
     on_false: RealExpr
-
+    
     def to_egglog(self):
         return Math.If(
             self.cond.to_egglog(),
             self.on_true.to_egglog(),
             self.on_false.to_egglog(),
         )
-
+    
     def to_z3(self):
         return z3.If(self.cond.to_z3(), self.on_true.to_z3(), self.on_false.to_z3())
 
@@ -186,10 +186,10 @@ class If(RealExpr):
 class Eq(BoolExpr):
     lhs: RealExpr
     rhs: RealExpr
-
+    
     def to_egglog(self):
         return Math.Eq(self.lhs.to_egglog(), self.rhs.to_egglog())
-
+    
     def to_z3(self):
         return self.lhs.to_z3() == self.rhs.to_z3()
 
@@ -198,10 +198,10 @@ class Eq(BoolExpr):
 class NotEq(BoolExpr):
     lhs: RealExpr
     rhs: RealExpr
-
+    
     def to_egglog(self):
         return Math.NotEq(self.lhs.to_egglog(), self.rhs.to_egglog())
-
+    
     def to_z3(self):
         return self.lhs.to_z3() != self.rhs.to_z3()
 
@@ -210,10 +210,10 @@ class NotEq(BoolExpr):
 class Lt(BoolExpr):
     lhs: RealExpr
     rhs: RealExpr
-
+    
     def to_egglog(self):
         return Math.Lt(self.lhs.to_egglog(), self.rhs.to_egglog())
-
+    
     def to_z3(self):
         return self.lhs.to_z3() < self.rhs.to_z3()
 
@@ -222,10 +222,10 @@ class Lt(BoolExpr):
 class Le(BoolExpr):
     lhs: RealExpr
     rhs: RealExpr
-
+    
     def to_egglog(self):
         return Math.Le(self.lhs.to_egglog(), self.rhs.to_egglog())
-
+    
     def to_z3(self):
         return self.lhs.to_z3() <= self.rhs.to_z3()
 
@@ -234,10 +234,10 @@ class Le(BoolExpr):
 class Gt(BoolExpr):
     lhs: RealExpr
     rhs: RealExpr
-
+    
     def to_egglog(self):
         return Math.Gt(self.lhs.to_egglog(), self.rhs.to_egglog())
-
+    
     def to_z3(self):
         return self.lhs.to_z3() > self.rhs.to_z3()
 
@@ -246,10 +246,10 @@ class Gt(BoolExpr):
 class Ge(BoolExpr):
     lhs: RealExpr
     rhs: RealExpr
-
+    
     def to_egglog(self):
         return Math.Ge(self.lhs.to_egglog(), self.rhs.to_egglog())
-
+    
     def to_z3(self):
         return self.lhs.to_z3() >= self.rhs.to_z3()
 
@@ -257,10 +257,10 @@ class Ge(BoolExpr):
 @dataclass(frozen=True)
 class Not(BoolExpr):
     value: BoolExpr
-
+    
     def to_egglog(self):
         return MathBool.Not(self.value.to_egglog())
-
+    
     def to_z3(self):
         return z3.Not(self.value.to_z3())
 

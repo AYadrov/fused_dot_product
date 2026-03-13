@@ -41,8 +41,11 @@ def egglog_check_eq(ctx: "SpecContext", iterations=6):
     }
     
     return equivalent, report
+    
 
 def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
+    from ..spec.spec_utils import from_egglog
+
     def simplify(expr: "SpecNode", egraph: EGraph):
         return from_egglog(egraph.extract(expr.to_egglog()))
     
