@@ -213,10 +213,6 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
         ######### NORMALIZING ##########
         
         normalized_m_uq, normalized_e_q = normalize_to_1_xxx(m_uq, e)
-        (
-            normalized_m_uq.check(uq_less(normalized_m_uq, Const(UQ.from_int(2)))),
-            normalized_m_uq.check(uq_greater_or_equal(normalized_m_uq, Const(UQ.from_int(0)))),  # it can be a zero
-        )
         
         ###### SUBNORMAL HANDLING ######
         
@@ -261,19 +257,10 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
         else:
             normalized_m_uq = Const(UQ(0, 0, 1))  # Edge case .0 as fractional bits
         
-        (
-            normalized_m_uq.check(uq_less(normalized_m_uq, Const(UQ.from_int(1)))),
-            normalized_m_uq.check(uq_greater_or_equal(normalized_m_uq, Const(UQ.from_int(0))))
-        )
-        
         ##### ROUND TO THE NEAREST #####
         
         target_width = Float32.mantissa_bits
         m_rounded_uq, e_rounded_uq = round_to_the_nearest_even(normalized_m_uq, normalized_e_uq, target_bits=target_width)
-        (
-            m_rounded_uq.check(uq_less(m_rounded_uq, Const(UQ.from_int(1)))),
-            m_rounded_uq.check(uq_greater_or_equal(m_rounded_uq, Const(UQ.from_int(0))))
-        )
         
         ######### INF HANDLING #########
         
@@ -289,12 +276,6 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
             in0=m_rounded_uq,
             in1=Const(UQ(0, 1, 0)),
             out=m_rounded_uq.copy())
-        
-        (
-            final_e_uq.check(uq_less_or_equal(final_e_uq, Const(UQ.from_int(Float32.inf_code)))),
-            final_e_uq.check(uq_greater_or_equal(final_e_uq, Const(UQ.from_int(0)))),
-            final_m_uq.check(uq_less(final_m_uq, Const(UQ.from_int(1))))
-        )
         
         ######### ZERO HANDLING #########
         final_m_uq = basic_mux_2_1(

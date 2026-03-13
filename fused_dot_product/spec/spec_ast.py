@@ -86,11 +86,23 @@ class RealExpr(SpecNode):
 
 
 class BoolExpr(SpecNode):
+    @staticmethod
+    def _coerce(value):
+        if isinstance(value, BoolExpr):
+            return value
+        raise TypeError(f"Expected BoolExpr, got {type(value).__name__}")    
+    
     def __bool__(self) -> bool:
         raise TypeError("Spec BoolExpr cannot be used as a Python bool")
 
     def __invert__(self) -> "BoolExpr":
         return Not(self)
+        
+    def eq(self, other: "BoolExpr") -> "BoolExpr":
+        raise NotImplementedError()
+    
+    def ne(self, other: "BoolExpr") -> "BoolExpr":
+        raise NotImplementedError()
 
 
 @dataclass(frozen=True)

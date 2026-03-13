@@ -44,7 +44,6 @@ class Node:
         self.sign = sign
         self.args = args
         self.name = name
-        self._assert_statements = []
 
         # Defines node_type at initialization - some parts rely on this
         self._static_typecheck()
@@ -58,13 +57,6 @@ class Node:
         output = self.spec(*inputs, ctx=ctx)
         cache[self] = output
         return output
-
-    def _run_asserts(self, cache=None):
-        for to_assert in self._assert_statements:
-            res = to_assert.evaluate(cache)
-            assert isinstance(res, Bool)
-            if res.val == 0:
-                raise AssertionError(f"Assertion mismatch at {to_assert.name} for {self.name}")
 
     def _static_typecheck(self):
         # Clone to avoid sharing runtime_val/state across nodes.
@@ -153,12 +145,6 @@ class Node:
         from .helpers import Tuple_get_item
         return Tuple_get_item(self, idx)
 
-    def check(self, assert_node: "Node"):
-        assert isinstance(assert_node, Node)
-        assert assert_node.node_type == BoolT()
-        assert len(assert_node.args) != 0, f"No arguments provided for assert {assert_node.name}"
-        self._assert_statements.append(assert_node)
-
     def evaluate(self, cache: tp.Optional[dict["Node", RuntimeType]] = None) -> RuntimeType:
         # Use a per-evaluation cache to avoid recomputing shared subtrees.
         # Cache lives only for the current call chain.
@@ -168,15 +154,13 @@ class Node:
         token = self._eval_cache.set(active_cache)
 
         try:
-            # Cache hit, Node is checked with asserts
+            # Cache hit
             if self in active_cache:
                 return active_cache[self].copy()
 
             inputs = [arg.evaluate(active_cache) for arg in self.args]
             out = self.impl(inputs)
-            active_cache[self] = out  # run_asserts can refer to itself causing infinite loop, caching prevents it
-
-            self._run_asserts(cache=active_cache)
+            active_cache[self] = out
 
             return out
 
