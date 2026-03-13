@@ -52,11 +52,14 @@ def bf16_decode(x: Node) -> Primitive:
         mantissa = ctx.fresh_real(f"mantissa")
         exponent = ctx.fresh_real(f"exponent")
         
-        mantissa_ = ctx.real_val(1) + (
-            mantissa * (ctx.real_val(2) ** (-ctx.real_val(BFloat16.mantissa_bits)))
-        )
-        exponent_ = exponent - ctx.real_val(BFloat16.exponent_bias)
-        ctx.assume(x.eq(sign * (mantissa_ * (ctx.real_val(2) ** exponent_))))
+        two = ctx.real_val(2)
+        one = ctx.real_val(1)
+        m_bits = ctx.real_val(BFloat16.mantissa_bits)
+        e_bits = ctx.real_val(BFloat16.exponent_bias)
+        
+        mantissa_ = one + mantissa * two ** (-m_bits)
+        exponent_ = exponent - e_bits
+        ctx.assume(x.eq(sign * (mantissa_ * (two ** exponent_))))
         return (sign, mantissa, exponent)
     
     def sign(x: BFloat16T) -> TupleT:

@@ -484,11 +484,13 @@ def uq_split(x: Node, idx: int) -> Primitive:
         lo = ctx.fresh_real("lo")
         hi = ctx.fresh_real("hi")
         
+        two = ctx.real_val(2)
+        
         # x = hi * 2^lo_int_bits + lo * 2^-hi_frac_bits
         ctx.assume(
             x.eq(
-                (hi * (ctx.real_val(2) ** ctx.real_val(lo_int_bits)))
-                + (lo * (ctx.real_val(2) ** (-ctx.real_val(hi_frac_bits))))
+                (hi * two ** ctx.real_val(lo_int_bits))
+                + (lo * two ** (-ctx.real_val(hi_frac_bits)))
             )
         )
         return (lo, hi)

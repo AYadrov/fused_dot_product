@@ -35,7 +35,9 @@ def _est_local_shift(E_trail: Node) -> Primitive:
     E_trail_width = E_trail.node_type.total_bits()
     
     def spec(x, ctx):
-        return (ctx.real_val(2) ** ctx.real_val(E_trail_width)) - ctx.real_val(1) - x
+        two = ctx.real_val(2)
+        one = ctx.real_val(1)
+        return (two ** ctx.real_val(E_trail_width)) - one - x
     
     def sign(E_trail: UQT) -> UQT:
         return E_trail
@@ -54,8 +56,10 @@ def _est_local_shift(E_trail: Node) -> Primitive:
 # xxx. -> xxx11.
 def _prepend_ones(x: Node, s: int) -> Primitive:
     def spec(x, ctx):
-        return (x * (ctx.real_val(2) ** ctx.real_val(s))) + (
-            (ctx.real_val(2) ** ctx.real_val(s)) - ctx.real_val(1)
+        two = ctx.real_val(2)
+        one = ctx.real_val(1)
+        return (x * (two ** ctx.real_val(s))) + (
+            (two ** ctx.real_val(s)) - one
         )
     
     def sign(x: UQT) -> UQT:
