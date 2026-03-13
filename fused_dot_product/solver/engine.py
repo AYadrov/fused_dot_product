@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..spec import SpecContext, Eq, SpecNode
+from ..spec import SpecContext, SpecNode
 from ..egglog import egglog_check_eq, egglog_simplify_ctx
 from ..smt import z3_check
 
@@ -24,7 +24,7 @@ def _enqueue_equivalence(
         for lhs_item, rhs_item in zip(lhs, rhs):
             _enqueue_equivalence(lhs_item, rhs_item, ctx=ctx)
         return
-    ctx.check(Eq(lhs, rhs))
+    ctx.check(lhs.eq(rhs))
 
 def check_equivalence(
     query1: SpecNode | tuple,

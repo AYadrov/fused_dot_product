@@ -34,7 +34,7 @@ def uq_less(x: Node, y: Node) -> Primitive:
         return basic_less(aligned_x, aligned_y, out=Const(Bool(0)))
     
     def spec(x, y, ctx):
-        return Lt(x, y)
+        return x < y
     
     def sign(x: UQT, y: UQT) -> BoolT:
         return BoolT()
@@ -53,7 +53,7 @@ def uq_less_or_equal(x: Node, y: Node) -> Primitive:
         return basic_less_or_equal(aligned_x, aligned_y, out=Const(Bool(0)))
     
     def spec(x, y, ctx):
-        return Le(x, y)
+        return x <= y
     
     def sign(x: UQT, y: UQT) -> BoolT:
         return BoolT()
@@ -72,7 +72,7 @@ def uq_greater(x: Node, y: Node) -> Primitive:
         return basic_greater(aligned_x, aligned_y, out=Const(Bool(0)))
     
     def spec(x, y, ctx):
-        return Gt(x, y)
+        return x > y
     
     def sign(x: UQT, y: UQT) -> BoolT:
         return BoolT()
@@ -91,7 +91,7 @@ def uq_greater_or_equal(x: Node, y: Node) -> Primitive:
         return basic_greater_or_equal(aligned_x, aligned_y, out=Const(Bool(0)))
     
     def spec(x, y, ctx):
-        return Ge(x, y)
+        return x >= y
     
     def sign(x: UQT, y: UQT) -> BoolT:
         return BoolT()
@@ -110,7 +110,7 @@ def uq_equal(x: Node, y: Node) -> Primitive:
         return basic_equal(aligned_x, aligned_y, out=Const(Bool(0)))
     
     def spec(x, y, ctx): 
-        return Eq(x, y)
+        return x.eq(y)
     
     def sign(x: UQT, y: UQT) -> BoolT:
         return BoolT()
@@ -129,7 +129,7 @@ def uq_not_equal(x: Node, y: Node) -> Primitive:
         return basic_not_equal(aligned_x, aligned_y, out=Const(Bool(0)))
     
     def spec(x, y, ctx): 
-        return NotEq(x, y)
+        return x.ne(y)
     
     def sign(x: UQT, y: UQT) -> BoolT:
         return BoolT()
@@ -206,7 +206,7 @@ def uq_zero_extend(x: Node, n: int) -> Primitive:
 
 def uq_add(x: Node, y: Node) -> Primitive:
     def spec(x, y, ctx):
-        return Add(x, y)
+        return x + y
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = max(x.int_bits, y.int_bits) + 1
@@ -237,7 +237,7 @@ def uq_add(x: Node, y: Node) -> Primitive:
 
 def uq_sub(x: Node, y: Node) -> Primitive:
     def spec(x, y, ctx):
-        return Sub(x, y)
+        return x - y
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = max(x.int_bits, y.int_bits) + 1
@@ -268,7 +268,7 @@ def uq_sub(x: Node, y: Node) -> Primitive:
 
 def uq_max(x: Node, y: Node) -> Primitive:
     def spec(x, y, ctx):
-        return Max(x, y)
+        return smax(x, y)
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = max(x.int_bits, y.int_bits)
@@ -299,7 +299,7 @@ def uq_max(x: Node, y: Node) -> Primitive:
 
 def uq_min(x: Node, y: Node) -> Primitive:
     def spec(x, y, ctx):
-        return Min(x, y)
+        return smin(x, y)
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = max(x.int_bits, y.int_bits)
@@ -330,7 +330,7 @@ def uq_min(x: Node, y: Node) -> Primitive:
 
 def uq_mul(x: Node, y: Node) -> Primitive:
     def spec(x, y, ctx):
-        return Mul(x, y)
+        return x * y
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = x.int_bits + y.int_bits
@@ -394,7 +394,7 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
         return root
     
     def spec(x, amount, ctx):
-        return Mul(x, Exp2(Neg(amount)))
+        return x * (2 ** (-amount))
     
     # TODO: Would be nice to not care about amount type, just bits amount
     def sign(x: UQT, amount: StaticType) -> UQT:
@@ -420,7 +420,7 @@ def uq_lshift(x: Node, amount: Node) -> Primitive:
         return root
         
     def spec(x, amount, ctx):
-        return Mul(x, Exp2(amount))
+        return x * (2 ** amount)
     
     def sign(x: UQT, amount: StaticType) -> UQT:
         return UQT(x.int_bits, x.frac_bits)
@@ -443,7 +443,7 @@ def uq_select(x: Node, start: int, end: int) -> Primitive:
     def spec(x, ctx):
         slice1 = ctx.fresh_real("slice1")
         slice2 = ctx.fresh_real("slice2")
-        ctx.assume(Eq(x, Add(slice1, slice2)))
+        ctx.assume(x.eq(slice1 + slice2))
         return slice1
     
     def sign(x: UQT) -> UQT:
@@ -486,10 +486,9 @@ def uq_split(x: Node, idx: int) -> Primitive:
         
         # x = hi * 2^lo_int_bits + lo * 2^-hi_frac_bits
         ctx.assume(
-            Eq(x, Add(
-                    Mul(hi, Exp2(ctx.real_val(lo_int_bits))),
-                    Mul(lo, Exp2(Neg(ctx.real_val(hi_frac_bits))))
-                 )
+            x.eq(
+                (hi * (2 ** ctx.real_val(lo_int_bits)))
+                + (lo * (2 ** (-ctx.real_val(hi_frac_bits))))
             )
         )
         return (lo, hi)

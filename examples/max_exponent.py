@@ -5,7 +5,7 @@ def OPTIMIZED_MAX_EXP4(e0: Node,
                        e2: Node,
                        e3: Node) -> Primitive:
     def spec(e0, e1, e2, e3, ctx):
-        return Max(Max(e0, e1), Max(e2, e3))
+        return smax(smax(e0, e1), smax(e2, e3))
     
     def sign(e0: UQT, e1: UQT, e2: UQT, e3: UQT) -> UQT:
         int_bits = max(max(e0.int_bits, e1.int_bits), max(e2.int_bits, e3.int_bits))

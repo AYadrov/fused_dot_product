@@ -200,7 +200,7 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
         return Float32T()
     
     def spec(m, e, ctx):
-        return Mul(m, Exp2(Add(e, (Neg(ctx.real_val(127))))))
+        return m * (2 ** (e - ctx.real_val(127)))
 
     def impl(m: Node, e: Node) -> Node:
         sign_bit = q_sign_bit(m)
