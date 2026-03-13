@@ -394,7 +394,7 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
         return root
     
     def spec(x, amount, ctx):
-        return x * (2 ** (-amount))
+        return x * (ctx.real_val(2) ** (-amount))
     
     # TODO: Would be nice to not care about amount type, just bits amount
     def sign(x: UQT, amount: StaticType) -> UQT:
@@ -420,7 +420,7 @@ def uq_lshift(x: Node, amount: Node) -> Primitive:
         return root
         
     def spec(x, amount, ctx):
-        return x * (2 ** amount)
+        return x * (ctx.real_val(2) ** amount)
     
     def sign(x: UQT, amount: StaticType) -> UQT:
         return UQT(x.int_bits, x.frac_bits)
@@ -487,8 +487,8 @@ def uq_split(x: Node, idx: int) -> Primitive:
         # x = hi * 2^lo_int_bits + lo * 2^-hi_frac_bits
         ctx.assume(
             x.eq(
-                (hi * (2 ** ctx.real_val(lo_int_bits)))
-                + (lo * (2 ** (-ctx.real_val(hi_frac_bits))))
+                (hi * (ctx.real_val(2) ** ctx.real_val(lo_int_bits)))
+                + (lo * (ctx.real_val(2) ** (-ctx.real_val(hi_frac_bits))))
             )
         )
         return (lo, hi)

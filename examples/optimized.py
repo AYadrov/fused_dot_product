@@ -6,7 +6,7 @@ from .max_exponent import *
 
 def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
     def spec(E_max, E_p, ctx):
-        return (E_max - E_p) * (2 ** ctx.real_val(s))
+        return (E_max - E_p) * (ctx.real_val(2) ** ctx.real_val(s))
     
     def sign(E_max: UQT, E_p: UQT) -> UQT:
         return UQT(E_max.int_bits + s, 0)
@@ -35,7 +35,7 @@ def _est_local_shift(E_trail: Node) -> Primitive:
     E_trail_width = E_trail.node_type.total_bits()
     
     def spec(x, ctx):
-        return (2 ** ctx.real_val(E_trail_width)) - ctx.real_val(1) - x
+        return (ctx.real_val(2) ** ctx.real_val(E_trail_width)) - ctx.real_val(1) - x
     
     def sign(E_trail: UQT) -> UQT:
         return E_trail
@@ -54,7 +54,9 @@ def _est_local_shift(E_trail: Node) -> Primitive:
 # xxx. -> xxx11.
 def _prepend_ones(x: Node, s: int) -> Primitive:
     def spec(x, ctx):
-        return (x * (2 ** ctx.real_val(s))) + ((2 ** ctx.real_val(s)) - ctx.real_val(1))
+        return (x * (ctx.real_val(2) ** ctx.real_val(s))) + (
+            (ctx.real_val(2) ** ctx.real_val(s)) - ctx.real_val(1)
+        )
     
     def sign(x: UQT) -> UQT:
         return UQT(x.int_bits + s, 0)

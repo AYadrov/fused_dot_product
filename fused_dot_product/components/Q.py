@@ -405,7 +405,7 @@ def q_sub(x: Node, y: Node) -> Primitive:
 # TODO: spec is broken
 def q_lshift(x: Node, n: Node) -> Primitive:
     def spec(x, n, ctx):
-        return x * (2 ** n)
+        return x * (ctx.real_val(2) ** n)
         
     def sign(x: QT, n: UQT) -> QT:
         return QT(x.int_bits, x.frac_bits)
@@ -451,7 +451,7 @@ def q_to_uq(x: Node) -> Primitive:
 
 def q_rshift(x: Node, n: Node) -> Primitive:
     def spec(x, n, ctx):
-        return x * (2 ** (-n))
+        return x * (ctx.real_val(2) ** (-n))
     
     def sign(x: QT, n: UQT) -> QT:
         return QT(x.int_bits, x.frac_bits)

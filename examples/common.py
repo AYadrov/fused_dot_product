@@ -3,7 +3,7 @@ from fused_dot_product import *
 def mantissa_add_implicit_bit(x: Node) -> Primitive:
     int_bits = x.node_type.int_bits
     def spec(mantissa, ctx):
-        return (mantissa * (2 ** (-ctx.real_val(int_bits)))) + ctx.real_val(1)
+        return (mantissa * (ctx.real_val(2) ** (-ctx.real_val(int_bits)))) + ctx.real_val(1)
     
     def sign(mantissa: UQT) -> UQT:
         assert mantissa.frac_bits == 0
