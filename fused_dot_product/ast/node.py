@@ -120,21 +120,19 @@ class Node:
 
     ################ PUBLIC API ##################
     
-    def check_spec(self, ctx=None, cache=None, z3_timeout_ms: int = 10000, egglog_iterations=6):
+    def check_spec(self, z3_timeout_ms: int = 10000, egglog_iters=6):
         from .nodes import Composite  # cycles
         assert isinstance(self, Composite)
         
-        if cache is None:
-            cache = {}
-        if ctx is None:
-            ctx = SpecContext(self.name)
+        cache = {}
+        ctx = SpecContext(self.name)
         
-        spec_inner = self.inner_tree._evaluate_spec(ctx, cache)
+        spec_inner = self.inner_tree._evaluate_spec(ctx=ctx, cache=cache)
 
-        inputs = [arg._evaluate_spec(ctx, cache) for arg in self.inner_args]
+        inputs = [arg._evaluate_spec(ctx=ctx, cache=cache) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, ctx=ctx)
 
-        certificate = check_equivalence(spec_inner, spec_outer, ctx=ctx)
+        certificate = check_equivalence(spec_inner, spec_outer, ctx=ctx, egglog_iters=egglog_iters, z3_timeout_ms=z3_timeout_ms)
         return certificate
 
     def copy(self):

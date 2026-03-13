@@ -268,7 +268,7 @@ def uq_sub(x: Node, y: Node) -> Primitive:
 
 def uq_max(x: Node, y: Node) -> Primitive:
     def spec(x, y, ctx):
-        return smax(x, y)
+        return x.max(y)
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = max(x.int_bits, y.int_bits)
@@ -299,7 +299,7 @@ def uq_max(x: Node, y: Node) -> Primitive:
 
 def uq_min(x: Node, y: Node) -> Primitive:
     def spec(x, y, ctx):
-        return smin(x, y)
+        return x.min(y)
     
     def sign(x: UQT, y: UQT) -> UQT:
         int_bits = max(x.int_bits, y.int_bits)

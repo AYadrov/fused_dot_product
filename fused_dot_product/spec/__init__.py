@@ -5,7 +5,5 @@ __all__ = [
     "SpecNode",
     "SpecContext",
     "ite",
-    "smax",
-    "smin",
     "children",
 ]

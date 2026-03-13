@@ -83,6 +83,13 @@ class RealExpr(SpecNode):
     
     def ne(self, other: "RealExpr") -> "BoolExpr":
         return NotEq(self, self._coerce(other))
+    
+    def max(self, other: "RealExpr") -> "RealExpr":
+        return Max(self, self._coerce(other))
+    
+    def min(self, other: "RealExpr") -> "RealExpr":
+        return Min(self, self._coerce(other))
+
 
 
 class BoolExpr(SpecNode):
@@ -353,14 +360,6 @@ def ite(
     on_false: RealExpr,
 ) -> RealExpr:
     return If(cond, RealExpr._coerce(on_true), RealExpr._coerce(on_false))
-
-
-def smax(lhs: RealExpr, rhs: RealExpr) -> RealExpr:
-    return Max(RealExpr._coerce(lhs), RealExpr._coerce(rhs))
-
-
-def smin(lhs: RealExpr, rhs: RealExpr) -> RealExpr:
-    return Min(RealExpr._coerce(lhs), RealExpr._coerce(rhs))
 
 
 def children(node: SpecNode) -> tuple[SpecNode, ...]:
