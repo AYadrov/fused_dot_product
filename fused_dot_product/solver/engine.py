@@ -30,12 +30,14 @@ def check_equivalence(
     query1: SpecNode | tuple,
     query2: SpecNode | tuple,
     ctx: SpecContext,
+    egglog_iters: int = 6,
+    z3_timeout_ms: int = 10000,
 ):
     _enqueue_equivalence(query1, query2, ctx=ctx)
     
     certificate = {}
-    egglog_equivalence, certificate["egglog"] = egglog_check_eq(ctx, iterations=6)
+    egglog_equivalence, certificate["egglog"] = egglog_check_eq(ctx, iterations=egglog_iters)
     # ctx = egglog_simplify_ctx(ctx, certificate["egglog"]["egraph"])
     
-    z3_equivalence, certificate["z3"] = z3_check(ctx, timeout_ms=10000)
+    z3_equivalence, certificate["z3"] = z3_check(ctx, timeout_ms=z3_timeout_ms)
     return certificate
