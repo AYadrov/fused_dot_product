@@ -20,5 +20,8 @@ __all__ = [
     "Gt",
     "Ge",
     "Not",
+    "ite",
+    "smax",
+    "smin",
     "children",
 ]

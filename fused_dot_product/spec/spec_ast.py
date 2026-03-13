@@ -16,11 +16,100 @@ class SpecNode:
 
 
 class RealExpr(SpecNode):
-    pass
+    @staticmethod
+    def _coerce(value: "RealExpr | int | float") -> "RealExpr":
+        if isinstance(value, RealExpr):
+            return value
+        if isinstance(value, (int, float)):
+            return RealLit(value)
+        raise TypeError(
+            f"Expected RealExpr | int | float, got {type(value).__name__}"
+        )
+    
+    def __add__(self, other: "RealExpr | int | float") -> "RealExpr":
+        return Add(self, self._coerce(other))
+    
+    def __radd__(self, other: "RealExpr | int | float") -> "RealExpr":
+        return Add(self._coerce(other), self)
+
+    def __iadd__(self, other: "RealExpr | int | float") -> "RealExpr":
+        return self + other
+    
+    def __sub__(self, other: "RealExpr | int | float") -> "RealExpr":
+        return Sub(self, self._coerce(other))
+    
+    def __rsub__(self, other: "RealExpr | int | float") -> "RealExpr":
+        return Sub(self._coerce(other), self)
+
+    def __isub__(self, other: "RealExpr | int | float") -> "RealExpr":
+        return self - other
+    
+    def __mul__(self, other: "RealExpr | int | float") -> "RealExpr":
+        return Mul(self, self._coerce(other))
+    
+    def __rmul__(self, other: "RealExpr | int | float") -> "RealExpr":
+        return Mul(self._coerce(other), self)
+
+    def __imul__(self, other: "RealExpr | int | float") -> "RealExpr":
+        return self * other
+    
+    @staticmethod
+    def _is_two(value: "RealExpr | int | float") -> bool:
+        if isinstance(value, RealLit):
+            return value.value == 2 or value.value == 2.0
+        return value == 2 or value == 2.0
+
+    def __pow__(self, other: "RealExpr | int | float", modulo=None) -> "RealExpr":
+        if modulo is not None:
+            raise NotImplementedError("pow(..., modulo) is not supported for spec AST")
+        if not self._is_two(self):
+            raise NotImplementedError("Only power base 2 is supported")
+        return Exp2(self._coerce(other))
+    
+    def __rpow__(self, other: "RealExpr | int | float", modulo=None) -> "RealExpr":
+        if modulo is not None:
+            raise NotImplementedError("pow(..., modulo) is not supported for spec AST")
+        if not self._is_two(other):
+            raise NotImplementedError("Only power base 2 is supported")
+        return Exp2(self)
+
+    def __ipow__(self, other: "RealExpr | int | float") -> "RealExpr":
+        return self ** other
+    
+    def __neg__(self) -> "RealExpr":
+        return Neg(self)
+    
+    def __pos__(self) -> "RealExpr":
+        return self  # maybe a copy needed
+    
+    def __abs__(self) -> "RealExpr":
+        return Abs(self)
+    
+    def __lt__(self, other: "RealExpr | int | float") -> "BoolExpr":
+        return Lt(self, self._coerce(other))
+    
+    def __le__(self, other: "RealExpr | int | float") -> "BoolExpr":
+        return Le(self, self._coerce(other))
+    
+    def __gt__(self, other: "RealExpr | int | float") -> "BoolExpr":
+        return Gt(self, self._coerce(other))
+    
+    def __ge__(self, other: "RealExpr | int | float") -> "BoolExpr":
+        return Ge(self, self._coerce(other))
+    
+    def eq(self, other: "RealExpr | int | float") -> "BoolExpr":
+        return Eq(self, self._coerce(other))
+    
+    def ne(self, other: "RealExpr | int | float") -> "BoolExpr":
+        return NotEq(self, self._coerce(other))
 
 
 class BoolExpr(SpecNode):
-    pass
+    def __bool__(self) -> bool:
+        raise TypeError("Spec BoolExpr cannot be used as a Python bool")
+
+    def __invert__(self) -> "BoolExpr":
+        return Not(self)
 
 
 @dataclass(frozen=True)
@@ -263,6 +352,22 @@ class Not(BoolExpr):
     
     def to_z3(self):
         return z3.Not(self.value.to_z3())
+
+
+def ite(
+    cond: BoolExpr,
+    on_true: "RealExpr | int | float",
+    on_false: "RealExpr | int | float",
+) -> RealExpr:
+    return If(cond, RealExpr._coerce(on_true), RealExpr._coerce(on_false))
+
+
+def smax(lhs: "RealExpr | int | float", rhs: "RealExpr | int | float") -> RealExpr:
+    return Max(RealExpr._coerce(lhs), RealExpr._coerce(rhs))
+
+
+def smin(lhs: "RealExpr | int | float", rhs: "RealExpr | int | float") -> RealExpr:
+    return Min(RealExpr._coerce(lhs), RealExpr._coerce(rhs))
 
 
 def children(node: SpecNode) -> tuple[SpecNode, ...]:

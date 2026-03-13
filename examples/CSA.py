@@ -48,7 +48,7 @@ def CSA(x: Node, y: Node, z: Node) -> Primitive:
     def spec(x, y, z, ctx):
         carry = ctx.fresh_real("carry")
         sum_ = ctx.fresh_real("sum")
-        ctx.assume(Eq(Add(x, Add(y, z)), Add(carry, sum_)))
+        ctx.assume((x + y + z).eq(carry + sum_))
         return sum_, carry
     
     def sign(x: QT, y: QT, z: QT) -> TupleT:
@@ -74,7 +74,7 @@ def CSA(x: Node, y: Node, z: Node) -> Primitive:
 
 def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
     def spec(m0, m1, m2, m3, ctx):
-        return Add(Add(Add(m0, m1), m2), m3)
+        return m0 + m1 + m2 + m3
     
     def sign(m0: QT, m1: QT, m2: QT, m3: QT) -> QT:
         frac_bits = max(max(m0.frac_bits, m1.frac_bits), max(m2.frac_bits, m3.frac_bits))
