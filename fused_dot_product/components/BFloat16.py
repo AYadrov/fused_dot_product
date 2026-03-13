@@ -1,12 +1,7 @@
-import time
-import random
-import math
-from itertools import count
-
 from ..types import *
-from .Tuple import *
+from .Tuple import make_Tuple
 from ..ast import *
-from ..egglog import *
+from ..spec import *
 
 ########### Private Helpers ############
 
@@ -52,16 +47,20 @@ def _bf16_sign(x: Node) -> Op:
 ############## Public API ##############
 
 def bf16_decode(x: Node) -> Primitive:
-    def spec(x, asserts):
-        sign = Math.fresh_var(f"sign")
-        mantissa = Math.fresh_var(f"mantissa")
-        exponent = Math.fresh_var(f"exponent")
+    def spec(x, ctx):
+        sign = ctx.fresh_real(f"sign")
+        mantissa = ctx.fresh_real(f"mantissa")
+        exponent = ctx.fresh_real(f"exponent")
         
-        mantissa_ = Math.lit(1) + (mantissa * Math.exp2(- Math.lit(BFloat16.mantissa_bits)))
-        exponent_ = exponent + (- Math.lit(BFloat16.exponent_bias))
-        asserts.append(
-            union(x).with_(sign * mantissa_ * Math.exp2(exponent_)))
-        return tuple([sign, mantissa, exponent])
+        two = ctx.real_val(2)
+        one = ctx.real_val(1)
+        m_bits = ctx.real_val(BFloat16.mantissa_bits)
+        e_bits = ctx.real_val(BFloat16.exponent_bias)
+        
+        mantissa_ = one + mantissa * two ** (-m_bits)
+        exponent_ = exponent - e_bits
+        ctx.assume(x.eq(sign * (mantissa_ * (two ** exponent_))))
+        return (sign, mantissa, exponent)
     
     def sign(x: BFloat16T) -> TupleT:
         return TupleT(

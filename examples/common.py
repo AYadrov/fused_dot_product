@@ -2,8 +2,8 @@ from fused_dot_product import *
 
 def mantissa_add_implicit_bit(x: Node) -> Primitive:
     int_bits = x.node_type.int_bits
-    def spec(mantissa, asserts):
-        return (mantissa * Math.exp2(- Math.lit(int_bits))) + Math.lit(1)
+    def spec(mantissa, ctx):
+        return (mantissa * (ctx.real_val(2) ** (-ctx.real_val(int_bits)))) + ctx.real_val(1)
     
     def sign(mantissa: UQT) -> UQT:
         assert mantissa.frac_bits == 0
@@ -25,7 +25,7 @@ def mantissa_add_implicit_bit(x: Node) -> Primitive:
 
 
 def sign_xor(x: Node, y: Node) -> Primitive:
-    def spec(x, y, asserts):
+    def spec(x, y, ctx):
         return x * y
     
     def sign(x: UQT, y: UQT) -> UQT:
@@ -44,4 +44,3 @@ def sign_xor(x: Node, y: Node) -> Primitive:
         impl=impl,
         args=[x, y],
         name="sign_xor")
-

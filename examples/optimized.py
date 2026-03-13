@@ -4,11 +4,9 @@ from .CSA import CSA_tree4
 from .common import *
 from .max_exponent import *
 
-import numpy as np
-
 def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
-    def spec(E_max, E_p, asserts):
-        return (E_max + (- E_p)) * Math.exp2(Math.lit(s))
+    def spec(E_max, E_p, ctx):
+        return (E_max - E_p) * (ctx.real_val(2) ** ctx.real_val(s))
     
     def sign(E_max: UQT, E_p: UQT) -> UQT:
         return UQT(E_max.int_bits + s, 0)
@@ -36,8 +34,10 @@ def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
 def _est_local_shift(E_trail: Node) -> Primitive:
     E_trail_width = E_trail.node_type.total_bits()
     
-    def spec(x, asserts):
-        return (Math.exp2(Math.lit(E_trail_width)) + (- Math.lit(1))) + (- x)
+    def spec(x, ctx):
+        two = ctx.real_val(2)
+        one = ctx.real_val(1)
+        return (two ** ctx.real_val(E_trail_width)) - one - x
     
     def sign(E_trail: UQT) -> UQT:
         return E_trail
@@ -55,8 +55,12 @@ def _est_local_shift(E_trail: Node) -> Primitive:
 
 # xxx. -> xxx11.
 def _prepend_ones(x: Node, s: int) -> Primitive:
-    def spec(x, asserts):
-        return x * Math.exp2(Math.lit(s)) + (Math.exp2(Math.lit(s)) + (- Math.lit(1)))
+    def spec(x, ctx):
+        two = ctx.real_val(2)
+        one = ctx.real_val(1)
+        return (x * (two ** ctx.real_val(s))) + (
+            (two ** ctx.real_val(s)) - one
+        )
     
     def sign(x: UQT) -> UQT:
         return UQT(x.int_bits + s, 0)
@@ -85,8 +89,8 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
               b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
     
     def spec(a0: Math, a1: Math, a2: Math, a3: Math,
-             b0: Math, b1: Math, b2: Math, b3: Math, asserts):
-        return a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3
+             b0: Math, b1: Math, b2: Math, b3: Math, ctx):
+        return (a0 * b0) + (a1 * b1) + (a2 * b2) + (a3 * b3)
     
     def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T,
              b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
@@ -210,4 +214,3 @@ if __name__ == '__main__':
     design.print_tree(depth=1)
     report = design.check_spec()
     pprint(report)
-

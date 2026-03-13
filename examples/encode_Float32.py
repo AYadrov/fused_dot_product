@@ -1,5 +1,4 @@
 import math
-import numpy as np
 
 from fused_dot_product import *
 
@@ -12,12 +11,8 @@ def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:
     sign_int_bits = min(m.node_type.int_bits, target_bits)
     sign_frac_bits = max(target_bits - m.node_type.int_bits, 0)
     
-    def spec(m, e, asserts):
-        rounded_m = Math.fresh_var("rounded_m")
-        rounded_e = Math.fresh_var("rounded_e")
-        asserts.append(
-            union(m * Math.exp2(e)).with_(rounded_m * Math.exp2(rounded_e)))
-        return tuple([rounded_m, rounded_e])
+    def spec(m, e, ctx):
+        raise NotImplementedError
     
     
     def sign(m: UQT, e: UQT) -> TupleT:
@@ -106,7 +101,7 @@ def lzc(x: Node) -> Primitive:
     frac_bits = x.node_type.frac_bits
     count_bits = max(1, math.ceil(math.log2(width + 1)))
     
-    def spec(x_val, asserts):
+    def spec(x_val, ctx):
         raise NotImplementedError
     
     def impl(x: Node) -> Node:
@@ -148,12 +143,8 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
         
         return TupleT(UQT(m_int_target_bits, m_frac_target_bits), QT(e_width, e.frac_bits))
     
-    def spec(m, e, asserts):
-        normalized_m = Math.fresh_var("normalized_m")
-        normalized_e = Math.fresh_var("normalized_e")
-        asserts.append(
-            union(m * Math.exp2(e)).with_(normalized_m * Math.exp2(normalized_e)))
-        return tuple([normalized_m, normalized_e])
+    def spec(m, e, ctx):
+        raise NotImplementedError
     
     def impl(m: Node, e: Node) -> Node:
         lzc_uq = lzc(m)  # UQ<ceil(log2(a + b)), 0>
@@ -208,8 +199,8 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
     def sign(m: QT, e: QT) -> Float32T:
         return Float32T()
     
-    def spec(m, e, asserts):
-        return m * Math.exp2(e + (- Math.lit(127)))
+    def spec(m, e, ctx):
+        return m * (ctx.real_val(2) ** (e - ctx.real_val(127)))
 
     def impl(m: Node, e: Node) -> Node:
         sign_bit = q_sign_bit(m)
@@ -222,10 +213,6 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
         ######### NORMALIZING ##########
         
         normalized_m_uq, normalized_e_q = normalize_to_1_xxx(m_uq, e)
-        (
-            normalized_m_uq.check(uq_less(normalized_m_uq, Const(UQ.from_int(2)))),
-            normalized_m_uq.check(uq_greater_or_equal(normalized_m_uq, Const(UQ.from_int(0)))),  # it can be a zero
-        )
         
         ###### SUBNORMAL HANDLING ######
         
@@ -270,19 +257,10 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
         else:
             normalized_m_uq = Const(UQ(0, 0, 1))  # Edge case .0 as fractional bits
         
-        (
-            normalized_m_uq.check(uq_less(normalized_m_uq, Const(UQ.from_int(1)))),
-            normalized_m_uq.check(uq_greater_or_equal(normalized_m_uq, Const(UQ.from_int(0))))
-        )
-        
         ##### ROUND TO THE NEAREST #####
         
         target_width = Float32.mantissa_bits
         m_rounded_uq, e_rounded_uq = round_to_the_nearest_even(normalized_m_uq, normalized_e_uq, target_bits=target_width)
-        (
-            m_rounded_uq.check(uq_less(m_rounded_uq, Const(UQ.from_int(1)))),
-            m_rounded_uq.check(uq_greater_or_equal(m_rounded_uq, Const(UQ.from_int(0))))
-        )
         
         ######### INF HANDLING #########
         
@@ -298,12 +276,6 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
             in0=m_rounded_uq,
             in1=Const(UQ(0, 1, 0)),
             out=m_rounded_uq.copy())
-        
-        (
-            final_e_uq.check(uq_less_or_equal(final_e_uq, Const(UQ.from_int(Float32.inf_code)))),
-            final_e_uq.check(uq_greater_or_equal(final_e_uq, Const(UQ.from_int(0)))),
-            final_m_uq.check(uq_less(final_m_uq, Const(UQ.from_int(1))))
-        )
         
         ######### ZERO HANDLING #########
         final_m_uq = basic_mux_2_1(

@@ -139,8 +139,8 @@ class Const(Node):
         def impl():
             return self.val
 
-        def spec(asserts):
-            return self.val.to_spec()
+        def spec(ctx):
+            return self.val.to_spec(ctx)
 
         def sign() -> StaticType:
             return self.val.static_type()
@@ -171,8 +171,8 @@ class Var(Node):
             assert self.val is not None, f"Variable {self.name} not bound to a value"
             return self.val
 
-        def spec(asserts):
-            return sign.to_spec(self.name)
+        def spec(ctx):
+            return sign.to_spec(self.name, ctx)
 
         def signature() -> StaticType:
             return sign

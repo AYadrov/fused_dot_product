@@ -1,7 +1,6 @@
 import random
 import time
 
-from ..egglog import Math, MathBool
 from .static import BFloat16T, BoolT, Float32T, QT, TupleT, UQT
 
 class RuntimeType:
@@ -42,8 +41,8 @@ class Tuple(RuntimeType):
     def to_val(self):
         return tuple(x.to_val() for x in self.args)
     
-    def to_spec(self):
-        return tuple(x.to_spec() for x in self.args)
+    def to_spec(self, ctx):
+        return tuple(x.to_spec(ctx) for x in self.args)
     
     def __str__(self):
         return f"Tuple[{', '.join([str(x) for x in self.args])}]"
@@ -75,8 +74,8 @@ class Bool(RuntimeType):
     def to_val(self):
         return self.val == 1
     
-    def to_spec(self):
-        return MathBool.val(self.to_val())
+    def to_spec(self, ctx):
+        return ctx.bool_val(self.to_val())
     
     def static_type(self):
         return BoolT()
@@ -117,8 +116,8 @@ class Q(RuntimeType):
         else:
             return float(self.val) / (2 ** self.frac_bits)
     
-    def to_spec(self):
-        return Math.lit(self.to_val())
+    def to_spec(self, ctx):
+        return ctx.real_val(self.to_val())
     
     def static_type(self):
         return QT(self.int_bits, self.frac_bits)
@@ -195,8 +194,8 @@ class UQ(RuntimeType):
     def to_val(self):
         return float(self.val) / (2 ** self.frac_bits)
     
-    def to_spec(self):
-        return Math.lit(self.to_val())
+    def to_spec(self, ctx):
+        return ctx.real_val(self.to_val())
     
     def static_type(self):
         return UQT(self.int_bits, self.frac_bits)
@@ -269,8 +268,8 @@ class Float32(RuntimeType):
             return float((-1) ** self.sign * frac * (2 ** exp_val))
     
     # TODO: that's sketchy
-    def to_spec(self):
-        return Math.lit(self.to_val())
+    def to_spec(self, ctx):
+        return ctx.real_val(self.to_val())
     
     def static_type(self):
         return Float32T()
@@ -339,8 +338,8 @@ class BFloat16(RuntimeType):
         return float(value)
     
     # TODO: that's sketchy
-    def to_spec(self):
-        return Math.lit(self.to_val())
+    def to_spec(self, ctx):
+        return ctx.real_val(self.to_val())
     
     def static_type(self):
         return BFloat16T()

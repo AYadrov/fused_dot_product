@@ -4,7 +4,8 @@ from contextvars import ContextVar
 
 from ..types.runtime import Bool, RuntimeType
 from ..types.static import BoolT, StaticType
-from ..egglog import egglog_check_eq
+from ..spec import *
+from ..solver import check_equivalence
 
 
 class Node:
@@ -43,50 +44,19 @@ class Node:
         self.sign = sign
         self.args = args
         self.name = name
-        self._assert_statements = []
 
         # Defines node_type at initialization - some parts rely on this
         self._static_typecheck()
 
     ############## PRIVATE METHODS ###############
-
-    def check_spec(self, asserts=None, cache=None):
-        from .nodes import Composite  # cycles
-        assert isinstance(self, Composite)
-        
-        if cache is None:
-            cache = {}
-        if asserts is None:
-            asserts = []
-        
-        spec_inner = self.inner_tree._evaluate_spec(asserts, cache)
-
-        inputs = [arg._evaluate_spec(asserts, cache) for arg in self.inner_args]
-        spec_outer = self.spec(*inputs, asserts=asserts)
-
-        return egglog_check_eq(
-            spec_inner,
-            spec_outer,
-            asserts=asserts,
-            name=self.name,
-            iterations=6,
-        )
-        
             
-    def _evaluate_spec(self, asserts, cache):
+    def _evaluate_spec(self, ctx, cache):
         if self in cache:
             return cache[self]
-        inputs = [arg._evaluate_spec(asserts, cache) for arg in self.args]
-        output = self.spec(*inputs, asserts=asserts)
+        inputs = [arg._evaluate_spec(ctx, cache) for arg in self.args]
+        output = self.spec(*inputs, ctx=ctx)
         cache[self] = output
         return output
-
-    def _run_asserts(self, cache=None):
-        for to_assert in self._assert_statements:
-            res = to_assert.evaluate(cache)
-            assert isinstance(res, Bool)
-            if res.val == 0:
-                raise AssertionError(f"Assertion mismatch at {to_assert.name} for {self.name}")
 
     def _static_typecheck(self):
         # Clone to avoid sharing runtime_val/state across nodes.
@@ -149,6 +119,21 @@ class Node:
         assert isinstance(out, sign.return_annotation), output_msg
 
     ################ PUBLIC API ##################
+    
+    def check_spec(self, z3_timeout_ms: int = 10000, egglog_iters=6):
+        from .nodes import Composite  # cycles
+        assert isinstance(self, Composite)
+        
+        cache = {}
+        ctx = SpecContext(self.name)
+        
+        spec_inner = self.inner_tree._evaluate_spec(ctx=ctx, cache=cache)
+
+        inputs = [arg._evaluate_spec(ctx=ctx, cache=cache) for arg in self.inner_args]
+        spec_outer = self.spec(*inputs, ctx=ctx)
+
+        certificate = check_equivalence(spec_inner, spec_outer, ctx=ctx, egglog_iters=egglog_iters, z3_timeout_ms=z3_timeout_ms)
+        return certificate
 
     def copy(self):
         from .helpers import Copy
@@ -157,12 +142,6 @@ class Node:
     def __getitem__(self, idx: int):
         from .helpers import Tuple_get_item
         return Tuple_get_item(self, idx)
-
-    def check(self, assert_node: "Node"):
-        assert isinstance(assert_node, Node)
-        assert assert_node.node_type == BoolT()
-        assert len(assert_node.args) != 0, f"No arguments provided for assert {assert_node.name}"
-        self._assert_statements.append(assert_node)
 
     def evaluate(self, cache: tp.Optional[dict["Node", RuntimeType]] = None) -> RuntimeType:
         # Use a per-evaluation cache to avoid recomputing shared subtrees.
@@ -173,15 +152,13 @@ class Node:
         token = self._eval_cache.set(active_cache)
 
         try:
-            # Cache hit, Node is checked with asserts
+            # Cache hit
             if self in active_cache:
                 return active_cache[self].copy()
 
             inputs = [arg.evaluate(active_cache) for arg in self.args]
             out = self.impl(inputs)
-            active_cache[self] = out  # run_asserts can refer to itself causing infinite loop, caching prevents it
-
-            self._run_asserts(cache=active_cache)
+            active_cache[self] = out
 
             return out
 
@@ -191,4 +168,3 @@ class Node:
 
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         raise NotImplementedError
-

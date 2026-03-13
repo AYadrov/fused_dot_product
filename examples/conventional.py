@@ -2,14 +2,12 @@ from fused_dot_product import *
 from .encode_Float32 import *
 from .common import *
 
-import numpy as np
-
 def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
                  b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
                  
     def spec(a0: Math, a1: Math, a2: Math, a3: Math,
-                    b0: Math, b1: Math, b2: Math, b3: Math, asserts):
-        return a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3
+                    b0: Math, b1: Math, b2: Math, b3: Math, ctx):
+        return (a0 * b0) + (a1 * b1) + (a2 * b2) + (a3 * b3)
     
     def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T,
              b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
@@ -117,4 +115,3 @@ if __name__ == '__main__':
     design.print_tree(depth=1)
     report = design.check_spec()
     pprint(report)
-
