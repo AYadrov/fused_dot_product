@@ -2,6 +2,7 @@ import typing as tp
 
 from ..types.runtime import RuntimeType
 from ..types.static import StaticType
+from ..utils import make_fixed_arguments
 from .node import Node
 
 
@@ -9,8 +10,7 @@ class Composite(Node):
     def __init__(
         self,
         spec: tp.Callable[..., tp.Any],
-        impl: Node,
-        sign: tp.Callable[..., StaticType],
+        impl: tp.Callable[..., Node],
         args: list[Node],
         name: str,
     ):
@@ -21,12 +21,21 @@ class Composite(Node):
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         # Pointer to the inner tree
         self.inner_tree = impl(*self.inner_args)
-
+        
         def impl_(*args):
             for var, arg in zip(self.inner_args, args):
                 if isinstance(var, Var):
                     var.load_val(arg)
             return self.inner_tree.evaluate()
+        
+        def sign(*args):
+            return self.inner_tree.node_type
+
+        sign = make_fixed_arguments(
+            sign,
+            arg_types=[type(x.node_type) for x in args],
+            return_type=type(self.inner_tree.node_type),
+        )
 
         super().__init__(
             spec=spec,
@@ -57,7 +66,7 @@ class Primitive(Node):
     def __init__(
         self,
         spec: tp.Callable[..., tp.Any],
-        impl: Node,
+        impl: tp.Callable[..., Node],
         sign: tp.Callable[..., StaticType],
         args: list[Node],
         name: str,
@@ -195,4 +204,3 @@ class Var(Node):
 
     def __str__(self):
         return f"{self.node_type}: {self.name} [Var]"
-

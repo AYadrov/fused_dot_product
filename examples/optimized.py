@@ -92,9 +92,9 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
              b0: Math, b1: Math, b2: Math, b3: Math, ctx):
         return (a0 * b0) + (a1 * b1) + (a2 * b2) + (a3 * b3)
     
-    def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T,
-             b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
-        return Float32T()
+    # def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T,
+    #          b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
+    #     return Float32T()
     
     def impl(a0: Node, a1: Node, a2: Node, a3: Node,
              b0: Node, b1: Node, b2: Node, b3: Node) -> Node:
@@ -186,7 +186,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     return Composite(
             spec=spec,
             impl=impl,
-            sign=sign,
+            # sign=sign,
             args=[a0, a1, a2, a3,
                   b0, b1, b2, b3],
             name="Optimized")

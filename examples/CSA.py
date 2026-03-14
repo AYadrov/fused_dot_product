@@ -76,10 +76,10 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
     def spec(m0, m1, m2, m3, ctx):
         return m0 + m1 + m2 + m3
     
-    def sign(m0: QT, m1: QT, m2: QT, m3: QT) -> QT:
-        frac_bits = max(max(m0.frac_bits, m1.frac_bits), max(m2.frac_bits, m3.frac_bits))
-        int_bits = max(max(m0.int_bits, m1.int_bits), max(m2.int_bits, m3.int_bits)) + 3
-        return QT(int_bits, frac_bits)
+    # def sign(m0: QT, m1: QT, m2: QT, m3: QT) -> QT:
+    #     frac_bits = max(max(m0.frac_bits, m1.frac_bits), max(m2.frac_bits, m3.frac_bits))
+    #     int_bits = max(max(m0.int_bits, m1.int_bits), max(m2.int_bits, m3.int_bits)) + 3
+    #     return QT(int_bits, frac_bits)
     
     def impl(m0: Node, m1: Node, m2: Node, m3: Node) -> Node:
         s1, c1 = CSA(m0, m1, m2)
@@ -90,7 +90,7 @@ def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
     return Composite(
         spec=spec,
         impl=impl,
-        sign=sign,
+        # sign=sign,
         args=[m0, m1, m2, m3],
         name="CSA_tree4")
 
