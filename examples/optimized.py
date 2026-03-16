@@ -85,111 +85,96 @@ def _prepend_ones(x: Node, s: int) -> Primitive:
         name="_prepend_ones")
 
 
+def optimized_spec(a0, a1, a2, a3,
+                   b0, b1, b2, b3, ctx):
+    return a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3
+
+@Composite(name="Optimized", spec=optimized_spec)
 def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
-              b0: Node, b1: Node, b2: Node, b3: Node) -> Composite:
+              b0: Node, b1: Node, b2: Node, b3: Node) -> Node:
+    ############## INPUT ###############
     
-    def spec(a0: Math, a1: Math, a2: Math, a3: Math,
-             b0: Math, b1: Math, b2: Math, b3: Math, ctx):
-        return (a0 * b0) + (a1 * b1) + (a2 * b2) + (a3 * b3)
+    S_a, M_a, E_a = [0] * N, [0] * N, [0] * N
+    S_b, M_b, E_b = [0] * N, [0] * N, [0] * N
     
-    # def sign(a0: BFloat16T, a1: BFloat16T, a2: BFloat16T, a3: BFloat16T,
-    #          b0: BFloat16T, b1: BFloat16T, b2: BFloat16T, b3: BFloat16T) -> Float32T:
-    #     return Float32T()
+    E_lead, E_trail = [0] * N, [0] * N
     
-    def impl(a0: Node, a1: Node, a2: Node, a3: Node,
-             b0: Node, b1: Node, b2: Node, b3: Node) -> Node:
-        
-        ############## INPUT ###############
-        
-        S_a, M_a, E_a = [0] * N, [0] * N, [0] * N
-        S_b, M_b, E_b = [0] * N, [0] * N, [0] * N
-        
-        E_lead, E_trail = [0] * N, [0] * N
-        
-        S_a[0], M_a[0], E_a[0] = bf16_decode(a0)
-        S_a[1], M_a[1], E_a[1] = bf16_decode(a1)
-        S_a[2], M_a[2], E_a[2] = bf16_decode(a2)
-        S_a[3], M_a[3], E_a[3] = bf16_decode(a3)
-        
-        S_b[0], M_b[0], E_b[0] = bf16_decode(b0)
-        S_b[1], M_b[1], E_b[1] = bf16_decode(b1)
-        S_b[2], M_b[2], E_b[2] = bf16_decode(b2)
-        S_b[3], M_b[3], E_b[3] = bf16_decode(b3)
-        
-        ############ CONSTANTS #############
-        
-        bf16_bias = Const(
-            val=Q.from_int(BFloat16.exponent_bias),
-            name="BFloat16.exponent_bias",
-        )
-        
-        ############ EXPONENTS #############
-        
-        # Step 1. Exponents add. Each E_p is shifted by bias twice!
-        E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]
-        
-        for i in range(N):
-            E_trail[i], E_lead[i] = uq_split(E_p[i], s)
-        
-        # Step 2. Estimate local shifts
-        L_shifts = [_est_local_shift(E_trail[i]) for i in range(N)]
-        
-        # Step 4. Take max exponent
-        E_m = OPTIMIZED_MAX_EXP4(*E_lead)
-        
-        # Step 5. Calculate global shifts as {(max_exp - exp) * 2**s}
-        G_shifts = [_est_global_shift(E_m, E_lead[i], s) for i in range(N)]
-        
-        ############# MANTISSAS ############
-        
-        # Step 1. Convert mantissas to UQ1.7
-        M_a = [mantissa_add_implicit_bit(M_a[i]) for i in range(N)]
-        M_b = [mantissa_add_implicit_bit(M_b[i]) for i in range(N)]
-        
-        # Step 2. Multiply mantissas into UQ2.14
-        M_p = [uq_mul(M_a[i], M_b[i]) for i in range(N)]
-        
-        # Step 3. Locally shift mantissas by the inverted last {s} bits of E_p
-        # Make room for the right shift
-        M_p = [uq_resize(M_p[i], 2, 14 + 2**s - 1) for i in range(N)]
-        
-        M_p = [uq_rshift(M_p[i], L_shifts[i]) for i in range(N)]
-        
-        # Step 4. Globally shift mantissas by G_shifts[i] amount
-        # Make room for the right shift
-        M_p = [uq_resize(M_p[i], 2, Wf - 2 + 2**s - 1) for i in range(N)]
-        
-        M_p = [uq_rshift(M_p[i], G_shifts[i]) for i in range(N)]
-        
-        # Step 5. Adjust signs using xor operation
-        S_p = [sign_xor(S_a[i], S_b[i]) for i in range(N)]
-        
-        M_p = [uq_to_q(M_p[i]) for i in range(N)]
-        
-        M_p = [q_add_sign(M_p[i], S_p[i]) for i in range(N)]
-        
-        # Step 6. Adder Tree
-        M_sum = CSA_tree4(*M_p)
-        
-        ############# RESULT ###############
-        # Append {s} 1s at the end of the max exponent for a normalization
-        E_m = _prepend_ones(E_m, s)
-        
-        # Subtract bias since E_m is biased twice
-        E_m = uq_to_q(E_m)
-        
-        E_m = q_sub(E_m, bf16_bias)
-        
-        root = encode_Float32(M_sum, E_m)
-        return root
+    S_a[0], M_a[0], E_a[0] = bf16_decode(a0)
+    S_a[1], M_a[1], E_a[1] = bf16_decode(a1)
+    S_a[2], M_a[2], E_a[2] = bf16_decode(a2)
+    S_a[3], M_a[3], E_a[3] = bf16_decode(a3)
     
-    return Composite(
-            spec=spec,
-            impl=impl,
-            # sign=sign,
-            args=[a0, a1, a2, a3,
-                  b0, b1, b2, b3],
-            name="Optimized")
+    S_b[0], M_b[0], E_b[0] = bf16_decode(b0)
+    S_b[1], M_b[1], E_b[1] = bf16_decode(b1)
+    S_b[2], M_b[2], E_b[2] = bf16_decode(b2)
+    S_b[3], M_b[3], E_b[3] = bf16_decode(b3)
+    
+    ############ CONSTANTS #############
+    
+    bf16_bias = Const(
+        val=Q.from_int(BFloat16.exponent_bias),
+        name="BFloat16.exponent_bias",
+    )
+    
+    ############ EXPONENTS #############
+    
+    # Step 1. Exponents add. Each E_p is shifted by bias twice!
+    E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]
+    
+    for i in range(N):
+        E_trail[i], E_lead[i] = uq_split(E_p[i], s)
+    
+    # Step 2. Estimate local shifts
+    L_shifts = [_est_local_shift(E_trail[i]) for i in range(N)]
+    
+    # Step 4. Take max exponent
+    E_m = OPTIMIZED_MAX_EXP4(*E_lead)
+    
+    # Step 5. Calculate global shifts as {(max_exp - exp) * 2**s}
+    G_shifts = [_est_global_shift(E_m, E_lead[i], s) for i in range(N)]
+    
+    ############# MANTISSAS ############
+    
+    # Step 1. Convert mantissas to UQ1.7
+    M_a = [mantissa_add_implicit_bit(M_a[i]) for i in range(N)]
+    M_b = [mantissa_add_implicit_bit(M_b[i]) for i in range(N)]
+    
+    # Step 2. Multiply mantissas into UQ2.14
+    M_p = [uq_mul(M_a[i], M_b[i]) for i in range(N)]
+    
+    # Step 3. Locally shift mantissas by the inverted last {s} bits of E_p
+    # Make room for the right shift
+    M_p = [uq_resize(M_p[i], 2, 14 + 2**s - 1) for i in range(N)]
+    
+    M_p = [uq_rshift(M_p[i], L_shifts[i]) for i in range(N)]
+    
+    # Step 4. Globally shift mantissas by G_shifts[i] amount
+    # Make room for the right shift
+    M_p = [uq_resize(M_p[i], 2, Wf - 2 + 2**s - 1) for i in range(N)]
+    
+    M_p = [uq_rshift(M_p[i], G_shifts[i]) for i in range(N)]
+    
+    # Step 5. Adjust signs using xor operation
+    S_p = [sign_xor(S_a[i], S_b[i]) for i in range(N)]
+    
+    M_p = [uq_to_q(M_p[i]) for i in range(N)]
+    
+    M_p = [q_add_sign(M_p[i], S_p[i]) for i in range(N)]
+    
+    # Step 6. Adder Tree
+    M_sum = CSA_tree4(*M_p)
+    
+    ############# RESULT ###############
+    # Append {s} 1s at the end of the max exponent for a normalization
+    E_m = _prepend_ones(E_m, s)
+    
+    # Subtract bias since E_m is biased twice
+    E_m = uq_to_q(E_m)
+    
+    E_m = q_sub(E_m, bf16_bias)
+    
+    root = encode_Float32(M_sum, E_m)
+    return root
 
 
 if __name__ == '__main__':
@@ -211,6 +196,7 @@ if __name__ == '__main__':
     ]
     
     design = Optimized(*a, *b)
+    print(design)
     design.print_tree(depth=1)
     report = design.check_spec()
     pprint(report)

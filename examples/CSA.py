@@ -1,49 +1,21 @@
 from fused_dot_product import *
 
 ############## HELPERS #################
-def exact_xor(a: Node, b: Node):
-    a_, b_ = q_aligner(
-        x=a,
-        y=b,
-        int_aggr=lambda x, y: max(x, y),
-        frac_aggr=lambda x, y: max(x, y),
-    )
-    return basic_xor(
-        x=a_,
-        y=b_,
-        out=a_.copy(),
-    )
+def _aligner(a: Node, b: Node):
+    return q_aligner(a, b, max, max)
 
-def exact_and(a: Node, b: Node):
-    a_, b_ = q_aligner(
-        x=a,
-        y=b,
-        int_aggr=lambda x, y: max(x, y),
-        frac_aggr=lambda x, y: max(x, y),
-    )
-    return basic_and(
-        x=a_,
-        y=b_,
-        out=a_.copy(),
-    )
+def _exact_xor(a: Node, b: Node):
+    a_, b_ = _aligner(a, b)
+    return basic_xor(a_, b_, a_.copy())
 
-def exact_or(a: Node, b: Node):
-    a_, b_ = q_aligner(
-        x=a,
-        y=b,
-        int_aggr=lambda x, y: max(x, y),
-        frac_aggr=lambda x, y: max(x, y),
-    )
-    return basic_or(
-        x=a_,
-        y=b_,
-        out=a_.copy(),
-    )
+def _exact_and(a: Node, b: Node):
+    a_, b_ = _aligner(a, b)
+    return basic_and(a_, b_, a_.copy())
 
-############## DESIGN ##################
-# It is important to call CSA only on fixed points with equal lengths!
-# This is due to signed fixed points that we use
-# A lose of sign can happen if the lengths of inputs to CSA are not equal
+def _exact_or(a: Node, b: Node):
+    a_, b_ = _aligner(a, b)
+    return basic_or(a_, b_, a_.copy())
+
 def CSA(x: Node, y: Node, z: Node) -> Primitive:
     def spec(x, y, z, ctx):
         carry = ctx.fresh_real("carry")
@@ -57,8 +29,8 @@ def CSA(x: Node, y: Node, z: Node) -> Primitive:
         return TupleT(QT(int_bits, frac_bits), QT(int_bits + 1, frac_bits))
     
     def impl(x: Node, y: Node, z: Node) -> Node:
-        sum_  = exact_xor(exact_xor(x, y), z)
-        carry = exact_or(exact_or(exact_and(x, y), exact_and(x, z)), exact_and(y, z))
+        sum_  = _exact_xor(_exact_xor(x, y), z)
+        carry = _exact_or(_exact_or(_exact_and(x, y), _exact_and(x, z)), _exact_and(y, z))
         one = Const(UQ.from_int(1))
         carry = q_sign_extend(carry, 1)
         carry = q_lshift(carry, one)
@@ -72,27 +44,16 @@ def CSA(x: Node, y: Node, z: Node) -> Primitive:
         name="CSA")
 
 
-def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Composite:
-    def spec(m0, m1, m2, m3, ctx):
+def CSA_tree4_spec(m0, m1, m2, m3, ctx):
         return m0 + m1 + m2 + m3
-    
-    # def sign(m0: QT, m1: QT, m2: QT, m3: QT) -> QT:
-    #     frac_bits = max(max(m0.frac_bits, m1.frac_bits), max(m2.frac_bits, m3.frac_bits))
-    #     int_bits = max(max(m0.int_bits, m1.int_bits), max(m2.int_bits, m3.int_bits)) + 3
-    #     return QT(int_bits, frac_bits)
-    
-    def impl(m0: Node, m1: Node, m2: Node, m3: Node) -> Node:
-        s1, c1 = CSA(m0, m1, m2)
-        s2, c2 = CSA(m3, s1, c1)
-        impl = q_add(s2, c2)
-        return impl
-    
-    return Composite(
-        spec=spec,
-        impl=impl,
-        # sign=sign,
-        args=[m0, m1, m2, m3],
-        name="CSA_tree4")
+
+@Composite(name="CSA_tree4", spec=CSA_tree4_spec)
+def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Node:
+    s1, c1 = CSA(m0, m1, m2)
+    s2, c2 = CSA(m3, s1, c1)
+    impl = q_add(s2, c2)
+    return impl
+
 
 if __name__ == '__main__':
     from pprint import pprint
@@ -105,6 +66,7 @@ if __name__ == '__main__':
     ]
     
     design = CSA_tree4(*args)
+    print(design)
     design.print_tree(depth=1)
     report = design.check_spec()
     pprint(report)
