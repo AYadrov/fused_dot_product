@@ -1,4 +1,6 @@
+import inspect
 import typing as tp
+from functools import wraps
 
 from ..types.runtime import RuntimeType
 from ..types.static import StaticType
@@ -35,6 +37,7 @@ class composite(Node):
                     var.load_val(arg)
             return self.inner_tree.evaluate()
         
+        # Signature is obtained from the inner tree
         def sign(*args):
             return self.inner_tree.node_type
         
@@ -100,6 +103,7 @@ class primitive(Node):
                     var.load_val(arg)
             return self.inner_tree.evaluate()
         
+        # Signature is obtained from the inner tree
         def sign(*args):
             return self.inner_tree.node_type
         

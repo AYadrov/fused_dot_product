@@ -7,84 +7,86 @@ def round_spec(m, e, ctx):
     raise NotImplementedError
 
 # TODO: edge case when input is subnormal that after rounding becomes normal
-@Primitive(name="round_to_the_nearest_even", spec=round_spec)
 def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Node:
-    m_frac_bits = m.node_type.frac_bits
-    m_total_bits = m_frac_bits + m.node_type.int_bits
-    bits_diff = m_total_bits - target_bits
+    @Primitive(name="round_to_the_nearest_even", spec=round_spec)
+    def impl(m: Node, e: Node) -> Node:
+        m_frac_bits = m.node_type.frac_bits
+        m_total_bits = m_frac_bits + m.node_type.int_bits
+        bits_diff = m_total_bits - target_bits
 
-    sign_int_bits = min(m.node_type.int_bits, target_bits)
-    sign_frac_bits = max(target_bits - m.node_type.int_bits, 0)
+        sign_int_bits = min(m.node_type.int_bits, target_bits)
+        sign_frac_bits = max(target_bits - m.node_type.int_bits, 0)
 
-    e_ext = uq_zero_extend(e, 1)
-    # Nothing to truncate, just forward mantissa and exponent.
-    if bits_diff < 0:
-        # Extend mantissa with additional frac_bits
-        m = basic_concat(
+        e_ext = uq_zero_extend(e, 1)
+        # Nothing to truncate, just forward mantissa and exponent.
+        if bits_diff < 0:
+            # Extend mantissa with additional frac_bits
+            m = basic_concat(
+                x=m,
+                y=Const(UQ(0, abs(bits_diff), 0)),
+                out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
+            )
+            return make_Tuple(m, e_ext)
+        elif bits_diff == 0:
+            return make_Tuple(m, e_ext)
+        
+        # Truncation
+        shift_amount = Const(UQ.from_int(bits_diff))
+        truncated = basic_rshift(
             x=m,
-            y=Const(UQ(0, abs(bits_diff), 0)),
+            amount=shift_amount,
             out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
         )
-        return make_Tuple(m, e_ext)
-    elif bits_diff == 0:
-        return make_Tuple(m, e_ext)
-    
-    # Truncation
-    shift_amount = Const(UQ.from_int(bits_diff))
-    truncated = basic_rshift(
-        x=m,
-        amount=shift_amount,
-        out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
-    )
-    
-    # Guard/round/sticky/lsb bits
-    guard_bit = uq_select(m, bits_diff-1, bits_diff-1)
-    round_bit = Const(UQ(0, 1, 0))
-    sticky_bit = Const(UQ(0, 1, 0))
-    if bits_diff >= 2:
-        round_bit = uq_select(m, bits_diff-2, bits_diff-2)
-        if bits_diff > 2:
-            sticky_slice = uq_select(m, bits_diff-3, 0)
-            sticky_bit = basic_or_reduce(x=sticky_slice, out=sticky_bit.copy())
-    
-    lsb_bit = uq_select(truncated, 0, 0)
-    
-    # Add increment?
-    tail = basic_or(round_bit, sticky_bit, out=Const(UQ(0, 1, 0)))
-    tail = basic_or(tail, lsb_bit, out=tail.copy())
-    increment = basic_and(guard_bit, tail, out=Const(UQ(0, 1, 0)))
-    
-    # rounded_wide possibly can be overflown
-    rounded_wide = basic_add(
-        x=truncated,
-        y=increment,
-        out=Const(UQ(0, sign_int_bits+1, sign_frac_bits))
-    )
-    
-    # Check whether rounded_wide is overflown
-    carry_index = sign_int_bits + sign_frac_bits
-    overflow_bit = basic_select(rounded_wide, carry_index, carry_index, e.copy())  # UQ<x.0>
-    
-    # Handling overflow
-    shifted = basic_rshift(
-        x=rounded_wide,
-        amount=Const(UQ.from_int(1)),
-        out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
-    )
-    rounded = basic_mux_2_1(
-        sel=overflow_bit,
-        in0=rounded_wide,
-        in1=shifted,
-        out=Const(UQ(0, sign_int_bits, sign_frac_bits)),  # Silent truncation of 1 rightmost bit
-    )
-    
-    e_inc = uq_add(e, overflow_bit)
-    e_out = basic_mux_2_1(sel=overflow_bit, in0=e_ext, in1=e_inc, out=e_ext.copy())
-    
-    return make_Tuple(rounded, e_out)
+        
+        # Guard/round/sticky/lsb bits
+        guard_bit = uq_select(m, bits_diff-1, bits_diff-1)
+        round_bit = Const(UQ(0, 1, 0))
+        sticky_bit = Const(UQ(0, 1, 0))
+        if bits_diff >= 2:
+            round_bit = uq_select(m, bits_diff-2, bits_diff-2)
+            if bits_diff > 2:
+                sticky_slice = uq_select(m, bits_diff-3, 0)
+                sticky_bit = basic_or_reduce(x=sticky_slice, out=sticky_bit.copy())
+        
+        lsb_bit = uq_select(truncated, 0, 0)
+        
+        # Add increment?
+        tail = basic_or(round_bit, sticky_bit, out=Const(UQ(0, 1, 0)))
+        tail = basic_or(tail, lsb_bit, out=tail.copy())
+        increment = basic_and(guard_bit, tail, out=Const(UQ(0, 1, 0)))
+        
+        # rounded_wide possibly can be overflown
+        rounded_wide = basic_add(
+            x=truncated,
+            y=increment,
+            out=Const(UQ(0, sign_int_bits+1, sign_frac_bits))
+        )
+        
+        # Check whether rounded_wide is overflown
+        carry_index = sign_int_bits + sign_frac_bits
+        overflow_bit = basic_select(rounded_wide, carry_index, carry_index, e.copy())  # UQ<x.0>
+        
+        # Handling overflow
+        shifted = basic_rshift(
+            x=rounded_wide,
+            amount=Const(UQ.from_int(1)),
+            out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
+        )
+        rounded = basic_mux_2_1(
+            sel=overflow_bit,
+            in0=rounded_wide,
+            in1=shifted,
+            out=Const(UQ(0, sign_int_bits, sign_frac_bits)),  # Silent truncation of 1 rightmost bit
+        )
+        
+        e_inc = uq_add(e, overflow_bit)
+        e_out = basic_mux_2_1(sel=overflow_bit, in0=e_ext, in1=e_inc, out=e_ext.copy())
+        
+        return make_Tuple(rounded, e_out)
+    return impl(m, e)
 
 
-def lzc_spec(x_val, ctx):
+def lzc_spec(x, ctx):
     raise NotImplementedError
 
 @Primitive(name="lzc", spec=lzc_spec)
@@ -154,14 +156,13 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Node:
 # Assume that e is biased
 # TODO: loss of accuracy, NaNs
 # subnormal_extra_bits is extra bits that will be used when truncating mantissa to a subnormal format
-def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
+def encode_Float32(m: Node, e: Node, subnormal_extra_bits: int = 10) -> Node:
     assert e.node_type.frac_bits == 0
-    def sign(m: QT, e: QT) -> Float32T:
-        return Float32T()
-    
+
     def spec(m, e, ctx):
         return m * (ctx.real_val(2) ** (e - ctx.real_val(127)))
 
+    @Primitive(name="encode_Float32", spec=spec)
     def impl(m: Node, e: Node) -> Node:
         sign_bit = q_sign_bit(m)
         m_uq = q_to_uq(q_abs(m))
@@ -252,14 +253,8 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits = 10) -> Primitive:
         )
 
         return float32_alloc(sign_bit, final_m_uq, final_e_uq)
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[m, e],
-        name="encode_Float32",
-    )
+
+    return impl(m, e)
 
 
 if __name__ == '__main__':

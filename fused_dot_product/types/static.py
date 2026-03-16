@@ -173,6 +173,7 @@ class TupleT(StaticType):
         super().__init__()
         for x in args:
             assert isinstance(x, StaticType), f"TupleT can not contain non-StaticType, given: {x}"
+        assert len(args) != 0, "tuple can not be empty"
         self.args = args
     
     def total_bits(self):

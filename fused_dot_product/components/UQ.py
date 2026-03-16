@@ -28,147 +28,97 @@ def uq_alloc(int_bits: Node,
         args=[int_bits, frac_bits],
         name="uq_alloc")
 
-def uq_less(x: Node, y: Node) -> Primitive:
+def uq_less(x: Node, y: Node) -> Node:
+    def spec(x, y, ctx):
+        return x < y
+
+    @Primitive(name="uq_less", spec=spec)
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_less(aligned_x, aligned_y, out=Const(Bool(0)))
-    
-    def spec(x, y, ctx):
-        return x < y
-    
-    def sign(x: UQT, y: UQT) -> BoolT:
-        return BoolT()
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, y],
-        name="uq_less"
-    )
 
-def uq_less_or_equal(x: Node, y: Node) -> Primitive:
+    return impl(x, y)
+
+
+def uq_less_or_equal(x: Node, y: Node) -> Node:
+    def spec(x, y, ctx):
+        return x <= y
+
+    @Primitive(name="uq_less_or_equal", spec=spec)
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_less_or_equal(aligned_x, aligned_y, out=Const(Bool(0)))
-    
-    def spec(x, y, ctx):
-        return x <= y
-    
-    def sign(x: UQT, y: UQT) -> BoolT:
-        return BoolT()
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, y],
-        name="uq_less_or_equal",
-    )
 
-def uq_greater(x: Node, y: Node) -> Primitive:
+    return impl(x, y)
+
+
+def uq_greater(x: Node, y: Node) -> Node:
+    def spec(x, y, ctx):
+        return x > y
+
+    @Primitive(name="uq_greater", spec=spec)
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_greater(aligned_x, aligned_y, out=Const(Bool(0)))
-    
-    def spec(x, y, ctx):
-        return x > y
-    
-    def sign(x: UQT, y: UQT) -> BoolT:
-        return BoolT()
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, y],
-        name="uq_greater",
-    )
 
-def uq_greater_or_equal(x: Node, y: Node) -> Primitive:
+    return impl(x, y)
+
+
+def uq_greater_or_equal(x: Node, y: Node) -> Node:
+    def spec(x, y, ctx):
+        return x >= y
+
+    @Primitive(name="uq_greater_or_equal", spec=spec)
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_greater_or_equal(aligned_x, aligned_y, out=Const(Bool(0)))
-    
-    def spec(x, y, ctx):
-        return x >= y
-    
-    def sign(x: UQT, y: UQT) -> BoolT:
-        return BoolT()
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, y],
-        name="uq_greater_or_equal",
-    )
 
-def uq_equal(x: Node, y: Node) -> Primitive:
+    return impl(x, y)
+
+
+def uq_equal(x: Node, y: Node) -> Node:
+    def spec(x, y, ctx):
+        return x.eq(y)
+
+    @Primitive(name="uq_equal", spec=spec)
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_equal(aligned_x, aligned_y, out=Const(Bool(0)))
-    
-    def spec(x, y, ctx): 
-        return x.eq(y)
-    
-    def sign(x: UQT, y: UQT) -> BoolT:
-        return BoolT()
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, y],
-        name="uq_equal",
-    )
 
-def uq_not_equal(x: Node, y: Node) -> Primitive:
+    return impl(x, y)
+
+
+def uq_not_equal(x: Node, y: Node) -> Node:
+    def spec(x, y, ctx):
+        return x.ne(y)
+
+    @Primitive(name="uq_not_equal", spec=spec)
     def impl(x: Node, y: Node) -> Node:
         aligned_x, aligned_y = uq_aligner(x, y, max, max)
         return basic_not_equal(aligned_x, aligned_y, out=Const(Bool(0)))
-    
-    def spec(x, y, ctx): 
-        return x.ne(y)
-    
-    def sign(x: UQT, y: UQT) -> BoolT:
-        return BoolT()
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, y],
-        name="uq_not_equal",
-    )
+
+    return impl(x, y)
 
 def uq_aligner(x: Node,
                 y: Node,
                 int_aggr: tp.Callable,
-                frac_aggr: tp.Callable) -> Primitive:
+                frac_aggr: tp.Callable) -> Node:
     int_bits = int_aggr(x.node_type.int_bits, y.node_type.int_bits)
-    frac_bits = frac_aggr(x.node_type.frac_bits, y.node_type.frac_bits)      
-     
-    def sign(x: UQT, y: UQT) -> TupleT:
-        return TupleT(UQT(int_bits, frac_bits), UQT(int_bits, frac_bits))
-    
+    frac_bits = frac_aggr(x.node_type.frac_bits, y.node_type.frac_bits)
+
     def spec(x, y, ctx):
         return (x, y)
-    
+
+    @Primitive(name="uq_aligner", spec=spec)
     def impl(x: Node, y: Node) -> Node:
         def align(x):
             shift = frac_bits - x.node_type.frac_bits
             assert shift >= 0, "truncation is not implemented yet"
             return basic_lshift(x, Const(UQ.from_int(shift)), Const(UQ(0, int_bits, frac_bits)))
-        
+
         return make_Tuple(align(x), align(y))
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, y],
-        name="uq_aligner")
+
+    return impl(x, y)
 
 
 # These functions are possible because x.node_type is known at compile time and does not change
@@ -182,37 +132,27 @@ def uq_int_bits(x: Node) -> Node:
     return Const(UQ.from_int(x.node_type.int_bits))
 
 
-def uq_zero_extend(x: Node, n: int) -> Primitive:
+def uq_zero_extend(x: Node, n: int) -> Node:
     assert isinstance(n, int) and n >= 0
-    def sign(x: UQT) -> UQT:
-        return UQT(x.int_bits + n, x.frac_bits)
-    
+
     def spec(x, ctx):
         return x
-    
+
+    @Primitive(name="uq_zero_extend", spec=spec)
     def impl(x: Node) -> Node:
         int_bits = uq_add(uq_int_bits(x), Const(UQ.from_int(n)))
         frac_bits = uq_frac_bits(x)
         out = uq_alloc(int_bits, frac_bits)
         return basic_identity(x=x, out=out)
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x],
-        name="uq_zero_extend")
+
+    return impl(x)
 
 
-def uq_add(x: Node, y: Node) -> Primitive:
+def uq_add(x: Node, y: Node) -> Node:
     def spec(x, y, ctx):
         return x + y
-    
-    def sign(x: UQT, y: UQT) -> UQT:
-        int_bits = max(x.int_bits, y.int_bits) + 1
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQT(int_bits, frac_bits)
-    
+
+    @Primitive(name="uq_add", spec=spec)
     def impl(x: Node, y: Node) -> Node:
         x_adj, y_adj = uq_aligner(
             x=x,
@@ -226,29 +166,20 @@ def uq_add(x: Node, y: Node) -> Primitive:
             out=x_adj.copy(),
         )
         return root
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, y],
-        name="uq_add")
+
+    return impl(x, y)
 
 
-def uq_sub(x: Node, y: Node) -> Primitive:
+def uq_sub(x: Node, y: Node) -> Node:
     def spec(x, y, ctx):
         return x - y
-    
-    def sign(x: UQT, y: UQT) -> UQT:
-        int_bits = max(x.int_bits, y.int_bits) + 1
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQT(int_bits, frac_bits)
-        
+
+    @Primitive(name="uq_sub", spec=spec)
     def impl(x: Node, y: Node) -> Node:
         x_adj, y_adj = uq_aligner(
-            x=x, 
-            y=y, 
-            int_aggr=lambda x, y: max(x, y) + 1, 
+            x=x,
+            y=y,
+            int_aggr=lambda x, y: max(x, y) + 1,
             frac_aggr=lambda x, y: max(x, y),
         )
         root = basic_sub(
@@ -257,24 +188,15 @@ def uq_sub(x: Node, y: Node) -> Primitive:
             out=x_adj.copy()
         )
         return root
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, y],
-        name="uq_sub")
+
+    return impl(x, y)
 
 
-def uq_max(x: Node, y: Node) -> Primitive:
+def uq_max(x: Node, y: Node) -> Node:
     def spec(x, y, ctx):
         return x.max(y)
-    
-    def sign(x: UQT, y: UQT) -> UQT:
-        int_bits = max(x.int_bits, y.int_bits)
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQT(int_bits, frac_bits)
-    
+
+    @Primitive(name="uq_max", spec=spec)
     def impl(x: Node, y: Node) -> Node:
         x_adj, y_adj = uq_aligner(
             x=x, 
@@ -288,24 +210,15 @@ def uq_max(x: Node, y: Node) -> Primitive:
             out=x_adj.copy()
         )
         return root
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, y],
-        name="uq_max")
+
+    return impl(x, y)
 
 
-def uq_min(x: Node, y: Node) -> Primitive:
+def uq_min(x: Node, y: Node) -> Node:
     def spec(x, y, ctx):
         return x.min(y)
-    
-    def sign(x: UQT, y: UQT) -> UQT:
-        int_bits = max(x.int_bits, y.int_bits)
-        frac_bits = max(x.frac_bits, y.frac_bits)
-        return UQT(int_bits, frac_bits)
-        
+
+    @Primitive(name="uq_min", spec=spec)
     def impl(x: Node, y: Node) -> Node:
         x_adj, y_adj = uq_aligner(
             x=x,
@@ -319,24 +232,15 @@ def uq_min(x: Node, y: Node) -> Primitive:
             out=x_adj.copy()
         )
         return root
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, y],
-        name="uq_min")
+
+    return impl(x, y)
 
 
-def uq_mul(x: Node, y: Node) -> Primitive:
+def uq_mul(x: Node, y: Node) -> Node:
     def spec(x, y, ctx):
         return x * y
-    
-    def sign(x: UQT, y: UQT) -> UQT:
-        int_bits = x.int_bits + y.int_bits
-        frac_bits = x.frac_bits + y.frac_bits
-        return UQT(int_bits, frac_bits)
-    
+
+    @Primitive(name="uq_mul", spec=spec)
     def impl(x: Node, y: Node) -> Node:
         # Ugly
         out, _ = uq_aligner(
@@ -352,39 +256,30 @@ def uq_mul(x: Node, y: Node) -> Primitive:
             out=out,
         )
         return root
-    
-    return Primitive(
-            spec=spec,
-            impl=impl,
-            sign=sign,
-            args=[x, y],
-            name="uq_mul")
+
+    return impl(x, y)
 
 
-def uq_to_q(x: Node) -> Primitive:
+def uq_to_q(x: Node) -> Node:
+    def spec(x, ctx):
+        return x
+
+    @Primitive(name="uq_to_q", spec=spec)
     def impl(x: Node) -> Node:
         int_bits = uq_add(uq_int_bits(x), Const(UQ.from_int(1)))
         frac_bits = uq_frac_bits(x)
         out = q_alloc(int_bits, frac_bits)
         return basic_identity(x=x, out=out)
-    
-    def spec(x, ctx):
-        return x
-    
-    def sign(x: UQT) -> QT:
-        return QT(x.int_bits + 1, x.frac_bits)
-    
-    return Primitive(
-            spec=spec,
-            impl=impl,
-            sign=sign,
-            args=[x],
-            name="uq_to_q")
+
+    return impl(x)
 
 
 # TODO: truncation
-def uq_rshift(x: Node, amount: Node) -> Primitive:
-    x_frac_bits = x.node_type.frac_bits
+def uq_rshift(x: Node, amount: Node) -> Node:
+    def spec(x, amount, ctx):
+        return x * (ctx.real_val(2) ** (-amount))
+
+    @Primitive(name="uq_rshift", spec=spec)
     def impl(x: Node, amount: Node) -> Node:
         root = basic_rshift(
             x=x,
@@ -392,25 +287,15 @@ def uq_rshift(x: Node, amount: Node) -> Primitive:
             out=x.copy(),
         )
         return root
-    
-    def spec(x, amount, ctx):
-        return x * (ctx.real_val(2) ** (-amount))
-    
-    # TODO: Would be nice to not care about amount type, just bits amount
-    def sign(x: UQT, amount: StaticType) -> UQT:
-        return UQT(x.int_bits, x.frac_bits)
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, amount],
-        name="uq_rshift")
+
+    return impl(x, amount)
 
 # TODO: truncation
-def uq_lshift(x: Node, amount: Node) -> Primitive:
-    x_frac_bits = x.node_type.frac_bits
-    x_total_bits = x.node_type.int_bits + x.node_type.frac_bits
+def uq_lshift(x: Node, amount: Node) -> Node:
+    def spec(x, amount, ctx):
+        return x * (ctx.real_val(2) ** amount)
+
+    @Primitive(name="uq_lshift", spec=spec)
     def impl(x: Node, amount: Node) -> Node:
         root = basic_lshift(
             x=x,
@@ -418,51 +303,33 @@ def uq_lshift(x: Node, amount: Node) -> Primitive:
             out=x.copy(),
         )
         return root
-        
-    def spec(x, amount, ctx):
-        return x * (ctx.real_val(2) ** amount)
-    
-    def sign(x: UQT, amount: StaticType) -> UQT:
-        return UQT(x.int_bits, x.frac_bits)
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, amount],
-        name="uq_lshift")
+
+    return impl(x, amount)
 
 
-def uq_select(x: Node, start: int, end: int) -> Primitive:
+def uq_select(x: Node, start: int, end: int) -> Node:
     width = start - end + 1
     x_frac_bits = x.node_type.frac_bits
-    
+
     frac_bits = max(0, min(start, x_frac_bits - 1) - end + 1) if x_frac_bits > 0 else 0
     int_bits = width - frac_bits
-    
+
     def spec(x, ctx):
         slice1 = ctx.fresh_real("slice1")
         slice2 = ctx.fresh_real("slice2")
         ctx.assume(x.eq(slice1 + slice2))
         return slice1
-    
-    def sign(x: UQT) -> UQT:
-        return UQT(int_bits, frac_bits)
-    
+
+    @Primitive(name="uq_select", spec=spec)
     def impl(x: Node) -> Node:
         out = Const(UQ(0, int_bits, frac_bits))
         root = basic_select(x, start, end, out)
         return root
-    
-    return Primitive(
-        spec=spec,
-        sign=sign,
-        impl=impl,
-        args=[x],
-        name="uq_select")
+
+    return impl(x)
 
 
-def uq_split(x: Node, idx: int) -> Primitive:
+def uq_split(x: Node, idx: int) -> Node:
     # Returns Tuple(lo, hi), where lo are the lowest `idx` bits.
     assert isinstance(idx, int), f"idx must be int, given: {idx}"
     total_bits = x.node_type.total_bits()
@@ -495,9 +362,7 @@ def uq_split(x: Node, idx: int) -> Primitive:
         )
         return (lo, hi)
 
-    def sign(x: UQT) -> TupleT:
-        return TupleT(UQT(lo_int_bits, lo_frac_bits), UQT(hi_int_bits, hi_frac_bits))
-
+    @Primitive(name="uq_split", spec=spec)
     def impl(x: Node) -> Node:
         lo = Const(UQ(0, lo_int_bits, lo_frac_bits))
         lo = basic_select(x, idx - 1, 0, lo)
@@ -507,37 +372,27 @@ def uq_split(x: Node, idx: int) -> Primitive:
 
         return make_Tuple(lo, hi)
 
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x],
-        name="uq_split",
-    )
+    return impl(x)
 
-def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Primitive:
+def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Node:
     def spec(x, ctx):
         return x
-    
+
+    @Primitive(name="uq_resize", spec=spec)
     def impl(x: Node) -> Node:
         assert frac_bits >= x.node_type.frac_bits, "Truncation at uq_resize"
         shift = Const(UQ.from_int(frac_bits - x.node_type.frac_bits))
-        
+
         out = basic_lshift(
             x=x,
             amount=shift,
             out=Const(UQ(0, int_bits, frac_bits)),
         )
         return out
-    
-    def sign(x: UQT) -> UQT:
+
+    def _check_resize_shape(x: UQT) -> None:
         if x.int_bits > int_bits or x.frac_bits > frac_bits:
             raise ValueError("User tries to truncate, not implemented yet")
-        return UQT(int_bits, frac_bits)
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x],
-        name="uq_resize")
+
+    _check_resize_shape(x.node_type)
+    return impl(x)

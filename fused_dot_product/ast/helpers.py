@@ -4,35 +4,20 @@ from .node import Node
 from .nodes import Op, Primitive
 
 
-def Copy(x: Node) -> Primitive:
-    def sign(x: StaticType) -> StaticType:
-        return x
-
-    def spec(x, ctx):
-        return x
-
-    def impl(x):
-        return x
-
-    return Primitive(
-        sign=sign,
-        spec=spec,
-        impl=impl,
-        args=[x],
-        name="Copy",
-    )
+@Primitive(name="Copy", spec=lambda x, ctx: x)
+def Copy(x: Node) -> Node:
+    return x
 
 
-def Tuple_get_item(x: Node, idx: int) -> Primitive:
-    if idx >= len(x.node_type.args) or idx < 0:
-        raise IndexError(f"Index is out of range for tuple {str(x)}, given {str(idx)}")
-
-    def sign(x: TupleT) -> StaticType:
-        if not isinstance(x, TupleT):
-            raise IndexError(f"{x} is not an instance of TupleT to iterate over it")
-        return x.args[idx]
-
+def Tuple_get_item(x: Node, idx: int) -> Node:
+    @Primitive(name=f"Tuple_get_item_{idx}", spec=lambda x, ctx: x[idx])
     def impl(x: Node) -> Node:
+        if idx >= len(x.node_type.args) or idx < 0:
+            raise IndexError(f"Index is out of range for tuple {str(x)}, given {str(idx)}")
+
+        def sign(x: TupleT) -> StaticType:
+            return x.args[idx]
+
         def op(x: Tuple) -> RuntimeType:
             return x.args[idx]
 
@@ -40,17 +25,7 @@ def Tuple_get_item(x: Node, idx: int) -> Primitive:
             impl=op,
             sign=sign,
             args=[x],
-            name="basic_get_item",
+            name=f"basic_get_item_{idx}",
         )
 
-    def spec(x, ctx):
-        return x[idx]
-
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x],
-        name=f"Tuple_get_item_{idx}",
-    )
-
+    return impl(x)

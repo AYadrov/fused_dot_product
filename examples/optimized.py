@@ -4,85 +4,61 @@ from .CSA import CSA_tree4
 from .common import *
 from .max_exponent import *
 
-def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
+def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Node:
     def spec(E_max, E_p, ctx):
         return (E_max - E_p) * (ctx.real_val(2) ** ctx.real_val(s))
-    
-    def sign(E_max: UQT, E_p: UQT) -> UQT:
-        return UQT(E_max.int_bits + s, 0)
-    
+
+    @Primitive(name="_est_global_shift", spec=spec)
     def impl(E_max: Node, E_p: Node) -> Node:
-        # out = UQ(E_max.int_bits + s, E_max.frac_bits)
         out_int_bits = uq_add(uq_int_bits(E_max), Const(UQ.from_int(s)))
         out_frac_bits = uq_frac_bits(E_max)
         out = uq_alloc(out_int_bits, out_frac_bits)
-        
+
         return basic_concat(
-            x=uq_sub(E_max, E_p),  # In theory produces UQ<7,0>, in practice UQ<8,0> (can be neglected)
+            x=uq_sub(E_max, E_p),
             y=Const(UQ(0, s, 0)),
             out=out,
         )
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[E_max, E_p],
-        name="_est_global_shift")
+
+    return impl(E_max, E_p)
 
 
-def _est_local_shift(E_trail: Node) -> Primitive:
+def _est_local_shift(E_trail: Node) -> Node:
     E_trail_width = E_trail.node_type.total_bits()
-    
-    def spec(x, ctx):
+
+    def spec(E_trail, ctx):
         two = ctx.real_val(2)
         one = ctx.real_val(1)
-        return (two ** ctx.real_val(E_trail_width)) - one - x
-    
-    def sign(E_trail: UQT) -> UQT:
-        return E_trail
-    
+        return (two ** ctx.real_val(E_trail_width)) - one - E_trail
+
+    @Primitive(name="_est_local_shift", spec=spec)
     def impl(E_trail: Node) -> Node:
-        out = basic_invert(x=E_trail, out=E_trail.copy())
-        return out
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[E_trail],
-        name="_est_local_shift")
+        return basic_invert(x=E_trail, out=E_trail.copy())
+
+    return impl(E_trail)
 
 # xxx. -> xxx11.
-def _prepend_ones(x: Node, s: int) -> Primitive:
+def _prepend_ones(x: Node, s: int) -> Node:
     def spec(x, ctx):
         two = ctx.real_val(2)
         one = ctx.real_val(1)
         return (x * (two ** ctx.real_val(s))) + (
             (two ** ctx.real_val(s)) - one
         )
-    
-    def sign(x: UQT) -> UQT:
-        return UQT(x.int_bits + s, 0)
-    
+
+    @Primitive(name="_prepend_ones", spec=spec)
     def impl(x: Node) -> Node:
-        # out = UQ(E_max.int_bits + s, E_max.frac_bits)
         out_int_bits = uq_add(uq_int_bits(x), Const(UQ.from_int(s)))
         out_frac_bits = uq_frac_bits(x)
         out = uq_alloc(out_int_bits, out_frac_bits)
-        
+
         return basic_concat(
             x=x,
             y=Const(UQ.from_int((1 << s) - 1)),
             out=out,
         )
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x],
-        name="_prepend_ones")
+
+    return impl(x)
 
 
 def optimized_spec(a0, a1, a2, a3,

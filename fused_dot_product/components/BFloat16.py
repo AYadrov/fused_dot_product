@@ -46,40 +46,26 @@ def _bf16_sign(x: Node) -> Op:
 
 ############## Public API ##############
 
-def bf16_decode(x: Node) -> Primitive:
-    def spec(x, ctx):
-        sign = ctx.fresh_real(f"sign")
-        mantissa = ctx.fresh_real(f"mantissa")
-        exponent = ctx.fresh_real(f"exponent")
-        
-        two = ctx.real_val(2)
-        one = ctx.real_val(1)
-        m_bits = ctx.real_val(BFloat16.mantissa_bits)
-        e_bits = ctx.real_val(BFloat16.exponent_bias)
-        
-        mantissa_ = one + mantissa * two ** (-m_bits)
-        exponent_ = exponent - e_bits
-        ctx.assume(x.eq(sign * (mantissa_ * (two ** exponent_))))
-        return (sign, mantissa, exponent)
-    
-    def sign(x: BFloat16T) -> TupleT:
-        return TupleT(
-            UQT(1, 0),
-            UQT(7, 0),
-            UQT(8, 0),
-        )
-    
-    def impl(x: Node) -> Node:
-        impl = make_Tuple(
-            _bf16_sign(x),
-            _bf16_mantissa(x),
-            _bf16_exponent(x),
-        )
-        return impl
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x],
-        name="bf16_decode")
+def bf16_decode_spec(x, ctx):
+    sign = ctx.fresh_real("sign")
+    mantissa = ctx.fresh_real("mantissa")
+    exponent = ctx.fresh_real("exponent")
+
+    two = ctx.real_val(2)
+    one = ctx.real_val(1)
+    m_bits = ctx.real_val(BFloat16.mantissa_bits)
+    e_bits = ctx.real_val(BFloat16.exponent_bias)
+
+    mantissa_ = one + mantissa * two ** (-m_bits)
+    exponent_ = exponent - e_bits
+    ctx.assume(x.eq(sign * (mantissa_ * (two ** exponent_))))
+    return (sign, mantissa, exponent)
+
+
+@Primitive(name="bf16_decode", spec=bf16_decode_spec)
+def bf16_decode(x: Node) -> Node:
+    return make_Tuple(
+        _bf16_sign(x),
+        _bf16_mantissa(x),
+        _bf16_exponent(x),
+    )
