@@ -2,193 +2,153 @@ import math
 
 from fused_dot_product import *
 
+
+def round_spec(m, e, ctx):
+    raise NotImplementedError
+
 # TODO: edge case when input is subnormal that after rounding becomes normal
-def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:
+@Primitive(name="round_to_the_nearest_even", spec=round_spec)
+def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Node:
     m_frac_bits = m.node_type.frac_bits
     m_total_bits = m_frac_bits + m.node_type.int_bits
     bits_diff = m_total_bits - target_bits
-    
+
     sign_int_bits = min(m.node_type.int_bits, target_bits)
     sign_frac_bits = max(target_bits - m.node_type.int_bits, 0)
-    
-    def spec(m, e, ctx):
-        raise NotImplementedError
-    
-    
-    def sign(m: UQT, e: UQT) -> TupleT:
-        assert e.frac_bits == 0
-        return TupleT(UQT(sign_int_bits, sign_frac_bits), UQT(e.int_bits + 1, 0))
-    
-    def impl(m: Node, e: Node) -> Node:
-        e_ext = uq_zero_extend(e, 1)
-        # Nothing to truncate, just forward mantissa and exponent.
-        if bits_diff < 0:
-            # Extend mantissa with additional frac_bits
-            m = basic_concat(
-                x=m,
-                y=Const(UQ(0, abs(bits_diff), 0)),
-                out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
-            )
-            return make_Tuple(m, e_ext)
-        elif bits_diff == 0:
-            return make_Tuple(m, e_ext)
-        
-        # Truncation
-        shift_amount = Const(UQ.from_int(bits_diff))
-        truncated = basic_rshift(
-            x=m,
-            amount=shift_amount,
-            out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
-        )
-        
-        # Guard/round/sticky/lsb bits
-        guard_bit = uq_select(m, bits_diff-1, bits_diff-1)
-        round_bit = Const(UQ(0, 1, 0))
-        sticky_bit = Const(UQ(0, 1, 0))
-        if bits_diff >= 2:
-            round_bit = uq_select(m, bits_diff-2, bits_diff-2)
-            if bits_diff > 2:
-                sticky_slice = uq_select(m, bits_diff-3, 0)
-                sticky_bit = basic_or_reduce(x=sticky_slice, out=sticky_bit.copy())
-        
-        lsb_bit = uq_select(truncated, 0, 0)
-        
-        # Add increment?
-        tail = basic_or(round_bit, sticky_bit, out=Const(UQ(0, 1, 0)))
-        tail = basic_or(tail, lsb_bit, out=tail.copy())
-        increment = basic_and(guard_bit, tail, out=Const(UQ(0, 1, 0)))
-        
-        # rounded_wide possibly can be overflown
-        rounded_wide = basic_add(
-            x=truncated,
-            y=increment,
-            out=Const(UQ(0, sign_int_bits+1, sign_frac_bits))
-        )
-        
-        # Check whether rounded_wide is overflown
-        carry_index = sign_int_bits + sign_frac_bits
-        overflow_bit = basic_select(rounded_wide, carry_index, carry_index, e.copy())  # UQ<x.0>
-        
-        # Handling overflow
-        shifted = basic_rshift(
-            x=rounded_wide,
-            amount=Const(UQ.from_int(1)),
-            out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
-        )
-        rounded = basic_mux_2_1(
-            sel=overflow_bit,
-            in0=rounded_wide,
-            in1=shifted,
-            out=Const(UQ(0, sign_int_bits, sign_frac_bits)),  # Silent truncation of 1 rightmost bit
-        )
-        
-        e_inc = uq_add(e, overflow_bit)
-        e_out = basic_mux_2_1(sel=overflow_bit, in0=e_ext, in1=e_inc, out=e_ext.copy())
-        
-        return make_Tuple(rounded, e_out)
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[m, e],
-        name=f"round_to_the_nearest_even",
-    )
 
-def lzc(x: Node) -> Primitive:
-    """Leading zero count for an unsigned fixed-point value."""
+    e_ext = uq_zero_extend(e, 1)
+    # Nothing to truncate, just forward mantissa and exponent.
+    if bits_diff < 0:
+        # Extend mantissa with additional frac_bits
+        m = basic_concat(
+            x=m,
+            y=Const(UQ(0, abs(bits_diff), 0)),
+            out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
+        )
+        return make_Tuple(m, e_ext)
+    elif bits_diff == 0:
+        return make_Tuple(m, e_ext)
+    
+    # Truncation
+    shift_amount = Const(UQ.from_int(bits_diff))
+    truncated = basic_rshift(
+        x=m,
+        amount=shift_amount,
+        out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
+    )
+    
+    # Guard/round/sticky/lsb bits
+    guard_bit = uq_select(m, bits_diff-1, bits_diff-1)
+    round_bit = Const(UQ(0, 1, 0))
+    sticky_bit = Const(UQ(0, 1, 0))
+    if bits_diff >= 2:
+        round_bit = uq_select(m, bits_diff-2, bits_diff-2)
+        if bits_diff > 2:
+            sticky_slice = uq_select(m, bits_diff-3, 0)
+            sticky_bit = basic_or_reduce(x=sticky_slice, out=sticky_bit.copy())
+    
+    lsb_bit = uq_select(truncated, 0, 0)
+    
+    # Add increment?
+    tail = basic_or(round_bit, sticky_bit, out=Const(UQ(0, 1, 0)))
+    tail = basic_or(tail, lsb_bit, out=tail.copy())
+    increment = basic_and(guard_bit, tail, out=Const(UQ(0, 1, 0)))
+    
+    # rounded_wide possibly can be overflown
+    rounded_wide = basic_add(
+        x=truncated,
+        y=increment,
+        out=Const(UQ(0, sign_int_bits+1, sign_frac_bits))
+    )
+    
+    # Check whether rounded_wide is overflown
+    carry_index = sign_int_bits + sign_frac_bits
+    overflow_bit = basic_select(rounded_wide, carry_index, carry_index, e.copy())  # UQ<x.0>
+    
+    # Handling overflow
+    shifted = basic_rshift(
+        x=rounded_wide,
+        amount=Const(UQ.from_int(1)),
+        out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
+    )
+    rounded = basic_mux_2_1(
+        sel=overflow_bit,
+        in0=rounded_wide,
+        in1=shifted,
+        out=Const(UQ(0, sign_int_bits, sign_frac_bits)),  # Silent truncation of 1 rightmost bit
+    )
+    
+    e_inc = uq_add(e, overflow_bit)
+    e_out = basic_mux_2_1(sel=overflow_bit, in0=e_ext, in1=e_inc, out=e_ext.copy())
+    
+    return make_Tuple(rounded, e_out)
+
+
+def lzc_spec(x_val, ctx):
+    raise NotImplementedError
+
+@Primitive(name="lzc", spec=lzc_spec)
+def lzc(x: Node) -> Node:
     width = x.node_type.int_bits + x.node_type.frac_bits
     frac_bits = x.node_type.frac_bits
     count_bits = max(1, math.ceil(math.log2(width + 1)))
     
-    def spec(x_val, ctx):
-        raise NotImplementedError
-    
-    def impl(x: Node) -> Node:
-        count = Const(UQ(0, count_bits, 0))
-        still_zero = Const(UQ(1, 1, 0))
-        for pos in range(width - 1, -1, -1):
-            bit = uq_select(x, pos, pos)
-            is_zero = basic_invert(x=bit, out=bit.copy())
-            still_zero = basic_and(x=still_zero, y=is_zero, out=still_zero.copy())
-            # Keep the accumulator width stable by zero-extending the predicate.
-            count = basic_add(x=count, y=still_zero, out=count.copy())
-        return count
-    
-    def sign(x: UQT) -> UQT:
-        return UQT(count_bits, 0)
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x],
-        name="lzc")
+    count = Const(UQ(0, count_bits, 0))
+    still_zero = Const(UQ(1, 1, 0))
+    for pos in range(width - 1, -1, -1):
+        bit = uq_select(x, pos, pos)
+        is_zero = basic_invert(x=bit, out=bit.copy())
+        still_zero = basic_and(x=still_zero, y=is_zero, out=still_zero.copy())
+        # Keep the accumulator width stable by zero-extending the predicate.
+        count = basic_add(x=count, y=still_zero, out=count.copy())
+    return count
 
+
+def normalize_spec(m, e, ctx):
+    raise NotImplementedError
 
 # Assume that e is biased
-def normalize_to_1_xxx(m: Node, e: Node) -> Primitive:
+@Primitive(name="normalize_to_1_xxx", spec=normalize_spec)
+def normalize_to_1_xxx(m: Node, e: Node) -> Node:
     # mantissa is going to be normalized to 1.xxxxxx
     # this precision will make sure that we do not lose accuracy
     m_int_target_bits = 1
     m_frac_target_bits = max(m.node_type.int_bits - 1, 0) + m.node_type.frac_bits
+
+    lzc_uq = lzc(m)  # UQ<ceil(log2(a + b)), 0>
+    lzc_q = uq_to_q(lzc_uq)  # UQ<ceil(log2(a + b)) + 1, 0>
     
-    def sign(m: UQT, e: QT) -> TupleT:
-        width = m.int_bits + m.frac_bits
-        lzc_q_width = max(1, math.ceil(math.log2(width + 1))) + 1
-        
-        int_bits_q_width = m.int_bits.bit_length() + 1
-        shift_magnitude_width = max(lzc_q_width, int_bits_q_width) + 2
-        e_width = max(e.int_bits, shift_magnitude_width) + 1
-        
-        return TupleT(UQT(m_int_target_bits, m_frac_target_bits), QT(e_width, e.frac_bits))
+    # Shift amount = LZC - int_bits + 1
+    int_bits_q = uq_to_q(uq_int_bits(m))
+    shift_amount_q = q_add(q_sub(lzc_q, int_bits_q), Const(Q.from_int(1)))  # UQ<max(m.int_bits, lzc_width) + 2, 0>
     
-    def spec(m, e, ctx):
-        raise NotImplementedError
+    shift_sign_uq = q_sign_bit(shift_amount_q)
+    shift_magnitude_q = q_abs(shift_amount_q)
+    shift_magnitude_uq = q_to_uq(shift_magnitude_q)
     
-    def impl(m: Node, e: Node) -> Node:
-        lzc_uq = lzc(m)  # UQ<ceil(log2(a + b)), 0>
-        lzc_q = uq_to_q(lzc_uq)  # UQ<ceil(log2(a + b)) + 1, 0>
-        
-        # Shift amount = LZC - int_bits + 1
-        int_bits_q = uq_to_q(uq_int_bits(m))
-        shift_amount_q = q_add(q_sub(lzc_q, int_bits_q), Const(Q.from_int(1)))  # UQ<max(m.int_bits, lzc_width) + 2, 0>
-        
-        shift_sign_uq = q_sign_bit(shift_amount_q)
-        shift_magnitude_q = q_abs(shift_amount_q)
-        shift_magnitude_uq = q_to_uq(shift_magnitude_q)
-        
-        # This resize operation will make sure that no loss of accuracy happens
-        # This precision is union for left or right shift case
-        m = uq_resize(m, max(m_int_target_bits, m.node_type.int_bits), m_frac_target_bits)
-        
-        left_m_uq = uq_lshift(m, shift_magnitude_uq)
-        right_m_uq = uq_rshift(m, shift_magnitude_uq)
-        norm_m_uq = basic_mux_2_1(
-            sel=shift_sign_uq,
-            in0=left_m_uq,
-            in1=right_m_uq,
-            out=Const(UQ(0, m_int_target_bits, m_frac_target_bits)),  
-        )
-        
-        left_e_q = q_sub(e, shift_magnitude_q)
-        right_e_q = q_add(e, shift_magnitude_q)
-        norm_e_q = basic_mux_2_1(
-            sel=shift_sign_uq,
-            in0=left_e_q,
-            in1=right_e_q,
-            out=right_e_q.copy(),
-        )
-        
-        return make_Tuple(norm_m_uq, norm_e_q)
+    # This resize operation will make sure that no loss of accuracy happens
+    # This precision is union for left or right shift case
+    m = uq_resize(m, max(m_int_target_bits, m.node_type.int_bits), m_frac_target_bits)
     
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[m, e],
-        name="normalize_to_1_xxx",
+    left_m_uq = uq_lshift(m, shift_magnitude_uq)
+    right_m_uq = uq_rshift(m, shift_magnitude_uq)
+    norm_m_uq = basic_mux_2_1(
+        sel=shift_sign_uq,
+        in0=left_m_uq,
+        in1=right_m_uq,
+        out=Const(UQ(0, m_int_target_bits, m_frac_target_bits)),  
     )
+    
+    left_e_q = q_sub(e, shift_magnitude_q)
+    right_e_q = q_add(e, shift_magnitude_q)
+    norm_e_q = basic_mux_2_1(
+        sel=shift_sign_uq,
+        in0=left_e_q,
+        in1=right_e_q,
+        out=right_e_q.copy(),
+    )
+    
+    return make_Tuple(norm_m_uq, norm_e_q)
 
 
 # Assume that e is biased

@@ -16,32 +16,21 @@ def _exact_or(a: Node, b: Node):
     a_, b_ = _aligner(a, b)
     return basic_or(a_, b_, a_.copy())
 
-def CSA(x: Node, y: Node, z: Node) -> Primitive:
-    def spec(x, y, z, ctx):
-        carry = ctx.fresh_real("carry")
-        sum_ = ctx.fresh_real("sum")
-        ctx.assume((x + y + z).eq(carry + sum_))
-        return sum_, carry
-    
-    def sign(x: QT, y: QT, z: QT) -> TupleT:
-        frac_bits = max(max(x.frac_bits, y.frac_bits), z.frac_bits)
-        int_bits = max(max(x.int_bits, y.int_bits), z.int_bits)
-        return TupleT(QT(int_bits, frac_bits), QT(int_bits + 1, frac_bits))
-    
-    def impl(x: Node, y: Node, z: Node) -> Node:
-        sum_  = _exact_xor(_exact_xor(x, y), z)
-        carry = _exact_or(_exact_or(_exact_and(x, y), _exact_and(x, z)), _exact_and(y, z))
-        one = Const(UQ.from_int(1))
-        carry = q_sign_extend(carry, 1)
-        carry = q_lshift(carry, one)
-        return make_Tuple(sum_, carry)
-    
-    return Primitive(
-        spec=spec,
-        impl=impl,
-        sign=sign,
-        args=[x, y, z],
-        name="CSA")
+
+def csa_spec(x, y, z, ctx):
+    carry = ctx.fresh_real("carry")
+    sum_ = ctx.fresh_real("sum")
+    ctx.assume((x + y + z).eq(carry + sum_))
+    return sum_, carry
+
+@Primitive(name="CSA", spec=csa_spec)
+def CSA(x: Node, y: Node, z: Node) -> Node:
+    sum_  = _exact_xor(_exact_xor(x, y), z)
+    carry = _exact_or(_exact_or(_exact_and(x, y), _exact_and(x, z)), _exact_and(y, z))
+    one = Const(UQ.from_int(1))
+    carry = q_sign_extend(carry, 1)
+    carry = q_lshift(carry, one)
+    return make_Tuple(sum_, carry)
 
 
 def CSA_tree4_spec(m0, m1, m2, m3, ctx):

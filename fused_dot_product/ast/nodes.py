@@ -71,14 +71,18 @@ class composite(Node):
         return f"[Composite] {self.name}: {' -> '.join([str(x) for x in self.args_types])} -> {self.node_type}"
 
 
+def Primitive(name: str, spec: tp.Callable[..., tp.Any]):
+    def wrapper1(impl: tp.Callable[..., Node]):
+        def wrapper2(*args):
+            return primitive(spec=spec, impl=impl, args=args, name=name)
+        return wrapper2
+    return wrapper1
 
-# Currently looks the same as Composite
-class Primitive(Node):
+class primitive(Node):
     def __init__(
         self,
         spec: tp.Callable[..., tp.Any],
         impl: tp.Callable[..., Node],
-        sign: tp.Callable[..., StaticType],
         args: list[Node],
         name: str,
     ):
@@ -95,6 +99,15 @@ class Primitive(Node):
                 if isinstance(var, Var):
                     var.load_val(arg)
             return self.inner_tree.evaluate()
+        
+        def sign(*args):
+            return self.inner_tree.node_type
+        
+        sign = make_fixed_arguments(
+            sign,
+            arg_types=[type(x.node_type) for x in args],
+            return_type=type(self.inner_tree.node_type),
+        )
         
         super().__init__(
             spec=spec,
