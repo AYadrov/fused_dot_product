@@ -37,13 +37,13 @@ class composite(Node):
         
         def sign(*args):
             return self.inner_tree.node_type
-
+        
         sign = make_fixed_arguments(
             sign,
             arg_types=[type(x.node_type) for x in args],
             return_type=type(self.inner_tree.node_type),
         )
-
+        
         super().__init__(
             spec=spec,
             impl=impl_,
@@ -155,7 +155,6 @@ class Const(Node):
     def __init__(
         self,
         val: RuntimeType,
-        name: str = "",
     ):
         self.val = val
         
@@ -173,7 +172,7 @@ class Const(Node):
             impl=impl,
             sign=sign,
             args=[],
-            name=name,
+            name=str(self.val.to_val()),
         )
         
         self.node_type.runtime_val = self.val  # Constant folding

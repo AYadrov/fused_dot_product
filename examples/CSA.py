@@ -51,8 +51,7 @@ def CSA_tree4_spec(m0, m1, m2, m3, ctx):
 def CSA_tree4(m0: Node, m1: Node, m2: Node, m3: Node) -> Node:
     s1, c1 = CSA(m0, m1, m2)
     s2, c2 = CSA(m3, s1, c1)
-    impl = q_add(s2, c2)
-    return impl
+    return q_add(s2, c2)
 
 
 if __name__ == '__main__':

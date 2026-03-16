@@ -24,10 +24,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     
     ########## CONSTANTS ###############
     
-    bf16_bias = @Const(
-        val=Q.from_int(BFloat16.exponent_bias),
-        name="BFloat16.exponent_bias",
-    )
+    bf16_bias = Const(Q.from_int(BFloat16.exponent_bias))
     
     ########## EXPONENTS ###############
     
