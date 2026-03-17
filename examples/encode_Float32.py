@@ -7,7 +7,7 @@ def round_spec(m, e, ctx):
     raise NotImplementedError
 
 # TODO: edge case when input is subnormal that after rounding becomes normal
-def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Node:
+def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:
     @Primitive(name="round_to_the_nearest_even", spec=round_spec)
     def impl(m: Node, e: Node) -> Node:
         m_frac_bits = m.node_type.frac_bits
@@ -156,7 +156,7 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Node:
 # Assume that e is biased
 # TODO: loss of accuracy, NaNs
 # subnormal_extra_bits is extra bits that will be used when truncating mantissa to a subnormal format
-def encode_Float32(m: Node, e: Node, subnormal_extra_bits: int = 10) -> Node:
+def encode_Float32(m: Node, e: Node, subnormal_extra_bits: int = 10) -> Primitive:
     assert e.node_type.frac_bits == 0
 
     def spec(m, e, ctx):

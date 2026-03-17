@@ -1,7 +1,7 @@
 from fused_dot_product import *
 
 
-def mantissa_add_implicit_bit(x: Node) -> Node:
+def mantissa_add_implicit_bit(x: Node) -> Primitive:
     int_bits = x.node_type.int_bits
     
     def spec_mantissa_add_implicit_bit(x, ctx):
@@ -19,5 +19,4 @@ def sign_xor_spec(x, y, ctx):
 
 @Primitive(name="sign_xor", spec=sign_xor_spec)
 def sign_xor(x: Node, y: Node) -> Node:
-    assert x.node_type.total_bits() == 1 and y.node_type.total_bits() == 1
     return basic_xor(x=x, y=y, out=Const(UQ(0, 1, 0)))

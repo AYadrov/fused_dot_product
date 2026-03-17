@@ -54,8 +54,8 @@ def q_signs_xor(x: Node, y: Node) -> Node:
     )
 
 
-@Primitive(name="q_less", spec=lambda x, y, ctx: x < y)
-def q_less(x: Node, y: Node) -> Node:
+@Primitive(name="q_lt", spec=lambda x, y, ctx: x < y)
+def q_lt(x: Node, y: Node) -> Node:
     aligned_x, aligned_y = q_aligner(x, y, max, max)
     return basic_mux_2_1(
         sel=q_signs_xor(x, y),
@@ -68,8 +68,8 @@ def q_less(x: Node, y: Node) -> Node:
         out=Const(Bool(0)))
 
 
-@Primitive(name="q_less_or_equal", spec=lambda x, y, ctx: x <= y)
-def q_less_or_equal(x: Node, y: Node) -> Node:
+@Primitive(name="q_le", spec=lambda x, y, ctx: x <= y)
+def q_le(x: Node, y: Node) -> Node:
     aligned_x, aligned_y = q_aligner(x, y, max, max)
     return basic_mux_2_1(
         sel=q_signs_xor(x, y),
@@ -82,8 +82,8 @@ def q_less_or_equal(x: Node, y: Node) -> Node:
         out=Const(Bool(0)))
 
 
-@Primitive(name="q_greater", spec=lambda x, y, ctx: x > y)
-def q_greater(x: Node, y: Node) -> Node:
+@Primitive(name="q_gt", spec=lambda x, y, ctx: x > y)
+def q_gt(x: Node, y: Node) -> Node:
     aligned_x, aligned_y = q_aligner(x, y, max, max)
     return basic_mux_2_1(
         sel=q_signs_xor(x, y),
@@ -96,8 +96,8 @@ def q_greater(x: Node, y: Node) -> Node:
         out=Const(Bool(0)))
 
 
-@Primitive(name="q_greater_or_equal", spec=lambda x, y, ctx: x >= y)
-def q_greater_or_equal(x: Node, y: Node) -> Node:
+@Primitive(name="q_ge", spec=lambda x, y, ctx: x >= y)
+def q_ge(x: Node, y: Node) -> Node:
     aligned_x, aligned_y = q_aligner(x, y, max, max)
     return basic_mux_2_1(
         sel=q_signs_xor(x, y),
@@ -110,14 +110,14 @@ def q_greater_or_equal(x: Node, y: Node) -> Node:
         out=Const(Bool(0)))
 
 
-@Primitive(name="q_equal", spec=lambda x, y, ctx: x.eq(y))
-def q_equal(x: Node, y: Node) -> Node:
+@Primitive(name="q_eq", spec=lambda x, y, ctx: x.eq(y))
+def q_eq(x: Node, y: Node) -> Node:
     aligned_x, aligned_y = q_aligner(x, y, max, max)
     return basic_equal(aligned_x, aligned_y, out=Const(Bool(0)))
-    
 
-@Primitive(name="q_not_equal", spec=lambda x, y, ctx: x.ne(y))
-def q_not_equal(x: Node, y: Node) -> Node:
+
+@Primitive(name="q_ne", spec=lambda x, y, ctx: x.ne(y))
+def q_ne(x: Node, y: Node) -> Node:
     aligned_x, aligned_y = q_aligner(x, y, max, max)
     return basic_not_equal(aligned_x, aligned_y, out=Const(Bool(0)))
 
@@ -125,7 +125,7 @@ def q_not_equal(x: Node, y: Node) -> Node:
 def q_aligner(x: Node,
               y: Node,
               int_aggr: tp.Callable,
-              frac_aggr: tp.Callable) -> Node:
+              frac_aggr: tp.Callable) -> Primitive:
     int_bits = int_aggr(x.node_type.int_bits, y.node_type.int_bits)
     frac_bits = frac_aggr(x.node_type.frac_bits, y.node_type.frac_bits)
 

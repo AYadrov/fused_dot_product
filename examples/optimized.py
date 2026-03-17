@@ -4,7 +4,7 @@ from .CSA import CSA_tree4
 from .common import *
 from .max_exponent import *
 
-def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Node:
+def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
     def spec(E_max, E_p, ctx):
         return (E_max - E_p) * (ctx.real_val(2) ** ctx.real_val(s))
 
@@ -23,7 +23,7 @@ def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Node:
     return impl(E_max, E_p)
 
 
-def _est_local_shift(E_trail: Node) -> Node:
+def _est_local_shift(E_trail: Node) -> Primitive:
     E_trail_width = E_trail.node_type.total_bits()
 
     def spec(E_trail, ctx):
@@ -37,8 +37,8 @@ def _est_local_shift(E_trail: Node) -> Node:
 
     return impl(E_trail)
 
-# xxx. -> xxx11.
-def _prepend_ones(x: Node, s: int) -> Node:
+
+def _prepend_ones(x: Node, s: int) -> Primitive:
     def spec(x, ctx):
         two = ctx.real_val(2)
         one = ctx.real_val(1)
