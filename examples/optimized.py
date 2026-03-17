@@ -4,61 +4,44 @@ from .CSA import CSA_tree4
 from .common import *
 from .max_exponent import *
 
-def _est_global_shift(E_max: Node, E_p: Node, s: int) -> Primitive:
-    def spec(E_max, E_p, ctx):
-        return (E_max - E_p) * (ctx.real_val(2) ** ctx.real_val(s))
+s = 2
+N = 4
+Wf = 30
 
-    @Primitive(name="_est_global_shift", spec=spec)
-    def impl(E_max: Node, E_p: Node) -> Node:
-        out_int_bits = uq_add(uq_int_bits(E_max), Const(UQ.from_int(s)))
-        out_frac_bits = uq_frac_bits(E_max)
-        out = uq_alloc(out_int_bits, out_frac_bits)
+def spec_est_global_shift(E_max, E_p, ctx):
+    return (E_max - E_p) * (ctx.real_val(2) ** ctx.real_val(s))
 
-        return basic_concat(
-            x=uq_sub(E_max, E_p),
-            y=Const(UQ(0, s, 0)),
-            out=out,
-        )
+@Primitive(name="_est_global_shift", spec=spec_est_global_shift)
+def _est_global_shift(E_max: Node, E_p: Node) -> Node:
+    out_int_bits = uq_add(uq_int_bits(E_max), Const(UQ.from_int(s)))
+    out_frac_bits = Const(UQ.from_int(0))
+    out = uq_alloc(out_int_bits, out_frac_bits)
 
-    return impl(E_max, E_p)
+    return basic_concat(uq_sub(E_max, E_p), Const(UQ(0, s, 0)), out)
 
 
-def _est_local_shift(E_trail: Node) -> Primitive:
-    E_trail_width = E_trail.node_type.total_bits()
+def spec_est_local_shift(E_trail, ctx):
+    two = ctx.real_val(2)
+    one = ctx.real_val(1)
+    return (two ** ctx.real_val(s)) - one - E_trail
 
-    def spec(E_trail, ctx):
-        two = ctx.real_val(2)
-        one = ctx.real_val(1)
-        return (two ** ctx.real_val(E_trail_width)) - one - E_trail
-
-    @Primitive(name="_est_local_shift", spec=spec)
-    def impl(E_trail: Node) -> Node:
-        return basic_invert(x=E_trail, out=E_trail.copy())
-
-    return impl(E_trail)
+@Primitive(name="_est_local_shift", spec=spec_est_local_shift)
+def _est_local_shift(E_trail: Node) -> Node:
+    return basic_invert(x=E_trail, out=E_trail.copy())
 
 
-def _prepend_ones(x: Node, s: int) -> Primitive:
-    def spec(x, ctx):
-        two = ctx.real_val(2)
-        one = ctx.real_val(1)
-        return (x * (two ** ctx.real_val(s))) + (
-            (two ** ctx.real_val(s)) - one
-        )
+def spec_prepend_ones(x, ctx):
+    two = ctx.real_val(2)
+    one = ctx.real_val(1)
+    real_s = ctx.real_val(s)
+    return x * (two ** real_s) + (two ** real_s) - one
 
-    @Primitive(name="_prepend_ones", spec=spec)
-    def impl(x: Node) -> Node:
-        out_int_bits = uq_add(uq_int_bits(x), Const(UQ.from_int(s)))
-        out_frac_bits = uq_frac_bits(x)
-        out = uq_alloc(out_int_bits, out_frac_bits)
-
-        return basic_concat(
-            x=x,
-            y=Const(UQ.from_int((1 << s) - 1)),
-            out=out,
-        )
-
-    return impl(x)
+@Primitive(name="_prepend_ones", spec=spec_prepend_ones)
+def _prepend_ones(x: Node) -> Node:
+    out_int_bits = uq_add(uq_int_bits(x), Const(UQ.from_int(s)))
+    out_frac_bits = uq_frac_bits(x)
+    out = uq_alloc(out_int_bits, out_frac_bits)
+    return basic_concat(x, Const(UQ.from_int((1 << s) - 1)), out)
 
 
 def optimized_spec(a0, a1, a2, a3,
@@ -104,7 +87,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     E_m = OPTIMIZED_MAX_EXP4(*E_lead)
     
     # Step 5. Calculate global shifts as {(max_exp - exp) * 2**s}
-    G_shifts = [_est_global_shift(E_m, E_lead[i], s) for i in range(N)]
+    G_shifts = [_est_global_shift(E_m, E_lead[i]) for i in range(N)]
     
     ############# MANTISSAS ############
     
@@ -139,7 +122,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     
     ############# RESULT ###############
     # Append {s} 1s at the end of the max exponent for a normalization
-    E_m = _prepend_ones(E_m, s)
+    E_m = _prepend_ones(E_m)
     
     # Subtract bias since E_m is biased twice
     E_m = uq_to_q(E_m)

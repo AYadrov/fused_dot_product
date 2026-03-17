@@ -147,6 +147,8 @@ class TestFusedDotProduct(unittest.TestCase):
         conventional = Conventional(*a, *b)
         optimized = Optimized(*a, *b)
         
+        N = 4
+        
         for shared_bits in range(5, BFloat16.exponent_bits+1):
             TOTAL_POINTS += N_POINTS
             

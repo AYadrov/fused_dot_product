@@ -14,9 +14,6 @@ def mantissa_add_implicit_bit(x: Node) -> Primitive:
     return impl(x)
 
 
-def sign_xor_spec(x, y, ctx):
-    return x * y
-
-@Primitive(name="sign_xor", spec=sign_xor_spec)
+@Primitive(name="sign_xor", spec=lambda x, y, ctx: x * y)
 def sign_xor(x: Node, y: Node) -> Node:
     return basic_xor(x=x, y=y, out=Const(UQ(0, 1, 0)))
