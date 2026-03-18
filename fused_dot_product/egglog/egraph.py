@@ -53,13 +53,15 @@ def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
     def simplify(expr: "SpecNode", egraph: EGraph):
         return from_egglog(egraph.extract(expr.to_egglog()))
     
-    simplified_assumes = []
-    for assume in ctx.assumes:
-        simplified_assumes.append(simplify(assume, egraph))
-    
     simplified_checks = []
     for check in ctx.checks:
         simplified_checks.append(simplify(check, egraph))
     
-    new_ctx = ctx.copy(assumes=simplified_assumes, checks=simplified_checks)
+    # Assumes must not be simplified, otherwise properties like:
+    # x == (-1)**s * 1.m * 2**(e-bias) 
+    # with egglog simply gets simplified into x == x
+    # which is not useful information anymore for other solvers
+    # While checks can be simplified, they do not carry any useful information
+    
+    new_ctx = ctx.copy(assumes=ctx.assumes, checks=simplified_checks)
     return new_ctx

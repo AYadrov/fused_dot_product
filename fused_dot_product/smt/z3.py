@@ -7,6 +7,8 @@ import z3
 from ..spec import SpecContext
 
 
+z3_exp2 = Function("exp2", RealSort(), RealSort())
+
 def _stats_to_dict(stats: z3.Statistics) -> dict[str, int | float]:
     return {key: stats.get_key_value(key) for key in stats.keys()}
 
@@ -21,6 +23,15 @@ def create_solver(timeout_ms):
     z3_ctx = z3.Context(proof=True)
     solver = z3.Solver(ctx=z3_ctx)
     solver.set(timeout=timeout_ms)
+    
+    x = FreshConst(RealSort())
+    y = FreshConst(RealSort())
+
+    solver.add(z3_exp2(RealVal(0)) == RealVal("1"))
+    solver.add(z3_exp2(RealVal(1)) == RealVal("2"))
+    solver.add(ForAll([x, y], z3_exp2(x + y) == z3_exp2(x) * z3_exp2(y)))
+    solver.add(ForAll([x, y], z3_exp2(x - y) == z3_exp2(x) * z3_exp2(-y)))
+    
     return solver
 
 
