@@ -120,7 +120,7 @@ class Node:
 
     ################ PUBLIC API ##################
     
-    def check_spec(self, z3_timeout_ms: int = 10000, egglog_iters=6):
+    def check_spec(self, z3_timeout_ms: int = 60000, egglog_iters=6):
         from .nodes import composite  # cycles
         assert isinstance(self, composite)
         

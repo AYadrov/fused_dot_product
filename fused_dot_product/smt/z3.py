@@ -4,10 +4,12 @@ from time import perf_counter
 
 import z3
 
-from ..spec import SpecContext
+
+z3_exp2 = z3.Function("exp2", z3.RealSort(), z3.RealSort())
 
 
-z3_exp2 = Function("exp2", RealSort(), RealSort())
+def _ctx_exp2(ctx: z3.Context) -> z3.FuncDeclRef:
+    return z3_exp2.translate(ctx)
 
 def _stats_to_dict(stats: z3.Statistics) -> dict[str, int | float]:
     return {key: stats.get_key_value(key) for key in stats.keys()}
@@ -23,21 +25,23 @@ def create_solver(timeout_ms):
     z3_ctx = z3.Context(proof=True)
     solver = z3.Solver(ctx=z3_ctx)
     solver.set(timeout=timeout_ms)
+    exp2 = _ctx_exp2(z3_ctx)
     
-    x = FreshConst(RealSort())
-    y = FreshConst(RealSort())
+    x = z3.FreshConst(z3.RealSort(ctx=z3_ctx))
+    y = z3.FreshConst(z3.RealSort(ctx=z3_ctx))
 
-    solver.add(z3_exp2(RealVal(0)) == RealVal("1"))
-    solver.add(z3_exp2(RealVal(1)) == RealVal("2"))
-    solver.add(ForAll([x, y], z3_exp2(x + y) == z3_exp2(x) * z3_exp2(y)))
-    solver.add(ForAll([x, y], z3_exp2(x - y) == z3_exp2(x) * z3_exp2(-y)))
+    solver.add(exp2(z3.RealVal(0, ctx=z3_ctx)) == z3.RealVal(1, ctx=z3_ctx))
+    solver.add(exp2(z3.RealVal(1, ctx=z3_ctx)) == z3.RealVal(2, ctx=z3_ctx))
+    solver.add(z3.ForAll([x, y], exp2(x + y) == exp2(x) * exp2(y)))
+    solver.add(z3.ForAll([x, y], exp2(x - y) == exp2(x) * exp2(-y)))
     
     return solver
 
 
-def z3_check_eq(ctx: SpecContext, timeout_ms: int = 10000):
+def z3_check_eq(ctx: "SpecContext", timeout_ms: int = 10000):
     solver = create_solver(timeout_ms)
     program = ctx.to_z3().translate(solver.ctx)
+    print(program)
     solver.add(program)
     
     run_started_at = perf_counter()

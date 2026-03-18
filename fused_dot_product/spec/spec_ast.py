@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..egglog import *
+from ..smt import z3_exp2
 
 import z3
 
@@ -223,7 +224,7 @@ class Exp2(RealExpr):
         return Math.Exp2(self.exponent.to_egglog())
     
     def to_z3(self):
-        return z3.RealVal(2) ** self.exponent.to_z3()
+        return z3_exp2(self.exponent.to_z3())
 
 
 @dataclass(frozen=True)
