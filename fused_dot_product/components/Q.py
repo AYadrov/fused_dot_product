@@ -237,7 +237,7 @@ def q_sub(x: Node, y: Node) -> Node:
     return root
 
 
-@Primitive(name="q_lshift", spec=lambda x, y, ctx: x * (ctx.real_val(2) ** n))
+@Primitive(name="q_lshift", spec=lambda x, n, ctx: x * (ctx.real_val(2) ** n))
 def q_lshift(x: Node, n: Node) -> Node:
     return basic_lshift(x=x, amount=n, out=x.copy())
 
@@ -250,7 +250,7 @@ def q_to_uq(x: Node) -> Node:
     return basic_identity(x=x, out=Const(UQ(0, int_bits, frac_bits)))
 
 
-@Primitive(name="q_rshift", spec=lambda x, y, ctx: x * (ctx.real_val(2) ** (-n)))
+@Primitive(name="q_rshift", spec=lambda x, n, ctx: x * (ctx.real_val(2) ** (-n)))
 def q_rshift(x: Node, n: Node) -> Node:
     return basic_rshift(x=x, amount=n, out=x.copy())
 
