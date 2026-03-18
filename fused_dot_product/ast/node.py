@@ -128,21 +128,21 @@ class Node:
         ctx = SpecContext(self.name)
         
         spec_inner = self.inner_tree._evaluate_spec(ctx=ctx, cache=cache)
-
+        
         inputs = [arg._evaluate_spec(ctx=ctx, cache=cache) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, ctx=ctx)
-
+        
         certificate = check_equivalence(spec_inner, spec_outer, ctx=ctx, egglog_iters=egglog_iters, z3_timeout_ms=z3_timeout_ms)
         return certificate
-
+    
     def copy(self):
         from .helpers import Copy
         return Copy(self)
-
+    
     def __getitem__(self, idx: int):
         from .helpers import Tuple_get_item
         return Tuple_get_item(self, idx)
-
+    
     def evaluate(self, cache: tp.Optional[dict["Node", RuntimeType]] = None) -> RuntimeType:
         # Use a per-evaluation cache to avoid recomputing shared subtrees.
         # Cache lives only for the current call chain.
@@ -150,18 +150,18 @@ class Node:
         if active_cache is None:
             active_cache = {}
         token = self._eval_cache.set(active_cache)
-
+        
         try:
             # Cache hit
             if self in active_cache:
                 return active_cache[self].copy()
-
+            
             inputs = [arg.evaluate(active_cache) for arg in self.args]
             out = self.impl(inputs)
             active_cache[self] = out
-
+            
             return out
-
+        
         finally:
             # Erase current cache
             self._eval_cache.reset(token)

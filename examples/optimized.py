@@ -8,6 +8,7 @@ s = 2
 N = 4
 Wf = 30
 
+
 def spec_est_global_shift(E_max, E_p, ctx):
     return (E_max - E_p) * (ctx.real_val(2) ** ctx.real_val(s))
 

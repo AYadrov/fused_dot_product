@@ -16,6 +16,7 @@ def egglog_check_eq(ctx: "SpecContext", iterations=6):
     to_check = ctx.to_egglog(egraph)
     
     run_started_at = perf_counter()
+    
     rule_application_counts: dict[str, int] = {}
     iterations_used = 0
     equivalent = egraph.check_bool(*to_check)
