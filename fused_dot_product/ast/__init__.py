@@ -1,4 +1,4 @@
-from .helpers import Copy, Tuple_get_item
+from .helpers import Copy
 from .node import Node
 from .nodes import Composite, Const, Op, Primitive, Var
 
@@ -10,5 +10,4 @@ __all__ = [
     "Const",
     "Var",
     "Copy",
-    "Tuple_get_item",
 ]

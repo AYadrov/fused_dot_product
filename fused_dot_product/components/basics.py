@@ -3,7 +3,6 @@ import typing as tp
 from ..types import *
 from ..utils import *
 from ..ast import *
-from .Tuple import _make_fixed_arguments
 
 
 ############ Constructors ##############
@@ -26,25 +25,24 @@ def _sign_constructor() -> StaticType:
         return args[-1]
     return sign
 
-
 def _ternary_operator(op: tp.Callable, x: Node, y: Node, z: Node, out: Node, name: str) -> Op:
     return Op(
-        impl=_make_fixed_arguments(_impl_constructor(op), RuntimeType, 4),
-        sign=_make_fixed_arguments(_sign_constructor(), StaticType, 4),
+        impl=make_fixed_arguments(_impl_constructor(op), [RuntimeType] * 4),
+        sign=make_fixed_arguments(_sign_constructor(), [StaticType] * 4),
         args=[x, y, z, out],
         name=name)
 
 def _binary_operator(op: tp.Callable, x: Node, y: Node, out: Node, name: str) -> Op:
     return Op(
-        impl=_make_fixed_arguments(_impl_constructor(op), RuntimeType, 3),
-        sign=_make_fixed_arguments(_sign_constructor(), StaticType, 3),
+        impl=make_fixed_arguments(_impl_constructor(op), [RuntimeType] * 3),
+        sign=make_fixed_arguments(_sign_constructor(), [StaticType] * 3),
         args=[x, y, out],
         name=name)
 
 def _unary_operator(op: tp.Callable, x: Node, out: Node, name: str) -> Op:
     return Op(
-        impl=_make_fixed_arguments(_impl_constructor(op), RuntimeType, 2),
-        sign=_make_fixed_arguments(_sign_constructor(), StaticType, 2),
+        impl=make_fixed_arguments(_impl_constructor(op), [RuntimeType] * 2),
+        sign=make_fixed_arguments(_sign_constructor(), [StaticType] * 2),
         args=[x, out],
         name=name)
 

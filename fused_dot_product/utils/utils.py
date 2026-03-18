@@ -1,6 +1,48 @@
+import inspect
 import struct
 import math
+import typing as tp
 import numpy as np
+
+
+def make_fixed_arguments(
+    f: tp.Callable[..., tp.Any],
+    arg_types: list[tp.Any],
+    return_type: tp.Any = inspect._empty,
+):
+    N = len(arg_types)
+    if return_type is inspect._empty:
+        return_type = f.__annotations__.get("return", inspect._empty)
+
+    params = [
+        inspect.Parameter(
+            f"arg{i}",
+            inspect.Parameter.POSITIONAL_ONLY,
+            annotation=arg_type,
+        )
+        for i, arg_type in enumerate(arg_types)
+    ]
+
+    sig = inspect.Signature(
+        parameters=params,
+        return_annotation=return_type,
+    )
+
+    def wrapper(*args):
+        if len(args) != N:
+            raise TypeError(f"{f.__name__} expects {N} arguments, got {len(args)}")
+        return f(*args)
+
+    wrapper.__signature__ = sig
+    wrapper.__annotations__ = {
+        **{f"arg{i}": arg_type for i, arg_type in enumerate(arg_types)},
+        "return": return_type,
+    }
+    wrapper.__name__ = f.__name__
+    wrapper.__qualname__ = f.__qualname__
+    wrapper.__doc__ = f.__doc__
+
+    return wrapper
 
 def float_to_bits32(f):
     # pack float32 → 4 bytes, then unpack to unsigned int
@@ -52,4 +94,3 @@ def print_runtime_val(x, name: str):
 
 def mask(x, n):
     return x & ((1 << n) - 1)
-

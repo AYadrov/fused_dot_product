@@ -34,6 +34,9 @@ class BoolT(StaticType):
     def __repr__(self):
         return f"Bool<1>"
     
+    def __str__(self):
+        return f"Bool<1>"
+    
     def __eq__(self, other):
         return isinstance(other, BoolT)
         
@@ -55,6 +58,9 @@ class QT(StaticType):
         return self.int_bits + self.frac_bits
     
     def __repr__(self):
+        return f"Q<{self.int_bits},{self.frac_bits}>"
+    
+    def __str__(self):
         return f"Q<{self.int_bits},{self.frac_bits}>"
     
     def __eq__(self, other):
@@ -84,6 +90,9 @@ class UQT(StaticType):
     def __repr__(self):
         return f"UQ<{self.int_bits},{self.frac_bits}>"
     
+    def __str__(self):
+        return f"UQ<{self.int_bits},{self.frac_bits}>"
+    
     def __eq__(self, other):
         return (
             isinstance(other, UQT)
@@ -109,6 +118,9 @@ class Float32T(StaticType):
         return self.sign_bits + self.mantissa_bits + self.exponent_bits
     
     def __repr__(self):
+        return f"Float<32>"
+    
+    def __str__(self):
         return f"Float<32>"
     
     def __eq__(self, other):
@@ -139,6 +151,9 @@ class BFloat16T(StaticType):
     def __repr__(self):
         return f"BFloat<16>"
     
+    def __str__(self):
+        return f"BFloat<16>"
+    
     def __eq__(self, other):
         return (
             isinstance(other, BFloat16T)
@@ -158,12 +173,16 @@ class TupleT(StaticType):
         super().__init__()
         for x in args:
             assert isinstance(x, StaticType), f"TupleT can not contain non-StaticType, given: {x}"
+        assert len(args) != 0, "tuple can not be empty"
         self.args = args
     
     def total_bits(self):
         return sum([x.total_bits() for x in self.args])
     
     def __repr__(self):
+        return f"Tuple<{', '.join([repr(x) for x in self.args])}>"
+    
+    def __str__(self):
         return f"Tuple<{', '.join([repr(x) for x in self.args])}>"
     
     def __eq__(self, other):

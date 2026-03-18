@@ -47,9 +47,9 @@ class Node:
 
         # Defines node_type at initialization - some parts rely on this
         self._static_typecheck()
-
+    
     ############## PRIVATE METHODS ###############
-            
+       
     def _evaluate_spec(self, ctx, cache):
         if self in cache:
             return cache[self]
@@ -57,13 +57,13 @@ class Node:
         output = self.spec(*inputs, ctx=ctx)
         cache[self] = output
         return output
-
+    
     def _static_typecheck(self):
         # Clone to avoid sharing runtime_val/state across nodes.
         self.args_types = [x.node_type.copy() for x in self.args]  # runtime_val is preserved
         self.node_type = self.sign(*self.args_types).copy()
         self.node_type.runtime_val = None  # Do not preserve runtime_val for output
-
+        
         # Checks that signature does match with received args_types and node_type
         self._signature_match(args=self.args_types, out=self.node_type)
 
@@ -121,8 +121,8 @@ class Node:
     ################ PUBLIC API ##################
     
     def check_spec(self, z3_timeout_ms: int = 10000, egglog_iters=6):
-        from .nodes import Composite  # cycles
-        assert isinstance(self, Composite)
+        from .nodes import composite  # cycles
+        assert isinstance(self, composite)
         
         cache = {}
         ctx = SpecContext(self.name)

@@ -1,4 +1,3 @@
-from .config import *
 from .ast import *
 from .types import *
 from .components.Tuple import *
