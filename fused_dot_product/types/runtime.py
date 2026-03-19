@@ -3,6 +3,7 @@ import time
 
 from .static import BFloat16T, BoolT, Float32T, QT, TupleT, UQT
 
+
 class RuntimeType:
     def to_spec(self):
         raise NotImplementedError
@@ -65,7 +66,8 @@ class Tuple(RuntimeType):
 
 class Bool(RuntimeType):
     def __init__(self, val: int):
-        assert val in (0, 1)
+        if val not in (0, 1):
+            raise ValueError(f"Bool value must be 0 or 1, got {val}")
         self.val = val
         
     def __str__(self):
@@ -100,10 +102,18 @@ class Q(RuntimeType):
     def __init__(self, val: int, int_bits: int, frac_bits: int):
         self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
         
-        assert self.int_bits >= 1  # at least one bit for the sign
-        assert self.frac_bits >= 0
-        assert self.int_bits + self.frac_bits >= 2
-        assert 0 <= self.val < (1 << self.total_bits())
+        if self.int_bits < 1:
+            raise ValueError("Q requires at least one integer bit for the sign")
+        if self.frac_bits < 0:
+            raise ValueError(f"Q fractional bits must be non-negative, got {self.frac_bits}")
+        if self.int_bits + self.frac_bits < 2:
+            raise ValueError(
+                f"Q requires at least two total bits, got {self.int_bits + self.frac_bits}"
+            )
+        if not (0 <= self.val < (1 << self.total_bits())):
+            raise ValueError(
+                f"Q value {self.val} does not fit into {self.total_bits()} bits"
+            )
     
     def __str__(self):
         return f"Q{self.int_bits}.{self.frac_bits}({str(self.to_val())})"
@@ -178,13 +188,17 @@ class UQ(RuntimeType):
     def __init__(self, val: int, int_bits: int, frac_bits: int):
         total_bits = int_bits + frac_bits
         
-        assert int_bits >= 0
-        assert frac_bits >= 0
-        assert int_bits > 0 or frac_bits > 0
-        assert 0 <= val < (1 << total_bits), (
-            f"Value {val} requires {max(1, val.bit_length())} bits, "
-            f"but only {total_bits} provided ({int_bits}+{frac_bits})"
-        )
+        if int_bits < 0:
+            raise ValueError(f"UQ integer bits must be non-negative, got {int_bits}")
+        if frac_bits < 0:
+            raise ValueError(f"UQ fractional bits must be non-negative, got {frac_bits}")
+        if int_bits == 0 and frac_bits == 0:
+            raise ValueError("UQ requires at least one total bit")
+        if not (0 <= val < (1 << total_bits)):
+            raise ValueError(
+                f"Value {val} requires {max(1, val.bit_length())} bits, "
+                f"but only {total_bits} provided ({int_bits}+{frac_bits})"
+            )
         
         self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
     
@@ -233,9 +247,12 @@ class Float32(RuntimeType):
     zero_code = 0
     
     def __init__(self, sign: int, mantissa: int, exponent: int):
-        assert sign in (0, 1)
-        assert 0 <= mantissa < (1 << self.mantissa_bits)
-        assert 0 <= exponent < (1 << self.exponent_bits)
+        if sign not in (0, 1):
+            raise ValueError(f"Float32 sign must be 0 or 1, got {sign}")
+        if not (0 <= mantissa < (1 << self.mantissa_bits)):
+            raise ValueError(f"Float32 mantissa out of range: {mantissa}")
+        if not (0 <= exponent < (1 << self.exponent_bits)):
+            raise ValueError(f"Float32 exponent out of range: {exponent}")
         
         self.val = (sign << (self.exponent_bits + self.mantissa_bits)) \
                  | (exponent << self.mantissa_bits) \
@@ -314,9 +331,12 @@ class BFloat16(RuntimeType):
     exponent_bias = 127
     
     def __init__(self, sign: int, mantissa: int, exponent: int):
-        assert sign in (0, 1)
-        assert 0 <= mantissa < (1 << self.mantissa_bits)
-        assert 0 <= exponent < (1 << self.exponent_bits)
+        if sign not in (0, 1):
+            raise ValueError(f"BFloat16 sign must be 0 or 1, got {sign}")
+        if not (0 <= mantissa < (1 << self.mantissa_bits)):
+            raise ValueError(f"BFloat16 mantissa out of range: {mantissa}")
+        if not (0 <= exponent < (1 << self.exponent_bits)):
+            raise ValueError(f"BFloat16 exponent out of range: {exponent}")
         
         self.val = (sign << (self.exponent_bits + self.mantissa_bits)) \
                  | (exponent << self.mantissa_bits) \
@@ -346,7 +366,11 @@ class BFloat16(RuntimeType):
     
     @classmethod
     def random_generator(cls, seed: int = int(time.time()), shared_exponent_bits: int = 0):
-        assert 0 <=  shared_exponent_bits < (1 << cls.exponent_bits)
+        if not (0 <= shared_exponent_bits <= cls.exponent_bits):
+            raise ValueError(
+                f"shared_exponent_bits must be between 0 and {cls.exponent_bits}, "
+                f"got {shared_exponent_bits}"
+            )
         
         rnd = random.Random(seed)
         unshared_exponent_bits = cls.exponent_bits - shared_exponent_bits

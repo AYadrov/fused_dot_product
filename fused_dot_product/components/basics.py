@@ -50,7 +50,8 @@ def _unary_operator(op: tp.Callable, x: Node, out: Node, name: str) -> Op:
 
 def basic_mux_2_1(sel: Node, in0: Node, in1: Node, out: Node) -> Op:
     def op(sel: RuntimeType, in0: RuntimeType, in1: RuntimeType) -> int:
-        assert sel.val in (0, 1), "out of range"
+        if sel.val not in (0, 1):
+            raise ValueError(f"Selector must be 0 or 1, got {sel.val}")
         return in1.val if sel.val == 1 else in0.val
     return _ternary_operator(
         op=op,
@@ -223,7 +224,8 @@ def basic_not_equal(x: Node, y: Node, out: Node) -> Op:
 
 # TODO: Truncation is possible if out is too small
 def basic_select(x: Node, start: int, end: int, out: Node) -> Op:
-    assert start >= end and end >= 0, "Bad indexing"
+    if start < end or end < 0:
+        raise ValueError(f"Bad indexing: start={start}, end={end}")
     return _unary_operator(
         op=lambda x: mask(x.val >> end, start - end + 1),
         x=x,

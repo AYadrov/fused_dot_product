@@ -50,8 +50,12 @@ class BoolT(StaticType):
 class QT(StaticType):
     def __init__(self, int_bits: int, frac_bits: int):
         super().__init__()
-        assert int_bits >= 0 and frac_bits >= 0
-        assert int_bits + frac_bits >= 1
+        if int_bits < 0 or frac_bits < 0:
+            raise ValueError(
+                f"QT bit widths must be non-negative, got int_bits={int_bits}, frac_bits={frac_bits}"
+            )
+        if int_bits + frac_bits < 1:
+            raise ValueError("QT requires at least one total bit")
         self.int_bits, self.frac_bits = int_bits, frac_bits
     
     def total_bits(self):
@@ -80,8 +84,12 @@ class QT(StaticType):
 class UQT(StaticType):
     def __init__(self, int_bits: int, frac_bits: int):
         super().__init__()
-        assert int_bits >= 0 and frac_bits >= 0
-        assert int_bits + frac_bits >= 1
+        if int_bits < 0 or frac_bits < 0:
+            raise ValueError(
+                f"UQT bit widths must be non-negative, got int_bits={int_bits}, frac_bits={frac_bits}"
+            )
+        if int_bits + frac_bits < 1:
+            raise ValueError("UQT requires at least one total bit")
         self.int_bits, self.frac_bits = int_bits, frac_bits
     
     def total_bits(self):
@@ -172,8 +180,10 @@ class TupleT(StaticType):
     def __init__(self, *args: StaticType):
         super().__init__()
         for x in args:
-            assert isinstance(x, StaticType), f"TupleT can not contain non-StaticType, given: {x}"
-        assert len(args) != 0, "tuple can not be empty"
+            if not isinstance(x, StaticType):
+                raise TypeError(f"TupleT can not contain non-StaticType, given: {x}")
+        if len(args) == 0:
+            raise ValueError("tuple can not be empty")
         self.args = args
     
     def total_bits(self):

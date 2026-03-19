@@ -7,8 +7,11 @@ from ..types.static import BoolT, StaticType
 from ..spec import *
 
 
+def _is_static_type_annotation(annotation: tp.Any) -> bool:
+    return isinstance(annotation, type) and issubclass(annotation, StaticType)
+
+
 class Node:
-    # Shared cache for a single evaluation call-chain.
     _eval_cache: ContextVar[tp.Optional[dict["Node", RuntimeType]]] = ContextVar(
         "eval_cache", default=None
     )
@@ -21,7 +24,9 @@ class Node:
         args: list["Node"],
         name: str,
     ):
-        assert all([isinstance(x, Node) for x in args])
+        if not all(isinstance(x, Node) for x in args):
+            bad_args = [type(x).__name__ for x in args if not isinstance(x, Node)]
+            raise TypeError(f"Node arguments must be Node instances, got {bad_args}")
         # Checks that signature's annotations are StaticType
         self._primitive_signature_check(sign)
         
@@ -75,13 +80,28 @@ class Node:
         return self.node_type
 
     def _dynamic_typecheck(self, inputs: list[RuntimeType], out: RuntimeType):
+        if len(inputs) != len(self.args_types):
+            raise TypeError(
+                f"Arguments do not match Node's signature at {self.name}:\n"
+                f"  Given count: {len(inputs)}\n"
+                f"  Required count: {len(self.args_types)}\n"
+            )
+
         err_msg = (
             f"Arguments do not match Node's signature at {self.name}:\n"
             f"  Given: {[x.static_type() for x in inputs]}\n"
             f"  Required: {self.args_types}\n"
         )
         for arg, arg_t in zip(inputs, self.args_types):
-            assert arg.static_type() == arg_t, err_msg
+            if arg.static_type() != arg_t:
+                raise TypeError(err_msg)
+
+        if not isinstance(out, RuntimeType):
+            raise TypeError(
+                f"Output does not match Node's signature at {self.name}:\n"
+                f"  impl returned non-RuntimeType: {type(out).__name__}\n"
+                f"  expected-type: {self.node_type}\n"
+            )
 
         err_msg = (
             f"Output does not match Node's signature at {self.name}:\n"
@@ -89,7 +109,8 @@ class Node:
             f"  impl-type: {out.static_type()}\n"
             f"  expected-type: {self.node_type}\n"
         )
-        assert out.static_type() == self.node_type, err_msg
+        if out.static_type() != self.node_type:
+            raise TypeError(err_msg)
 
     def _primitive_signature_check(self, sign):
         sign = inspect.signature(sign)
@@ -98,24 +119,34 @@ class Node:
             f"Given: {sign}\n"
         )
         for param in sign.parameters.values():
-            assert issubclass(param.annotation, StaticType), err_msg
-        assert issubclass(sign.return_annotation, StaticType), err_msg
+            if not _is_static_type_annotation(param.annotation):
+                raise TypeError(err_msg)
+        if not _is_static_type_annotation(sign.return_annotation):
+            raise TypeError(err_msg)
 
     def _signature_match(self, args: list[StaticType], out: StaticType):
         sign = inspect.signature(self.sign)
+        if len(args) != len(sign.parameters):
+            raise TypeError(
+                f"Arguments to {self.name} do not match its signature\n"
+                f"Given count: {len(args)}\n"
+                f"Required count: {len(sign.parameters)}\n"
+            )
         args_msg = (
             f"Arguments to {self.name} do not match its signature\n"
             f"Given: {args}\n"
             f"Required: {[param.annotation for param in sign.parameters.values()]}\n"
         )
         for param, arg_type in zip(sign.parameters.values(), args):
-            assert isinstance(arg_type, param.annotation), args_msg
+            if not isinstance(arg_type, param.annotation):
+                raise TypeError(args_msg)
         output_msg = (
             f"Output from {self.name} does not match its signature\n"
             f"Given: {out}\n"
             f"Required: {sign.return_annotation}"
         )
-        assert isinstance(out, sign.return_annotation), output_msg
+        if not isinstance(out, sign.return_annotation):
+            raise TypeError(output_msg)
 
     ################ PUBLIC API ##################
     

@@ -76,7 +76,8 @@ def uq_aligner(x: Node,
     def impl(x: Node, y: Node) -> Node:
         def align(x):
             shift = frac_bits - x.node_type.frac_bits
-            assert shift >= 0, "truncation is not implemented yet"
+            if shift < 0:
+                raise NotImplementedError("truncation is not implemented yet")
             return basic_lshift(x, Const(UQ.from_int(shift)), Const(UQ(0, int_bits, frac_bits)))
         return make_Tuple(align(x), align(y))
     
@@ -84,17 +85,22 @@ def uq_aligner(x: Node,
 
 
 def uq_frac_bits(x: Node) -> Node:
-    assert isinstance(x.node_type, UQT)
+    if not isinstance(x.node_type, UQT):
+        raise TypeError(f"Expected UQT node, got {type(x.node_type).__name__}")
     return Const(UQ.from_int(x.node_type.frac_bits))
 
 
 def uq_int_bits(x: Node) -> Node:
-    assert isinstance(x.node_type, UQT)
+    if not isinstance(x.node_type, UQT):
+        raise TypeError(f"Expected UQT node, got {type(x.node_type).__name__}")
     return Const(UQ.from_int(x.node_type.int_bits))
 
 
 def uq_zero_extend(x: Node, n: int) -> Node:
-    assert isinstance(n, int) and n >= 0
+    if not isinstance(n, int):
+        raise TypeError(f"n must be int, given: {type(n).__name__}")
+    if n < 0:
+        raise ValueError(f"n must be non-negative, given: {n}")
     
     @Primitive(name="uq_zero_extend", spec=lambda x, ctx: x)
     def impl(x: Node) -> Node:
@@ -238,7 +244,8 @@ def uq_select(x: Node, start: int, end: int) -> Node:
 
 def uq_split(x: Node, idx: int) -> Node:
     # Returns Tuple(lo, hi), where lo are the lowest `idx` bits.
-    assert isinstance(idx, int), f"idx must be int, given: {idx}"
+    if not isinstance(idx, int):
+        raise TypeError(f"idx must be int, given: {idx}")
     total_bits = x.node_type.total_bits()
     if idx <= 0 or idx >= total_bits:
         raise ValueError(f"idx must be in (0, {total_bits}), given: {idx}")
@@ -287,7 +294,8 @@ def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Node:
     
     @Primitive(name="uq_resize", spec=lambda x, ctx: x)
     def impl(x: Node) -> Node:
-        assert frac_bits >= x.node_type.frac_bits, "Truncation at uq_resize"
+        if frac_bits < x.node_type.frac_bits:
+            raise NotImplementedError("Truncation at uq_resize")
         shift = Const(UQ.from_int(frac_bits - x.node_type.frac_bits))
         
         out = basic_lshift(

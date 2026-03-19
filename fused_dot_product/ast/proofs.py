@@ -9,7 +9,7 @@ class SpecRecorder:
         self.ctx = ctx
         self.spec_cache = spec_cache
 
-_current_recorder: ContextVar[ProofRecorder | None] = ContextVar(
+_current_recorder: ContextVar[SpecRecorder | None] = ContextVar(
     "current_spec_recorder", default=None
 )
 _current_stage_name: ContextVar[str | None] = ContextVar(

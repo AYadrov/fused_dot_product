@@ -134,7 +134,8 @@ def q_aligner(x: Node,
         def align(x):
             # Step 1. Align frac bits
             shift = frac_bits - x.node_type.frac_bits
-            assert shift >= 0, "truncation is not implemented yet"
+            if shift < 0:
+                raise NotImplementedError("truncation is not implemented yet")
             x = basic_lshift(
                 x,
                 Const(UQ.from_int(shift)), 
@@ -142,7 +143,8 @@ def q_aligner(x: Node,
             
             # Step 2. Align integer bits
             shift = int_bits - x.node_type.int_bits
-            assert shift >= 0, "truncation is not implemented yet"
+            if shift < 0:
+                raise NotImplementedError("truncation is not implemented yet")
             return q_sign_extend(x, shift)
 
         return make_Tuple(align(x), align(y))
@@ -167,7 +169,10 @@ def q_sign_bit(x: Node) -> Node:
 
 
 def q_sign_extend(x: Node, n: int) -> Node:
-    assert isinstance(n, int) and n >= 0, f"n should be a non-negative integer, {n} is given"
+    if not isinstance(n, int):
+        raise TypeError(f"n should be an int, {type(n).__name__} is given")
+    if n < 0:
+        raise ValueError(f"n should be a non-negative integer, {n} is given")
 
     @Primitive(name="q_sign_extend", spec=lambda x, ctx: x)
     def impl(x: Node) -> Node:
@@ -269,4 +274,3 @@ def q_add_sign(x: Node, s: Node) -> Node:
 def q_abs(x: Node) -> Node:
     sign_bit = q_sign_bit(x)  # UQ1.0
     return q_add_sign(x, sign_bit)
-

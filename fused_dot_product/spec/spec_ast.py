@@ -140,7 +140,8 @@ class RealLit(RealExpr):
     value: float | int
     
     def to_egglog(self):
-        assert float(self.value) == float(int(self.value)), "only integers are working rn in egglog"
+        if float(self.value) != float(int(self.value)):
+            raise ValueError("only integers are working rn in egglog")
         return Math.Num(BigRat(int(self.value), 1))
     
     def to_z3(self):

@@ -23,14 +23,10 @@ class composite(Node):
         impl: tp.Callable[..., Node],
         args: list[Node],
         name: str,
-    ):
-        # Pointer to the full tree for traverses/printing
-        self.printing_helper = impl
-        
-        self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
-        
+    ):  
         self.ctx = SpecContext(name)
         self.spec_cache = {}
+        self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         
         recorder = SpecRecorder(self.ctx, self.spec_cache)
         with record_specs(recorder):
@@ -59,18 +55,20 @@ class composite(Node):
             args=args,
             name=name,
         )
-        
+    
     
     def check_spec(self, z3_timeout_ms: int = 5000, egglog_iters=6):
-        spec_inner = self.inner_tree._evaluate_spec(ctx=self.ctx, cache=self.spec_cache)
+        ctx = self.ctx.copy()
+        spec_cache = dict(self.spec_cache)
+        spec_inner = self.inner_tree._evaluate_spec(ctx=ctx, cache=spec_cache)
         
-        inputs = [arg._evaluate_spec(ctx=self.ctx, cache=self.spec_cache) for arg in self.inner_args]
-        spec_outer = self.spec(*inputs, ctx=self.ctx)
+        inputs = [arg._evaluate_spec(ctx=ctx, cache=spec_cache) for arg in self.inner_args]
+        spec_outer = self.spec(*inputs, ctx=ctx)
         
         certificate = check_equivalence(
             spec_inner,
             spec_outer,
-            ctx=self.ctx,
+            ctx=ctx,
             egglog_iters=egglog_iters,
             z3_timeout_ms=z3_timeout_ms,
         )
@@ -110,12 +108,9 @@ class primitive(Node):
         args: list[Node],
         name: str,
     ):
-        # Pointer to the full tree for traverses/printing
-        self.printing_helper = impl
-        
         # Args will preserve runtime values of arguments
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
-        # Pointer to the inner tree
+        
         self.inner_tree = impl(*self.inner_args)
         
         def impl_(*args):
@@ -143,7 +138,6 @@ class primitive(Node):
         )
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
-        impl_pt = self.printing_helper(*self.args)  # Constructing a whole tree
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.node_type}: {self.name} [Primitive]")
         
@@ -151,7 +145,7 @@ class primitive(Node):
         
         if depth > 0:
             print(new_prefix + "└── Impl:")
-            impl_pt.print_tree(new_prefix + "    ", True, depth - 1)
+            self.inner_tree.print_tree(new_prefix + "    ", True, depth - 1)
         else:
             for i, arg in enumerate(self.args):
                 is_arg_last = i == len(self.args) - 1
@@ -228,7 +222,8 @@ class Var(Node):
         self.val = None
         
         def impl():
-            assert self.val is not None, f"Variable {self.name} not bound to a value"
+            if self.val is None:
+                raise ValueError(f"Variable {self.name} not bound to a value")
             return self.val
         
         def spec(ctx):
@@ -250,7 +245,10 @@ class Var(Node):
         print(prefix + connector + f"{self.node_type}: {self.name} [Var]")
     
     def load_val(self, val: RuntimeType):
-        assert isinstance(val, RuntimeType), f"Var's val must be a RuntimeType, {val} is provided"
+        if not isinstance(val, RuntimeType):
+            raise TypeError(f"Var's val must be a RuntimeType, {val} is provided")
+        if val.static_type() != self.sign():
+            raise TypeError(f"Var's val does not match signature {self.sign()}, {val.static_type()} is provided")
         self.val = val
     
     def __str__(self):
