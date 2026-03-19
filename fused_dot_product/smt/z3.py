@@ -43,9 +43,6 @@ def z3_check_eq(ctx: "SpecContext", timeout_ms: int = 10000):
     program = ctx.to_z3().translate(solver.ctx)
     solver.add(program)
     
-    from pprint import pprint
-    pprint(program)
-    
     run_started_at = perf_counter()
     result = solver.check()
     runtime_s = perf_counter() - run_started_at

@@ -25,11 +25,11 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     S_b[2], M_b[2], E_b[2] = bf16_decode(b2)
     S_b[3], M_b[3], E_b[3] = bf16_decode(b3)
     
-    ########## CONSTANTS ###############
+    ############ CONSTANTS #############
     
     bf16_bias = Const(Q.from_int(BFloat16.exponent_bias))
     
-    ########## EXPONENTS ###############
+    ############ EXPONENTS #############
     
     # Step 1. Exponents add. Each E_p is shifted by bias twice!
     E_p = [uq_add(E_a[i], E_b[i]) for i in range(N)]
@@ -40,7 +40,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     # Step 3. Calculate global shifts
     Sh_p = [uq_sub(E_m, E_p[i]) for i in range(N)]
     
-    ########## MANTISSAS ###############
+    ############ MANTISSAS #############
     
     # Step 1. Convert mantissas to UQ1.7
     M_a = [mantissa_add_implicit_bit(M_a[i]) for i in range(N)]
@@ -54,11 +54,11 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     M_p_resized = [uq_resize(M_p[i], 2, Wf - 2) for i in range(N)]
     M_p_shifted = [uq_rshift(M_p_resized[i], Sh_p[i]) for i in range(N)]
     
-    with proof("shifted_mantissa_proof") as (to_spec, ctx):
+    with spec("shifted_mantissa") as (to_spec, ctx):
         for i in range(N):
-            shifted_m = to_spec(M_p_shifted[i])
-            shifted_m_math = to_spec(M_p[i]) * ctx.real_val(2) ** (to_spec(E_p[i]) - to_spec(E_m))
-            ctx.check(shifted_m.eq(shifted_m_math))
+            shifted_m_1 = to_spec(M_p_shifted[i])
+            shifted_m_2 = to_spec(M_p[i]) * ctx.real_val(2) ** (to_spec(E_p[i]) - to_spec(E_m))
+            ctx.check(shifted_m_1.eq(shifted_m_2))
     
     # Step 4. Adjust sign for mantissas using xor operation
     S_p = [sign_xor(S_a[i], S_b[i]) for i in range(N)]
@@ -73,13 +73,14 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         q_add(M_p_q[2], M_p_q[3]),
     )
     
-    with proof("adder_tree") as (to_spec, ctx):
+    with spec("adder_tree") as (to_spec, ctx):
         ctx.check(
             to_spec(M_sum).eq(to_spec(M_p_q[0]) + to_spec(M_p_q[1]) + to_spec(M_p_q[2]) + to_spec(M_p_q[3]))
         )
     
-    ########## RESULT ##################
-     # Subtract bias that is left!
+    ############ RESULT ################
+    
+    # Subtract bias that is left!
     E_m_q = uq_to_q(E_m)
     
     E_m_q_biased = q_sub(E_m_q, bf16_bias)

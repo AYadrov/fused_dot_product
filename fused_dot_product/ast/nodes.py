@@ -4,7 +4,7 @@ from ..types.runtime import RuntimeType
 from ..types.static import StaticType
 from ..utils import make_fixed_arguments
 from .node import Node
-from .proofs import ProofRecorder, record_proofs
+from .proofs import SpecRecorder, record_specs
 from ..solver import check_equivalence
 from ..spec import SpecContext
 
@@ -30,10 +30,10 @@ class composite(Node):
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         
         self.ctx = SpecContext(name)
-        self.spec_ctx = {}
+        self.spec_cache = {}
         
-        recorder = ProofRecorder(self.ctx, self.spec_ctx)
-        with record_proofs(recorder):
+        recorder = SpecRecorder(self.ctx, self.spec_cache)
+        with record_specs(recorder):
             self.inner_tree = impl(*self.inner_args)
         
         def impl_(*args):
@@ -61,12 +61,10 @@ class composite(Node):
         )
         
     
-    def check_spec(self, z3_timeout_ms: int = 60000, egglog_iters=5):
-        cache = {}
+    def check_spec(self, z3_timeout_ms: int = 5000, egglog_iters=5):
+        spec_inner = self.inner_tree._evaluate_spec(ctx=self.ctx, cache=self.spec_cache)
         
-        spec_inner = self.inner_tree._evaluate_spec(ctx=self.ctx, cache=cache)
-        
-        inputs = [arg._evaluate_spec(ctx=self.ctx, cache=cache) for arg in self.inner_args]
+        inputs = [arg._evaluate_spec(ctx=self.ctx, cache=self.spec_cache) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, ctx=self.ctx)
         
         certificate = check_equivalence(
