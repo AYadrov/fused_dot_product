@@ -4,6 +4,9 @@ from ..types.runtime import RuntimeType
 from ..types.static import StaticType
 from ..utils import make_fixed_arguments
 from .node import Node
+from .proofs import ProofRecorder, record_proofs
+from ..solver import check_equivalence
+from ..spec import SpecContext
 
 
 def Composite(name: str, spec: tp.Callable[..., tp.Any]):
@@ -24,10 +27,14 @@ class composite(Node):
         # Pointer to the full tree for traverses/printing
         self.printing_helper = impl
         
-        # Args will preserve runtime values of arguments
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
-        # Pointer to the inner tree
-        self.inner_tree = impl(*self.inner_args)
+        
+        self.ctx = SpecContext(name)
+        self.spec_ctx = {}
+        
+        recorder = ProofRecorder(self.ctx, self.spec_ctx)
+        with record_proofs(recorder):
+            self.inner_tree = impl(*self.inner_args)
         
         def impl_(*args):
             for var, arg in zip(self.inner_args, args):
@@ -52,9 +59,27 @@ class composite(Node):
             args=args,
             name=name,
         )
+        
+    
+    def check_spec(self, z3_timeout_ms: int = 60000, egglog_iters=5):
+        cache = {}
+        
+        spec_inner = self.inner_tree._evaluate_spec(ctx=self.ctx, cache=cache)
+        
+        inputs = [arg._evaluate_spec(ctx=self.ctx, cache=cache) for arg in self.inner_args]
+        spec_outer = self.spec(*inputs, ctx=self.ctx)
+        
+        certificate = check_equivalence(
+            spec_inner,
+            spec_outer,
+            ctx=self.ctx,
+            egglog_iters=egglog_iters,
+            z3_timeout_ms=z3_timeout_ms,
+        )
+        return certificate
+    
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
-        impl_pt = self.printing_helper(*self.args)  # Constructing a whole tree
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.node_type}: {self.name} [Composite]")
         
@@ -62,7 +87,7 @@ class composite(Node):
         
         if depth > 0:
             print(new_prefix + "└── Impl:")
-            impl_pt.print_tree(new_prefix + "    ", True, depth - 1)
+            self.inner_tree.print_tree(new_prefix + "    ", True, depth - 1)
         else:
             for i, arg in enumerate(self.args):
                 is_arg_last = i == len(self.args) - 1

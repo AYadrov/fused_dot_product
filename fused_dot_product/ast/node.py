@@ -5,7 +5,6 @@ from contextvars import ContextVar
 from ..types.runtime import Bool, RuntimeType
 from ..types.static import BoolT, StaticType
 from ..spec import *
-from ..solver import check_equivalence
 
 
 class Node:
@@ -25,7 +24,7 @@ class Node:
         assert all([isinstance(x, Node) for x in args])
         # Checks that signature's annotations are StaticType
         self._primitive_signature_check(sign)
-
+        
         # Wrapper for impl that makes sure that out always matches node_type
         def impl_wrapper(impl):
             def compute(inputs: list[RuntimeType]):
@@ -36,15 +35,15 @@ class Node:
                     out = impl(*inputs)
                     self._dynamic_typecheck(inputs=inputs, out=out)
                 return out.copy()
-
+            
             return compute
-
+        
         self.spec = spec
         self.impl = impl_wrapper(impl)
         self.sign = sign
         self.args = args
         self.name = name
-
+        
         # Defines node_type at initialization - some parts rely on this
         self._static_typecheck()
     
@@ -66,7 +65,7 @@ class Node:
         
         # Checks that signature does match with received args_types and node_type
         self._signature_match(args=self.args_types, out=self.node_type)
-
+        
         # Constant folding
         # If all arguments are known at compile time - apply constant folding
         args_ = [arg.runtime_val for arg in self.args_types]
@@ -119,21 +118,6 @@ class Node:
         assert isinstance(out, sign.return_annotation), output_msg
 
     ################ PUBLIC API ##################
-    
-    def check_spec(self, z3_timeout_ms: int = 60000, egglog_iters=6):
-        from .nodes import composite  # cycles
-        assert isinstance(self, composite)
-        
-        cache = {}
-        ctx = SpecContext(self.name)
-        
-        spec_inner = self.inner_tree._evaluate_spec(ctx=ctx, cache=cache)
-        
-        inputs = [arg._evaluate_spec(ctx=ctx, cache=cache) for arg in self.inner_args]
-        spec_outer = self.spec(*inputs, ctx=ctx)
-        
-        certificate = check_equivalence(spec_inner, spec_outer, ctx=ctx, egglog_iters=egglog_iters, z3_timeout_ms=z3_timeout_ms)
-        return certificate
     
     def copy(self):
         from .helpers import Copy

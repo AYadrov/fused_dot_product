@@ -1,0 +1,51 @@
+from __future__ import annotations
+
+from contextlib import contextmanager
+from contextvars import ContextVar
+
+
+class ProofRecorder:
+    def __init__(self, ctx: SpecContext, spec_cache: dict):
+        self.ctx = ctx
+        self.spec_cache = spec_cache
+
+_current_recorder: ContextVar[ProofRecorder | None] = ContextVar(
+    "current_proof_recorder", default=None
+)
+_current_stage_name: ContextVar[str | None] = ContextVar(
+    "current_proof_stage_name", default=None
+)
+
+
+@contextmanager
+def record_proofs(recorder: ProofRecorder):
+    recorder_token = _current_recorder.set(recorder)
+    stage_token = _current_stage_name.set(None)
+    try:
+        yield
+    finally:
+        _current_stage_name.reset(stage_token)
+        _current_recorder.reset(recorder_token)
+
+
+@contextmanager
+def proof(name: str):
+    recorder = _current_recorder.get()
+    if recorder is None:
+        raise RuntimeError(f"Proof block {name} is not located inside Composite")
+    
+    if _current_stage_name.get() is not None:
+        raise RuntimeError("Nested proof blocks are not supported")
+    
+    stage_token = _current_stage_name.set(name)
+    try:
+        yield lambda node: node._evaluate_spec(recorder.ctx, recorder.spec_cache), recorder.ctx
+    finally:
+        _current_stage_name.reset(stage_token)
+
+
+__all__ = [
+    "ProofRecorder",
+    "proof",
+    "record_proofs",
+]
