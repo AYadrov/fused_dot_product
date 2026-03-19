@@ -61,7 +61,7 @@ class composite(Node):
         )
         
     
-    def check_spec(self, z3_timeout_ms: int = 5000, egglog_iters=5):
+    def check_spec(self, z3_timeout_ms: int = 5000, egglog_iters=6):
         spec_inner = self.inner_tree._evaluate_spec(ctx=self.ctx, cache=self.spec_cache)
         
         inputs = [arg._evaluate_spec(ctx=self.ctx, cache=self.spec_cache) for arg in self.inner_args]
