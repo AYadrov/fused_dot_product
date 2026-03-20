@@ -32,6 +32,8 @@ class composite(Node):
         with record_specs(recorder):
             self.inner_tree = impl(*self.inner_args)
         
+        self._validate_components(name)
+        
         def impl_(*args):
             for var, arg in zip(self.inner_args, args):
                 if isinstance(var, Var):
@@ -73,6 +75,29 @@ class composite(Node):
             z3_timeout_ms=z3_timeout_ms,
         )
         return certificate
+
+    def _validate_components(self, composite_name: str) -> None:
+        visited: set[Node] = set()
+
+        def visit(node: Node, path: str) -> None:
+            if node in visited:
+                return
+            visited.add(node)
+
+            if isinstance(node, (primitive, composite)):
+                for idx, arg in enumerate(node.args):
+                    visit(arg, f"{path} -> {node.name}.arg[{idx}]")
+                return
+
+            if isinstance(node, (Var, Const)):
+                return
+
+            raise TypeError(
+                f"Composite {composite_name} must be composed recursively of Primitive/Composite nodes; "
+                f"found {type(node).__name__} {node.name!r} at {path}"
+            )
+
+        visit(self.inner_tree, f"{composite_name}.impl")
     
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
