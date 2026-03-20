@@ -1,1 +1,1 @@
-from .z3 import z3_check
+from .z3 import z3_check_eq

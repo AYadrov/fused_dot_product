@@ -38,7 +38,7 @@ def merge_spec_reports(reports: list[dict]):
     
     for report in reports:
         design_name = report['name']
-        runtime_s = float(report.get("runtime_s", 0.0))
+        runtime_s = report.get("runtime_s", 0.0) + report.get("previous", {}).get("runtime_s", 0.0)
         equivalent = bool(report.get("equivalent", False))
         
         runtime_s_by_design[design_name] = runtime_s
@@ -46,7 +46,13 @@ def merge_spec_reports(reports: list[dict]):
         total_runtime_s += runtime_s
         all_equivalent = all_equivalent and equivalent
         
-        for rule, count in report.get("rule_application_counts", {}).items():
+        rules_used = None
+        if "previous" in report:
+            rules_used = report["previous"]["rule_application_counts"]
+        else:
+            rules_used = report["rule_application_counts"]
+        
+        for rule, count in rules_used.items():
             merged_rule_application_counts[rule] = (
                 merged_rule_application_counts.get(rule, 0) + int(count)
             )
@@ -96,9 +102,9 @@ class TestFusedDotProduct(unittest.TestCase):
         conventional = Conventional(*a, *b)
         optimized = Optimized(*a, *b)
         
-        report1 = run_spec_with_metrics(csa_tree4)['egglog']
-        report2 = run_spec_with_metrics(conventional)['egglog']
-        report3 = run_spec_with_metrics(optimized)['egglog']
+        report1 = run_spec_with_metrics(csa_tree4)
+        report2 = run_spec_with_metrics(conventional)
+        report3 = run_spec_with_metrics(optimized)
         
         overall_report = merge_spec_reports([report1, report2, report3])
         TestFusedDotProduct.SPEC_REPORT = overall_report
