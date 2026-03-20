@@ -56,9 +56,9 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     
     with spec("shifted_mantissa") as (to_spec, ctx):
         for i in range(N):
-            shifted_m_1 = to_spec(M_p_shifted[i])
-            shifted_m_2 = to_spec(M_p[i]) * ctx.real_val(2) ** (to_spec(E_p[i]) - to_spec(E_m))
-            ctx.check(shifted_m_1.eq(shifted_m_2))
+            lhs = to_spec(M_p_shifted[i]) * ctx.real_val(2) ** to_spec(E_m)
+            rhs = to_spec(M_p[i]) * ctx.real_val(2) ** to_spec(E_p[i])
+            ctx.check(lhs.eq(rhs))
     
     # Step 4. Adjust sign for mantissas using xor operation
     S_p = [sign_xor(S_a[i], S_b[i]) for i in range(N)]

@@ -111,6 +111,13 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     
     M_p = [uq_rshift(M_p[i], G_shifts[i]) for i in range(N)]
     
+    with spec("shifted_mantissa_check") as (to_spec, ctx):
+        for i in range(N):
+            # M_p[i] * 2 ** (E_m * 2**s + 2**s - 1)
+            lhs = to_spec(M_p[i]) * ctx.real_val(2) ** (to_spec(E_m) * ctx.real_val(2) ** ctx.real_val(s) + ctx.real_val(2) ** ctx.real_val(s) - ctx.real_val(1))
+            rhs = to_spec(M_a[i]) * to_spec(M_b[i]) * ctx.real_val(2) ** to_spec(E_p[i])
+            ctx.check(lhs.eq(rhs))
+    
     # Step 5. Adjust signs using xor operation
     S_p = [sign_xor(S_a[i], S_b[i]) for i in range(N)]
     
