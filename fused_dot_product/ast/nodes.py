@@ -59,7 +59,7 @@ class composite(Node):
         )
     
     
-    def check_spec(self, z3_timeout_ms: int = 5000, egglog_iters=5):
+    def check_spec(self, z3_timeout_ms: int = 5000, egglog_iters=6):
         ctx = self.ctx.copy()
         spec_cache = dict(self.spec_cache)
         spec_inner = self.inner_tree._evaluate_spec(ctx=ctx, cache=spec_cache)
