@@ -53,11 +53,11 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     # Make room for the right shift first, accuracy requirement is Wf
     M_p_resized = [uq_resize(M_p[i], 2, Wf - 2) for i in range(N)]
     M_p_shifted = [uq_rshift(M_p_resized[i], Sh_p[i]) for i in range(N)]
-    
-    with spec("shifted_mantissa") as (to_spec, ctx):
+
+    with context() as ctx:
         for i in range(N):
-            lhs = to_spec(M_p_shifted[i]) * ctx.real_val(2) ** to_spec(E_m)
-            rhs = to_spec(M_p[i]) * ctx.real_val(2) ** to_spec(E_p[i])
+            lhs = ctx.spec_of(M_p_shifted[i]) * ctx.real_val(2) ** ctx.spec_of(E_m)
+            rhs = ctx.spec_of(M_p[i]) * ctx.real_val(2) ** ctx.spec_of(E_p[i])
             ctx.check(lhs.eq(rhs))
     
     # Step 4. Adjust sign for mantissas using xor operation
@@ -73,10 +73,15 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
         q_add(M_p_q[2], M_p_q[3]),
     )
     
-    with spec("adder_tree") as (to_spec, ctx):
-        ctx.check(
-            to_spec(M_sum).eq(to_spec(M_p_q[0]) + to_spec(M_p_q[1]) + to_spec(M_p_q[2]) + to_spec(M_p_q[3]))
+    with context() as ctx:
+        lhs = ctx.spec_of(M_sum)
+        rhs = (
+            ctx.spec_of(M_p_q[0])
+            + ctx.spec_of(M_p_q[1])
+            + ctx.spec_of(M_p_q[2])
+            + ctx.spec_of(M_p_q[3])
         )
+        ctx.check(lhs.eq(rhs))
     
     ############ RESULT ################
     

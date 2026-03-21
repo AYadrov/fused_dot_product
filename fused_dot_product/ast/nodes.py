@@ -23,12 +23,11 @@ class composite(Node):
         impl: tp.Callable[..., Node],
         args: list[Node],
         name: str,
-    ):  
+    ):
         self.ctx = SpecContext(name)
-        self.spec_cache = {}
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         
-        recorder = SpecRecorder(self.ctx, self.spec_cache)
+        recorder = SpecRecorder(self.ctx)
         with record_specs(recorder):
             self.inner_tree = impl(*self.inner_args)
         
@@ -61,10 +60,9 @@ class composite(Node):
     
     def check_spec(self, z3_timeout_ms: int = 5000, egglog_iters=6):
         ctx = self.ctx.copy()
-        spec_cache = dict(self.spec_cache)
-        spec_inner = self.inner_tree._evaluate_spec(ctx=ctx, cache=spec_cache)
+        spec_inner = ctx.spec_of(self.inner_tree)
         
-        inputs = [arg._evaluate_spec(ctx=ctx, cache=spec_cache) for arg in self.inner_args]
+        inputs = [ctx.spec_of(arg) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, ctx=ctx)
         
         certificate = check_equivalence(

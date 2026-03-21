@@ -1,7 +1,7 @@
 from .helpers import Copy
 from .node import Node
 from .nodes import Composite, Const, Op, Primitive, Var
-from .proofs import spec
+from .proofs import context
 
 __all__ = [
     "Node",
@@ -11,5 +11,5 @@ __all__ = [
     "Const",
     "Var",
     "Copy",
-    "spec",
+    "context"
 ]

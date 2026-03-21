@@ -17,6 +17,7 @@ class SpecContext:
         self.checks: list[BoolExpr] = []
         self._sym_counter = count()
         self.name = name
+        self.spec_cache = {}
     
     def assume(self, condition: BoolExpr) -> None:
         if not isinstance(condition, BoolExpr):
@@ -63,6 +64,9 @@ class SpecContext:
             egraph.register(rhs)
             to_check.append(eq(lhs).to(rhs))
         return to_check
+
+    def spec_of(self, node: Node):
+        return node._evaluate_spec(ctx=self, cache=self.spec_cache)
     
     def real_val(self, value: int | float):
         return RealLit(value=value)
@@ -92,17 +96,19 @@ class SpecContext:
         self.assumes.clear()
         self.checks.clear()
         self._sym_counter = count()
+        self.spec_cache.clear()
     
     def copy(self, assumes=None, checks=None):
         if assumes is None:
             assumes = copy.deepcopy(self.assumes)
         if checks is None:
             checks = copy.deepcopy(self.checks)
-            
+        
         new_ctx = SpecContext(self.name)
         new_ctx.assumes = assumes
         new_ctx.checks = checks
         new_ctx._sym_counter = copy.deepcopy(self._sym_counter)
+        new_ctx.spec_cache = dict(self.spec_cache)
         return new_ctx
     
 __all__ = ["SpecContext"]
