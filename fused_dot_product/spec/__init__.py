@@ -6,4 +6,5 @@ __all__ = [
     "SpecContext",
     "ite",
     "children",
+    "Eq",
 ]
