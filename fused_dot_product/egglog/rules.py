@@ -79,7 +79,8 @@ def constant_rules():
     ]
 
 
-def _collect_real_var_names(node: SpecNode) -> set[str]:
+def _lower_expr(node: SpecNode) -> Expr:
+    
     from ..spec.spec_ast import (
         Abs,
         Add,
@@ -104,109 +105,49 @@ def _collect_real_var_names(node: SpecNode) -> set[str]:
     )
 
     if isinstance(node, RealVar):
-        return {node.name}
-    if isinstance(node, (RealLit, BoolLit, BoolVar)):
-        return set()
-    if isinstance(node, (Neg, Abs)):
-        return _collect_real_var_names(node.value)
-    if isinstance(node, Exp2):
-        return _collect_real_var_names(node.exponent)
-    if isinstance(node, Not):
-        return _collect_real_var_names(node.value)
-    if isinstance(
-        node,
-        (
-            Add,
-            Sub,
-            Mul,
-            Max,
-            Min,
-            Eq,
-            NotEq,
-            Lt,
-            Le,
-            Gt,
-            Ge,
-        ),
-    ):
-        return _collect_real_var_names(node.lhs) | _collect_real_var_names(node.rhs)
-    if isinstance(node, If):
-        return (
-            _collect_real_var_names(node.cond)
-            | _collect_real_var_names(node.on_true)
-            | _collect_real_var_names(node.on_false)
-        )
-    raise TypeError(f"Unsupported node in variable collection: {type(node).__name__}")
-
-
-def _lower_expr(node: SpecNode, vars_env: dict[str, Expr]) -> Expr:
-    from ..spec.spec_ast import (
-        Abs,
-        Add,
-        BoolLit,
-        BoolVar,
-        Eq,
-        Exp2,
-        Ge,
-        Gt,
-        If,
-        Le,
-        Lt,
-        Max,
-        Min,
-        Mul,
-        Neg,
-        Not,
-        NotEq,
-        RealLit,
-        RealVar,
-        Sub,
-    )
-
-    if isinstance(node, RealVar):
-        return vars_env[node.name]
+        return var(node.name, Math)
     if isinstance(node, RealLit):
         return node.to_egglog()
     if isinstance(node, Add):
-        return Math.Add(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+        return Math.Add(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, Sub):
-        return Math.Add(_lower_expr(node.lhs, vars_env), Math.Neg(_lower_expr(node.rhs, vars_env)))
+        return Math.Add(_lower_expr(node.lhs), Math.Neg(_lower_expr(node.rhs)))
     if isinstance(node, Mul):
-        return Math.Mul(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+        return Math.Mul(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, Neg):
-        return Math.Neg(_lower_expr(node.value, vars_env))
+        return Math.Neg(_lower_expr(node.value))
     if isinstance(node, Abs):
-        return Math.Abs(_lower_expr(node.value, vars_env))
+        return Math.Abs(_lower_expr(node.value))
     if isinstance(node, Exp2):
-        return Math.Exp2(_lower_expr(node.exponent, vars_env))
+        return Math.Exp2(_lower_expr(node.exponent))
     if isinstance(node, Max):
-        return Math.Max(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+        return Math.Max(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, Min):
-        return Math.Min(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+        return Math.Min(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, If):
         return Math.If(
-            _lower_expr(node.cond, vars_env),
-            _lower_expr(node.on_true, vars_env),
-            _lower_expr(node.on_false, vars_env),
+            _lower_expr(node.cond),
+            _lower_expr(node.on_true),
+            _lower_expr(node.on_false),
         )
     if isinstance(node, BoolLit):
         return node.to_egglog()
     if isinstance(node, BoolVar):
         raise NotImplementedError("BoolVar lowering to egglog rewrite is not supported")
     if isinstance(node, Eq):
-        return Math.Eq(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+        return Math.Eq(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, NotEq):
-        return Math.NotEq(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+        return Math.NotEq(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, Lt):
-        return Math.Lt(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+        return Math.Lt(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, Le):
-        return Math.Le(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+        return Math.Le(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, Gt):
-        return Math.Gt(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+        return Math.Gt(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, Ge):
-        return Math.Ge(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+        return Math.Ge(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, Not):
-        return MathBool.Not(_lower_expr(node.value, vars_env))
+        return MathBool.Not(_lower_expr(node.value))
     raise TypeError(f"Unsupported expression node: {type(node).__name__}")
 
 
@@ -217,14 +158,8 @@ def lower_rule(rule: Eq):
     if not isinstance(lhs, RealExpr) or not isinstance(rhs, RealExpr):
         raise TypeError("Only real equalities can be lowered into egglog rewrites")
 
-    var_names = sorted(_collect_real_var_names(rule))
-    vars_env: dict[str, Math] = {}
-    if var_names:
-        lowered_vars = tuple(vars_(" ".join(var_names), Math))
-        vars_env = {name: var for name, var in zip(var_names, lowered_vars)}
-
-    lowered_lhs = _lower_expr(lhs, vars_env)
-    lowered_rhs = _lower_expr(rhs, vars_env)
+    lowered_lhs = _lower_expr(lhs)
+    lowered_rhs = _lower_expr(rhs)
     return rewrite(lowered_lhs).to(lowered_rhs)
 
 
