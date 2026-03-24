@@ -14,6 +14,10 @@ class MathBool(Expr):
     @method(egg_fn="BoolNot")
     @classmethod
     def Not(cls, value: MathBool) -> MathBool: ...
+
+    @method(egg_fn="BoolEq")
+    @classmethod
+    def Eq(cls, lhs: MathBool, rhs: MathBool) -> MathBool: ...
     
     @method(egg_fn="BoolVar")
     @classmethod

@@ -106,7 +106,7 @@ class BoolExpr(SpecNode):
         return Not(self)
         
     def eq(self, other: "BoolExpr") -> "BoolExpr":
-        raise NotImplementedError()
+        return BoolEq(self, self._coerce(other))
     
     def ne(self, other: "BoolExpr") -> "BoolExpr":
         raise NotImplementedError()
@@ -122,6 +122,9 @@ class RealVar(RealExpr):
     def to_z3(self):
         return z3.Real(self.name)
 
+    def __str__(self):
+        return self.name
+
 
 @dataclass(frozen=True)
 class BoolVar(BoolExpr):
@@ -132,6 +135,9 @@ class BoolVar(BoolExpr):
     
     def to_z3(self):
         return z3.Bool(self.name)
+
+    def __str__(self):
+        return self.name
 
 
 @dataclass(frozen=True)
@@ -146,6 +152,9 @@ class RealLit(RealExpr):
     def to_z3(self):
         return z3.RealVal(str(self.value))
 
+    def __str__(self):
+        return str(self.value)
+
 
 @dataclass(frozen=True)
 class BoolLit(BoolExpr):
@@ -156,6 +165,9 @@ class BoolLit(BoolExpr):
     
     def to_z3(self):
         return z3.BoolVal(self.value)
+
+    def __str__(self):
+        return "true" if self.value else "false"
 
 
 @dataclass(frozen=True)
@@ -169,6 +181,9 @@ class Add(RealExpr):
     def to_z3(self):
         return self.lhs.to_z3() + self.rhs.to_z3()
 
+    def __str__(self):
+        return f"({self.lhs} + {self.rhs})"
+
 
 @dataclass(frozen=True)
 class Sub(RealExpr):
@@ -180,6 +195,9 @@ class Sub(RealExpr):
     
     def to_z3(self):
         return self.lhs.to_z3() - self.rhs.to_z3()
+
+    def __str__(self):
+        return f"({self.lhs} - {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -193,6 +211,9 @@ class Mul(RealExpr):
     def to_z3(self):
         return self.lhs.to_z3() * self.rhs.to_z3()
 
+    def __str__(self):
+        return f"({self.lhs} * {self.rhs})"
+
 
 @dataclass(frozen=True)
 class Neg(RealExpr):
@@ -203,6 +224,9 @@ class Neg(RealExpr):
     
     def to_z3(self):
         return -self.value.to_z3()
+
+    def __str__(self):
+        return f"(-{self.value})"
 
 
 @dataclass(frozen=True)
@@ -215,6 +239,9 @@ class Abs(RealExpr):
     def to_z3(self):
         return z3.Abs(self.value.to_z3())
 
+    def __str__(self):
+        return f"abs({self.value})"
+
 
 @dataclass(frozen=True)
 class Exp2(RealExpr):
@@ -225,6 +252,9 @@ class Exp2(RealExpr):
     
     def to_z3(self):
         return z3.RealVal(str(2)) ** self.exponent.to_z3()
+
+    def __str__(self):
+        return f"(2 ** {self.exponent})"
 
 
 @dataclass(frozen=True)
@@ -240,6 +270,9 @@ class Max(RealExpr):
         rhs = self.rhs.to_z3()
         return z3.If(lhs >= rhs, lhs, rhs)
 
+    def __str__(self):
+        return f"max({self.lhs}, {self.rhs})"
+
 
 @dataclass(frozen=True)
 class Min(RealExpr):
@@ -253,6 +286,9 @@ class Min(RealExpr):
         lhs = self.lhs.to_z3()
         rhs = self.rhs.to_z3()
         return z3.If(lhs <= rhs, lhs, rhs)
+
+    def __str__(self):
+        return f"min({self.lhs}, {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -271,6 +307,9 @@ class If(RealExpr):
     def to_z3(self):
         return z3.If(self.cond.to_z3(), self.on_true.to_z3(), self.on_false.to_z3())
 
+    def __str__(self):
+        return f"(if {self.cond} then {self.on_true} else {self.on_false})"
+
 
 @dataclass(frozen=True)
 class Eq(BoolExpr):
@@ -282,6 +321,9 @@ class Eq(BoolExpr):
     
     def to_z3(self):
         return self.lhs.to_z3() == self.rhs.to_z3()
+
+    def __str__(self):
+        return f"({self.lhs} == {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -295,6 +337,9 @@ class NotEq(BoolExpr):
     def to_z3(self):
         return self.lhs.to_z3() != self.rhs.to_z3()
 
+    def __str__(self):
+        return f"({self.lhs} != {self.rhs})"
+
 
 @dataclass(frozen=True)
 class Lt(BoolExpr):
@@ -306,6 +351,9 @@ class Lt(BoolExpr):
     
     def to_z3(self):
         return self.lhs.to_z3() < self.rhs.to_z3()
+
+    def __str__(self):
+        return f"({self.lhs} < {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -319,6 +367,9 @@ class Le(BoolExpr):
     def to_z3(self):
         return self.lhs.to_z3() <= self.rhs.to_z3()
 
+    def __str__(self):
+        return f"({self.lhs} <= {self.rhs})"
+
 
 @dataclass(frozen=True)
 class Gt(BoolExpr):
@@ -330,6 +381,9 @@ class Gt(BoolExpr):
     
     def to_z3(self):
         return self.lhs.to_z3() > self.rhs.to_z3()
+
+    def __str__(self):
+        return f"({self.lhs} > {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -343,7 +397,25 @@ class Ge(BoolExpr):
     def to_z3(self):
         return self.lhs.to_z3() >= self.rhs.to_z3()
 
+    def __str__(self):
+        return f"({self.lhs} >= {self.rhs})"
 
+
+@dataclass(frozen=True)
+class BoolEq(BoolExpr):
+    lhs: BoolExpr
+    rhs: BoolExpr
+    
+    def to_egglog(self):
+        return MathBool.Eq(self.lhs.to_egglog(), self.rhs.to_egglog())
+    
+    def to_z3(self):
+        return self.lhs.to_z3() == self.rhs.to_z3()
+
+    def __str__(self):
+        return f"({self.lhs} == {self.rhs})"
+
+    
 @dataclass(frozen=True)
 class Not(BoolExpr):
     value: BoolExpr
@@ -353,6 +425,9 @@ class Not(BoolExpr):
     
     def to_z3(self):
         return z3.Not(self.value.to_z3())
+
+    def __str__(self):
+        return f"(not {self.value})"
 
 
 def ite(
@@ -384,6 +459,7 @@ def children(node: SpecNode) -> tuple[SpecNode, ...]:
             Le,
             Gt,
             Ge,
+            BoolEq
         ),
     ):
         return (node.lhs, node.rhs)

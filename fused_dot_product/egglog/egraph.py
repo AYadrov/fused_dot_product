@@ -55,6 +55,7 @@ def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
     
     simplified_checks = []
     for check in ctx.checks:
+        print("FROM", check, "TO", simplify(check, egraph))
         simplified_checks.append(simplify(check, egraph))
     
     # Assumes must not be simplified, otherwise properties like:

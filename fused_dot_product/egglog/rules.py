@@ -3,10 +3,10 @@ from pprint import pprint
 
 from egglog import *
 
-from .datatypes import Math
+from .datatypes import Math, MathBool
 
 def rewrite_rules():
-    from ..spec.spec_ast import RealLit, RealVar
+    from ..spec.spec_ast import RealLit, RealVar, BoolLit
 
     a = RealVar("a")
     b = RealVar("b")
@@ -16,6 +16,7 @@ def rewrite_rules():
     zero = RealLit(0)
     one = RealLit(1)
     two = RealLit(2)
+    true = BoolLit(True)
 
     return [
         # Associativity
@@ -70,6 +71,9 @@ def rewrite_rules():
         ("const_7", (zero * x).eq(zero)),
         ("const_8", (x + zero).eq(x)),
         ("const_9", (zero + x).eq(x)),
+
+        # Equality
+        ("eq_1", (a.eq(a)).eq(true))
     ]
 
 def constant_rules():
@@ -77,16 +81,16 @@ def constant_rules():
     return [
         rewrite(Math.Add(Math.Num(m), Math.Num(n))).to(Math.Num(m + n)),
         rewrite(Math.Neg(Math.Num(m))).to(Math.Num(-m)),
-        rewrite(Math.Exp2(Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),
+        rewrite(Math.Exp2(Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
         rewrite(Math.Mul(Math.Num(m), Math.Num(n))).to(Math.Num(m * n)),
     ]
 
 
 def _lower_expr(node: SpecNode) -> Expr:
-    
     from ..spec.spec_ast import (
         Abs,
         Add,
+        BoolEq,
         BoolLit,
         BoolVar,
         Eq,
@@ -151,6 +155,8 @@ def _lower_expr(node: SpecNode) -> Expr:
         return Math.Ge(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, Not):
         return MathBool.Not(_lower_expr(node.value))
+    if isinstance(node, BoolEq):
+        return MathBool.Eq(_lower_expr(node.lhs), _lower_expr(node.rhs))
     raise TypeError(f"Unsupported expression node: {type(node).__name__}")
 
 
@@ -158,27 +164,24 @@ def lower_rule(rule: Eq):
     from ..spec.spec_ast import Eq, RealExpr, children
 
     lhs, rhs = children(rule)
-    if not isinstance(lhs, RealExpr) or not isinstance(rhs, RealExpr):
-        raise TypeError("Only real equalities can be lowered into egglog rewrites")
-
     lowered_lhs = _lower_expr(lhs)
     lowered_rhs = _lower_expr(rhs)
     return rewrite(lowered_lhs).to(lowered_rhs)
 
 
 def lower_rules(rules):
-    from ..spec.spec_ast import Eq
+    from ..spec.spec_ast import Eq, BoolEq
 
     lowered_rules = []
     for name, rule in rules:
-        if not isinstance(rule, Eq):
-            raise TypeError(f"Expected Eq rule for {name}, got {type(rule).__name__}")
+        if not isinstance(rule, Eq) and not isinstance(rule, BoolEq):
+            raise TypeError(f"Expected Eq or BoolEq rule for {name}, got {type(rule).__name__}")
         lowered_rules.append(lower_rule(rule))
     return lowered_rules
 
 
 def check_rules(rules, skip=["exp2_5", "exp2_6", "exp2_7"], z3_timeout_ms: int = 10000):
-    from ..spec.spec_ast import Eq, children
+    from ..spec.spec_ast import Eq, BoolEq, children
     from ..spec.spec_context import SpecContext
     from ..smt import z3_check_eq
 
@@ -186,8 +189,8 @@ def check_rules(rules, skip=["exp2_5", "exp2_6", "exp2_7"], z3_timeout_ms: int =
     for name, rule in rules:
         if name in skip:
             continue
-        if not isinstance(rule, Eq):
-            raise TypeError(f"Expected Eq rule for {name}, got {type(rule).__name__}")
+        if not isinstance(rule, Eq) and not isinstance(rule, BoolEq):
+            raise TypeError(f"Expected Eq or BoolEq rule for {name}, got {type(rule).__name__}")
         lhs, rhs = children(rule)
         ctx = SpecContext(name)
         ctx.check(lhs.eq(rhs))

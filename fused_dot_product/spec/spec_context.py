@@ -42,20 +42,20 @@ class SpecContext:
     
     def to_egglog(self, egraph):
         for assume in self.assumes:
-            if isinstance(assume, Eq):
+            if isinstance(assume, Eq) or isinstance(assume, BoolEq):
                 egraph.register(
                     union(assume.lhs.to_egglog()).with_(assume.rhs.to_egglog())
                 )
             else:
                 raise NotImplementedError(
-                    f"Only Eq assumptions are supported, got {type(assume).__name__}"
+                    f"Only Eq and BoolEq assumptions are supported, got {type(assume).__name__}"
                 )
         
         to_check = []
         for check in self.checks:
-            if not isinstance(check, Eq):
+            if not isinstance(check, Eq) and not isinstance(check, BoolEq):
                 raise NotImplementedError(
-                    f"Only Eq checks are supported, got {type(check).__name__}"
+                    f"Only Eq and BoolEq checks are supported, got {type(check).__name__}"
                 )
             lhs = check.lhs.to_egglog()
             rhs = check.rhs.to_egglog()
