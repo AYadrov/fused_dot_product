@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from itertools import count
-
 from .spec_ast import *
 from ..egglog import *
 from egglog import rewrite, vars_
@@ -16,7 +14,7 @@ class SpecContext:
     def __init__(self, name: str):
         self.assumes: list[BoolExpr] = []
         self.checks: list[BoolExpr] = []
-        self._sym_counter = count()
+        self._sym_counter = 0
         self.name = name
         self.spec_cache = {}
     
@@ -76,13 +74,17 @@ class SpecContext:
         return RealVar(name=name)
     
     def fresh_real(self, base: str) -> RealVar:
-        return RealVar(name=f"{base}_{next(self._sym_counter)}")
+        name = RealVar(name=f"{base}_{self._sym_counter}")
+        self._sym_counter += 1
+        return name
     
     def bool(self, name: str) -> BoolVar:
         return BoolVar(name=name)
     
     def fresh_bool(self, base: str) -> BoolVar:
-        return BoolVar(name=f"{base}_{next(self._sym_counter)}")
+        name = BoolVar(name=f"{base}_{self._sym_counter}")
+        self._sym_counter += 1
+        return name
     
     def bool_val(self, value: bool):
         return BoolLit(value=value)
@@ -96,7 +98,7 @@ class SpecContext:
     def reset(self) -> None:
         self.assumes.clear()
         self.checks.clear()
-        self._sym_counter = count()
+        self._sym_counter = 0
         self.spec_cache.clear()
     
     def copy(self, assumes=None, checks=None):
@@ -108,9 +110,8 @@ class SpecContext:
         new_ctx = SpecContext(self.name)
         new_ctx.assumes = assumes
         new_ctx.checks = checks
-        new_ctx._sym_counter = copy.deepcopy(self._sym_counter)
+        new_ctx._sym_counter = self._sym_counter
         new_ctx.spec_cache = dict(self.spec_cache)
         return new_ctx
-
 
 
