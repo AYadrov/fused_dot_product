@@ -1,36 +1,14 @@
 from __future__ import annotations
+from pprint import pprint
 
 from egglog import *
 
 from .datatypes import Math
 
-def check_rules(z3_timeout_ms: int = 10000):
-    from ..spec import SpecContext, children, Eq
-    rules = rewrite_rules()
-
-    results = {}
-    for name, rule in rules:
-        if not isinstance(rule, Eq):
-            raise TypeError(f"Expected Eq rule for {name}, got {type(rule).__name__}")
-        lhs, rhs = children(rule)
-        ctx = SpecContext(name)
-        ctx.check(lhs.eq(rhs))
-        equivalent, report = z3_check_eq(ctx, timeout_ms=z3_timeout_ms)
-        results[name] = report
-        print(name, report["status"], equivalent)
-    return results
-
-def contant_folding_rules():
-    m, n = vars_("m n", BigRat)
-
-    return {
-        rewrite(Math.Add(Math.Num(m), Math.Num(n))).to(Math.Num(m + n)) : BoolLit(True),
-        rewrite(Math.Neg(Math.Num(m))).to(Math.Num(-m)) : BoolLit(True),
-        rewrite(Math.Exp2(Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)) : BoolLit(True),
-        rewrite(Math.Mul(Math.Num(m), Math.Num(n))).to(Math.Num(m * n)) : BoolLit(True),
-    }
 
 def rewrite_rules():
+    from ..spec.spec_ast import RealLit, RealVar
+
     a = RealVar("a")
     b = RealVar("b")
     c = RealVar("c")
@@ -59,6 +37,7 @@ def rewrite_rules():
         # Rules with exp2
         ("exp2_1", (two ** zero).eq(one)),
         ("exp2_2", one.eq(two ** zero)),
+
         ("exp2_3", (two ** one).eq(two)),
         ("exp2_4", two.eq(two ** one)),
         ("exp2_5", (two ** (a + b)).eq((two ** a) * (two ** b))),
@@ -90,80 +69,201 @@ def rewrite_rules():
         ("const_9", (zero + x).eq(x)),
     ]
 
-
-
-    
-
-def load_rules(egraph: EGraph) -> None:
-    a, b, c, x = vars_("a b c x", Math)
+def constant_rules():
     m, n = vars_("m n", BigRat)
-    
-    zero = Math.Num(BigRat(0, 1))
-    one = Math.Num(BigRat(1, 1))
-    two = Math.Num(BigRat(2, 1))
-
-    egraph.register(
-        # Constant folding
+    return [
         rewrite(Math.Add(Math.Num(m), Math.Num(n))).to(Math.Num(m + n)),
         rewrite(Math.Neg(Math.Num(m))).to(Math.Num(-m)),
         rewrite(Math.Exp2(Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),
         rewrite(Math.Mul(Math.Num(m), Math.Num(n))).to(Math.Num(m * n)),
-        
-        # Associativity
-        rewrite(Math.Add(a, Math.Add(b, c))).to(Math.Add(Math.Add(a, b), c)),
-        rewrite(Math.Add(Math.Add(a, b), c)).to(Math.Add(a, Math.Add(b, c))),
-        rewrite(Math.Mul(a, Math.Mul(b, c))).to(Math.Mul(Math.Mul(a, b), c)),
-        rewrite(Math.Mul(Math.Mul(a, b), c)).to(Math.Mul(a, Math.Mul(b, c))),
-        
-        # Commutativity
-        rewrite(Math.Add(a, b)).to(Math.Add(b, a)),
-        rewrite(Math.Mul(a, b)).to(Math.Mul(b, a)),
-        
-        # Distributivity
-        rewrite(Math.Add(Math.Mul(a, b), Math.Mul(a, c))).to(Math.Mul(a, Math.Add(b, c))),
-        rewrite(Math.Add(Math.Mul(b, a), Math.Mul(c, a))).to(Math.Mul(a, Math.Add(b, c))),
-        
-        rewrite(Math.Mul(a, Math.Add(b, c))).to(Math.Add(Math.Mul(a, b), Math.Mul(a, c))),
-        rewrite(Math.Mul(a, Math.Add(b, c))).to(Math.Add(Math.Mul(b, a), Math.Mul(c, a))),
+    ]
 
-        # Rules with exp2
-        rewrite(Math.Exp2(zero)).to(one),
-        rewrite(one).to(Math.Exp2(zero)),
-        
-        rewrite(Math.Exp2(one)).to(two),
-        rewrite(two).to(Math.Exp2(one)),
-        
-        rewrite(Math.Exp2(Math.Add(a, b))).to(Math.Mul(Math.Exp2(a), Math.Exp2(b))),
-        rewrite(Math.Mul(Math.Exp2(a), Math.Exp2(b))).to(Math.Exp2(Math.Add(a, b))),
-        
-        rewrite(Math.Mul(Math.Exp2(x), Math.Exp2(Math.Neg(x)))).to(one),
-        
-        # Rules with negation of addition
-        rewrite(Math.Neg(Math.Add(a, b))).to(Math.Add(Math.Neg(a), Math.Neg(b))),
-        rewrite(Math.Add(Math.Neg(a), Math.Neg(b))).to(Math.Neg(Math.Add(a, b))),
-        
-        rewrite(Math.Neg(Math.Add(a, Math.Neg(b)))).to(Math.Add(Math.Neg(a), b)),
-        rewrite(Math.Add(Math.Neg(a), b)).to(Math.Neg(Math.Add(a, Math.Neg(b)))),
-        
-        # Rules with negation of multiplication
-        rewrite(Math.Neg(Math.Mul(a, b))).to(Math.Mul(Math.Neg(a), b)),
-        rewrite(Math.Neg(Math.Mul(a, b))).to(Math.Mul(a, Math.Neg(b))),
-        rewrite(Math.Mul(Math.Neg(a), Math.Neg(b))).to(Math.Mul(a, b)),
-        rewrite(Math.Neg(Math.Mul(a, Math.Neg(b)))).to(Math.Mul(a, b)),
-        
-        # Rules with max operations
-        rewrite(Math.Max(a, b)).to(Math.Max(b, a)),
-        rewrite(Math.Max(Math.Max(a, b), c)).to(Math.Max(Math.Max(a, c), b)),
-        rewrite(Math.Max(a, a)).to(a),
-        
-        # Negation/constants
-        rewrite(Math.Neg(Math.Neg(x))).to(x),
-        rewrite(Math.Add(x, Math.Neg(x))).to(zero),
-        rewrite(Math.Add(Math.Neg(x), x)).to(zero),
-        rewrite(Math.Mul(x, one)).to(x),
-        rewrite(Math.Mul(one, x)).to(x),
-        rewrite(Math.Mul(x, zero)).to(zero),
-        rewrite(Math.Mul(zero, x)).to(zero),
-        rewrite(Math.Add(x, zero)).to(x),
-        rewrite(Math.Add(zero, x)).to(x),
+
+def _collect_real_var_names(node: SpecNode) -> set[str]:
+    from ..spec.spec_ast import (
+        Abs,
+        Add,
+        BoolLit,
+        BoolVar,
+        Eq,
+        Exp2,
+        Ge,
+        Gt,
+        If,
+        Le,
+        Lt,
+        Max,
+        Min,
+        Mul,
+        Neg,
+        Not,
+        NotEq,
+        RealLit,
+        RealVar,
+        Sub,
     )
+
+    if isinstance(node, RealVar):
+        return {node.name}
+    if isinstance(node, (RealLit, BoolLit, BoolVar)):
+        return set()
+    if isinstance(node, (Neg, Abs)):
+        return _collect_real_var_names(node.value)
+    if isinstance(node, Exp2):
+        return _collect_real_var_names(node.exponent)
+    if isinstance(node, Not):
+        return _collect_real_var_names(node.value)
+    if isinstance(
+        node,
+        (
+            Add,
+            Sub,
+            Mul,
+            Max,
+            Min,
+            Eq,
+            NotEq,
+            Lt,
+            Le,
+            Gt,
+            Ge,
+        ),
+    ):
+        return _collect_real_var_names(node.lhs) | _collect_real_var_names(node.rhs)
+    if isinstance(node, If):
+        return (
+            _collect_real_var_names(node.cond)
+            | _collect_real_var_names(node.on_true)
+            | _collect_real_var_names(node.on_false)
+        )
+    raise TypeError(f"Unsupported node in variable collection: {type(node).__name__}")
+
+
+def _lower_expr(node: SpecNode, vars_env: dict[str, Expr]) -> Expr:
+    from ..spec.spec_ast import (
+        Abs,
+        Add,
+        BoolLit,
+        BoolVar,
+        Eq,
+        Exp2,
+        Ge,
+        Gt,
+        If,
+        Le,
+        Lt,
+        Max,
+        Min,
+        Mul,
+        Neg,
+        Not,
+        NotEq,
+        RealLit,
+        RealVar,
+        Sub,
+    )
+
+    if isinstance(node, RealVar):
+        return vars_env[node.name]
+    if isinstance(node, RealLit):
+        return node.to_egglog()
+    if isinstance(node, Add):
+        return Math.Add(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+    if isinstance(node, Sub):
+        return Math.Add(_lower_expr(node.lhs, vars_env), Math.Neg(_lower_expr(node.rhs, vars_env)))
+    if isinstance(node, Mul):
+        return Math.Mul(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+    if isinstance(node, Neg):
+        return Math.Neg(_lower_expr(node.value, vars_env))
+    if isinstance(node, Abs):
+        return Math.Abs(_lower_expr(node.value, vars_env))
+    if isinstance(node, Exp2):
+        return Math.Exp2(_lower_expr(node.exponent, vars_env))
+    if isinstance(node, Max):
+        return Math.Max(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+    if isinstance(node, Min):
+        return Math.Min(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+    if isinstance(node, If):
+        return Math.If(
+            _lower_expr(node.cond, vars_env),
+            _lower_expr(node.on_true, vars_env),
+            _lower_expr(node.on_false, vars_env),
+        )
+    if isinstance(node, BoolLit):
+        return node.to_egglog()
+    if isinstance(node, BoolVar):
+        raise NotImplementedError("BoolVar lowering to egglog rewrite is not supported")
+    if isinstance(node, Eq):
+        return Math.Eq(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+    if isinstance(node, NotEq):
+        return Math.NotEq(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+    if isinstance(node, Lt):
+        return Math.Lt(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+    if isinstance(node, Le):
+        return Math.Le(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+    if isinstance(node, Gt):
+        return Math.Gt(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+    if isinstance(node, Ge):
+        return Math.Ge(_lower_expr(node.lhs, vars_env), _lower_expr(node.rhs, vars_env))
+    if isinstance(node, Not):
+        return MathBool.Not(_lower_expr(node.value, vars_env))
+    raise TypeError(f"Unsupported expression node: {type(node).__name__}")
+
+
+def lower_rule(rule: Eq):
+    from ..spec.spec_ast import Eq, RealExpr, children
+
+    lhs, rhs = children(rule)
+    if not isinstance(lhs, RealExpr) or not isinstance(rhs, RealExpr):
+        raise TypeError("Only real equalities can be lowered into egglog rewrites")
+
+    var_names = sorted(_collect_real_var_names(rule))
+    vars_env: dict[str, Math] = {}
+    if var_names:
+        lowered_vars = tuple(vars_(" ".join(var_names), Math))
+        vars_env = {name: var for name, var in zip(var_names, lowered_vars)}
+
+    lowered_lhs = _lower_expr(lhs, vars_env)
+    lowered_rhs = _lower_expr(rhs, vars_env)
+    return rewrite(lowered_lhs).to(lowered_rhs)
+
+
+def lower_rules(rules):
+    from ..spec.spec_ast import Eq
+
+    lowered_rules = []
+    for name, rule in rules:
+        if not isinstance(rule, Eq):
+            raise TypeError(f"Expected Eq rule for {name}, got {type(rule).__name__}")
+        lowered_rules.append(lower_rule(rule))
+    return lowered_rules
+
+
+def check_rules(rules, z3_timeout_ms: int = 10000):
+    from ..spec.spec_ast import Eq, children
+    from ..spec.spec_context import SpecContext
+    from ..smt import z3_check_eq
+
+    results = {}
+    for name, rule in rules:
+        if not isinstance(rule, Eq):
+            raise TypeError(f"Expected Eq rule for {name}, got {type(rule).__name__}")
+        lhs, rhs = children(rule)
+        ctx = SpecContext(name)
+        ctx.check(lhs.eq(rhs))
+        equivalent, _ = z3_check_eq(ctx, timeout_ms=z3_timeout_ms)
+        results[name] = equivalent
+    return results
+
+
+def load_rules(egraph: EGraph) -> None:
+    rules_ = rewrite_rules()
+    
+    res = check_rules(rules_)
+    pprint(res)
+    
+    # Constant rules are not checked with z3 for now
+    rules = constant_rules() + lower_rules(rules_)
+    egraph.register(*rules)
+
+    

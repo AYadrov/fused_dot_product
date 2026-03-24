@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from itertools import count
 
-from .spec_ast import BoolExpr, BoolLit, BoolVar, Eq, RealLit, RealVar
+from .spec_ast import *
 from ..egglog import *
+from egglog import rewrite, vars_
 
 import copy
 import z3
@@ -64,7 +65,7 @@ class SpecContext:
             egraph.register(rhs)
             to_check.append(eq(lhs).to(rhs))
         return to_check
-
+    
     def spec_of(self, node: Node):
         return node._evaluate_spec(ctx=self, cache=self.spec_cache)
     
@@ -103,12 +104,13 @@ class SpecContext:
             assumes = copy.deepcopy(self.assumes)
         if checks is None:
             checks = copy.deepcopy(self.checks)
-        
+
         new_ctx = SpecContext(self.name)
         new_ctx.assumes = assumes
         new_ctx.checks = checks
         new_ctx._sym_counter = copy.deepcopy(self._sym_counter)
         new_ctx.spec_cache = dict(self.spec_cache)
         return new_ctx
-    
-__all__ = ["SpecContext"]
+
+
+
