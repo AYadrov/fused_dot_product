@@ -9,6 +9,7 @@ from pprint import pprint, pformat
 from pathlib import Path
 
 from fused_dot_product import *
+from fused_dot_product.egglog.rules import check_rules, rewrite_rules
 from examples.optimized import Optimized
 from examples.conventional import Conventional
 from examples.CSA import CSA_tree4
@@ -72,6 +73,13 @@ class TestFusedDotProduct(unittest.TestCase):
     SPEC_REPORT = None
     IMPL_REPORT = None
 
+    def test_rules_with_z3(self):
+        rules = rewrite_rules()
+        results = check_rules(rules, z3_timeout_ms=10000)
+
+        for name, status in results.items():
+            self.assertTrue(status, pformat(results))
+    
     def test_run_spec_verification_and_timing(self):
         print("\nRunning test_run_spec_verification_and_timing:")
         print("\tConstructing CSA_tree4, Conventional, and Optimized composites.")

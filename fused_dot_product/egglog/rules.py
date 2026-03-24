@@ -5,7 +5,6 @@ from egglog import *
 
 from .datatypes import Math
 
-
 def rewrite_rules():
     from ..spec.spec_ast import RealLit, RealVar
 
@@ -133,7 +132,7 @@ def _lower_expr(node: SpecNode) -> Expr:
     if isinstance(node, BoolLit):
         return node.to_egglog()
     if isinstance(node, BoolVar):
-        raise NotImplementedError("BoolVar lowering to egglog rewrite is not supported")
+        return var(node.name, MathBool)
     if isinstance(node, Eq):
         return Math.Eq(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, NotEq):
@@ -186,18 +185,18 @@ def check_rules(rules, z3_timeout_ms: int = 10000):
         lhs, rhs = children(rule)
         ctx = SpecContext(name)
         ctx.check(lhs.eq(rhs))
-        equivalent, _ = z3_check_eq(ctx, timeout_ms=z3_timeout_ms)
-        results[name] = equivalent
+        equivalent, report = z3_check_eq(ctx, timeout_ms=z3_timeout_ms)
+        results[name] = equivalent or report['status']
     return results
 
 
 def load_rules(egraph: EGraph) -> None:
     rules_ = rewrite_rules()
     
-    res = check_rules(rules_)
-    pprint(res)
-    
     # Constant rules are not checked with z3 for now
+    res = check_rules(rules_)
+    # pprint(res)
+    
     rules = constant_rules() + lower_rules(rules_)
     egraph.register(*rules)
 
