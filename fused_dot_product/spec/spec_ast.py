@@ -123,7 +123,7 @@ class RealVar(RealExpr):
         return z3.Real(self.name)
 
     def __str__(self):
-        return self.name
+        return f"real({self.name})"
 
 
 @dataclass(frozen=True)
@@ -137,7 +137,7 @@ class BoolVar(BoolExpr):
         return z3.Bool(self.name)
 
     def __str__(self):
-        return self.name
+        return f"bool({self.name})"
 
 
 @dataclass(frozen=True)
@@ -441,8 +441,10 @@ def ite(
 def children(node: SpecNode) -> tuple[SpecNode, ...]:
     if isinstance(node, (RealVar, BoolVar, RealLit, BoolLit)):
         return ()
-    if isinstance(node, (Neg, Abs, Exp2, Not)):
+    if isinstance(node, (Neg, Abs, Not)):
         return (node.value,)
+    if isinstance(node, (Exp2)):
+        return (node.exponent,)
     if isinstance(node, If):
         return (node.cond, node.on_true, node.on_false)
     if isinstance(
@@ -464,3 +466,12 @@ def children(node: SpecNode) -> tuple[SpecNode, ...]:
     ):
         return (node.lhs, node.rhs)
     raise TypeError(f"Unsupported node type: {type(node).__name__}")
+
+
+def variables(node: SpecNode) -> set[RealVar | BoolVar]:
+    if isinstance(node, (RealVar, BoolVar)):
+        return {node}
+    vars_ = set()
+    for child in children(node):
+        vars_.update(variables(child))
+    return vars_

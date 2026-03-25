@@ -33,15 +33,6 @@ class SpecContext:
         self.checks.append(condition)
     
     def to_z3(self):
-        from z3 import Implies
-        def _parse_assume(assume):
-            if not isinstance(assume, Eq) and not isinstance(assume, BoolEq):
-                raise NotImplementedError(
-                    f"Only Eq and BoolEq assumptions are supported, got {type(assume).__name__}"
-                )
-            return 
-                
-        
         def assert_not_empty(terms):
             return terms + [z3.BoolVal(True)]
         assume_terms = assert_not_empty([assume.to_z3() for assume in self.assumes])
@@ -109,6 +100,47 @@ class SpecContext:
         self.checks.clear()
         self._sym_counter = 0
         self.spec_cache.clear()
+
+    # TODO: stuff like this: assume(x == y * y); check(x == abs(x)) won't work
+    # TODO: assume(x == 0); assume(x == 1); check(0 == 1) - should not pass
+    # TODO: assume(x == 1);  assume(y == 0); assume(y == 1); check(x == 2) - should not pass
+    # TODO: assume(x == z*y); assume(y==0); check(x == 0) - should pass
+    def simplify_assumes(self):
+        live_vars = set()
+        for check in self.checks:
+            live_vars.update(variables(check))
+
+        if not live_vars:  # checks do not have vars, assumptions are useless
+            self.assumes = []
+            return self
+
+        assume_vars = [variables(assume) for assume in self.assumes]
+        var_occurrences = {}
+        for vars_ in assume_vars:
+            for var in vars_:
+                var_occurrences[var] = var_occurrences.get(var, 0) + 1
+
+        kept_indices = set()
+        changed = True
+        while changed:
+            changed = False
+            for idx, (assume, vars_) in enumerate(zip(self.assumes, assume_vars)):
+                if idx in kept_indices:
+                    continue
+                if not vars_:  # assumption does not have vars
+                    kept_indices.add(idx)
+                    changed = True
+                    continue
+                if not (vars_ & live_vars):  # assumption and checks do not have common vars - drop statement
+                    continue
+                if all(var in live_vars or var_occurrences[var] > 1 for var in vars_):  # all of assume's vars are either in live_vars or they are at least somewhere else as well
+                    kept_indices.add(idx)
+                    live_vars.update(vars_)
+                    changed = True
+
+        new_assumes = [assume for idx, assume in enumerate(self.assumes) if idx in kept_indices]
+        self.assumes = new_assumes
+        return self
 
     def __str__(self) -> str:
         def format_section(title: str, items: list[BoolExpr]) -> list[str]:

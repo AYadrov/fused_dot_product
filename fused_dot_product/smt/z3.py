@@ -23,10 +23,16 @@ def create_solver(timeout_ms):
     return solver
 
 
+def z3_encodings():
+    return []
+
+
 def z3_check_eq(ctx: SpecContext, timeout_ms: int = 10000):
     solver = create_solver(timeout_ms)
     program = ctx.to_z3().translate(solver.ctx)
     solver.add(program)
+    solver.add(z3_encodings())
+    print(ctx)
     
     run_started_at = perf_counter()
     result = solver.check()

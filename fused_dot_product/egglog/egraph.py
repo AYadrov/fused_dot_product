@@ -49,11 +49,18 @@ def egglog_check_eq(ctx: "SpecContext", iterations=6):
 
 def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
     from ..spec.spec_utils import from_egglog
-    from ..spec.spec_ast import Eq, BoolEq
-    from pprint import pprint
+    from ..spec.spec_ast import Eq, BoolEq, variables
     
-    def simplify(expr: "SpecNode", egraph: EGraph):
+    def simplify_expr(expr: "SpecNode", egraph: EGraph):
         return from_egglog(egraph.extract(expr.to_egglog()))
+
+    def simplify_check(check: BoolEq | Eq):
+        lhs = check.lhs.to_egglog()
+        rhs = check.rhs.to_egglog()
+        check_passed = egraph.check_bool(eq(lhs).to(rhs))
+        if check_passed:
+            return None
+        return simplify_expr(check, egraph)
     
     simplified_checks = []
 
@@ -62,20 +69,9 @@ def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
             raise NotImplementedError(
                 f"Only Eq and BoolEq checks are supported, got {type(check).__name__}"
             )
-        lhs = check.lhs.to_egglog()
-        rhs = check.rhs.to_egglog()
-        check_passed = egraph.check_bool(eq(lhs).to(rhs))
-        if not check_passed:
-            simplified = simplify(check, egraph)
-            # print(f"\t{check}\n\t{simplified}\n\n")
+        simplified = simplify_check(check)
+        if simplified is not None:
             simplified_checks.append(simplified)
-    
-    
-    # Assumes must not be simplified, otherwise properties like:
-    # x == (-1)**s * 1.m * 2**(e-bias)
-    # with egglog simply gets simplified into x == x
-    # which is not useful information anymore for other solvers
-    # While checks can be simplified, they do not carry any useful information
-    
-    new_ctx = ctx.copy(assumes=ctx.assumes, checks=simplified_checks)
+
+    new_ctx = ctx.copy(checks=simplified_checks).simplify_assumes()
     return new_ctx
