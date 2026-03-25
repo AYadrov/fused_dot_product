@@ -6,61 +6,64 @@ from egglog import *
 from .datatypes import Math, MathBool
 
 def rewrite_rules():
-    from ..spec.spec_ast import RealLit, RealVar, BoolLit
-
+    from ..spec.spec_ast import RealLit, RealVar, BoolLit, BoolVar
+    
     a = RealVar("a")
     b = RealVar("b")
     c = RealVar("c")
     x = RealVar("x")
-
+    
+    bool_var = BoolVar("a")
+    
     zero = RealLit(0)
     one = RealLit(1)
     two = RealLit(2)
+    
     true = BoolLit(True)
-
+    
     return [
         # Associativity
         ("assoc_1", (a + (b + c)).eq((a + b) + c)),
         ("assoc_2", ((a + b) + c).eq(a + (b + c))),
         ("assoc_3", (a * (b * c)).eq((a * b) * c)),
         ("assoc_4", ((a * b) * c).eq(a * (b * c))),
-
+        
         # Commutativity
         ("comm_1", (a + b).eq(b + a)),
         ("comm_2", (a * b).eq(b * a)),
-
+        
         ("dist_1", ((a * b) + (a * c)).eq(a * (b + c))),
         ("dist_2", ((b * a) + (c * a)).eq(a * (b + c))),
         ("dist_3", (a * (b + c)).eq((a * b) + (a * c))),
         ("dist_4", (a * (b + c)).eq((b * a) + (c * a))),
-
+        
         # Rules with exp2
         ("exp2_1", (two ** zero).eq(one)),
         ("exp2_2", one.eq(two ** zero)),
-
+        
         ("exp2_3", (two ** one).eq(two)),
         ("exp2_4", two.eq(two ** one)),
         ("exp2_5", (two ** (a + b)).eq((two ** a) * (two ** b))),
         ("exp2_6", ((two ** a) * (two ** b)).eq(two ** (a + b))),
         ("exp2_7", ((two ** x) * (two ** (-x))).eq(one)),
-
+        
          # Rules with negation of addition
         ("neg_1", (-(a + b)).eq((-a) + (-b))),
         ("neg_2", ((-a) + (-b)).eq(-(a + b))),
         ("neg_3", (-(a + (-b))).eq((-a) + b)),
         ("neg_4", ((-a) + b).eq(-(a + (-b)))),
-
+        
         # Rules with negation of multiplication
         ("neg_mul_1", (-(a * b)).eq((-a) * b)),
         ("neg_mul_2", (-(a * b)).eq(a * (-b))),
         ("neg_mul_3", ((-a) * (-b)).eq(a * b)),
         ("neg_mul_4", (-(a * (-b))).eq(a * b)),
-
+        
         # Rules with max operations
         ("max_1", a.max(b).eq(b.max(a))),
         ("max_2", (a.max(b).max(c)).eq(a.max(c).max(b))),
         ("max_3", (a.max(a)).eq(a)),
-
+        
         # Negation/constants
         ("const_1", (-(-x)).eq(x)),
         ("const_2", (x + (-x)).eq(zero)),
@@ -71,9 +74,10 @@ def rewrite_rules():
         ("const_7", (zero * x).eq(zero)),
         ("const_8", (x + zero).eq(x)),
         ("const_9", (zero + x).eq(x)),
-
+        
         # Equality
-        ("eq_1", (a.eq(a)).eq(true))
+        ("eq_1", (a.eq(a)).eq(true)),
+        ("eq_2", (bool_var.eq(bool_var)).eq(true)),
     ]
 
 def constant_rules():
@@ -110,7 +114,7 @@ def _lower_expr(node: SpecNode) -> Expr:
         RealVar,
         Sub,
     )
-
+    
     if isinstance(node, RealVar):
         return var(node.name, Math)
     if isinstance(node, RealLit):
@@ -162,7 +166,7 @@ def _lower_expr(node: SpecNode) -> Expr:
 
 def lower_rule(rule: Eq):
     from ..spec.spec_ast import Eq, RealExpr, children
-
+    
     lhs, rhs = children(rule)
     lowered_lhs = _lower_expr(lhs)
     lowered_rhs = _lower_expr(rhs)
@@ -171,7 +175,7 @@ def lower_rule(rule: Eq):
 
 def lower_rules(rules):
     from ..spec.spec_ast import Eq, BoolEq
-
+    
     lowered_rules = []
     for name, rule in rules:
         if not isinstance(rule, Eq) and not isinstance(rule, BoolEq):
@@ -184,7 +188,7 @@ def check_rules(rules, skip=["exp2_5", "exp2_6", "exp2_7"], z3_timeout_ms: int =
     from ..spec.spec_ast import Eq, BoolEq, children
     from ..spec.spec_context import SpecContext
     from ..smt import z3_check_eq
-
+    
     results = {}
     for name, rule in rules:
         if name in skip:
