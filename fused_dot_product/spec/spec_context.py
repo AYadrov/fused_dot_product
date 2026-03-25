@@ -33,6 +33,15 @@ class SpecContext:
         self.checks.append(condition)
     
     def to_z3(self):
+        from z3 import Implies
+        def _parse_assume(assume):
+            if not isinstance(assume, Eq) and not isinstance(assume, BoolEq):
+                raise NotImplementedError(
+                    f"Only Eq and BoolEq assumptions are supported, got {type(assume).__name__}"
+                )
+            return 
+                
+        
         def assert_not_empty(terms):
             return terms + [z3.BoolVal(True)]
         assume_terms = assert_not_empty([assume.to_z3() for assume in self.assumes])
@@ -100,6 +109,17 @@ class SpecContext:
         self.checks.clear()
         self._sym_counter = 0
         self.spec_cache.clear()
+
+    def __str__(self) -> str:
+        def format_section(title: str, items: list[BoolExpr]) -> list[str]:
+            if not items:
+                return [f"{title}:", "  <none>"]
+            return [f"{title}:"] + [f"  {item}" for item in items]
+
+        lines = [f"SpecContext({self.name})"]
+        lines.extend(format_section("Assumes", self.assumes))
+        lines.extend(format_section("Checks", self.checks))
+        return "\n".join(lines)
     
     def copy(self, assumes=None, checks=None):
         if assumes is None:
@@ -113,5 +133,4 @@ class SpecContext:
         new_ctx._sym_counter = self._sym_counter
         new_ctx.spec_cache = dict(self.spec_cache)
         return new_ctx
-
 
