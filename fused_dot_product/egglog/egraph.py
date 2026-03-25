@@ -73,5 +73,4 @@ def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
         if simplified is not None:
             simplified_checks.append(simplified)
 
-    new_ctx = ctx.copy(checks=simplified_checks).simplify_assumes()
-    return new_ctx
+    return ctx.copy(checks=simplified_checks)
