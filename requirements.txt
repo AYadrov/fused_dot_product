@@ -2,4 +2,4 @@ numpy
 egglog>=13.0.1
 cloudpickle
 z3-solver>=4.16.0.0
-dreal>=4.21.6.2
+dreal

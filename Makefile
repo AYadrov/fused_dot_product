@@ -28,7 +28,7 @@ venv: check-python
 
 install: venv
 	@echo "Installing dependencies into $(VENV_DIR)"
-	@$(VENV_PYTHON) -m pip install -r requirements.txt
+	@$(VENV_PYTHON) -m pip install --upgrade -r requirements.txt
 
 unit-tests: install
 	@echo "Running infra/unittests.py..."
