@@ -1,14 +1,6 @@
 from __future__ import annotations
 
-from fractions import Fraction
-from typing import TypeAlias
-
-from random import randint
-from itertools import count
-
 from egglog import *
-
-_sym_counter = count()
 
 class MathBool(Expr):
     @method(egg_fn="BoolNot")

@@ -74,6 +74,7 @@ class SpecContext:
             egraph.register(lhs)
             egraph.register(rhs)
             to_check.append(eq(lhs).to(rhs))
+            
         return to_check
     
     def spec_of(self, node: Node):

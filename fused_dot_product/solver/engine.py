@@ -36,7 +36,8 @@ def check_equivalence(
     _enqueue_equivalence(query1, query2, ctx=ctx)
     
     egglog_equivalence, egglog_report = egglog_check_eq(ctx, iterations=egglog_iters)
-    # print(dreal_check_eq(ctx))
+    #print(ctx)
+    #print(dreal_check_eq(ctx))
     if egglog_equivalence:
         return egglog_report
     else:

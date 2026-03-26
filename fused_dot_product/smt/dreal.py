@@ -5,24 +5,24 @@ from time import perf_counter
 import dreal
 
 
-def dreal_check_eq(ctx: "SpecContext", precision: float = 0.000001):
+def dreal_check_eq(ctx: "SpecContext", precision: float = 0.001):
     program = ctx.to_dreal()
-
+    
     run_started_at = perf_counter()
     result = dreal.CheckSatisfiability(program, precision)
     runtime_s = perf_counter() - run_started_at
-
-    print(result)
+    
     equivalent = result is None
+    status = "unsat" if equivalent else "delta-sat"
     report = {
         "name": ctx.name,
         "equivalent": equivalent,
         "runtime_s": runtime_s,
-        "status": "unsat" if equivalent else "delta-sat",
+        "status": status,
         "precision": precision,
     }
-
+    
     if result is not None:
         report["supplementary_info"] = str(result)
-
+        
     return equivalent, report
