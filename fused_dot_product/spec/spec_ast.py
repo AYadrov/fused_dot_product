@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from ..egglog import *
 
 import z3
+import dreal
 
 
 class SpecNode:
@@ -12,6 +14,9 @@ class SpecNode:
         raise NotImplementedError
 
     def to_z3(self):
+        raise NotImplementedError
+
+    def to_dreal(self):
         raise NotImplementedError
 
 
@@ -122,6 +127,9 @@ class RealVar(RealExpr):
     def to_z3(self):
         return z3.Real(self.name)
 
+    def to_dreal(self):
+        return dreal.Variable(self.name)
+
     def __str__(self):
         return f"real({self.name})"
 
@@ -135,6 +143,9 @@ class BoolVar(BoolExpr):
     
     def to_z3(self):
         return z3.Bool(self.name)
+
+    def to_dreal(self):
+        return dreal.Variable(self.name, dreal.Variable.Bool)
 
     def __str__(self):
         return f"bool({self.name})"
@@ -152,6 +163,9 @@ class RealLit(RealExpr):
     def to_z3(self):
         return z3.RealVal(str(self.value))
 
+    def to_dreal(self):
+        return dreal.Expression(self.value)
+
     def __str__(self):
         return str(self.value)
 
@@ -165,6 +179,9 @@ class BoolLit(BoolExpr):
     
     def to_z3(self):
         return z3.BoolVal(self.value)
+
+    def to_dreal(self):
+        return dreal.Formula.TRUE() if self.value else dreal.Formula.FALSE()
 
     def __str__(self):
         return "true" if self.value else "false"
@@ -181,6 +198,9 @@ class Add(RealExpr):
     def to_z3(self):
         return self.lhs.to_z3() + self.rhs.to_z3()
 
+    def to_dreal(self):
+        return self.lhs.to_dreal() + self.rhs.to_dreal()
+
     def __str__(self):
         return f"({self.lhs} + {self.rhs})"
 
@@ -195,6 +215,9 @@ class Sub(RealExpr):
     
     def to_z3(self):
         return self.lhs.to_z3() - self.rhs.to_z3()
+
+    def to_dreal(self):
+        return self.lhs.to_dreal() - self.rhs.to_dreal()
 
     def __str__(self):
         return f"({self.lhs} - {self.rhs})"
@@ -211,6 +234,9 @@ class Mul(RealExpr):
     def to_z3(self):
         return self.lhs.to_z3() * self.rhs.to_z3()
 
+    def to_dreal(self):
+        return self.lhs.to_dreal() * self.rhs.to_dreal()
+
     def __str__(self):
         return f"({self.lhs} * {self.rhs})"
 
@@ -224,6 +250,9 @@ class Neg(RealExpr):
     
     def to_z3(self):
         return -self.value.to_z3()
+
+    def to_dreal(self):
+        return -self.value.to_dreal()
 
     def __str__(self):
         return f"(-{self.value})"
@@ -239,6 +268,9 @@ class Abs(RealExpr):
     def to_z3(self):
         return z3.Abs(self.value.to_z3())
 
+    def to_dreal(self):
+        return abs(self.value.to_dreal())
+
     def __str__(self):
         return f"abs({self.value})"
 
@@ -252,6 +284,9 @@ class Exp2(RealExpr):
     
     def to_z3(self):
         return z3.RealVal(str(2)) ** self.exponent.to_z3()
+
+    def to_dreal(self):
+        return dreal.Expression(2) ** self.exponent.to_dreal()
 
     def __str__(self):
         return f"(2 ** {self.exponent})"
@@ -270,6 +305,9 @@ class Max(RealExpr):
         rhs = self.rhs.to_z3()
         return z3.If(lhs >= rhs, lhs, rhs)
 
+    def to_dreal(self):
+        return dreal.Max(self.lhs.to_dreal(), self.rhs.to_dreal())
+
     def __str__(self):
         return f"max({self.lhs}, {self.rhs})"
 
@@ -286,6 +324,9 @@ class Min(RealExpr):
         lhs = self.lhs.to_z3()
         rhs = self.rhs.to_z3()
         return z3.If(lhs <= rhs, lhs, rhs)
+
+    def to_dreal(self):
+        return dreal.Min(self.lhs.to_dreal(), self.rhs.to_dreal())
 
     def __str__(self):
         return f"min({self.lhs}, {self.rhs})"
@@ -307,6 +348,13 @@ class If(RealExpr):
     def to_z3(self):
         return z3.If(self.cond.to_z3(), self.on_true.to_z3(), self.on_false.to_z3())
 
+    def to_dreal(self):
+        return dreal.if_then_else(
+            self.cond.to_dreal(),
+            self.on_true.to_dreal(),
+            self.on_false.to_dreal(),
+        )
+
     def __str__(self):
         return f"(if {self.cond} then {self.on_true} else {self.on_false})"
 
@@ -321,6 +369,9 @@ class Eq(BoolExpr):
     
     def to_z3(self):
         return self.lhs.to_z3() == self.rhs.to_z3()
+
+    def to_dreal(self):
+        return self.lhs.to_dreal() == self.rhs.to_dreal()
 
     def __str__(self):
         return f"({self.lhs} == {self.rhs})"
@@ -337,6 +388,9 @@ class NotEq(BoolExpr):
     def to_z3(self):
         return self.lhs.to_z3() != self.rhs.to_z3()
 
+    def to_dreal(self):
+        return self.lhs.to_dreal() != self.rhs.to_dreal()
+
     def __str__(self):
         return f"({self.lhs} != {self.rhs})"
 
@@ -351,6 +405,9 @@ class Lt(BoolExpr):
     
     def to_z3(self):
         return self.lhs.to_z3() < self.rhs.to_z3()
+
+    def to_dreal(self):
+        return self.lhs.to_dreal() < self.rhs.to_dreal()
 
     def __str__(self):
         return f"({self.lhs} < {self.rhs})"
@@ -367,6 +424,9 @@ class Le(BoolExpr):
     def to_z3(self):
         return self.lhs.to_z3() <= self.rhs.to_z3()
 
+    def to_dreal(self):
+        return self.lhs.to_dreal() <= self.rhs.to_dreal()
+
     def __str__(self):
         return f"({self.lhs} <= {self.rhs})"
 
@@ -381,6 +441,9 @@ class Gt(BoolExpr):
     
     def to_z3(self):
         return self.lhs.to_z3() > self.rhs.to_z3()
+
+    def to_dreal(self):
+        return self.lhs.to_dreal() > self.rhs.to_dreal()
 
     def __str__(self):
         return f"({self.lhs} > {self.rhs})"
@@ -397,6 +460,9 @@ class Ge(BoolExpr):
     def to_z3(self):
         return self.lhs.to_z3() >= self.rhs.to_z3()
 
+    def to_dreal(self):
+        return self.lhs.to_dreal() >= self.rhs.to_dreal()
+
     def __str__(self):
         return f"({self.lhs} >= {self.rhs})"
 
@@ -412,6 +478,11 @@ class BoolEq(BoolExpr):
     def to_z3(self):
         return self.lhs.to_z3() == self.rhs.to_z3()
 
+    def to_dreal(self):
+        lhs = self.lhs.to_dreal()
+        rhs = self.rhs.to_dreal()
+        return dreal.And(dreal.Or(dreal.Not(lhs), rhs), dreal.Or(dreal.Not(rhs), lhs))
+
     def __str__(self):
         return f"({self.lhs} == {self.rhs})"
 
@@ -425,6 +496,9 @@ class Not(BoolExpr):
     
     def to_z3(self):
         return z3.Not(self.value.to_z3())
+
+    def to_dreal(self):
+        return dreal.Not(self.value.to_dreal())
 
     def __str__(self):
         return f"(not {self.value})"

@@ -5,6 +5,7 @@ from ..egglog import *
 from egglog import rewrite, vars_
 
 import copy
+import dreal
 import z3
 
 
@@ -31,16 +32,27 @@ class SpecContext:
                 f"SpecContext.check expects BoolExpr, got {type(condition).__name__}"
             )
         self.checks.append(condition)
+
+    def _context_not_empty(self):
+        if len(self.checks) == 0:
+            raise RuntimeError("Context does not statements to check")
     
     def to_z3(self):
-        def assert_not_empty(terms):
-            return terms + [z3.BoolVal(True)]
-        assume_terms = assert_not_empty([assume.to_z3() for assume in self.assumes])
-        check_terms = assert_not_empty([check.to_z3() for check in self.checks])
+        self._context_not_empty()
+        assume_terms = [assume.to_z3() for assume in self.assumes] + [z3.BoolVal(True)]  # make sure it is not empty
+        check_terms = [check.to_z3() for check in self.checks]
         
         return z3.And(z3.And(*assume_terms), z3.Not(z3.And(*check_terms)))
+
+    def to_dreal(self):
+        self._context_not_empty()
+        assume_terms = [assume.to_dreal() for assume in self.assumes] + [dreal.Formula.TRUE()]  # make sure it is not empty
+        check_terms = [check.to_dreal() for check in self.checks]
+
+        return dreal.And(dreal.And(*assume_terms), dreal.Not(dreal.And(*check_terms)))
     
     def to_egglog(self, egraph):
+        self._context_not_empty()
         for assume in self.assumes:
             if isinstance(assume, Eq) or isinstance(assume, BoolEq):
                 egraph.register(
@@ -165,4 +177,3 @@ class SpecContext:
         new_ctx._sym_counter = self._sym_counter
         new_ctx.spec_cache = dict(self.spec_cache)
         return new_ctx
-
