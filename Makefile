@@ -65,7 +65,10 @@ install-prereqs:
 			exit 1; \
 		fi; \
 		case "$$ubuntu_version" in \
-			24.04) sudo ./setup/ubuntu/22.04/install_prereqs.sh ;; \
+			24.04) \
+				sed 's/\<python3-distutils\>//g' ./setup/ubuntu/22.04/install_prereqs.sh > "$$tmp_dir/install_prereqs_24.04.sh"; \
+				chmod +x "$$tmp_dir/install_prereqs_24.04.sh"; \
+				sudo "$$tmp_dir/install_prereqs_24.04.sh" ;; \
 			22.04|20.04) sudo ./setup/ubuntu/$$ubuntu_version/install_prereqs.sh ;; \
 			*) echo "Unsupported Ubuntu version: $$ubuntu_version"; exit 1 ;; \
 		esac; \
