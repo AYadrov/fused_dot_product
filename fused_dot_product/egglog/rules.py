@@ -188,22 +188,26 @@ def lower_rules(rules):
     return lowered_rules
 
 
-def check_rules(rules, skip=["exp2_5", "exp2_6", "exp2_7"], z3_timeout_ms: int = 10000):
+def check_rules(rules, z3_timeout_ms: int = 10000):
     from ..spec.spec_ast import Eq, BoolEq, children
     from ..spec.spec_context import SpecContext
-    from ..smt import z3_check_eq
+    from ..smt import z3_check_eq, dreal_check_eq
     
     results = {}
     for name, rule in rules:
-        if name in skip:
-            continue
         if not isinstance(rule, Eq) and not isinstance(rule, BoolEq):
             raise TypeError(f"Expected Eq or BoolEq rule for {name}, got {type(rule).__name__}")
         lhs, rhs = children(rule)
         ctx = SpecContext(name)
         ctx.check(lhs.eq(rhs))
-        equivalent, report = z3_check_eq(ctx, timeout_ms=z3_timeout_ms)
-        results[name] = equivalent or report['status']
+        equivalent_z3, report_z3 = z3_check_eq(ctx, timeout_ms=z3_timeout_ms)
+        equivalent_dreal, report_dreal = dreal_check_eq(ctx, precision=0.001)
+        results[name] = {
+            "z3_equal": equivalent_z3,
+            "z3_status": report_z3['status'],
+            "dreal_equal": equivalent_dreal,
+            "dreal_status": report_dreal['status']
+        }
     return results
 
 

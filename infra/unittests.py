@@ -77,8 +77,8 @@ class TestFusedDotProduct(unittest.TestCase):
         rules = rewrite_rules()
         results = check_rules(rules, z3_timeout_ms=10000)
 
-        for name, status in results.items():
-            self.assertTrue(status is True, pformat(results))
+        for name, report in results.items():
+            self.assertTrue(report["z3_equal"] or report["dreal_equal"], pformat(results))
     
     def test_run_spec_verification_and_timing(self):
         print("\nRunning test_run_spec_verification_and_timing:")

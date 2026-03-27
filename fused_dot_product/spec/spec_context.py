@@ -41,8 +41,9 @@ class SpecContext:
     
     def to_z3(self):
         self._context_not_empty()
-        assume_terms = [assume.to_z3() for assume in self.assumes] + [z3.BoolVal(True)]  # make sure it is not empty
-        check_terms = [check.to_z3() for check in self.checks]
+        env = {}
+        assume_terms = [assume.to_z3(env=env) for assume in self.assumes] + [z3.BoolVal(True)]  # make sure it is not empty
+        check_terms = [check.to_z3(env=env) for check in self.checks]
         
         return z3.And(z3.And(*assume_terms), z3.Not(z3.And(*check_terms)))
 
