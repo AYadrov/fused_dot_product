@@ -37,7 +37,7 @@ def check_equivalence(
     
     egglog_equivalence, egglog_report = egglog_check_eq(ctx, iterations=egglog_iters)
     #print(ctx)
-    #print(dreal_check_eq(ctx))
+    #dreal_check_eq(ctx)
     if egglog_equivalence:
         return egglog_report
     else:

@@ -146,6 +146,12 @@ def from_egglog(egg_node: Expr) -> RealExpr | BoolExpr:
             if method_name in {"Eq", "BoolEq"}:
                 expect(args, 2, "MathBool.Eq")
                 return BoolEq(parse_bool(args[0]), parse_bool(args[1]))
+            if method_name == "And":
+                expect(args, 2, "MathBool.And")
+                return And(parse_bool(args[0]), parse_bool(args[1]))
+            if method_name == "Or":
+                expect(args, 2, "MathBool.Or")
+                return Or(parse_bool(args[0]), parse_bool(args[1]))
             raise NotImplementedError(f"Unsupported MathBool constructor: {method_name}")
 
         if ident_name != "Math":

@@ -10,6 +10,14 @@ class MathBool(Expr):
     @method(egg_fn="BoolEq")
     @classmethod
     def Eq(cls, lhs: MathBool, rhs: MathBool) -> MathBool: ...
+
+    @method(egg_fn="Or")
+    @classmethod
+    def Or(cls, lhs: MathBool, rhs: MathBool) -> MathBool: ...
+
+    @method(egg_fn="And")
+    @classmethod
+    def And(cls, lhs: MathBool, rhs: MathBool) -> MathBool: ...
     
     @method(egg_fn="BoolVar")
     @classmethod

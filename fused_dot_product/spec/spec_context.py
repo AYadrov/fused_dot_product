@@ -7,6 +7,8 @@ from egglog import rewrite, vars_
 import copy
 import dreal
 import z3
+import warnings
+
 
 
 class SpecContext:
@@ -46,8 +48,9 @@ class SpecContext:
 
     def to_dreal(self):
         self._context_not_empty()
-        assume_terms = [assume.to_dreal() for assume in self.assumes] + [dreal.Formula.TRUE()]  # make sure it is not empty
-        check_terms = [check.to_dreal() for check in self.checks]
+        env: dict[tuple[str, str], dreal.Variable] = {}
+        assume_terms = [assume.to_dreal(env) for assume in self.assumes] + [dreal.Formula.TRUE()]  # make sure it is not empty
+        check_terms = [check.to_dreal(env) for check in self.checks]
 
         return dreal.And(dreal.And(*assume_terms), dreal.Not(dreal.And(*check_terms)))
     
@@ -59,9 +62,7 @@ class SpecContext:
                     union(assume.lhs.to_egglog()).with_(assume.rhs.to_egglog())
                 )
             else:
-                raise NotImplementedError(
-                    f"Only Eq and BoolEq assumptions are supported, got {type(assume).__name__}"
-                )
+                warnings.warn(f"Skipped assume for egglog: {str(assume)}")
         
         to_check = []
         for check in self.checks:

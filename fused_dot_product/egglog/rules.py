@@ -161,6 +161,10 @@ def _lower_expr(node: SpecNode) -> Expr:
         return MathBool.Not(_lower_expr(node.value))
     if isinstance(node, BoolEq):
         return MathBool.Eq(_lower_expr(node.lhs), _lower_expr(node.rhs))
+    if isinstance(node, And):
+        return MathBool.And(_lower_expr(node.lhs), _lower_expr(node.rhs))
+    if isinstance(node, Or):
+        return MathBool.Or(_lower_expr(node.lhs), _lower_expr(node.rhs))
     raise TypeError(f"Unsupported expression node: {type(node).__name__}")
 
 
