@@ -64,7 +64,8 @@ def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
         return simplify_expr(check, egraph)
     
     simplified_checks = []
-
+    
+    run_started_at = perf_counter()
     for check in ctx.checks:
         if not isinstance(check, Eq) and not isinstance(check, BoolEq):
             raise NotImplementedError(
@@ -73,6 +74,7 @@ def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
         simplified = simplify_check(check)
         if simplified is not None:
             simplified_checks.append(simplified)
+    run_runtime_s = perf_counter() - run_started_at
 
     simplified_ctx = ctx.copy(checks=simplified_checks)
     checks_before = [str(check) for check in ctx.checks]
@@ -85,6 +87,7 @@ def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
         "discharged_checks": len(ctx.checks) - len(simplified_checks),
         "checks_before": len(checks_before),
         "checks_after": len(checks_after),
+        "runtime_s": run_runtime_s,
         # "input_context": ctx.snapshot(),
         # "output_context": simplified_ctx.snapshot(),
     }
