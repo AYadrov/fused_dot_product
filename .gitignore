@@ -6,3 +6,4 @@ reports/
 .pytest_cache/
 .ipynb_checkpoints/
 report.json
+.venv/*
