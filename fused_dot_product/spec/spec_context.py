@@ -116,6 +116,16 @@ class SpecContext:
         self._sym_counter = 0
         self.spec_cache.clear()
 
+    def snapshot(self):
+        return {
+            "name": self.name,
+            "assume_count": len(self.assumes),
+            "check_count": len(self.checks),
+            "assumes": [str(assume) for assume in self.assumes],
+            "checks": [str(check) for check in self.checks],
+            "context": str(self),
+        }
+
     # TODO: stuff like this: assume(x == y * y); check(x == abs(x)) won't work
     # TODO: assume(x == 0); assume(x == 1); check(0 == 1) - should not pass
     # TODO: assume(x == 1);  assume(y == 0); assume(y == 1); check(x == 2) - should not pass

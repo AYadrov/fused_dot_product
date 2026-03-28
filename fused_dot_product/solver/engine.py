@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from typing import Any
+
 from ..spec import SpecContext, SpecNode
 from ..egglog import egglog_check_eq, egglog_simplify_ctx
 from ..smt import z3_check_eq, dreal_check_eq
+
 
 # Unrolls tuples
 def _enqueue_equivalence(
@@ -26,23 +29,39 @@ def _enqueue_equivalence(
         return
     ctx.check(lhs.eq(rhs))
 
+
 def check_equivalence(
     query1: SpecNode | tuple,
     query2: SpecNode | tuple,
     ctx: SpecContext,
     egglog_iters: int = 6,
     z3_timeout_ms: int = 10000,
+    dreal_precision: float = 0.001,
 ):
     _enqueue_equivalence(query1, query2, ctx=ctx)
-    
-    egglog_equivalence, egglog_report = egglog_check_eq(ctx, iterations=egglog_iters)
-    #print(ctx)
-    #dreal_check_eq(ctx)
+ 
+    original_ctx = ctx.copy()
+    proof_trace: list[dict[str, Any]] = []
+
+    egglog_equivalence, egglog_report = egglog_check_eq(
+        original_ctx,
+        iterations=egglog_iters,
+    )
+    proof_trace.append(egglog_report)
     if egglog_equivalence:
-        return egglog_report
-    else:
-        ctx = egglog_simplify_ctx(ctx, egglog_report["egraph"])
-        
-        z3_equivalence, z3_report = z3_check_eq(ctx, timeout_ms=z3_timeout_ms)
-        z3_report["previous"] = egglog_report
-        return z3_report
+        return True, proof_trace
+
+    simplified_equivalence, simplified_ctx, simplified_report = egglog_simplify_ctx(original_ctx, egglog_report["egraph"])
+    proof_trace.append(simplified_report)
+    if simplified_equivalence:
+        return True, proof_trace  # never should be the case
+
+    z3_equivalence, z3_report = z3_check_eq(simplified_ctx, timeout_ms=z3_timeout_ms)
+    proof_trace.append(z3_report)
+    if z3_equivalence:
+        return True, proof_trace
+
+    dreal_equivalence, dreal_report = dreal_check_eq(simplified_ctx, precision=dreal_precision)
+    proof_trace.append(dreal_report)
+
+    return dreal_equivalence, proof_trace

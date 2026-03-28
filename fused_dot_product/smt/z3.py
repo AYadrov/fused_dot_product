@@ -34,6 +34,7 @@ def z3_check_eq(ctx: "SpecContext", timeout_ms: int = 10000):
     #stats = _stats_to_dict(solver.statistics())
     equivalent = (result == z3.unsat)
     report = {
+        "tool": "z3",
         "name": ctx.name,
         "equivalent": equivalent,
         "runtime_s": runtime_s,

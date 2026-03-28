@@ -36,6 +36,7 @@ def egglog_check_eq(ctx: "SpecContext", iterations=6):
     run_runtime_s = perf_counter() - run_started_at
     
     report = {
+        "tool": "egglog_rewrite",
         "name": ctx.name,
         "equivalent": equivalent,
         "runtime_s": run_runtime_s,
@@ -73,4 +74,18 @@ def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
         if simplified is not None:
             simplified_checks.append(simplified)
 
-    return ctx.copy(checks=simplified_checks)
+    simplified_ctx = ctx.copy(checks=simplified_checks)
+    checks_before = [str(check) for check in ctx.checks]
+    checks_after = [str(check) for check in simplified_ctx.checks]
+    
+    equivalent = len(simplified_checks) == 0
+    report = {
+        "tool": "egglog_simplify",
+        "equivalent": equivalent,
+        "discharged_checks": len(ctx.checks) - len(simplified_checks),
+        "checks_before": len(checks_before),
+        "checks_after": len(checks_after),
+        # "input_context": ctx.snapshot(),
+        # "output_context": simplified_ctx.snapshot(),
+    }
+    return equivalent, simplified_ctx, report

@@ -65,14 +65,15 @@ class composite(Node):
         inputs = [ctx.spec_of(arg) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, ctx=ctx)
         
-        certificate = check_equivalence(
+        equivalence, proof_trace = check_equivalence(
             spec_inner,
             spec_outer,
             ctx=ctx,
             egglog_iters=egglog_iters,
             z3_timeout_ms=z3_timeout_ms,
+            dreal_precision=0.001,
         )
-        return certificate
+        return proof_trace
 
     def _validate_components(self, composite_name: str) -> None:
         visited: set[Node] = set()
