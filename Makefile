@@ -1,32 +1,31 @@
-PYTHON ?= $(shell \
-	if command -v python3.11 >/dev/null 2>&1; then printf '%s' python3.11; \
-	elif command -v python3.10 >/dev/null 2>&1; then printf '%s' python3.10; \
-	else printf '%s' python3; \
-	fi)
+PYTHON ?= python3.11
 VENV_DIR ?= .venv
-VENV_PYTHON := $(VENV_DIR)/bin/python3
+VENV_PYTHON := $(VENV_DIR)/bin/python3.11
 VENV_PIP := $(VENV_PYTHON) -m pip
+
 REPORTS_DIR ?= reports
 NIGHTLY_NUM_POINTS ?= 1000
 UNITTESTS_NUM_POINTS ?= 100
 SEED ?= $(shell date "+%Y%j")
+
 DREAL_REPO ?= https://github.com/dreal/dreal4
 
-.PHONY: nightly install check-python unit-tests venv install-prereqs install-python-deps install-dreal-python
+BAZEL_VERSION := 7.0.0
+BAZEL_DEBNAME := bazel_$(BAZEL_VERSION)-linux-x86_64.deb
+BAZEL_URL := https://github.com/bazelbuild/bazel/releases/download/$(BAZEL_VERSION)/$(BAZEL_DEBNAME)
+BAZEL_SHA256 := e1fd8ffa3cc09bf13b98a69b2b5041cea9d01029112b7e2dbbab5be6f0a3115c
+
+.PHONY: nightly install check-python unit-tests venv install-prereqs install-python-deps install-dreal-python deps bazelisk clean
 
 check-python:
 	@echo "Checking Python installation"
 	@command -v $(PYTHON) >/dev/null 2>&1 || { \
-		echo "$(PYTHON) not found. Please install Python 3.10 or 3.11."; \
+		echo "$(PYTHON) not found. Please install Python 3.11."; \
 		exit 1; \
 	}
 	@echo "Python found: $$($(PYTHON) --version)"
-	@$(PYTHON) -c 'import sys; raise SystemExit(0 if sys.version_info[:2] in {(3, 10), (3, 11)} else 1)' || { \
-		echo "$(PYTHON) must be Python 3.10 or 3.11 for dReal compatibility."; \
-		exit 1; \
-	}
-	@$(PYTHON) -m pip --version >/dev/null 2>&1 || { \
-		echo "pip not found for $(PYTHON). Please install pip."; \
+	@$(PYTHON) -c 'import sys; raise SystemExit(0 if sys.version_info[:2] in {(3, 11)} else 1)' || { \
+		echo "$(PYTHON) must be Python  3.11 for dReal compatibility."; \
 		exit 1; \
 	}
 
@@ -34,7 +33,7 @@ venv: check-python
 	@echo "Ensuring virtual environment exists in $(VENV_DIR)"
 	@if [ ! -x "$(VENV_PYTHON)" ]; then \
 		$(PYTHON) -m venv $(VENV_DIR); \
-	elif [ "$$($(VENV_PYTHON) -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')" != "$$($(PYTHON) -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')" ]; then \
+	elif [ "$$($(VENV_PYTHON) -c 'import sys; print("{}.{}".format(sys.version_info.major, sys.version_info.minor))')" != "$$($(PYTHON) -c 'import sys; print("{}.{}".format(sys.version_info.major, sys.version_info.minor))')" ]; then \
 		echo "Recreating $(VENV_DIR) with $(PYTHON)"; \
 		$(PYTHON) -m venv --clear $(VENV_DIR); \
 	fi
@@ -77,24 +76,40 @@ install-prereqs:
 		exit 1; \
 	fi
 
-install-python-deps: venv
+
+bazelisk:
+	@set -euxo pipefail; \
+	mkdir -p "$$HOME/.local/bin"; \
+	curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o "$$HOME/.local/bin/bazel"; \
+	chmod +x "$$HOME/.local/bin/bazel"; \
+
+clean:
+	@set -euxo pipefail; \
+	rm -f "$(BAZEL_DEBNAME)"; \
+	rm -rf "$(VENV_DIR)"; \
+	rm -rf "$(REPORTS_DIR)"; \
+	rm -f "$$HOME/.local/bin/bazel"; \
+
+python-deps: venv
 	@echo "Installing Python dependencies into $(VENV_DIR)"
 	@$(VENV_PIP) install --upgrade pip setuptools
 	@$(VENV_PIP) install --upgrade -r requirements.txt
 
-install-dreal-python: venv
+install-dreal: venv
 	@echo "Installing dReal Python bindings into $(VENV_DIR)"
 	@$(VENV_PIP) install --upgrade "wheel<0.38"
 	@$(VENV_PIP) install --no-build-isolation dreal
 
-install: install-prereqs install-python-deps install-dreal-python
+# This runs with sudo
+install: check-python install-prereqs python-deps install-dreal
 
-unit-tests: install
+unit-tests:
 	@echo "Running infra/unittests.py..."
 	@$(VENV_PYTHON) -m infra.unittests --seed 0 --num-points "$(UNITTESTS_NUM_POINTS)"
 	@echo "Complete"
 
-nightly: install
+
+nightly: clean bazelisk python-deps install-dreal
 	@echo "Running infra/nightly.sh with seed $(SEED)..."
 	@PYTHON=$(VENV_PYTHON) \
 		bash infra/nightly.sh --report-dir "$(REPORTS_DIR)" --seed "$(SEED)" --num-points "$(NIGHTLY_NUM_POINTS)"
