@@ -9,6 +9,7 @@ from pprint import pprint, pformat
 from pathlib import Path
 
 from fused_dot_product import *
+from fused_dot_product.egglog.rules import check_rules, rewrite_rules
 from examples.optimized import Optimized
 from examples.conventional import Conventional
 from examples.CSA import CSA_tree4
@@ -27,7 +28,15 @@ def dot_product_spec(a_0, a_1, a_2, a_3, b_0, b_1, b_2, b_3):
 def run_spec_with_metrics(design: Node):
     return design.check_spec()
 
-def merge_spec_reports(reports: list[dict]):
+def _trace_equivalent(proof_trace: list[dict]) -> bool:
+    return any(bool(stage.get("equivalent", False)) for stage in proof_trace)
+
+
+def _trace_runtime_s(proof_trace: list[dict]) -> float:
+    return sum(float(stage.get("runtime_s", 0.0)) for stage in proof_trace)
+
+
+def merge_spec_reports(reports: list[list[dict]]):
     merged_rule_application_counts = {}
     
     runtime_s_by_design = {}
@@ -36,22 +45,19 @@ def merge_spec_reports(reports: list[dict]):
     total_runtime_s = 0.0
     all_equivalent = True
     
-    for report in reports:
-        design_name = report['name']
-        runtime_s = report.get("runtime_s", 0.0) + report.get("previous", {}).get("runtime_s", 0.0)
-        equivalent = bool(report.get("equivalent", False))
+    for proof_trace in reports:
+        if not proof_trace:
+            raise AssertionError("Expected non-empty proof trace from design.check_spec()")
+        design_name = proof_trace[0]["name"]
+        runtime_s = sum(stage['runtime_s'] for stage in proof_trace)
+        equivalent = any(stage["equivalent"] for stage in proof_trace)
         
         runtime_s_by_design[design_name] = runtime_s
         equivalent_by_design[design_name] = equivalent
         total_runtime_s += runtime_s
         all_equivalent = all_equivalent and equivalent
         
-        rules_used = None
-        if "previous" in report:
-            rules_used = report["previous"]["rule_application_counts"]
-        else:
-            rules_used = report["rule_application_counts"]
-        
+        rules_used = proof_trace[0].get("rule_application_counts", {})
         for rule, count in rules_used.items():
             merged_rule_application_counts[rule] = (
                 merged_rule_application_counts.get(rule, 0) + int(count)
@@ -72,6 +78,13 @@ class TestFusedDotProduct(unittest.TestCase):
     SPEC_REPORT = None
     IMPL_REPORT = None
 
+    def test_rules_with_z3(self):
+        rules = rewrite_rules()
+        results = check_rules(rules, z3_timeout_ms=10000)
+
+        for name, report in results.items():
+            self.assertTrue(report["z3_equal"] or report["dreal_equal"], pformat(results))
+    
     def test_run_spec_verification_and_timing(self):
         print("\nRunning test_run_spec_verification_and_timing:")
         print("\tConstructing CSA_tree4, Conventional, and Optimized composites.")

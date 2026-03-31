@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from ..egglog import *
 
 import z3
+import dreal
 
 
 class SpecNode:
@@ -12,6 +14,9 @@ class SpecNode:
         raise NotImplementedError
 
     def to_z3(self):
+        raise NotImplementedError
+
+    def to_dreal(self):
         raise NotImplementedError
 
 
@@ -106,10 +111,16 @@ class BoolExpr(SpecNode):
         return Not(self)
         
     def eq(self, other: "BoolExpr") -> "BoolExpr":
-        raise NotImplementedError()
+        return BoolEq(self, self._coerce(other))
     
     def ne(self, other: "BoolExpr") -> "BoolExpr":
         raise NotImplementedError()
+
+    def or_(self, other: "BoolExpr") -> "BoolExpr":
+        return Or(self, self._coerce(other))
+
+    def and_(self, other: "BoolExpr") -> "BoolExpr":
+        return And(self, self._coerce(other))
 
 
 @dataclass(frozen=True)
@@ -119,8 +130,20 @@ class RealVar(RealExpr):
     def to_egglog(self):
         return Math.Var(self.name)
     
-    def to_z3(self):
-        return z3.Real(self.name)
+    def to_z3(self, env):
+        key = ("real", self.name)
+        if key not in env:
+            env[key] = z3.Real(self.name)
+        return env[key]
+
+    def to_dreal(self, env):
+        key = ("real", self.name)
+        if key not in env:
+            env[key] = dreal.Variable(self.name)
+        return env[key]
+
+    def __str__(self):
+        return f"real({self.name})"
 
 
 @dataclass(frozen=True)
@@ -130,8 +153,21 @@ class BoolVar(BoolExpr):
     def to_egglog(self):
         return MathBool.Var(self.name)
     
-    def to_z3(self):
-        return z3.Bool(self.name)
+    def to_z3(self, env):
+        key = ("bool", self.name)
+        if key not in env:
+            env[key] = z3.Bool(self.name)
+        return env[key]
+
+    def to_dreal(self, env):
+        key = ("bool", self.name)
+        if key not in env:
+            env[key] = dreal.Variable(self.name, dreal.Variable.Bool)
+        return env[key]
+
+
+    def __str__(self):
+        return f"bool({self.name})"
 
 
 @dataclass(frozen=True)
@@ -143,8 +179,14 @@ class RealLit(RealExpr):
             raise ValueError("only integers are working rn in egglog")
         return Math.Num(BigRat(int(self.value), 1))
     
-    def to_z3(self):
+    def to_z3(self, env):
         return z3.RealVal(str(self.value))
+
+    def to_dreal(self, env):
+        return dreal.Expression(self.value)
+
+    def __str__(self):
+        return str(self.value)
 
 
 @dataclass(frozen=True)
@@ -154,8 +196,14 @@ class BoolLit(BoolExpr):
     def to_egglog(self):
         return MathBool.True_() if self.value else MathBool.False_()
     
-    def to_z3(self):
+    def to_z3(self, env):
         return z3.BoolVal(self.value)
+
+    def to_dreal(self, env):
+        return dreal.Formula.TRUE() if self.value else dreal.Formula.FALSE()
+
+    def __str__(self):
+        return "true" if self.value else "false"
 
 
 @dataclass(frozen=True)
@@ -166,8 +214,14 @@ class Add(RealExpr):
     def to_egglog(self):
         return Math.Add(self.lhs.to_egglog(), self.rhs.to_egglog())
     
-    def to_z3(self):
-        return self.lhs.to_z3() + self.rhs.to_z3()
+    def to_z3(self, env):
+        return self.lhs.to_z3(env=env) + self.rhs.to_z3(env=env)
+
+    def to_dreal(self, env):
+        return self.lhs.to_dreal(env=env) + self.rhs.to_dreal(env=env)
+
+    def __str__(self):
+        return f"({self.lhs} + {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -178,8 +232,14 @@ class Sub(RealExpr):
     def to_egglog(self):
         return Math.Add(self.lhs.to_egglog(), Math.Neg(self.rhs.to_egglog()))
     
-    def to_z3(self):
-        return self.lhs.to_z3() - self.rhs.to_z3()
+    def to_z3(self, env):
+        return self.lhs.to_z3(env=env) - self.rhs.to_z3(env=env)
+
+    def to_dreal(self, env):
+        return self.lhs.to_dreal(env=env) - self.rhs.to_dreal(env=env)
+
+    def __str__(self):
+        return f"({self.lhs} - {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -190,8 +250,14 @@ class Mul(RealExpr):
     def to_egglog(self):
         return Math.Mul(self.lhs.to_egglog(), self.rhs.to_egglog())
     
-    def to_z3(self):
-        return self.lhs.to_z3() * self.rhs.to_z3()
+    def to_z3(self, env):
+        return self.lhs.to_z3(env=env) * self.rhs.to_z3(env=env)
+
+    def to_dreal(self, env):
+        return self.lhs.to_dreal(env=env) * self.rhs.to_dreal(env=env)
+
+    def __str__(self):
+        return f"({self.lhs} * {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -201,8 +267,14 @@ class Neg(RealExpr):
     def to_egglog(self):
         return Math.Neg(self.value.to_egglog())
     
-    def to_z3(self):
-        return -self.value.to_z3()
+    def to_z3(self, env):
+        return -self.value.to_z3(env=env)
+
+    def to_dreal(self, env):
+        return -self.value.to_dreal(env=env)
+
+    def __str__(self):
+        return f"(-{self.value})"
 
 
 @dataclass(frozen=True)
@@ -212,8 +284,14 @@ class Abs(RealExpr):
     def to_egglog(self):
         return Math.Abs(self.value.to_egglog())
     
-    def to_z3(self):
-        return z3.Abs(self.value.to_z3())
+    def to_z3(self, env):
+        return z3.Abs(self.value.to_z3(env=env))
+
+    def to_dreal(self, env):
+        return abs(self.value.to_dreal(env=env))
+
+    def __str__(self):
+        return f"abs({self.value})"
 
 
 @dataclass(frozen=True)
@@ -223,8 +301,14 @@ class Exp2(RealExpr):
     def to_egglog(self):
         return Math.Exp2(self.exponent.to_egglog())
     
-    def to_z3(self):
-        return z3.RealVal(str(2)) ** self.exponent.to_z3()
+    def to_z3(self, env):
+        return z3.RealVal(str(2)) ** self.exponent.to_z3(env=env)
+
+    def to_dreal(self, env):
+        return dreal.Expression(2) ** self.exponent.to_dreal(env=env)
+
+    def __str__(self):
+        return f"(2 ** {self.exponent})"
 
 
 @dataclass(frozen=True)
@@ -235,10 +319,16 @@ class Max(RealExpr):
     def to_egglog(self):
         return Math.Max(self.lhs.to_egglog(), self.rhs.to_egglog())
     
-    def to_z3(self):
-        lhs = self.lhs.to_z3()
-        rhs = self.rhs.to_z3()
+    def to_z3(self, env):
+        lhs = self.lhs.to_z3(env=env)
+        rhs = self.rhs.to_z3(env=env)
         return z3.If(lhs >= rhs, lhs, rhs)
+
+    def to_dreal(self, env):
+        return dreal.Max(self.lhs.to_dreal(env=env), self.rhs.to_dreal(env=env))
+
+    def __str__(self):
+        return f"max({self.lhs}, {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -249,10 +339,16 @@ class Min(RealExpr):
     def to_egglog(self):
         return Math.Min(self.lhs.to_egglog(), self.rhs.to_egglog())
     
-    def to_z3(self):
-        lhs = self.lhs.to_z3()
-        rhs = self.rhs.to_z3()
+    def to_z3(self, env):
+        lhs = self.lhs.to_z3(env=env)
+        rhs = self.rhs.to_z3(env=env)
         return z3.If(lhs <= rhs, lhs, rhs)
+
+    def to_dreal(self, env):
+        return dreal.Min(self.lhs.to_dreal(env=env), self.rhs.to_dreal(env=env))
+
+    def __str__(self):
+        return f"min({self.lhs}, {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -268,8 +364,22 @@ class If(RealExpr):
             self.on_false.to_egglog(),
         )
     
-    def to_z3(self):
-        return z3.If(self.cond.to_z3(), self.on_true.to_z3(), self.on_false.to_z3())
+    def to_z3(self, env):
+        return z3.If(
+            self.cond.to_z3(env=env),
+            self.on_true.to_z3(env=env),
+            self.on_false.to_z3(env=env)
+        )
+
+    def to_dreal(self, env):
+        return dreal.if_then_else(
+            self.cond.to_dreal(env=env),
+            self.on_true.to_dreal(env=env),
+            self.on_false.to_dreal(env=env),
+        )
+
+    def __str__(self):
+        return f"(if {self.cond} then {self.on_true} else {self.on_false})"
 
 
 @dataclass(frozen=True)
@@ -280,8 +390,14 @@ class Eq(BoolExpr):
     def to_egglog(self):
         return Math.Eq(self.lhs.to_egglog(), self.rhs.to_egglog())
     
-    def to_z3(self):
-        return self.lhs.to_z3() == self.rhs.to_z3()
+    def to_z3(self, env):
+        return self.lhs.to_z3(env=env) == self.rhs.to_z3(env=env)
+
+    def to_dreal(self, env):
+        return self.lhs.to_dreal(env=env) == self.rhs.to_dreal(env=env)
+
+    def __str__(self):
+        return f"({self.lhs} == {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -292,8 +408,14 @@ class NotEq(BoolExpr):
     def to_egglog(self):
         return Math.NotEq(self.lhs.to_egglog(), self.rhs.to_egglog())
     
-    def to_z3(self):
-        return self.lhs.to_z3() != self.rhs.to_z3()
+    def to_z3(self, env):
+        return self.lhs.to_z3(env=env) != self.rhs.to_z3(env=env)
+
+    def to_dreal(self, env):
+        return self.lhs.to_dreal(env=env) != self.rhs.to_dreal(env=env)
+
+    def __str__(self):
+        return f"({self.lhs} != {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -304,8 +426,14 @@ class Lt(BoolExpr):
     def to_egglog(self):
         return Math.Lt(self.lhs.to_egglog(), self.rhs.to_egglog())
     
-    def to_z3(self):
-        return self.lhs.to_z3() < self.rhs.to_z3()
+    def to_z3(self, env):
+        return self.lhs.to_z3(env=env) < self.rhs.to_z3(env=env)
+
+    def to_dreal(self, env):
+        return self.lhs.to_dreal(env=env) < self.rhs.to_dreal(env=env)
+
+    def __str__(self):
+        return f"({self.lhs} < {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -316,8 +444,14 @@ class Le(BoolExpr):
     def to_egglog(self):
         return Math.Le(self.lhs.to_egglog(), self.rhs.to_egglog())
     
-    def to_z3(self):
-        return self.lhs.to_z3() <= self.rhs.to_z3()
+    def to_z3(self, env):
+        return self.lhs.to_z3(env=env) <= self.rhs.to_z3(env=env)
+
+    def to_dreal(self, env):
+        return self.lhs.to_dreal(env=env) <= self.rhs.to_dreal(env=env)
+
+    def __str__(self):
+        return f"({self.lhs} <= {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -328,8 +462,14 @@ class Gt(BoolExpr):
     def to_egglog(self):
         return Math.Gt(self.lhs.to_egglog(), self.rhs.to_egglog())
     
-    def to_z3(self):
-        return self.lhs.to_z3() > self.rhs.to_z3()
+    def to_z3(self, env):
+        return self.lhs.to_z3(env=env) > self.rhs.to_z3(env=env)
+
+    def to_dreal(self, env):
+        return self.lhs.to_dreal(env=env) > self.rhs.to_dreal(env=env)
+
+    def __str__(self):
+        return f"({self.lhs} > {self.rhs})"
 
 
 @dataclass(frozen=True)
@@ -340,10 +480,36 @@ class Ge(BoolExpr):
     def to_egglog(self):
         return Math.Ge(self.lhs.to_egglog(), self.rhs.to_egglog())
     
-    def to_z3(self):
-        return self.lhs.to_z3() >= self.rhs.to_z3()
+    def to_z3(self, env):
+        return self.lhs.to_z3(env=env) >= self.rhs.to_z3(env=env)
+
+    def to_dreal(self, env):
+        return self.lhs.to_dreal(env=env) >= self.rhs.to_dreal(env=env)
+
+    def __str__(self):
+        return f"({self.lhs} >= {self.rhs})"
 
 
+@dataclass(frozen=True)
+class BoolEq(BoolExpr):
+    lhs: BoolExpr
+    rhs: BoolExpr
+    
+    def to_egglog(self):
+        return MathBool.Eq(self.lhs.to_egglog(), self.rhs.to_egglog())
+    
+    def to_z3(self, env):
+        return self.lhs.to_z3(env=env) == self.rhs.to_z3(env=env)
+
+    def to_dreal(self, env):
+        lhs = self.lhs.to_dreal(env=env)
+        rhs = self.rhs.to_dreal(env=env)
+        return dreal.And(dreal.Or(dreal.Not(lhs), rhs), dreal.Or(dreal.Not(rhs), lhs))
+
+    def __str__(self):
+        return f"({self.lhs} == {self.rhs})"
+
+    
 @dataclass(frozen=True)
 class Not(BoolExpr):
     value: BoolExpr
@@ -351,8 +517,50 @@ class Not(BoolExpr):
     def to_egglog(self):
         return MathBool.Not(self.value.to_egglog())
     
-    def to_z3(self):
-        return z3.Not(self.value.to_z3())
+    def to_z3(self, env):
+        return z3.Not(self.value.to_z3(env=env))
+
+    def to_dreal(self, env):
+        return dreal.Not(self.value.to_dreal(env=env))
+
+    def __str__(self):
+        return f"(not {self.value})"
+
+    
+@dataclass(frozen=True)
+class Or(BoolExpr):
+    lhs: BoolExpr
+    rhs: BoolExpr
+    
+    def to_egglog(self):
+        raise NotImplementedError()
+    
+    def to_z3(self, env):
+        return z3.Or(self.lhs.to_z3(env=env), self.rhs.to_z3(env=env))
+
+    def to_dreal(self, env):
+        return dreal.Or(self.lhs.to_dreal(env=env), self.rhs.to_dreal(env=env))
+
+    def __str__(self):
+        return f"({self.lhs} or {self.rhs})"
+
+
+@dataclass(frozen=True)
+class And(BoolExpr):
+    lhs: BoolExpr
+    rhs: BoolExpr
+    
+    def to_egglog(self):
+        raise NotImplementedError()
+    
+    def to_z3(self, env):
+        return z3.And(self.lhs.to_z3(env=env), self.rhs.to_z3(env=env))
+
+    def to_dreal(self, env):
+        return dreal.And(self.lhs.to_dreal(env=env), self.rhs.to_dreal(env=env))
+
+    def __str__(self):
+        return f"({self.lhs} and {self.rhs})"
 
 
 def ite(
@@ -366,8 +574,10 @@ def ite(
 def children(node: SpecNode) -> tuple[SpecNode, ...]:
     if isinstance(node, (RealVar, BoolVar, RealLit, BoolLit)):
         return ()
-    if isinstance(node, (Neg, Abs, Exp2, Not)):
+    if isinstance(node, (Neg, Abs, Not)):
         return (node.value,)
+    if isinstance(node, (Exp2)):
+        return (node.exponent,)
     if isinstance(node, If):
         return (node.cond, node.on_true, node.on_false)
     if isinstance(
@@ -384,7 +594,19 @@ def children(node: SpecNode) -> tuple[SpecNode, ...]:
             Le,
             Gt,
             Ge,
+            BoolEq,
+            Or,
+            And
         ),
     ):
         return (node.lhs, node.rhs)
     raise TypeError(f"Unsupported node type: {type(node).__name__}")
+
+
+def variables(node: SpecNode) -> set[RealVar | BoolVar]:
+    if isinstance(node, (RealVar, BoolVar)):
+        return {node}
+    vars_ = set()
+    for child in children(node):
+        vars_.update(variables(child))
+    return vars_

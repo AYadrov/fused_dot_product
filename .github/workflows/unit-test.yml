@@ -10,11 +10,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: "Check Installation"
-        run: make check-python
-      - name: "Install dependecies"
+
+      - name: "Install system prerequisites"
+        run: sudo make install-prereqs
+
+      - name: "Install Python dependencies"
         run: make install
+
       - name: "Run tests"
         run: make unit-tests
             
-

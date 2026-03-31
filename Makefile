@@ -1,41 +1,110 @@
-PYTHON ?= python3
+PYTHON ?= python3.11
 VENV_DIR ?= .venv
-VENV_PYTHON := $(VENV_DIR)/bin/python3
+VENV_PYTHON := $(VENV_DIR)/bin/python3.11
+VENV_PIP := $(VENV_PYTHON) -m pip
+
 REPORTS_DIR ?= reports
 NIGHTLY_NUM_POINTS ?= 1000
 UNITTESTS_NUM_POINTS ?= 100
 SEED ?= $(shell date "+%Y%j")
 
-.PHONY: nightly install check-python unit-tests venv
+DREAL_REPO ?= https://github.com/dreal/dreal4
 
-check-python:
+BAZELISK_URL := https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64
+
+.PHONY: nightly install install-prereqs _check-python unit-tests _venv _install-prereqs _python-deps _install-dreal _bazelisk clean
+
+_check-python:
 	@echo "Checking Python installation"
 	@command -v $(PYTHON) >/dev/null 2>&1 || { \
-		echo "$(PYTHON) not found. Please install Python 3.11+."; \
+		echo "$(PYTHON) not found. Please install Python 3.11."; \
 		exit 1; \
 	}
 	@echo "Python found: $$($(PYTHON) --version)"
-	@$(PYTHON) -m pip --version >/dev/null 2>&1 || { \
-		echo "pip not found for $(PYTHON). Please install pip."; \
+	@$(PYTHON) -c 'import sys; raise SystemExit(0 if sys.version_info[:2] in {(3, 11)} else 1)' || { \
+		echo "$(PYTHON) must be Python  3.11 for dReal compatibility."; \
 		exit 1; \
 	}
 
-venv: check-python
+_venv: _check-python
 	@echo "Ensuring virtual environment exists in $(VENV_DIR)"
 	@if [ ! -x "$(VENV_PYTHON)" ]; then \
 		$(PYTHON) -m venv $(VENV_DIR); \
+	elif [ "$$($(VENV_PYTHON) -c 'import sys; print("{}.{}".format(sys.version_info.major, sys.version_info.minor))')" != "$$($(PYTHON) -c 'import sys; print("{}.{}".format(sys.version_info.major, sys.version_info.minor))')" ]; then \
+		echo "Recreating $(VENV_DIR) with $(PYTHON)"; \
+		$(PYTHON) -m venv --clear $(VENV_DIR); \
 	fi
 
-install: venv
-	@echo "Installing dependencies into $(VENV_DIR)"
-	@$(VENV_PYTHON) -m pip install -r requirements.txt
 
-unit-tests: install
+# This runs with sudo
+install-prereqs:
+	@echo "Installing dReal prerequisites"
+	@command -v git >/dev/null 2>&1 || { \
+		echo "git not found. Please install git."; \
+		exit 1; \
+	}
+	@set -e; \
+	tmp_dir="$$(mktemp -d /tmp/dreal4-prereqs.XXXXXX)"; \
+	trap 'rm -rf "$$tmp_dir"' EXIT; \
+	echo "Cloning dReal setup repo into $$tmp_dir"; \
+	git clone --depth 1 "$(DREAL_REPO)" "$$tmp_dir/dreal4"; \
+	cd "$$tmp_dir/dreal4"; \
+	uname_s="$$(uname -s)"; \
+	if [ "$$uname_s" = "Darwin" ]; then \
+		bash ./setup/mac/install_prereqs.sh; \
+	elif [ "$$uname_s" = "Linux" ]; then \
+		if command -v lsb_release >/dev/null 2>&1; then \
+			ubuntu_version="$$(lsb_release -r -s)"; \
+		elif [ -r /etc/os-release ]; then \
+			. /etc/os-release; \
+			ubuntu_version="$$VERSION_ID"; \
+		else \
+			echo "Cannot detect Ubuntu version"; \
+			exit 1; \
+		fi; \
+		case "$$ubuntu_version" in \
+			24.04) \
+				sed 's/\<python3-distutils\>//g' ./setup/ubuntu/22.04/install_prereqs.sh > "$$tmp_dir/install_prereqs_24.04.sh"; \
+				chmod +x "$$tmp_dir/install_prereqs_24.04.sh"; \
+				sudo "$$tmp_dir/install_prereqs_24.04.sh" ;; \
+			22.04|20.04) sudo ./setup/ubuntu/$$ubuntu_version/install_prereqs.sh ;; \
+			*) echo "Unsupported Ubuntu version: $$ubuntu_version"; exit 1 ;; \
+		esac; \
+	else \
+		echo "Unsupported OS: $$uname_s"; \
+		exit 1; \
+	fi
+
+clean:
+	rm -rf $(REPORTS_DIR)/*
+
+_python-deps: _venv
+	@echo "Installing Python dependencies into $(VENV_DIR)"
+	@$(VENV_PIP) install --upgrade pip setuptools
+	@$(VENV_PIP) install --upgrade -r requirements.txt
+
+_install-dreal: _venv
+	@echo "Installing dReal Python bindings into $(VENV_DIR)"
+	@$(VENV_PIP) install --upgrade "wheel<0.38"
+	@$(VENV_PIP) install --no-build-isolation dreal
+
+
+# This runs without sudo
+install: _python-deps _install-dreal
+
+unit-tests:
 	@echo "Running infra/unittests.py..."
 	@$(VENV_PYTHON) -m infra.unittests --seed 0 --num-points "$(UNITTESTS_NUM_POINTS)"
 	@echo "Complete"
 
-nightly: install
+# Bazelisk is a non-sudo version of Bazel used for nightly
+_bazelisk:
+	mkdir -p "$$HOME/.local/bin"; \
+	curl -L $(BAZELISK_URL) -o "$$HOME/.local/bin/bazel"; \
+	chmod +x "$$HOME/.local/bin/bazel"; \
+
+# This runs without sudo, assuming that dependency packages are installed already
+nightly: clean _bazelisk install
 	@echo "Running infra/nightly.sh with seed $(SEED)..."
 	@PYTHON=$(VENV_PYTHON) \
 		bash infra/nightly.sh --report-dir "$(REPORTS_DIR)" --seed "$(SEED)" --num-points "$(NIGHTLY_NUM_POINTS)"

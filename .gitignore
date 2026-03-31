@@ -1,9 +1,9 @@
 __pycache__
 */__pycache__
 *.swp
-*/*.swp
-*/*/*.swp
+\#*\#
 reports/
 .pytest_cache/
 .ipynb_checkpoints/
 report.json
+.venv/*

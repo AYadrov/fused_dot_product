@@ -36,6 +36,7 @@ def egglog_check_eq(ctx: "SpecContext", iterations=6):
     run_runtime_s = perf_counter() - run_started_at
     
     report = {
+        "tool": "egglog_rewrite",
         "name": ctx.name,
         "equivalent": equivalent,
         "runtime_s": run_runtime_s,
@@ -49,19 +50,45 @@ def egglog_check_eq(ctx: "SpecContext", iterations=6):
 
 def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
     from ..spec.spec_utils import from_egglog
+    from ..spec.spec_ast import Eq, BoolEq, variables
     
-    def simplify(expr: "SpecNode", egraph: EGraph):
+    def simplify_expr(expr: "SpecNode", egraph: EGraph):
         return from_egglog(egraph.extract(expr.to_egglog()))
+
+    def simplify_check(check: BoolEq | Eq):
+        lhs = check.lhs.to_egglog()
+        rhs = check.rhs.to_egglog()
+        check_passed = egraph.check_bool(eq(lhs).to(rhs))
+        if check_passed:
+            return None
+        return simplify_expr(check, egraph)
     
     simplified_checks = []
+    
+    run_started_at = perf_counter()
     for check in ctx.checks:
-        simplified_checks.append(simplify(check, egraph))
+        if not isinstance(check, Eq) and not isinstance(check, BoolEq):
+            raise NotImplementedError(
+                f"Only Eq and BoolEq checks are supported, got {type(check).__name__}"
+            )
+        simplified = simplify_check(check)
+        if simplified is not None:
+            simplified_checks.append(simplified)
+    run_runtime_s = perf_counter() - run_started_at
+
+    simplified_ctx = ctx.copy(checks=simplified_checks)
+    checks_before = [str(check) for check in ctx.checks]
+    checks_after = [str(check) for check in simplified_ctx.checks]
     
-    # Assumes must not be simplified, otherwise properties like:
-    # x == (-1)**s * 1.m * 2**(e-bias)
-    # with egglog simply gets simplified into x == x
-    # which is not useful information anymore for other solvers
-    # While checks can be simplified, they do not carry any useful information
-    
-    new_ctx = ctx.copy(assumes=ctx.assumes, checks=simplified_checks)
-    return new_ctx
+    equivalent = len(simplified_checks) == 0
+    report = {
+        "tool": "egglog_simplify",
+        "equivalent": equivalent,
+        "discharged_checks": len(ctx.checks) - len(simplified_checks),
+        "checks_before": len(checks_before),
+        "checks_after": len(checks_after),
+        "runtime_s": run_runtime_s,
+        # "input_context": ctx.snapshot(),
+        # "output_context": simplified_ctx.snapshot(),
+    }
+    return equivalent, simplified_ctx, report

@@ -53,11 +53,11 @@ class Node:
         self._static_typecheck()
     
     ############## PRIVATE METHODS ###############
-       
+    
     def _evaluate_spec(self, ctx, cache):
         if self in cache:
             return cache[self]
-        inputs = [arg._evaluate_spec(ctx, cache) for arg in self.args]
+        inputs = [ctx.spec_of(arg) for arg in self.args]
         output = self.spec(*inputs, ctx=ctx)
         cache[self] = output
         return output
