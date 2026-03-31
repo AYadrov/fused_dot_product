@@ -10,14 +10,11 @@ SEED ?= $(shell date "+%Y%j")
 
 DREAL_REPO ?= https://github.com/dreal/dreal4
 
-BAZEL_VERSION := 7.0.0
-BAZEL_DEBNAME := bazel_$(BAZEL_VERSION)-linux-x86_64.deb
-BAZEL_URL := https://github.com/bazelbuild/bazel/releases/download/$(BAZEL_VERSION)/$(BAZEL_DEBNAME)
-BAZEL_SHA256 := e1fd8ffa3cc09bf13b98a69b2b5041cea9d01029112b7e2dbbab5be6f0a3115c
+BAZELISK_URL := https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64
 
-.PHONY: nightly install check-python unit-tests venv install-prereqs install-python-deps install-dreal-python deps bazelisk clean
+.PHONY: nightly install install-prereqs _check-python unit-tests _venv _install-prereqs _python-deps _install-dreal _bazelisk clean
 
-check-python:
+_check-python:
 	@echo "Checking Python installation"
 	@command -v $(PYTHON) >/dev/null 2>&1 || { \
 		echo "$(PYTHON) not found. Please install Python 3.11."; \
@@ -29,7 +26,7 @@ check-python:
 		exit 1; \
 	}
 
-venv: check-python
+_venv: _check-python
 	@echo "Ensuring virtual environment exists in $(VENV_DIR)"
 	@if [ ! -x "$(VENV_PYTHON)" ]; then \
 		$(PYTHON) -m venv $(VENV_DIR); \
@@ -38,6 +35,8 @@ venv: check-python
 		$(PYTHON) -m venv --clear $(VENV_DIR); \
 	fi
 
+
+# This runs with sudo
 install-prereqs:
 	@echo "Installing dReal prerequisites"
 	@command -v git >/dev/null 2>&1 || { \
@@ -76,40 +75,36 @@ install-prereqs:
 		exit 1; \
 	fi
 
-
-bazelisk:
-	@set -euxo pipefail; \
-	mkdir -p "$$HOME/.local/bin"; \
-	curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o "$$HOME/.local/bin/bazel"; \
-	chmod +x "$$HOME/.local/bin/bazel"; \
-
 clean:
-	@set -euxo pipefail; \
-	rm -f "$(BAZEL_DEBNAME)"; \
-	rm -rf "$(VENV_DIR)"; \
-	rm -rf "$(REPORTS_DIR)"; \
-	rm -f "$$HOME/.local/bin/bazel"; \
+	rm -rf $(REPORTS_DIR)/*
 
-python-deps: venv
+_python-deps: _venv
 	@echo "Installing Python dependencies into $(VENV_DIR)"
 	@$(VENV_PIP) install --upgrade pip setuptools
 	@$(VENV_PIP) install --upgrade -r requirements.txt
 
-install-dreal: venv
+_install-dreal: _venv
 	@echo "Installing dReal Python bindings into $(VENV_DIR)"
 	@$(VENV_PIP) install --upgrade "wheel<0.38"
 	@$(VENV_PIP) install --no-build-isolation dreal
 
-# This runs with sudo
-install: check-python install-prereqs python-deps install-dreal
+
+# This runs without sudo
+install: _python-deps _install-dreal
 
 unit-tests:
 	@echo "Running infra/unittests.py..."
 	@$(VENV_PYTHON) -m infra.unittests --seed 0 --num-points "$(UNITTESTS_NUM_POINTS)"
 	@echo "Complete"
 
+# Bazelisk is a non-sudo version of Bazel used for nightly
+_bazelisk:
+	mkdir -p "$$HOME/.local/bin"; \
+	curl -L $(BAZELISK_URL) -o "$$HOME/.local/bin/bazel"; \
+	chmod +x "$$HOME/.local/bin/bazel"; \
 
-nightly: clean bazelisk python-deps install-dreal
+# This runs without sudo, assuming that dependency packages are installed already
+nightly: clean _bazelisk install
 	@echo "Running infra/nightly.sh with seed $(SEED)..."
 	@PYTHON=$(VENV_PYTHON) \
 		bash infra/nightly.sh --report-dir "$(REPORTS_DIR)" --seed "$(SEED)" --num-points "$(NIGHTLY_NUM_POINTS)"
