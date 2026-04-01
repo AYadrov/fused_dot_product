@@ -305,3 +305,12 @@ def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Node:
         )
         return out
     return impl(x)
+
+def uq_is_zero_spec(x, ctx):
+    result = ctx.fresh_bool("uq_is_zero")
+    ctx.assume(result.eq(x.eq(ctx.real_val(0))))
+    return result
+
+@Primitive(name="uq_is_zero", spec=uq_is_zero_spec)
+def uq_is_zero(x: Node) -> Node:
+    return basic_invert(basic_or_reduce(x, Const(UQ(0, 1, 0))), Const(UQ(0, 1, 0)))

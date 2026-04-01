@@ -274,3 +274,13 @@ def q_add_sign(x: Node, s: Node) -> Node:
 def q_abs(x: Node) -> Node:
     sign_bit = q_sign_bit(x)  # UQ1.0
     return q_add_sign(x, sign_bit)
+
+
+def q_is_zero_spec(x, ctx):
+    result = ctx.fresh_bool("q_is_zero")
+    ctx.assume(result.eq(x.eq(ctx.real_val(0))))
+    return result
+
+@Primitive(name="q_is_zero", spec=q_is_zero_spec)
+def q_is_zero(x: Node) -> Node:
+    return basic_invert(basic_or_reduce(x, Const(UQ(0, 1, 0))), Const(UQ(0, 1, 0)))

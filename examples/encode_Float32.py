@@ -167,45 +167,47 @@ def normalize_fp32_input(m: Node, e: Node) -> tuple[Node, Node, Node, Node]:
     return sign_bit, m_is_zero, normalized_m_uq, normalized_e_q
 
 
-def classify_fp32(
-    normalized_m_uq: Node,
-    normalized_e_q: Node,
-    subnormal_extra_bits: int,
-) -> tuple[Node, Node, Node]:
+def classify_fp32_spec(m, e, ctx):
+    m_ = ctx.fresh_real("classified_m")
+    e_ = ctx.fresh_real("classified_e")
+    ctx.assume((m_ * ctx.real_val(2) ** e_).eq(m * ctx.real_val(2) ** e))
+    return m_, e_
+     
+@Primitive(name="classify_fp32", spec=classify_fp32_spec)
+def classify_fp32(normalized_m_uq, normalized_e_q):
+    """This Composite makes exponent be either normal or subnormal with shifting mantissa"""
+    subnormal_extra_bits = 10  # Customizable
+    int_bits = normalized_m_uq.node_type.int_bits
+    frac_bits = normalized_m_uq.node_type.frac_bits + subnormal_extra_bits
+    
     e_sign_uq = q_sign_bit(normalized_e_q)
-    e_magnitude_uq = q_to_uq(q_abs(normalized_e_q))
-
-    # Exponents <= 0 are encoded as subnormals or zero.
-    e_is_zero = basic_invert(
-        basic_or_reduce(e_magnitude_uq, Const(UQ(0, 1, 0))),
-        Const(UQ(0, 1, 0)),
-    )
+    e_is_zero = q_is_zero(normalized_e_q)
     is_subnormal = basic_or(e_is_zero, e_sign_uq, Const(UQ(0, 1, 0)))
-
+    
+    e_magnitude_uq = q_to_uq(q_abs(normalized_e_q))
+    
     shift_if_subnormal = uq_add(Const(UQ(1, 1, 0)), e_magnitude_uq)
-    subnormal_shift_amount = basic_mux_2_1(
+    shift_amount = basic_mux_2_1(
         sel=is_subnormal,
         in0=Const(UQ(0, 1, 0)),
         in1=shift_if_subnormal,
         out=shift_if_subnormal.copy(),
     )
-
-    int_bits = normalized_m_uq.node_type.int_bits
-    frac_bits = normalized_m_uq.node_type.frac_bits + subnormal_extra_bits
+    
     classified_m_uq = basic_lshift(
         x=normalized_m_uq,
         amount=Const(UQ.from_int(subnormal_extra_bits)),
         out=Const(UQ(0, int_bits, frac_bits)),
     )
-    classified_m_uq = uq_rshift(classified_m_uq, subnormal_shift_amount)
-
+    classified_m_uq = uq_rshift(classified_m_uq, shift_amount)
+    
     classified_e_uq = basic_mux_2_1(
         sel=is_subnormal,
         in0=e_magnitude_uq,
         in1=Const(UQ(0, 1, 0)),
         out=e_magnitude_uq.copy(),
     )
-    return classified_m_uq, classified_e_uq, is_subnormal
+    return make_Tuple(classified_m_uq, classified_e_uq)
 
 
 def round_fp32_significand(m: Node, e: Node) -> tuple[Node, Node]:
@@ -221,11 +223,12 @@ def round_fp32_significand(m: Node, e: Node) -> tuple[Node, Node]:
 def post_round_fixup(
     m_rounded_uq: Node,
     e_rounded_uq: Node,
-    is_subnormal: Node,
+    e_prerounded_uq: Node,
     m_is_zero: Node,
 ) -> tuple[Node, Node]:
+    prerounded_was_subnormal = uq_is_zero(e_prerounded_uq)
     rounded_subnormal_became_normal = basic_and(
-        is_subnormal,
+        prerounded_was_subnormal,
         basic_or_reduce(e_rounded_uq, Const(UQ(0, 1, 0))),
         out=Const(UQ(0, 1, 0)),
     )
@@ -271,7 +274,7 @@ def pack_fp32(sign_bit: Node, mantissa: Node, exponent: Node) -> Node:
 # Assume that e is biased
 # TODO: loss of accuracy, NaNs
 # subnormal_extra_bits is extra bits that will be used when truncating mantissa to a subnormal format
-def encode_Float32(m: Node, e: Node, subnormal_extra_bits: int = 10) -> Primitive:
+def encode_Float32(m: Node, e: Node) -> Primitive:
     assert e.node_type.frac_bits == 0
 
     def spec(m, e, ctx):
@@ -280,16 +283,12 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits: int = 10) -> Primitiv
     @Primitive(name="encode_Float32", spec=spec)
     def impl(m: Node, e: Node) -> Node:
         sign_bit, m_is_zero, normalized_m_uq, normalized_e_q = normalize_fp32_input(m, e)
-        classified_m_uq, classified_e_uq, is_subnormal = classify_fp32(
-            normalized_m_uq,
-            normalized_e_q,
-            subnormal_extra_bits,
-        )
+        classified_m_uq, classified_e_uq = classify_fp32(normalized_m_uq, normalized_e_q)
         m_rounded_uq, e_rounded_uq = round_fp32_significand(classified_m_uq, classified_e_uq)
         final_m_uq, final_e_uq = post_round_fixup(
             m_rounded_uq,
             e_rounded_uq,
-            is_subnormal,
+            classified_e_uq,
             m_is_zero,
         )
         return pack_fp32(sign_bit, final_m_uq, final_e_uq)
