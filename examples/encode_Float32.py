@@ -222,6 +222,19 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits: int = 10) -> Primitiv
         
         target_width = Float32.mantissa_bits
         m_rounded_uq, e_rounded_uq = round_to_the_nearest_even(normalized_m_uq, normalized_e_uq, target_bits=target_width)
+
+        # Rounding can carry the largest subnormal into the smallest normal.
+        rounded_subnormal_became_normal = basic_and(
+            is_subnormal,
+            basic_or_reduce(e_rounded_uq, Const(UQ(0, 1, 0))),
+            out=Const(UQ(0, 1, 0)),
+        )
+        m_rounded_uq = basic_mux_2_1(
+            sel=rounded_subnormal_became_normal,
+            in0=m_rounded_uq,
+            in1=Const(UQ(0, 1, 0)),
+            out=m_rounded_uq.copy(),
+        )
         
         ######### INF HANDLING #########
         
