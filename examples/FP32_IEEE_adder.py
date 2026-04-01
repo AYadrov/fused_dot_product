@@ -40,8 +40,9 @@ def FP32_IEEE_adder(x: Node, y: Node) -> Node:
 
 
 if __name__ == '__main__':
+    from pprint import pprint
     adder = FP32_IEEE_adder(
         Var(name="a", sign=Float32T()),
         Var(name="b", sign=Float32T()),
     )
-    print(adder.check_spec())
+    pprint(adder.check_spec())

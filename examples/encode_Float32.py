@@ -107,7 +107,10 @@ def lzc(x: Node) -> Node:
 
 
 def normalize_spec(m, e, ctx):
-    raise NotImplementedError
+    m_normalized = ctx.fresh_real("m_normalized")
+    e_normalized = ctx.fresh_real("e_normalized")
+    ctx.assume((m * ctx.real_val(2) ** e).eq(m_normalized * ctx.real_val(2) ** e_normalized))
+    return m_normalized, e_normalized
 
 # Assume that e is biased
 @Primitive(name="normalize_to_1_xxx", spec=normalize_spec)
@@ -153,6 +156,118 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Node:
     return make_Tuple(norm_m_uq, norm_e_q)
 
 
+def normalize_fp32_input(m: Node, e: Node) -> tuple[Node, Node, Node, Node]:
+    sign_bit = q_sign_bit(m)
+    m_uq = q_to_uq(q_abs(m))
+    m_is_zero = basic_invert(
+        basic_or_reduce(m_uq, Const(UQ(0, 1, 0))),
+        Const(UQ(0, 1, 0)),
+    )
+    normalized_m_uq, normalized_e_q = normalize_to_1_xxx(m_uq, e)
+    return sign_bit, m_is_zero, normalized_m_uq, normalized_e_q
+
+
+def classify_fp32(
+    normalized_m_uq: Node,
+    normalized_e_q: Node,
+    subnormal_extra_bits: int,
+) -> tuple[Node, Node, Node]:
+    e_sign_uq = q_sign_bit(normalized_e_q)
+    e_magnitude_uq = q_to_uq(q_abs(normalized_e_q))
+
+    # Exponents <= 0 are encoded as subnormals or zero.
+    e_is_zero = basic_invert(
+        basic_or_reduce(e_magnitude_uq, Const(UQ(0, 1, 0))),
+        Const(UQ(0, 1, 0)),
+    )
+    is_subnormal = basic_or(e_is_zero, e_sign_uq, Const(UQ(0, 1, 0)))
+
+    shift_if_subnormal = uq_add(Const(UQ(1, 1, 0)), e_magnitude_uq)
+    subnormal_shift_amount = basic_mux_2_1(
+        sel=is_subnormal,
+        in0=Const(UQ(0, 1, 0)),
+        in1=shift_if_subnormal,
+        out=shift_if_subnormal.copy(),
+    )
+
+    int_bits = normalized_m_uq.node_type.int_bits
+    frac_bits = normalized_m_uq.node_type.frac_bits + subnormal_extra_bits
+    classified_m_uq = basic_lshift(
+        x=normalized_m_uq,
+        amount=Const(UQ.from_int(subnormal_extra_bits)),
+        out=Const(UQ(0, int_bits, frac_bits)),
+    )
+    classified_m_uq = uq_rshift(classified_m_uq, subnormal_shift_amount)
+
+    classified_e_uq = basic_mux_2_1(
+        sel=is_subnormal,
+        in0=e_magnitude_uq,
+        in1=Const(UQ(0, 1, 0)),
+        out=e_magnitude_uq.copy(),
+    )
+    return classified_m_uq, classified_e_uq, is_subnormal
+
+
+def round_fp32_significand(m: Node, e: Node) -> tuple[Node, Node]:
+    frac_bits = m.node_type.frac_bits
+    if frac_bits > 0:
+        m = uq_select(m, frac_bits - 1, 0)
+    else:
+        m = Const(UQ(0, 0, 1))
+
+    return round_to_the_nearest_even(m, e, target_bits=Float32.mantissa_bits)
+
+
+def post_round_fixup(
+    m_rounded_uq: Node,
+    e_rounded_uq: Node,
+    is_subnormal: Node,
+    m_is_zero: Node,
+) -> tuple[Node, Node]:
+    rounded_subnormal_became_normal = basic_and(
+        is_subnormal,
+        basic_or_reduce(e_rounded_uq, Const(UQ(0, 1, 0))),
+        out=Const(UQ(0, 1, 0)),
+    )
+    m_after_subnormal_fixup = basic_mux_2_1(
+        sel=rounded_subnormal_became_normal,
+        in0=m_rounded_uq,
+        in1=Const(UQ(0, 1, 0)),
+        out=m_rounded_uq.copy(),
+    )
+
+    final_e_uq_wide = uq_min(e_rounded_uq, Const(UQ.from_int(Float32.inf_code)))
+    final_e_uq = basic_identity(
+        x=final_e_uq_wide,
+        out=Const(UQ.from_int(Float32.inf_code)),
+    )
+    is_inf = basic_and_reduce(final_e_uq, out=Const(UQ(0, 1, 0)))
+    final_m_uq = basic_mux_2_1(
+        sel=is_inf,
+        in0=m_after_subnormal_fixup,
+        in1=Const(UQ(0, 1, 0)),
+        out=m_after_subnormal_fixup.copy(),
+    )
+
+    final_m_uq = basic_mux_2_1(
+        sel=m_is_zero,
+        in0=final_m_uq,
+        in1=Const(UQ(0, 1, 0)),
+        out=final_m_uq.copy(),
+    )
+    final_e_uq = basic_mux_2_1(
+        sel=m_is_zero,
+        in0=final_e_uq,
+        in1=Const(UQ(0, 1, 0)),
+        out=final_e_uq.copy(),
+    )
+    return final_m_uq, final_e_uq
+
+
+def pack_fp32(sign_bit: Node, mantissa: Node, exponent: Node) -> Node:
+    return float32_alloc(sign_bit, mantissa, exponent)
+
+
 # Assume that e is biased
 # TODO: loss of accuracy, NaNs
 # subnormal_extra_bits is extra bits that will be used when truncating mantissa to a subnormal format
@@ -164,108 +279,20 @@ def encode_Float32(m: Node, e: Node, subnormal_extra_bits: int = 10) -> Primitiv
 
     @Primitive(name="encode_Float32", spec=spec)
     def impl(m: Node, e: Node) -> Node:
-        sign_bit = q_sign_bit(m)
-        m_uq = q_to_uq(q_abs(m))
-        m_is_zero = basic_invert(
-            basic_or_reduce(m_uq, Const(UQ(0, 1, 0))),
-            Const(UQ(0, 1, 0)),
+        sign_bit, m_is_zero, normalized_m_uq, normalized_e_q = normalize_fp32_input(m, e)
+        classified_m_uq, classified_e_uq, is_subnormal = classify_fp32(
+            normalized_m_uq,
+            normalized_e_q,
+            subnormal_extra_bits,
         )
-        
-        ######### NORMALIZING ##########
-        
-        normalized_m_uq, normalized_e_q = normalize_to_1_xxx(m_uq, e)
-        
-        ###### SUBNORMAL HANDLING ######
-        
-        e_sign_uq = q_sign_bit(normalized_e_q)
-        e_magnitude_uq = q_to_uq(q_abs(normalized_e_q))
-        
-        # if exponent is less than one - it is subnormal
-        e_is_zero = basic_invert(basic_or_reduce(e_magnitude_uq, Const(UQ(0, 1, 0))), Const(UQ(0, 1, 0)))
-        is_subnormal = basic_or(e_is_zero, e_sign_uq, Const(UQ(0, 1, 0)))
-        
-        # make sure that the shift makes exponent to be 1 if subnormal
-        shift_if_subnormal = uq_add(Const(UQ(1, 1, 0)), e_magnitude_uq)
-        subnormal_shift_amount = basic_mux_2_1(
-            sel=is_subnormal,
-            in0=Const(UQ(0, 1, 0)),
-            in1=shift_if_subnormal,
-            out=shift_if_subnormal.copy(),
-        )
-        
-        # Normalize mantissa from 1.xxx to 0.0xxx when subnormal
-        int_bits = normalized_m_uq.node_type.int_bits
-        frac_bits = normalized_m_uq.node_type.frac_bits + subnormal_extra_bits
-        normalized_m_uq = basic_lshift(
-                                x=normalized_m_uq,
-                                amount=Const(UQ.from_int(subnormal_extra_bits)),
-                                out=Const(UQ(0, int_bits, frac_bits)))
-        normalized_m_uq = uq_rshift(normalized_m_uq, subnormal_shift_amount)
-        
-        normalized_e_uq = basic_mux_2_1(
-            sel=is_subnormal,
-            in0=e_magnitude_uq,
-            in1=Const(UQ(0, 1, 0)),  # Subnormals encode exponent as 0
-            out=e_magnitude_uq.copy(),
-        )
-        
-        ######### IMPLICIT BIT #########
-        
-        # Drop implicit bit from ?.xxx to .xxx
-        frac_bits = normalized_m_uq.node_type.frac_bits
-        if frac_bits > 0:
-            normalized_m_uq = uq_select(normalized_m_uq, frac_bits - 1, 0)
-        else:
-            normalized_m_uq = Const(UQ(0, 0, 1))  # Edge case .0 as fractional bits
-        
-        ##### ROUND TO THE NEAREST #####
-        
-        target_width = Float32.mantissa_bits
-        m_rounded_uq, e_rounded_uq = round_to_the_nearest_even(normalized_m_uq, normalized_e_uq, target_bits=target_width)
-
-        # Rounding can carry the largest subnormal into the smallest normal.
-        rounded_subnormal_became_normal = basic_and(
+        m_rounded_uq, e_rounded_uq = round_fp32_significand(classified_m_uq, classified_e_uq)
+        final_m_uq, final_e_uq = post_round_fixup(
+            m_rounded_uq,
+            e_rounded_uq,
             is_subnormal,
-            basic_or_reduce(e_rounded_uq, Const(UQ(0, 1, 0))),
-            out=Const(UQ(0, 1, 0)),
+            m_is_zero,
         )
-        m_rounded_uq = basic_mux_2_1(
-            sel=rounded_subnormal_became_normal,
-            in0=m_rounded_uq,
-            in1=Const(UQ(0, 1, 0)),
-            out=m_rounded_uq.copy(),
-        )
-        
-        ######### INF HANDLING #########
-        
-        # if exponent is consecutive 1s - it is infinity
-        final_e_uq_wide = uq_min(e_rounded_uq, Const(UQ.from_int(Float32.inf_code)))
-        final_e_uq = basic_identity(
-            x=final_e_uq_wide,
-            out=Const(UQ.from_int(Float32.inf_code)),
-        )
-        is_inf = basic_and_reduce(final_e_uq, out=Const(UQ(0, 1, 0)))
-        final_m_uq = basic_mux_2_1(
-            sel=is_inf,
-            in0=m_rounded_uq,
-            in1=Const(UQ(0, 1, 0)),
-            out=m_rounded_uq.copy())
-        
-        ######### ZERO HANDLING #########
-        final_m_uq = basic_mux_2_1(
-            sel=m_is_zero,
-            in0=final_m_uq,
-            in1=Const(UQ(0, 1, 0)),
-            out=final_m_uq.copy(),
-        )
-        final_e_uq = basic_mux_2_1(
-            sel=m_is_zero,
-            in0=final_e_uq,
-            in1=Const(UQ(0, 1, 0)),
-            out=final_e_uq.copy(),
-        )
-
-        return float32_alloc(sign_bit, final_m_uq, final_e_uq)
+        return pack_fp32(sign_bit, final_m_uq, final_e_uq)
 
     return impl(m, e)
 
