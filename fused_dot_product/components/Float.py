@@ -70,7 +70,7 @@ def fp32_pack(sign: Node, exponent: Node, mantissa: Node) -> Node:
     return float32_alloc(sign, exponent, mantissa)
 
 
-def fp32_decode_spec(x, ctx):
+def fp32_unpack_spec(x, ctx):
     sign = ctx.fresh_real("sign")
     mantissa = ctx.fresh_real("mantissa")
     exponent = ctx.fresh_real("exponent")
@@ -86,13 +86,13 @@ def fp32_decode_spec(x, ctx):
     ctx.assume(sign.eq(ctx.real_val(1)).or_(sign.eq(ctx.real_val(-1))))
     ctx.assume((exponent >= ctx.real_val(0)).and_(exponent < ctx.real_val(1 << Float32.exponent_bits)))
     ctx.assume((mantissa >= ctx.real_val(0)).and_(mantissa < ctx.real_val(1 << Float32.mantissa_bits)))
-    return (sign, mantissa, exponent)
+    return (sign, exponent, mantissa)
 
 
-@Primitive(name="fp32_decode", spec=fp32_decode_spec)
-def fp32_decode(x: Node) -> Node:
+@Primitive(name="fp32_unpack", spec=fp32_unpack_spec)
+def fp32_unpack(x: Node) -> Node:
     return make_Tuple(
         _fp32_sign(x),
-        _fp32_mantissa(x),
         _fp32_exponent(x),
+        _fp32_mantissa(x),
     )

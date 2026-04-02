@@ -11,8 +11,8 @@ Wf = 30
 @Composite(name="FP32_IEEE_adder", spec=lambda x, y, ctx: x + y)
 def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     # This follows the repo's current float model: finite, normalized inputs.
-    x_s, x_m, x_e = fp32_decode(x)
-    y_s, y_m, y_e = fp32_decode(y)
+    x_s, x_e, x_m = fp32_unpack(x)
+    y_s, y_e, y_m = fp32_unpack(y)
 
     max_exp = uq_max(x_e, y_e)
     x_shift_amount = uq_sub(max_exp, x_e)
