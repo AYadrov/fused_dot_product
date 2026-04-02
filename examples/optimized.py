@@ -93,8 +93,8 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     ############# MANTISSAS ############
     
     # Step 1. Convert mantissas to UQ1.7
-    M_a = [mantissa_add_implicit_bit(M_a[i]) for i in range(N)]
-    M_b = [mantissa_add_implicit_bit(M_b[i]) for i in range(N)]
+    M_a = [add_implicit_bit(M_a[i]) for i in range(N)]
+    M_b = [add_implicit_bit(M_b[i]) for i in range(N)]
     
     # Step 2. Multiply mantissas into UQ2.14
     M_p = [uq_mul(M_a[i], M_b[i]) for i in range(N)]

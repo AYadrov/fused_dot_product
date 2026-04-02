@@ -288,20 +288,38 @@ def uq_split(x: Node, idx: int) -> Node:
     
     return impl(x)
 
+
 def uq_resize(x: Node, int_bits: int, frac_bits: int) -> Node:
-    if x.node_type.int_bits > int_bits or x.node_type.frac_bits > frac_bits:
-        raise ValueError("User tries to truncate, not implemented yet")
+    if not isinstance(int_bits, int) or not isinstance(frac_bits, int):
+        raise TypeError("int_bits and frac_bits must be integers")
+    if int_bits < 0 or frac_bits < 0:
+        raise ValueError("int_bits and frac_bits must be non-negative")
+
+    frac_shift = frac_bits - x.node_type.frac_bits
     
     @Primitive(name="uq_resize", spec=lambda x, ctx: x)
     def impl(x: Node) -> Node:
-        if frac_bits < x.node_type.frac_bits:
-            raise NotImplementedError("Truncation at uq_resize")
-        shift = Const(UQ.from_int(frac_bits - x.node_type.frac_bits))
-        
-        out = basic_lshift(
-            x=x,
-            amount=shift,
-            out=Const(UQ(0, int_bits, frac_bits)),
-        )
-        return out
+        out = Const(UQ(0, int_bits, frac_bits))
+        if frac_shift > 0:
+            return basic_lshift(
+                x=x,
+                amount=Const(UQ.from_int(frac_shift)),
+                out=out,
+            )
+        if frac_shift < 0:
+            return basic_rshift(
+                x=x,
+                amount=Const(UQ.from_int(-frac_shift)),
+                out=out,
+            )
+        return basic_identity(x=x, out=out)
     return impl(x)
+
+def uq_is_zero_spec(x, ctx):
+    result = ctx.fresh_bool("uq_is_zero")
+    ctx.assume(result.eq(x.eq(ctx.real_val(0))))
+    return result
+
+@Primitive(name="uq_is_zero", spec=uq_is_zero_spec)
+def uq_is_zero(x: Node) -> Node:
+    return basic_invert(basic_or_reduce(x, Const(UQ(0, 1, 0))), Const(UQ(0, 1, 0)))
