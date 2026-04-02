@@ -46,19 +46,29 @@ def _fp32_sign(x: Node) -> Op:
 ############## Public API ##############
 
 def float32_alloc(sign_bit: Node,
-                   mantissa: Node,
-                   exponent: Node) -> Op:
-    def sign(sign_bit: StaticType, mantissa: StaticType, exponent: StaticType) -> Float32T:
+                  exponent: Node,
+                  mantissa: Node) -> Op:
+    def sign(sign_bit: StaticType, exponent: StaticType, mantissa: StaticType) -> Float32T:
         return Float32T()
     
-    def impl(sign_bit: RuntimeType, mantissa: RuntimeType, exponent: RuntimeType) -> Float32:
-        return Float32(sign_bit.val, mantissa.val, exponent.val)
+    def impl(sign_bit: RuntimeType, exponent: RuntimeType, mantissa: RuntimeType) -> Float32:
+        return Float32(sign_bit.val, exponent.val, mantissa.val)
     
     return Op(
         sign=sign,
         impl=impl,
-        args=[sign_bit, mantissa, exponent],
+        args=[sign_bit, exponent, mantissa],
         name="float32_alloc")
+
+def fp32_pack_spec(s, e, m, ctx):
+    mantissa = ctx.real_val(1) + m * ctx.real_val(2) ** (-ctx.real_val(Float32.mantissa_bits))
+    exponent = e - ctx.real_val(Float32.exponent_bias)
+    return s * mantissa * ctx.real_val(2) ** exponent 
+
+@Primitive(name="fp32_pack", spec=fp32_pack_spec)
+def fp32_pack(sign: Node, exponent: Node, mantissa: Node) -> Node:
+    return float32_alloc(sign, exponent, mantissa)
+
 
 def fp32_decode_spec(x, ctx):
     sign = ctx.fresh_real("sign")

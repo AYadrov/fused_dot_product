@@ -246,7 +246,7 @@ class Float32(RuntimeType):
     nan_code = 255
     zero_code = 0
     
-    def __init__(self, sign: int, mantissa: int, exponent: int):
+    def __init__(self, sign: int, exponent: int, mantissa: int):
         if sign not in (0, 1):
             raise ValueError(f"Float32 sign must be 0 or 1, got {sign}")
         if not (0 <= mantissa < (1 << self.mantissa_bits)):
@@ -293,26 +293,26 @@ class Float32(RuntimeType):
     
     @classmethod
     def nInf(cls):
-        return cls(1, 0, cls.inf_code)
+        return cls(1, cls.inf_code, 0)
     
     @classmethod
     def Inf(cls):
-        return cls(0, 0, cls.inf_code)
+        return cls(0, cls.inf_code, 0)
     
     @classmethod
     def nZero(cls):
-        return cls(1, 0, cls.zero_code)
+        return cls(1, cls.zero_code, 0)
     
     @classmethod
     def Zero(cls):
-        return cls(0, 0, cls.zero_code)
+        return cls(0, cls.zero_code, 0)
     
     @classmethod
     def NaN(cls):
-        return cls(0, 1, cls.nan_code)
+        return cls(0, cls.nan_code, 1)
     
     def copy(self):
-        return Float32(self.sign, self.mantissa, self.exponent)
+        return Float32(self.sign, self.exponent, self.mantissa)
     
     def total_bits(self):
         return 32

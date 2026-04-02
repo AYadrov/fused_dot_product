@@ -123,7 +123,7 @@ class Float32T(StaticType):
         self.exponent_bits = 8
     
     def total_bits(self):
-        return self.sign_bits + self.mantissa_bits + self.exponent_bits
+        return 32
     
     def __repr__(self):
         return f"Float<32>"

@@ -43,10 +43,7 @@ def uq_RNE_IEEE(m: Node, bits_to_cut: int):
 
 
 def round_spec(m, e, ctx):
-    m_rounded = ctx.fresh_real("m_rounded")
-    e_rounded = ctx.fresh_real("e_rounded")
-    ctx.assume((m * ctx.real_val(2) ** e).eq(m_rounded * ctx.real_val(2) ** e_rounded))
-    return m_rounded, e_rounded
+    return m, e
 
 def fp32_round(m: Node, e: Node, target_bits: int = Float32.mantissa_bits, rounding_mode: str = "RNE") -> Primitive:
     assert target_bits > 0, "Cannot round fixed point to zero/negative number of bits"
@@ -135,10 +132,7 @@ def lzc(x: Node) -> Node:
 
 
 def normalize_spec(m, e, ctx):
-    m_normalized = ctx.fresh_real("m_normalized")
-    e_normalized = ctx.fresh_real("e_normalized")
-    ctx.assume((m * ctx.real_val(2) ** e).eq(m_normalized * ctx.real_val(2) ** e_normalized))
-    return m_normalized, e_normalized
+    return m, e
 
 @Primitive(name="fp32_normalize", spec=normalize_spec)
 def fp32_normalize(m: Node, e: Node) -> Node:
@@ -186,10 +180,7 @@ def fp32_normalize(m: Node, e: Node) -> Node:
 
 
 def classify_fp32_spec(m, e, ctx):
-    m_ = ctx.fresh_real("classified_m")
-    e_ = ctx.fresh_real("classified_e")
-    ctx.assume((m_ * ctx.real_val(2) ** e_).eq(m * ctx.real_val(2) ** e))
-    return m_, e_
+    return m, e
      
 @Primitive(name="fp32_classify", spec=classify_fp32_spec)
 def fp32_classify(normalized_m_uq: Node, normalized_e_q: Node):
@@ -234,11 +225,9 @@ def fp32_classify(normalized_m_uq: Node, normalized_e_q: Node):
 
 
 def fp32_encodings_spec(m, e, m_pre, ctx):
-    m_ = ctx.fresh_real("encoded_m")
-    e_ = ctx.fresh_real("encoded_e")
-    ctx.assume((m_ * ctx.real_val(2) ** e_).eq(m * ctx.real_val(2) ** e))
-    return m_, e_
+    return m * ctx.real_val(2) ** ctx.real_val(Float32.mantissa_bits), e
 
+# TODO: this function should work for any input, or at least give an error
 @Primitive(name="fp32_encodings", spec=fp32_encodings_spec)
 def fp32_encodings(m_rounded_uq: Node, e_rounded_uq: Node, m_prerounded_uq: Node):
     # Inf handling
@@ -260,11 +249,9 @@ def fp32_encodings(m_rounded_uq: Node, e_rounded_uq: Node, m_prerounded_uq: Node
         in1=Const(UQ(0, 1, 0)),
         out=final_e_uq.copy(),
     )
+    # Reinterpret the fractional significand bits as the raw IEEE mantissa field.
+    final_m_uq = fraction_to_integer(final_m_uq)
     return make_Tuple(final_m_uq, final_e_uq)
-
-
-def fp32_pack(sign_bit: Node, exponent: Node, mantissa: Node) -> Node:
-    return float32_alloc(sign_bit, mantissa, exponent)
 
 
 # Assume that e is biased
@@ -275,7 +262,7 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
     def spec(m, e, ctx):
         return m * (ctx.real_val(2) ** (e - ctx.real_val(127)))
     
-    @Primitive(name="encode_Float32", spec=spec)
+    @Composite(name="encode_Float32", spec=spec)
     def impl(m_q: Node, e_q: Node) -> Node:
         sign_bit = q_sign_bit(m_q)
         m_uq = q_to_uq(q_abs(m_q))
@@ -291,6 +278,10 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
 
 
 if __name__ == '__main__':
+    from pprint import pprint
     m = -4.02923583984375
     e = -25.0
-    print(encode_Float32(Const(Q.from_float(m, 5, 28)), Const(Q.from_float(e, 11, 0))).evaluate())
+    design = encode_Float32(Const(Q.from_float(m, 5, 28)), Const(Q.from_float(e, 11, 0)))
+    design.print_tree(depth=1)
+    pprint(design.check_spec(egglog_iters=6))
+    print(design.evaluate())
