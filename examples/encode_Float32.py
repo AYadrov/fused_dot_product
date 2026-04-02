@@ -3,37 +3,43 @@ import math
 from fused_dot_product import *
 from .common import *
 
-def to_the_nearest(m: Node, bits_to_cut: int):
-    m_frac_bits = m.node_type.frac_bits
-    m_int_bits = m.node_type.int_bits
-    m_total_bits = m_frac_bits + m_int_bits
-    target_bits = m_total_bits - bits_to_cut
-    
-    increment_int_bits = min(m_int_bits, target_bits)
-    increment_frac_bits = max(target_bits - m_int_bits, 0)
-    
-     # Guard/round/sticky/lsb bits
-    guard_bit = Const(UQ(0, 1, 0))
-    round_bit = Const(UQ(0, 1, 0))
-    sticky_bit = Const(UQ(0, 1, 0))
-    
-    if bits_to_cut > 0:
-        guard_bit = uq_select(m, bits_to_cut-1, bits_to_cut-1)
+# Round to Nearest, Ties to Even
+def uq_RNE_IEEE(m: Node, bits_to_cut: int):
+    assert bits_to_cut >= 0, "Cannot cut negative number of bits"
+    assert bits_to_cut < m.node_type.total_bits(), "Cannot cut all the bits of a fixed point"
+    @Primitive(name="uq_RNE_IEEE", spec=lambda x, ctx: x)
+    def impl(m: Node) -> Node:
+        m_frac_bits = m.node_type.frac_bits
+        m_int_bits = m.node_type.int_bits
+        m_total_bits = m_frac_bits + m_int_bits
+        target_bits = m_total_bits - bits_to_cut
+        
+        increment_int_bits = min(m_int_bits, target_bits)
+        increment_frac_bits = max(target_bits - increment_int_bits, 0)
+        
+        # Guard/round/sticky/lsb bits
+        guard_bit = Const(UQ(0, 1, 0))
         round_bit = Const(UQ(0, 1, 0))
         sticky_bit = Const(UQ(0, 1, 0))
-        if bits_to_cut >= 2:
-            round_bit = uq_select(m, bits_to_cut-2, bits_to_cut-2)
-            if bits_to_cut > 2:
-                sticky_slice = uq_select(m, bits_to_cut-3, 0)
-                sticky_bit = basic_or_reduce(x=sticky_slice, out=sticky_bit.copy())
-    
-    lsb_bit = uq_select(m, bits_to_cut, bits_to_cut)
-    
-    # Add increment?
-    tail = basic_or(round_bit, sticky_bit, out=Const(UQ(0, 1, 0)))
-    tail = basic_or(tail, lsb_bit, out=tail.copy())
-    increment = basic_and(guard_bit, tail, out=Const(UQ(0, 1, 0)))
-    return basic_identity(increment, Const(UQ(0, increment_int_bits, increment_frac_bits)))
+        
+        if bits_to_cut > 0:
+            guard_bit = uq_select(m, bits_to_cut-1, bits_to_cut-1)
+            round_bit = Const(UQ(0, 1, 0))
+            sticky_bit = Const(UQ(0, 1, 0))
+            if bits_to_cut >= 2:
+                round_bit = uq_select(m, bits_to_cut-2, bits_to_cut-2)
+                if bits_to_cut > 2:
+                    sticky_slice = uq_select(m, bits_to_cut-3, 0)
+                    sticky_bit = basic_or_reduce(x=sticky_slice, out=sticky_bit.copy())
+        
+        lsb_bit = uq_select(m, bits_to_cut, bits_to_cut)
+        
+        # Add increment?
+        tail = basic_or(round_bit, sticky_bit, out=Const(UQ(0, 1, 0)))
+        tail = basic_or(tail, lsb_bit, out=Const(UQ(0, 1, 0)))
+        increment = basic_and(guard_bit, tail, out=Const(UQ(0, 1, 0)))
+        return basic_identity(increment, Const(UQ(0, increment_int_bits, increment_frac_bits)))
+    return impl(m)
 
 
 def round_spec(m, e, ctx):
@@ -42,8 +48,10 @@ def round_spec(m, e, ctx):
     ctx.assume((m * ctx.real_val(2) ** e).eq(m_rounded * ctx.real_val(2) ** e_rounded))
     return m_rounded, e_rounded
 
-def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:
-    @Primitive(name="round_to_the_nearest_even", spec=round_spec)
+def fp32_round(m: Node, e: Node, target_bits: int = Float32.mantissa_bits, rounding_mode: str = "RNE") -> Primitive:
+    assert target_bits > 0, "Cannot round fixed point to zero/negative number of bits"
+    
+    @Primitive(name="fp32_round", spec=round_spec)
     def impl(m_prerounded: Node, e_prerounded: Node) -> Node:
         ####################################################
         #  Some constants
@@ -56,10 +64,9 @@ def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:
         sign_frac_bits = max(target_bits - m_int_bits, 0)
         
         ####################################################
-        rounding_mode = "nearest"
         increment = None
-        if rounding_mode == "nearest":
-            increment = to_the_nearest(m_prerounded, bits_to_cut=bits_to_cut)
+        if rounding_mode == "RNE":
+            increment = uq_RNE_IEEE(m_prerounded, bits_to_cut=bits_to_cut)
         else:
             raise NotImplementedError()
         
@@ -133,38 +140,39 @@ def normalize_spec(m, e, ctx):
     ctx.assume((m * ctx.real_val(2) ** e).eq(m_normalized * ctx.real_val(2) ** e_normalized))
     return m_normalized, e_normalized
 
-# Assume that e is biased
-@Primitive(name="normalize_to_1_xxx", spec=normalize_spec)
-def normalize_to_1_xxx(m: Node, e: Node) -> Node:
-    # mantissa is going to be normalized to 1.xxxxxx
-    # this precision will make sure that we do not lose accuracy
+@Primitive(name="fp32_normalize", spec=normalize_spec)
+def fp32_normalize(m: Node, e: Node) -> Node:
+    """Normalizes mantissa to 1.xxx with no lose in accuracy"""
+    ####################################################
+    #  Some constants
     m_int_target_bits = 1
     m_frac_target_bits = max(m.node_type.int_bits - 1, 0) + m.node_type.frac_bits
-
-    lzc_uq = lzc(m)  # UQ<ceil(log2(a + b)), 0>
-    lzc_q = uq_to_q(lzc_uq)  # UQ<ceil(log2(a + b)) + 1, 0>
+    ####################################################
+    # Calculating shift amount
+    lzc_q = uq_to_q(lzc(m))
     
     # Shift amount = LZC - int_bits + 1
     int_bits_q = uq_to_q(uq_int_bits(m))
-    shift_amount_q = q_add(q_sub(lzc_q, int_bits_q), Const(Q.from_int(1)))  # UQ<max(m.int_bits, lzc_width) + 2, 0>
-    
+    shift_amount_q = q_add(q_sub(lzc_q, int_bits_q), Const(Q.from_int(1)))
+    ####################################################
+    # Shifting mantissa
     shift_sign_uq = q_sign_bit(shift_amount_q)
     shift_magnitude_q = q_abs(shift_amount_q)
     shift_magnitude_uq = q_to_uq(shift_magnitude_q)
     
     # This resize operation will make sure that no loss of accuracy happens
-    # This precision is union for left or right shift case
-    m = uq_resize(m, max(m_int_target_bits, m.node_type.int_bits), m_frac_target_bits)
+    m_resized = uq_resize(m, max(m_int_target_bits, m.node_type.int_bits), m_frac_target_bits)
     
-    left_m_uq = uq_lshift(m, shift_magnitude_uq)
-    right_m_uq = uq_rshift(m, shift_magnitude_uq)
+    left_m_uq = uq_lshift(m_resized, shift_magnitude_uq)  # Shift amount is positive
+    right_m_uq = uq_rshift(m_resized, shift_magnitude_uq)  # Shift amount is negative
     norm_m_uq = basic_mux_2_1(
         sel=shift_sign_uq,
         in0=left_m_uq,
         in1=right_m_uq,
         out=Const(UQ(0, m_int_target_bits, m_frac_target_bits)),  
     )
-    
+    ####################################################
+    # Correcting exponent
     left_e_q = q_sub(e, shift_magnitude_q)
     right_e_q = q_add(e, shift_magnitude_q)
     norm_e_q = basic_mux_2_1(
@@ -177,36 +185,36 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Node:
     return make_Tuple(norm_m_uq, norm_e_q)
 
 
-def normalize_fp32_input(m: Node, e: Node) -> tuple[Node, Node, Node, Node]:
-    sign_bit = q_sign_bit(m)
-    m_uq = q_to_uq(q_abs(m))
-    m_is_zero = basic_invert(
-        basic_or_reduce(m_uq, Const(UQ(0, 1, 0))),
-        Const(UQ(0, 1, 0)),
-    )
-    normalized_m_uq, normalized_e_q = normalize_to_1_xxx(m_uq, e)
-    return sign_bit, m_is_zero, normalized_m_uq, normalized_e_q
-
-
 def classify_fp32_spec(m, e, ctx):
     m_ = ctx.fresh_real("classified_m")
     e_ = ctx.fresh_real("classified_e")
     ctx.assume((m_ * ctx.real_val(2) ** e_).eq(m * ctx.real_val(2) ** e))
     return m_, e_
      
-@Primitive(name="classify_fp32", spec=classify_fp32_spec)
-def classify_fp32(normalized_m_uq, normalized_e_q):
-    """This Composite makes exponent be either normal or subnormal with shifting mantissa"""
+@Primitive(name="fp32_classify", spec=classify_fp32_spec)
+def fp32_classify(normalized_m_uq: Node, normalized_e_q: Node):
+    # Classifying exponent and shifting mantissa
+    ####################################################
+    # Constants
     subnormal_extra_bits = 10  # Customizable
     int_bits = normalized_m_uq.node_type.int_bits
     frac_bits = normalized_m_uq.node_type.frac_bits + subnormal_extra_bits
-    
+    ####################################################
+    # Classify exponent
     e_sign_uq = q_sign_bit(normalized_e_q)
     e_is_zero = q_is_zero(normalized_e_q)
     is_subnormal = basic_or(e_is_zero, e_sign_uq, Const(UQ(0, 1, 0)))
-    
+    ####################################################
+    # Clamp exponent
     e_magnitude_uq = q_to_uq(q_abs(normalized_e_q))
-    
+    classified_e_uq = basic_mux_2_1(
+        sel=is_subnormal,
+        in0=e_magnitude_uq,
+        in1=Const(UQ(0, 1, 0)),
+        out=e_magnitude_uq.copy(),
+    )
+    ####################################################
+    # Shift mantissa
     shift_if_subnormal = uq_add(Const(UQ(1, 1, 0)), e_magnitude_uq)
     shift_amount = basic_mux_2_1(
         sel=is_subnormal,
@@ -222,32 +230,20 @@ def classify_fp32(normalized_m_uq, normalized_e_q):
     )
     classified_m_uq = uq_rshift(classified_m_uq, shift_amount)
     
-    classified_e_uq = basic_mux_2_1(
-        sel=is_subnormal,
-        in0=e_magnitude_uq,
-        in1=Const(UQ(0, 1, 0)),
-        out=e_magnitude_uq.copy(),
-    )
     return make_Tuple(classified_m_uq, classified_e_uq)
 
 
-def round_fp32_significand(m: Node, e: Node) -> tuple[Node, Node]:
-    m = drop_implicit_bit(m)
-    return round_to_the_nearest_even(m, e, target_bits=Float32.mantissa_bits)
+def fp32_encodings_spec(m, e, m_pre, ctx):
+    m_ = ctx.fresh_real("encoded_m")
+    e_ = ctx.fresh_real("encoded_e")
+    ctx.assume((m_ * ctx.real_val(2) ** e_).eq(m * ctx.real_val(2) ** e))
+    return m_, e_
 
-
-def post_round_fixup(
-    m_rounded_uq: Node,
-    e_rounded_uq: Node,
-    e_prerounded_uq: Node,
-    m_is_zero: Node,
-) -> tuple[Node, Node]:
+@Primitive(name="fp32_encodings", spec=fp32_encodings_spec)
+def fp32_encodings(m_rounded_uq: Node, e_rounded_uq: Node, m_prerounded_uq: Node):
     # Inf handling
     final_e_uq_wide = uq_min(e_rounded_uq, Const(UQ.from_int(Float32.inf_code)))
-    final_e_uq = basic_identity(
-        x=final_e_uq_wide,
-        out=Const(UQ.from_int(Float32.inf_code)),
-    )
+    final_e_uq = basic_identity(x=final_e_uq_wide, out=Const(UQ.from_int(Float32.inf_code)))
     is_inf = basic_and_reduce(final_e_uq, out=Const(UQ(0, 1, 0)))
     final_m_uq = basic_mux_2_1(
         sel=is_inf,
@@ -255,49 +251,42 @@ def post_round_fixup(
         in1=Const(UQ(0, 1, 0)),
         out=m_rounded_uq.copy(),
     )
-
+    
     # Zero handling
-    final_m_uq = basic_mux_2_1(
-        sel=m_is_zero,
-        in0=final_m_uq,
-        in1=Const(UQ(0, 1, 0)),
-        out=final_m_uq.copy(),
-    )
+    m_is_zero = uq_is_zero(m_prerounded_uq)
     final_e_uq = basic_mux_2_1(
         sel=m_is_zero,
         in0=final_e_uq,
         in1=Const(UQ(0, 1, 0)),
         out=final_e_uq.copy(),
     )
-    return final_m_uq, final_e_uq
+    return make_Tuple(final_m_uq, final_e_uq)
 
 
-def pack_fp32(sign_bit: Node, mantissa: Node, exponent: Node) -> Node:
+def fp32_pack(sign_bit: Node, exponent: Node, mantissa: Node) -> Node:
     return float32_alloc(sign_bit, mantissa, exponent)
 
 
 # Assume that e is biased
-# TODO: loss of accuracy, NaNs
-# subnormal_extra_bits is extra bits that will be used when truncating mantissa to a subnormal format
+# TODO: NaNs
 def encode_Float32(m: Node, e: Node) -> Primitive:
     assert e.node_type.frac_bits == 0
-
+    
     def spec(m, e, ctx):
         return m * (ctx.real_val(2) ** (e - ctx.real_val(127)))
-
+    
     @Primitive(name="encode_Float32", spec=spec)
-    def impl(m: Node, e: Node) -> Node:
-        sign_bit, m_is_zero, normalized_m_uq, normalized_e_q = normalize_fp32_input(m, e)
-        classified_m_uq, classified_e_uq = classify_fp32(normalized_m_uq, normalized_e_q)
-        m_rounded_uq, e_rounded_uq = round_fp32_significand(classified_m_uq, classified_e_uq)
-        final_m_uq, final_e_uq = post_round_fixup(
-            m_rounded_uq,
-            e_rounded_uq,
-            classified_e_uq,
-            m_is_zero,
-        )
-        return pack_fp32(sign_bit, final_m_uq, final_e_uq)
-
+    def impl(m_q: Node, e_q: Node) -> Node:
+        sign_bit = q_sign_bit(m_q)
+        m_uq = q_to_uq(q_abs(m_q))
+        
+        normalized_m_uq, normalized_e_q = fp32_normalize(m_uq, e_q)
+        classified_m_uq, classified_e_uq = fp32_classify(normalized_m_uq, normalized_e_q)
+        classified_m_uq = drop_implicit_bit(classified_m_uq)
+        m_rounded_uq, e_rounded_uq = fp32_round(classified_m_uq, classified_e_uq)
+        final_m_uq, final_e_uq = fp32_encodings(m_rounded_uq, e_rounded_uq, m_uq)
+        return fp32_pack(sign_bit, final_e_uq, final_m_uq)
+    
     return impl(m, e)
 
 
