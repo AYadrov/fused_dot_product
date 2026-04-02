@@ -1,88 +1,109 @@
 import math
 
 from fused_dot_product import *
+from .common import *
+
+def to_the_nearest(m: Node, bits_to_cut: int):
+    m_frac_bits = m.node_type.frac_bits
+    m_int_bits = m.node_type.int_bits
+    m_total_bits = m_frac_bits + m_int_bits
+    target_bits = m_total_bits - bits_to_cut
+    
+    increment_int_bits = min(m_int_bits, target_bits)
+    increment_frac_bits = max(target_bits - m_int_bits, 0)
+    
+     # Guard/round/sticky/lsb bits
+    guard_bit = Const(UQ(0, 1, 0))
+    round_bit = Const(UQ(0, 1, 0))
+    sticky_bit = Const(UQ(0, 1, 0))
+    
+    if bits_to_cut > 0:
+        guard_bit = uq_select(m, bits_to_cut-1, bits_to_cut-1)
+        round_bit = Const(UQ(0, 1, 0))
+        sticky_bit = Const(UQ(0, 1, 0))
+        if bits_to_cut >= 2:
+            round_bit = uq_select(m, bits_to_cut-2, bits_to_cut-2)
+            if bits_to_cut > 2:
+                sticky_slice = uq_select(m, bits_to_cut-3, 0)
+                sticky_bit = basic_or_reduce(x=sticky_slice, out=sticky_bit.copy())
+    
+    lsb_bit = uq_select(m, bits_to_cut, bits_to_cut)
+    
+    # Add increment?
+    tail = basic_or(round_bit, sticky_bit, out=Const(UQ(0, 1, 0)))
+    tail = basic_or(tail, lsb_bit, out=tail.copy())
+    increment = basic_and(guard_bit, tail, out=Const(UQ(0, 1, 0)))
+    return basic_identity(increment, Const(UQ(0, increment_int_bits, increment_frac_bits)))
 
 
 def round_spec(m, e, ctx):
-    raise NotImplementedError
+    m_rounded = ctx.fresh_real("m_rounded")
+    e_rounded = ctx.fresh_real("e_rounded")
+    ctx.assume((m * ctx.real_val(2) ** e).eq(m_rounded * ctx.real_val(2) ** e_rounded))
+    return m_rounded, e_rounded
 
-# TODO: edge case when input is subnormal that after rounding becomes normal
 def round_to_the_nearest_even(m: Node, e: Node, target_bits: int) -> Primitive:
     @Primitive(name="round_to_the_nearest_even", spec=round_spec)
-    def impl(m: Node, e: Node) -> Node:
-        m_frac_bits = m.node_type.frac_bits
-        m_total_bits = m_frac_bits + m.node_type.int_bits
-        bits_diff = m_total_bits - target_bits
+    def impl(m_prerounded: Node, e_prerounded: Node) -> Node:
+        ####################################################
+        #  Some constants
+        m_frac_bits = m_prerounded.node_type.frac_bits
+        m_int_bits = m_prerounded.node_type.int_bits
+        m_total_bits = m_frac_bits + m_int_bits
+        bits_to_cut = max(m_total_bits - target_bits, 0)
 
-        sign_int_bits = min(m.node_type.int_bits, target_bits)
-        sign_frac_bits = max(target_bits - m.node_type.int_bits, 0)
+        sign_int_bits = min(m_int_bits, target_bits)
+        sign_frac_bits = max(target_bits - m_int_bits, 0)
+        
+        ####################################################
+        rounding_mode = "nearest"
+        increment = None
+        if rounding_mode == "nearest":
+            increment = to_the_nearest(m_prerounded, bits_to_cut=bits_to_cut)
+        else:
+            raise NotImplementedError()
+        
+        m_truncated = uq_resize(m_prerounded, sign_int_bits, sign_frac_bits)
+        
+        m_rounded_wide = uq_add(m_truncated, increment)
 
-        e_ext = uq_zero_extend(e, 1)
-        # Nothing to truncate, just forward mantissa and exponent.
-        if bits_diff < 0:
-            # Extend mantissa with additional frac_bits
-            m = basic_concat(
-                x=m,
-                y=Const(UQ(0, abs(bits_diff), 0)),
-                out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
-            )
-            return make_Tuple(m, e_ext)
-        elif bits_diff == 0:
-            return make_Tuple(m, e_ext)
-        
-        # Truncation
-        shift_amount = Const(UQ.from_int(bits_diff))
-        truncated = basic_rshift(
-            x=m,
-            amount=shift_amount,
-            out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
-        )
-        
-        # Guard/round/sticky/lsb bits
-        guard_bit = uq_select(m, bits_diff-1, bits_diff-1)
-        round_bit = Const(UQ(0, 1, 0))
-        sticky_bit = Const(UQ(0, 1, 0))
-        if bits_diff >= 2:
-            round_bit = uq_select(m, bits_diff-2, bits_diff-2)
-            if bits_diff > 2:
-                sticky_slice = uq_select(m, bits_diff-3, 0)
-                sticky_bit = basic_or_reduce(x=sticky_slice, out=sticky_bit.copy())
-        
-        lsb_bit = uq_select(truncated, 0, 0)
-        
-        # Add increment?
-        tail = basic_or(round_bit, sticky_bit, out=Const(UQ(0, 1, 0)))
-        tail = basic_or(tail, lsb_bit, out=tail.copy())
-        increment = basic_and(guard_bit, tail, out=Const(UQ(0, 1, 0)))
-        
-        # rounded_wide possibly can be overflown
-        rounded_wide = basic_add(
-            x=truncated,
-            y=increment,
-            out=Const(UQ(0, sign_int_bits+1, sign_frac_bits))
-        )
-        
-        # Check whether rounded_wide is overflown
+        ####################################################
+        # "m_rounded_wide gets overflown from adding increment" handling
         carry_index = sign_int_bits + sign_frac_bits
-        overflow_bit = basic_select(rounded_wide, carry_index, carry_index, e.copy())  # UQ<x.0>
+        overflow_bit = basic_select(m_rounded_wide, carry_index, carry_index, Const(UQ(0, 1, 0)))  # UQ<x.0>
         
-        # Handling overflow
-        shifted = basic_rshift(
-            x=rounded_wide,
+        # Carry-out means the rounded significand became 1.xxx and must be renormalized to 0.1xxx
+        m_shifted = basic_rshift(
+            x=m_rounded_wide,
             amount=Const(UQ.from_int(1)),
             out=Const(UQ(0, sign_int_bits, sign_frac_bits)),
         )
-        rounded = basic_mux_2_1(
+        m_rounded = basic_mux_2_1(
             sel=overflow_bit,
-            in0=rounded_wide,
-            in1=shifted,
-            out=Const(UQ(0, sign_int_bits, sign_frac_bits)),  # Silent truncation of 1 rightmost bit
+            in0=m_rounded_wide,
+            in1=m_shifted,
+            out=m_shifted.copy(),
         )
         
-        e_inc = uq_add(e, overflow_bit)
-        e_out = basic_mux_2_1(sel=overflow_bit, in0=e_ext, in1=e_inc, out=e_ext.copy())
+        e_incremented = uq_add(e_prerounded, overflow_bit)
+
+        ####################################################
+        # "subnormal became normal" handling
+        prerounded_was_subnormal = uq_is_zero(e_prerounded)
+        prerounded_subnormal_became_normal = basic_and(
+            prerounded_was_subnormal,
+            basic_or_reduce(e_incremented, Const(UQ(0, 1, 0))),
+            out=Const(UQ(0, 1, 0)),
+        )
+        m_after_subnormal_fixup = basic_mux_2_1(
+            sel=prerounded_subnormal_became_normal,
+            in0=m_rounded,
+            in1=Const(UQ(0, 1, 0)),
+            out=m_rounded.copy(),
+        )
+        ####################################################
         
-        return make_Tuple(rounded, e_out)
+        return make_Tuple(m_after_subnormal_fixup, e_incremented)
     return impl(m, e)
 
 
@@ -211,12 +232,7 @@ def classify_fp32(normalized_m_uq, normalized_e_q):
 
 
 def round_fp32_significand(m: Node, e: Node) -> tuple[Node, Node]:
-    frac_bits = m.node_type.frac_bits
-    if frac_bits > 0:
-        m = uq_select(m, frac_bits - 1, 0)
-    else:
-        m = Const(UQ(0, 0, 1))
-
+    m = drop_implicit_bit(m)
     return round_to_the_nearest_even(m, e, target_bits=Float32.mantissa_bits)
 
 
@@ -226,19 +242,7 @@ def post_round_fixup(
     e_prerounded_uq: Node,
     m_is_zero: Node,
 ) -> tuple[Node, Node]:
-    prerounded_was_subnormal = uq_is_zero(e_prerounded_uq)
-    rounded_subnormal_became_normal = basic_and(
-        prerounded_was_subnormal,
-        basic_or_reduce(e_rounded_uq, Const(UQ(0, 1, 0))),
-        out=Const(UQ(0, 1, 0)),
-    )
-    m_after_subnormal_fixup = basic_mux_2_1(
-        sel=rounded_subnormal_became_normal,
-        in0=m_rounded_uq,
-        in1=Const(UQ(0, 1, 0)),
-        out=m_rounded_uq.copy(),
-    )
-
+    # Inf handling
     final_e_uq_wide = uq_min(e_rounded_uq, Const(UQ.from_int(Float32.inf_code)))
     final_e_uq = basic_identity(
         x=final_e_uq_wide,
@@ -247,11 +251,12 @@ def post_round_fixup(
     is_inf = basic_and_reduce(final_e_uq, out=Const(UQ(0, 1, 0)))
     final_m_uq = basic_mux_2_1(
         sel=is_inf,
-        in0=m_after_subnormal_fixup,
+        in0=m_rounded_uq,
         in1=Const(UQ(0, 1, 0)),
-        out=m_after_subnormal_fixup.copy(),
+        out=m_rounded_uq.copy(),
     )
 
+    # Zero handling
     final_m_uq = basic_mux_2_1(
         sel=m_is_zero,
         in0=final_m_uq,

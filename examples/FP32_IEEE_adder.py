@@ -18,8 +18,8 @@ def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     x_shift_amount = uq_sub(max_exp, x_e)
     y_shift_amount = uq_sub(max_exp, y_e)
 
-    x_m_implicit = mantissa_add_implicit_bit(x_m)
-    y_m_implicit = mantissa_add_implicit_bit(y_m)
+    x_m_implicit = add_implicit_bit(x_m)
+    y_m_implicit = add_implicit_bit(y_m)
 
     # Make some room for right shift
     x_m_resized = uq_resize(x_m_implicit, 1, Wf-1)
