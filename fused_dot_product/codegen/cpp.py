@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass, field
+import typing as tp
 
 from ..ast.node import Node
 from ..ast.nodes import Const, Op, Var, composite, primitive
@@ -26,11 +27,15 @@ class _FunctionContext:
     statements: list[str] = field(default_factory=list)
 
 
+_Fingerprint = tuple[tp.Any, ...]
+
+
 class _CppEmitter:
     def __init__(self) -> None:
         self._sym_counter = 0
-        self._function_cache: dict[Node, str] = {}
+        self._function_cache: dict[_Fingerprint, str] = {}
         self._functions: list[str] = []
+        self._fingerprint_cache: dict[Node, _Fingerprint] = {}
 
     def emit_cpp(self, root: Node, function_name: str) -> str:
         self.emit_function(root=root, function_name=function_name)
@@ -45,14 +50,15 @@ class _CppEmitter:
 
     def emit_function(self, root: Node, function_name: str) -> str:
         assert isinstance(root, (composite, primitive)), "Can lower only Primitive/Composite"
-        
-        if root in self._function_cache:
-            return self._function_cache[root]
-        self._function_cache[root] = function_name
+
+        cache_key = self._fingerprint(root)
+        if cache_key in self._function_cache:
+            return self._function_cache[cache_key]
+        self._function_cache[cache_key] = function_name
         
         args = self._collect_vars(root)
         env = {
-            arg: _CppValue(expr=self._make_name(arg.name), cpp_type=self._render_type(arg.node_type))
+            arg: _CppValue(expr=arg.name, cpp_type=self._render_type(arg.node_type))
             for arg in root.inner_args
         }
         
@@ -120,7 +126,7 @@ class _CppEmitter:
 
         if isinstance(node, (primitive, composite)):
             lowered_args = [self._lower(arg, env, ctx) for arg in node.args]
-            helper_name = self._function_cache.get(node)
+            helper_name = self._function_cache.get(self._fingerprint(node))
             if helper_name is None:
                 helper_name = self._make_name(node.name)
                 self.emit_function(
@@ -134,6 +140,51 @@ class _CppEmitter:
 
         raise CppLoweringError(f"Unsupported node type: {type(node).__name__}")
 
+    def _fingerprint(self, node: Node) -> _Fingerprint:
+        if node in self._fingerprint_cache:
+            return self._fingerprint_cache[node]
+
+        if isinstance(node, Var):
+            result = ("Var", node.name, node.node_type.to_cpp_type())
+        elif isinstance(node, Const):
+            result = ("Const", node.name, node.node_type.to_cpp_type())
+        elif isinstance(node, Op):
+            template = None
+            result = (
+                "Op",
+                node.name,
+                node.node_type.to_cpp_type(),
+                tuple(self._fingerprint(arg) for arg in node.args),
+            )
+        elif isinstance(node, (primitive, composite)):
+            result = (
+                type(node).__name__,
+                node.name,
+                node.node_type.to_cpp_type(),
+                tuple(arg.node_type.to_cpp_type() for arg in node.inner_args),
+                self._fingerprint(node.inner_tree),
+            )
+        else:
+            raise CppLoweringError(f"Unsupported node type: {type(node).__name__}")
+
+        result = self._freeze(result)
+        self._fingerprint_cache[node] = result
+        return result
+    
+    def _freeze(self, value: tp.Any) -> tp.Any:
+        if isinstance(value, StaticType):
+            return value.to_cpp_type()
+        if isinstance(value, RuntimeType):
+            return self._fingerprint_value(value)
+        if isinstance(value, list):
+            return tuple(self._freeze(item) for item in value)
+        if isinstance(value, tuple):
+            return tuple(self._freeze(item) for item in value)
+        if isinstance(value, dict):
+            return tuple(sorted((key, self._freeze(item)) for key, item in value.items()))
+        return value
+
+    
     def _lower_const(self, value: RuntimeType) -> _CppValue:
         cpp_type = self._render_type(value.static_type())
         return _CppValue(expr=self._const_expr(value), cpp_type=cpp_type)
@@ -202,7 +253,9 @@ class _CppEmitter:
         return safe
 
 
-def lower_to_cpp(root: Node, function_name: str = "compute") -> str:
+def lower_to_cpp(root: Node, function_name: str | None = None) -> str:
+    if function_name is None:
+        function_name = root.name
     emitter = _CppEmitter()
     return emitter.emit_cpp(root=root, function_name=function_name)
 
