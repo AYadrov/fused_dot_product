@@ -183,7 +183,7 @@ class _CppEmitter:
         if isinstance(value, dict):
             return tuple(sorted((key, self._freeze(item)) for key, item in value.items()))
         return value
-
+    
     
     def _lower_const(self, value: RuntimeType) -> _CppValue:
         cpp_type = self._render_type(value.static_type())
