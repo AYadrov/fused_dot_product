@@ -9,7 +9,6 @@ from ..ast.nodes import Const, Op, Var, composite, primitive
 from ..types.runtime import BFloat16, Bool, Float32, Q, RuntimeType, Tuple, UQ
 from ..types.static import StaticType, TupleT, UQT
 
-
 class CppLoweringError(RuntimeError):
     pass
 

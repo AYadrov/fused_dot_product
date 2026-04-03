@@ -7,7 +7,7 @@ from ..ast import *
 
 ############ Constructors ##############
 
-def _format_c_lowering(template: str, args_ids*):
+def _format_c_lowering(template: str, *args_ids: list[int]):
     def lower(args: list[str]) -> str:
         return template.format(*[args[idx] for idx in args_ids])
     return lower

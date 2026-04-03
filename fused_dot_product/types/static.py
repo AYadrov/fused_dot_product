@@ -1,18 +1,21 @@
 class StaticType:
     def __init__(self):
         self.runtime_val = None
-
+    
     def copy(self) -> "StaticType":
         """Return a fresh StaticType instance with the same shape."""
         new = self._clone_impl()
         new.runtime_val = self.runtime_val
         return new
-
+    
     def _clone_impl(self) -> "StaticType":
         raise NotImplementedError
     
     def total_bits(self):
         raise NotImplementedError
+
+    def to_cpp_type(self) -> str:
+        return f"ap_uint<{self.total_bits()}>"
     
     def __repr__(self):
         raise NotImplementedError
@@ -207,6 +210,10 @@ class TupleT(StaticType):
     
     def to_spec(self, name, ctx):
         return tuple(x.to_spec(name=f"{name}_{i}", ctx=ctx) for i, x in enumerate(self.args))
+
+    def to_cpp_type(self) -> str:
+        inner = ", ".join(arg.to_cpp_type() for arg in self.args)
+        return f"std::tuple<{inner}>"
 
 
 __all__ = [
