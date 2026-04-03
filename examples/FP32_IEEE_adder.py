@@ -46,3 +46,5 @@ if __name__ == '__main__':
         Var(name="b", sign=Float32T()),
     )
     pprint(adder.check_spec())
+    print(adder.to_cpp())
+    

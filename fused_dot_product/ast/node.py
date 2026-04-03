@@ -149,6 +149,10 @@ class Node:
             raise TypeError(output_msg)
 
     ################ PUBLIC API ##################
+
+    def to_cpp(self, name="main"):
+        from ..codegen import lower_to_cpp
+        return lower_to_cpp(self, name)
     
     def copy(self):
         from .helpers import Copy
