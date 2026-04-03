@@ -23,28 +23,43 @@ class _CppEmitter:
     def __init__(self) -> None:
         self.sym_counter = 0
         self._memo: dict[Node, _CppValue] = {}
+        self._functions: list[str] = []
         self._statements: list[str] = []
-        self._temp_index = 0
 
+    # todo: phony
     def make_name(base: str):
         name = base + f"_{self.sym_counter}"
         self.sym_counter += 1
         return name
-        
+    
     def emit_function(self, root: Node) -> str:
-        function_name = root.name
-        args = self._collect_vars(root)
+        # Collect stuff
+        function_name = make_name(root.name)
+        function_cpp_type = root.node_type.to_cpp_type()
+        args = self.parse_vars(root.inner_args)
+
         
         env = {
-            node: _CppValue(expr=node.name, cpp_type=self._render_type(node.node_type))
+            node: _CppValue(expr=node.name, cpp_type=node.node_type.to_cpp_type())
             for node in args
         }
-        result = self._lower(root, env)
+        env[root] = _CppValue(expr=function_name, cpp_type=function_cpp_type)
+
+        result = self._lower(root.inner_tree, env)
+
+
+
+        # printing stuff
+        args_sig = ", ".join(
+            f"{node.node_type.to_cpp_type()} {node.name}" for node in args
+        )
+        
+        signature = f"{function_cpp_type} {function_name}({params_sig})"
         
         params_sig = ", ".join(
-            f"{self._render_type(node.node_type)} {node.name}" for node in params
+            f"{node.node_type.to_cpp_type()} {node.name}" for node in args
         )
-        signature = f"{self._render_type(root.node_type)} {function_name}({params_sig})"
+        signature = f"{root.node_type.to_cpp_type()} {function_name}({params_sig})"
         body: list[str] = []
         body.extend(self._statements)
         body.append(f"return {result.expr};")
@@ -61,9 +76,9 @@ class _CppEmitter:
             ]
         )
     
-    def _collect_vars(self, root: Node) -> list[Var]:
+    def _collect_vars(self, args: list[Node]) -> list[Var]:
         variables = []
-        for arg in root.args:
+        for arg in args:
             if isinstance(arg, Var):
                 variables.append(arg)
         return variables
@@ -98,24 +113,22 @@ class _CppEmitter:
             return lowered
         
         raise CppLoweringError(f"Unsupported node type: {type(node).__name__}")
-
+    
     def _lower_const(self, value: RuntimeType) -> _CppValue:
+        cpp_type = value.static_type().to_cpp_type()
+        return _CppValue(expr=self._const_expr(value), cpp_type=cpp_type)
+    
+    def _const_expr(self, value: RuntimeType) -> str:    # this can go to runtime.py
         if isinstance(value, Tuple):
             args = [self._lower_const(arg) for arg in value.args]
-            cpp_type = self._render_type(value.static_type())
             expr = f"std::make_tuple({', '.join(arg.expr for arg in args)})"
-            return _CppValue(expr=expr, cpp_type=cpp_type)
-
-        cpp_type = self._render_type(value.static_type())
-        return _CppValue(expr=self._const_expr(value), cpp_type=cpp_type)
-
-    def _const_expr(self, value: RuntimeType) -> str:
+            return expr
         if isinstance(value, Bool):
             return self._cast(value.static_type(), str(value.val))
         if isinstance(value, (Q, UQ, Float32, BFloat16)):
             return self._cast(value.static_type(), str(value.val))
         raise CppLoweringError(f"Unsupported constant type: {type(value).__name__}")
-
+    
     def _lower_op(self, node: Op, env: dict[Node, _CppValue]) -> _CppValue:
         if node.c_lowering is not None:
             lowered_args = [self._lower(arg, env).expr for arg in node.args]
@@ -134,15 +147,12 @@ class _CppEmitter:
     def _cast(self, type_: StaticType, expr: str) -> str:
         return f"{self._render_type(type_)}({expr})"
     
-    def _emit_temp(self, type_: StaticType, expr: str, comment: str) -> _CppValue:
-        temp_name = f"tmp_{self._temp_index}"
+    def _emit_temp(self, type_: StaticType, expr: str, name: str) -> _CppValue:
+        _name = make_name(name)
         self._temp_index += 1
         cpp_type = self._render_type(type_)
-        self._statements.append(f"const {cpp_type} {temp_name} = {expr};  // {comment}")
+        self._statements.append(f"const {cpp_type} {_name} = {expr};  // {name}")
         return _CppValue(expr=temp_name, cpp_type=cpp_type)
-    
-    def _bit_mask(self, width: int) -> str:
-        return self._cast(UQT(width, 0), str((1 << width) - 1))
 
 
 def lower_to_cpp(root: Node, function_name: str = "compute") -> str:
