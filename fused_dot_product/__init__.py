@@ -7,6 +7,7 @@ from .components.Q import *
 from .components.UQ import *
 from .components.Float import *
 from .components.BFloat16 import *
+from .codegen import *
 from .utils import *
 from .egglog import *
 from .spec import *

@@ -208,6 +208,85 @@ class TestFusedDotProduct(unittest.TestCase):
         pprint(TestFusedDotProduct.IMPL_REPORT)
 
 
+class TestCppLowering(unittest.TestCase):
+    def test_lower_to_cpp_uses_op_c_lowering(self):
+        def impl(x: RuntimeType, y: RuntimeType) -> RuntimeType:
+            return UQ((x.val + y.val) & 0b1111, 4, 0)
+
+        def sign(x: UQT, y: UQT) -> UQT:
+            return UQT(4, 0)
+
+        x = Var(name="x", sign=UQT(4, 0))
+        y = Var(name="y", sign=UQT(4, 0))
+        root = Op(
+            impl=impl,
+            sign=sign,
+            args=[x, y],
+            name="custom_add",
+            c_lowering=lambda lowered_args: f"({lowered_args[0]} + {lowered_args[1]})",
+        )
+
+        lowered = lower_to_cpp(root, function_name="custom_add")
+
+        self.assertIn("// custom_add", lowered)
+        self.assertIn("(x + y)", lowered)
+
+    def test_lower_to_cpp_basic_op(self):
+        x = Var(name="x", sign=UQT(4, 0))
+        y = Var(name="y", sign=UQT(4, 0))
+        root = basic_add(x, y, Const(UQ(0, 5, 0)))
+
+        lowered = lower_to_cpp(root, function_name="add_bits")
+
+        self.assertIn("ap_uint<5> add_bits(ap_uint<4> x, ap_uint<4> y)", lowered)
+        self.assertIn("// basic_add", lowered)
+        self.assertIn("return tmp_0;", lowered)
+
+    def test_lower_to_cpp_inlines_primitive_and_composite(self):
+        @Primitive(name="TestPrimitive", spec=lambda x, y, ctx: x + y)
+        def test_primitive(x: Node, y: Node) -> Node:
+            return basic_add(x, y, Const(UQ(0, 5, 0)))
+
+        @Composite(name="TestComposite", spec=lambda x, y, ctx: x + y)
+        def test_composite(x: Node, y: Node) -> Node:
+            return test_primitive(x, y)
+
+        x = Var(name="x", sign=UQT(4, 0))
+        y = Var(name="y", sign=UQT(4, 0))
+
+        lowered = lower_to_cpp(test_composite(x, y), function_name="inline_test")
+
+        self.assertIn("// basic_add", lowered)
+        self.assertNotIn("TestPrimitive", lowered)
+        self.assertNotIn("TestComposite", lowered)
+
+    def test_lower_to_cpp_handles_tuple_paths(self):
+        x = Var(name="x", sign=BFloat16T())
+
+        lowered = lower_to_cpp(bf16_decode(x)[2], function_name="extract_exponent")
+
+        self.assertIn("// _bf16_exponent", lowered)
+        self.assertIn("// basic_tuple_maker_3", lowered)
+        self.assertIn("// basic_get_item_2", lowered)
+
+    def test_lower_to_cpp_handles_basic_select(self):
+        x = Var(name="x", sign=UQT(4, 0))
+
+        lowered = lower_to_cpp(uq_select(x, 2, 1), function_name="slice_bits")
+
+        self.assertIn("// basic_select", lowered)
+        self.assertIn(">> 1", lowered)
+
+    def test_lower_to_cpp_optimized_design(self):
+        a = [Var(name=f"a_{i}", sign=BFloat16T()) for i in range(4)]
+        b = [Var(name=f"b_{i}", sign=BFloat16T()) for i in range(4)]
+
+        lowered = lower_to_cpp(Optimized(*a, *b), function_name="optimized")
+
+        self.assertIn("ap_uint<32> optimized(", lowered)
+        self.assertIn("// float32_alloc", lowered)
+
+
 def build_unittest_report(seed: int, spec_report: dict, impl_report: dict):
     return {
         "seed": seed,

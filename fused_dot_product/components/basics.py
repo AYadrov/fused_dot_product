@@ -7,6 +7,15 @@ from ..ast import *
 
 ############ Constructors ##############
 
+def _format_c_lowering(template: str, args_ids*):
+    def lower(args: list[str]) -> str:
+        return template.format(*[args[idx] for idx in args_ids])
+    return lower
+
+
+def _c_uint(width: int, value: int) -> str:
+    return f"ap_uint<{width}>({value})"
+
 def _impl_constructor(op):
     # To be called with op's arguments and output
     def impl(*args: RuntimeType) -> RuntimeType:
@@ -25,24 +34,35 @@ def _sign_constructor() -> StaticType:
         return args[-1]
     return sign
 
-def _ternary_operator(op: tp.Callable, x: Node, y: Node, z: Node, out: Node, name: str) -> Op:
+def _ternary_operator(
+    op: tp.Callable,
+    x: Node,
+    y: Node,
+    z: Node,
+    out: Node,
+    c_lowering,
+    name: str,
+) -> Op:
     return Op(
         impl=make_fixed_arguments(_impl_constructor(op), [RuntimeType] * 4),
         sign=make_fixed_arguments(_sign_constructor(), [StaticType] * 4),
+        c_lowering=c_lowering,
         args=[x, y, z, out],
         name=name)
 
-def _binary_operator(op: tp.Callable, x: Node, y: Node, out: Node, name: str) -> Op:
+def _binary_operator(op: tp.Callable, x: Node, y: Node, out: Node, c_lowering, name: str) -> Op:
     return Op(
         impl=make_fixed_arguments(_impl_constructor(op), [RuntimeType] * 3),
         sign=make_fixed_arguments(_sign_constructor(), [StaticType] * 3),
+        c_lowering=c_lowering,
         args=[x, y, out],
         name=name)
 
-def _unary_operator(op: tp.Callable, x: Node, out: Node, name: str) -> Op:
+def _unary_operator(op: tp.Callable, x: Node, out: Node, c_lowering, name: str) -> Op:
     return Op(
         impl=make_fixed_arguments(_impl_constructor(op), [RuntimeType] * 2),
         sign=make_fixed_arguments(_sign_constructor(), [StaticType] * 2),
+        c_lowering=c_lowering,
         args=[x, out],
         name=name)
 
@@ -59,6 +79,7 @@ def basic_mux_2_1(sel: Node, in0: Node, in1: Node, out: Node) -> Op:
         y=in0,
         z=in1,
         out=out,
+        c_lowering=_format_c_lowering("({} ? {} : {})", 0, 2, 1),  # TODO: not always a boolean
         name="basic_mux_2_1",
     )
 
@@ -70,6 +91,7 @@ def basic_add(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering("({} + {})", 0, 1),
         name="basic_add",
     )
 
@@ -82,6 +104,7 @@ def basic_sub(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering("({} - {})", 0, 1),
         name="basic_sub",
     )
 
@@ -91,6 +114,7 @@ def basic_mul(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering("({} * {})", 0, 1),
         name="basic_mul",
     )
 
@@ -100,6 +124,7 @@ def basic_max(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering("({} > {} ? {} : {})", 0, 1, 0, 1),
         name="basic_max",
     )
 
@@ -109,6 +134,7 @@ def basic_min(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering("({} < {} ? {} : {})", 0, 1, 0, 1),
         name="basic_min",
     )
 
@@ -118,6 +144,7 @@ def basic_rshift(x: Node, amount: Node, out: Node) -> Op:
         x=x,
         y=amount,
         out=out,
+        c_lowering=_format_c_lowering("({} >> {})", 0, 1),
         name="basic_rshift",
     )
 
@@ -127,6 +154,7 @@ def basic_lshift(x: Node, amount: Node, out: Node) -> Op:
         x=x,
         y=amount,
         out=out,
+        c_lowering=_format_c_lowering("({} << {})", 0, 1),
         name="basic_lshift",
     )
 
@@ -136,6 +164,7 @@ def basic_or(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering("({} | {})", 0, 1),
         name="basic_or",
     )
  
@@ -145,6 +174,7 @@ def basic_xor(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering("({} ^ {})", 0, 1),
         name="basic_xor",
     )
 
@@ -154,15 +184,18 @@ def basic_and(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering("({} & {})", 0, 1),
         name="basic_and",
     )
 
 def basic_concat(x: Node, y: Node, out: Node) -> Op:
+    shift = y.node_type.total_bits()
     return _binary_operator(
         op=lambda x, y: (x.val << y.total_bits()) | y.val,
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering(f"(({{}} << {shift}) | {{}})", 0, 1),
         name="basic_concat",
     )
 
@@ -172,6 +205,7 @@ def basic_less(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering("({} < {})", 0, 1),
         name="basic_less",
     )
 
@@ -181,6 +215,7 @@ def basic_less_or_equal(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering("({} <= {})", 0, 1),
         name="basic_less_or_equal",
     )
 
@@ -190,6 +225,7 @@ def basic_greater(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering("({} > {})", 0, 1),
         name="basic_greater",
     )
 
@@ -199,6 +235,7 @@ def basic_greater_or_equal(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering("({} >= {})", 0, 1),
         name="basic_greater_or_equal",
     )
 
@@ -208,6 +245,7 @@ def basic_equal(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering("({} == {})", 0, 1),
         name="basic_equal",
     )
 
@@ -217,6 +255,7 @@ def basic_not_equal(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
+        c_lowering=_format_c_lowering("({} != {})", 0, 1),
         name="basic_not_equal",
     )
 
@@ -226,12 +265,17 @@ def basic_not_equal(x: Node, y: Node, out: Node) -> Op:
 def basic_select(x: Node, start: int, end: int, out: Node) -> Op:
     if start < end or end < 0:
         raise ValueError(f"Bad indexing: start={start}, end={end}")
-    return _unary_operator(
+    node = _unary_operator(
         op=lambda x: mask(x.val >> end, start - end + 1),
         x=x,
         out=out,
+        c_lowering=_format_c_lowering(
+            f"(({{}} >> {end}) & {_c_uint(start - end + 1, (1 << (start - end + 1)) - 1)})",
+            0,
+        ),
         name="basic_select",
     )
+    return node
 
 # TODO: Truncation is possible if out is too small
 def basic_invert(x: Node, out: Node) -> Op:
@@ -239,6 +283,7 @@ def basic_invert(x: Node, out: Node) -> Op:
         op=lambda x: ((1 << x.total_bits()) - 1) - x.val,
         x=x,
         out=out,
+        c_lowering=_format_c_lowering("(~{})", 0),
         name="basic_invert",
     )
 
@@ -248,6 +293,7 @@ def basic_identity(x: Node, out: Node) -> Op:
         op=lambda x: x.val,
         x=x,
         out=out,
+        c_lowering=_format_c_lowering("{}", 0),
         name="basic_identity",
     )
 
@@ -256,6 +302,7 @@ def basic_or_reduce(x: Node, out: Node) -> Op:
         op=lambda x: 1 if x.val > 0 else 0,
         x=x,
         out=out,
+        c_lowering=_format_c_lowering("({} != 0)", 0),  # TODO: not neccessarily a boolean
         name="basic_or_reduce",
     )
 
@@ -264,5 +311,6 @@ def basic_and_reduce(x: Node, out: Node) -> Op:
         op=lambda x: 1 if x.val == ((1 << x.total_bits()) - 1) else 0,
         x=x,
         out=out,
+        c_lowering=_format_c_lowering(f"({{}} == {_c_uint(x.node_type.total_bits(), (1 << x.node_type.total_bits()) - 1)})", 0),
         name="basic_and_reduce",
     )

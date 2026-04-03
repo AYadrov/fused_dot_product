@@ -14,6 +14,7 @@ def _fp32_mantissa(x: Node) -> Op:
     return Op(
             impl=impl,
             sign=sign,
+            c_lowering=lambda lowered_args: f"(({lowered_args[0]} >> 0) & ap_uint<23>({(1 << 23) - 1}))",
             args=[x],
             name="_fp32_mantissa")
 
@@ -27,6 +28,7 @@ def _fp32_exponent(x: Node) -> Op:
     return Op(
             impl=impl,
             sign=sign,
+            c_lowering=lambda lowered_args: f"(({lowered_args[0]} >> 23) & ap_uint<8>({(1 << 8) - 1}))",
             args=[x],
             name="_fp32_exponent")
 
@@ -40,6 +42,7 @@ def _fp32_sign(x: Node) -> Op:
     return Op(
             impl=impl,
             sign=sign,
+            c_lowering=lambda lowered_args: f"(({lowered_args[0]} >> 31) & ap_uint<1>(1))",
             args=[x],
             name="_fp32_sign")
 
@@ -57,6 +60,7 @@ def float32_alloc(sign_bit: Node,
     return Op(
         sign=sign,
         impl=impl,
+        c_lowering=lambda lowered_args: f"(({lowered_args[0]} << 31) | ({lowered_args[1]} << 23) | {lowered_args[2]})",
         args=[sign_bit, exponent, mantissa],
         name="float32_alloc")
 

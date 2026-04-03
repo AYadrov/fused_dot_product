@@ -9,6 +9,9 @@ from ..solver import check_equivalence
 from ..spec import SpecContext
 
 
+CLowering = tp.Callable[[list[str]], str]
+
+
 def Composite(name: str, spec: tp.Callable[..., tp.Any]):
     def wrapper1(impl: tp.Callable[..., Node]):
         def wrapper2(*args):
@@ -186,7 +189,9 @@ class Op(Node):
         sign: tp.Callable[..., StaticType],
         args: list[Node],
         name: str,
+        c_lowering: tp.Optional[CLowering] = None,
     ):
+        self.c_lowering = c_lowering
         super().__init__(
             spec=None,
             impl=impl,
