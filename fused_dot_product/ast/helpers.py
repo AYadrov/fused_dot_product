@@ -4,7 +4,7 @@ from .node import Node
 from .nodes import Op, Primitive
 
 
-@Primitive(name="Copy", spec=lambda x, ctx: x)
+@Primitive(name="Copy", spec=lambda x, ctx: x, c_inline=True)
 def Copy(x: Node) -> Node:
     return x
 
@@ -28,7 +28,7 @@ def basic_get_item(x: Node, idx: int) -> Op:
     )
 
 def Tuple_get_item(x: Node, idx: int) -> Primitive:
-    @Primitive(name=f"Tuple_get_item_{idx}", spec=lambda x, ctx: x[idx])
+    @Primitive(name=f"Tuple_get_item_{idx}", spec=lambda x, ctx: x[idx], c_inline=True)
     def impl(x: Node) -> Node:
         return basic_get_item(x, idx)
     

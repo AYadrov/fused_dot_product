@@ -234,7 +234,7 @@ def uq_select(x: Node, start: int, end: int) -> Node:
         ctx.assume(x.eq(slice1 + slice2))
         return slice1
     
-    @Primitive(name="uq_select", spec=spec)
+    @Primitive(name="uq_select", spec=spec, c_inline=True)
     def impl(x: Node) -> Node:
         out = Const(UQ(0, int_bits, frac_bits))
         root = basic_select(x, start, end, out)

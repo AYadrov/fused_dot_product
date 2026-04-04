@@ -97,6 +97,11 @@ class _CppEmitter:
     def _collect_vars(self, root: Node) -> list[Var]:
         return root.inner_args
 
+    def _should_inline(self, node: Node) -> bool:
+        return isinstance(node, (primitive, composite)) and bool(
+            getattr(node, "c_inline", False)
+        )
+
     def _lower(
         self,
         node: Node,
@@ -125,25 +130,32 @@ class _CppEmitter:
             return lowered
 
         if isinstance(node, (primitive, composite)):
-            lowered_args = [self._lower(arg, env, ctx) for arg in node.args]
-            helper_name = self._function_cache.get(self._fingerprint(node))
-            if helper_name is None:
-                helper_name = self._make_name(node.name)
-                self.emit_function(
-                    root=node,
-                    function_name=helper_name,
-                )
-            expr = f"{helper_name}({', '.join(arg.expr for arg in lowered_args)})"
-            lowered = self._emit_temp(node.node_type, expr, node.name, ctx)
-            ctx.memo[node] = lowered
-            return lowered
+            if self._should_inline(node):
+                lowered_args = [self._lower(arg, env, ctx) for arg in node.args]
+                inline_env = dict(env)
+                inline_env.update(dict(zip(node.inner_args, lowered_args)))
+                lowered = self._lower(node.inner_tree, inline_env, ctx)
+                ctx.memo[node] = lowered
+                return lowered
+            else:
+                lowered_args = [self._lower(arg, env, ctx) for arg in node.args]
+                helper_name = self._function_cache.get(self._fingerprint(node))
+                if helper_name is None:
+                    helper_name = self._make_name(node.name)
+                    self.emit_function(
+                        root=node,
+                        function_name=helper_name,
+                    )
+                expr = f"{helper_name}({', '.join(arg.expr for arg in lowered_args)})"
+                lowered = self._emit_temp(node.node_type, expr, node.name, ctx)
+                ctx.memo[node] = lowered
+                return lowered
 
         raise CppLoweringError(f"Unsupported node type: {type(node).__name__}")
 
     def _fingerprint(self, node: Node) -> _Fingerprint:
         if node in self._fingerprint_cache:
             return self._fingerprint_cache[node]
-
         if isinstance(node, Var):
             result = ("Var", node.name, node.node_type.to_cpp_type())
         elif isinstance(node, Const):

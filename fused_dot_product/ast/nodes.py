@@ -12,10 +12,20 @@ from ..spec import SpecContext
 CLowering = tp.Callable[[list[str]], str]
 
 
-def Composite(name: str, spec: tp.Callable[..., tp.Any]):
+def Composite(
+    name: str,
+    spec: tp.Callable[..., tp.Any],
+    c_inline: bool = False,
+):
     def wrapper1(impl: tp.Callable[..., Node]):
         def wrapper2(*args):
-            return composite(spec=spec, impl=impl, args=args, name=name)
+            return composite(
+                spec=spec,
+                impl=impl,
+                args=args,
+                name=name,
+                c_inline=c_inline,
+            )
         return wrapper2
     return wrapper1
 
@@ -26,7 +36,9 @@ class composite(Node):
         impl: tp.Callable[..., Node],
         args: list[Node],
         name: str,
+        c_inline: bool = False,
     ):
+        self.c_inline = c_inline
         self.ctx = SpecContext(name)
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         
@@ -120,10 +132,20 @@ class composite(Node):
         return f"[Composite] {self.name}: {' -> '.join([str(x) for x in self.args_types])} -> {self.node_type}"
 
 
-def Primitive(name: str, spec: tp.Callable[..., tp.Any]):
+def Primitive(
+    name: str,
+    spec: tp.Callable[..., tp.Any],
+    c_inline: bool = False,
+):
     def wrapper1(impl: tp.Callable[..., Node]):
         def wrapper2(*args):
-            return primitive(spec=spec, impl=impl, args=args, name=name)
+            return primitive(
+                spec=spec,
+                impl=impl,
+                args=args,
+                name=name,
+                c_inline=c_inline,
+            )
         return wrapper2
     return wrapper1
 
@@ -134,7 +156,9 @@ class primitive(Node):
         impl: tp.Callable[..., Node],
         args: list[Node],
         name: str,
+        c_inline: bool = False,
     ):
+        self.c_inline = c_inline
         # Args will preserve runtime values of arguments
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         

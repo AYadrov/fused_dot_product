@@ -18,6 +18,6 @@ def basic_tuple_maker(*args) -> Op:
     )
 
 
-@Primitive(name="make_Tuple", spec=lambda *args, ctx: tuple(args))
+@Primitive(name="make_Tuple", spec=lambda *args, ctx: tuple(args), c_inline=True)
 def make_Tuple(*args: Node) -> Node:
     return basic_tuple_maker(*args)
