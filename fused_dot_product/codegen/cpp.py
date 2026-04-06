@@ -32,42 +32,31 @@ _Fingerprint = tuple[tp.Any, ...]
 
 # TODO: would be nice to support nested arrays
 class _CppEmitter:
-    def __init__(self, jitable: bool = True) -> None:
+    def __init__(self) -> None:
         self._reserved_names = {}
         self._function_cache: dict[_Fingerprint, str] = {}
         self._functions: list[str] = []
         self._fingerprint_cache: dict[Node, _Fingerprint] = {}
-        self._jitable = jitable
 
     def emit_cpp(self, root: Node, function_name: str) -> str:
-        if self._jitable is True:
-            public_name = self._make_name(function_name)
-            internal_name = self._make_name(f"{public_name}_impl")
-            self.emit_function(root=root, function_name=internal_name)
-            self._functions.append(
-                self._render_public_wrapper(
-                    public_name=public_name,
-                    internal_name=internal_name,
-                    args=root.inner_args,
-                    return_type=root.node_type,
-                )
+        public_name = self._make_name(function_name)
+        internal_name = self._make_name(f"{public_name}_impl")
+        self.emit_function(root=root, function_name=internal_name)
+        self._functions.append(
+            self._render_public_wrapper(
+                public_name=public_name,
+                internal_name=internal_name,
+                args=root.inner_args,
+                return_type=root.node_type,
             )
-            parts = [
-                "#pragma once",
-                "#include <array>",
-                "#include <cstdint>",
-                "",
-                *list(self._functions),
-            ]
-        else: 
-            self.emit_function(root=root, function_name=function_name)
-            parts = [
-                "#include <array>",
-                "#include <ap_int.h>",
-                "#include <cstdint>",
-                "",
-                *list(self._functions),
-            ]
+        )
+        parts = [
+            "#pragma once",
+            "#include <array>",
+            "#include <cstdint>",
+            "",
+            *list(self._functions),
+        ]
         return "\n".join(parts)
 
     def emit_function(self, root: Node, function_name: str) -> str:
@@ -110,10 +99,7 @@ class _CppEmitter:
         params_sig = ", ".join(
             f"{self._render_type(arg.node_type)} {arg.name}" for arg in args
         )
-        if self._jitable:
-            signature = f"static inline {self._render_type(return_type)} {name}({params_sig})"
-        else:
-            signature = f"{self._render_type(return_type)} {name}({params_sig})"
+        signature = f"static inline {self._render_type(return_type)} {name}({params_sig})"
         
         body = [*ctx.statements, f"return {result.expr};"]
         indented_body = "\n".join(f"    {line}" for line in body)
@@ -182,23 +168,23 @@ class _CppEmitter:
         if node in self._fingerprint_cache:
             return self._fingerprint_cache[node]
         if isinstance(node, Var):
-            result = ("Var", node.name, node.node_type.to_cpp_type(jitable=self._jitable))
+            result = ("Var", node.name, node.node_type.to_cpp_type())
         elif isinstance(node, Const):
-            result = ("Const", node.name, node.node_type.to_cpp_type(jitable=self._jitable))
+            result = ("Const", node.name, node.node_type.to_cpp_type())
         elif isinstance(node, Op):
             template = None
             result = (
                 "Op",
                 node.name,
-                node.node_type.to_cpp_type(jitable=self._jitable),
+                node.node_type.to_cpp_type(),
                 tuple(self._fingerprint(arg) for arg in node.args),
             )
         elif isinstance(node, (primitive, composite)):
             result = (
                 type(node).__name__,
                 node.name,
-                node.node_type.to_cpp_type(jitable=self._jitable),
-                tuple(arg.node_type.to_cpp_type(jitable=self._jitable) for arg in node.inner_args),
+                node.node_type.to_cpp_type(),
+                tuple(arg.node_type.to_cpp_type() for arg in node.inner_args),
                 self._fingerprint(node.inner_tree),
             )
         else:
@@ -210,7 +196,7 @@ class _CppEmitter:
     
     def _freeze(self, value: tp.Any) -> tp.Any:
         if isinstance(value, StaticType):
-            return value.to_cpp_type(jitable=self._jitable)
+            return value.to_cpp_type()
         if isinstance(value, RuntimeType):
             return self._fingerprint_value(value)
         if isinstance(value, list):
@@ -302,7 +288,7 @@ class _CppEmitter:
     def _render_type(self, type_: StaticType) -> str:
         if isinstance(type_, TupleT) and any(isinstance(arg, TupleT) for arg in type_.args):
             raise CppLoweringError("Nested tuples are not supported in C++ lowering")
-        return type_.to_cpp_type(jitable=self._jitable)
+        return type_.to_cpp_type()
     
     def _cast(self, type_: StaticType, expr: str) -> str:
         if isinstance(type_, TupleT):
@@ -342,8 +328,8 @@ class _CppEmitter:
         return safe
 
 
-def lower_to_cpp(root: Node, jitable: bool = True, function_name: str | None = None) -> str:
+def lower_to_cpp(root: Node,  function_name: str | None = None) -> str:
     if function_name is None:
         function_name = root.name
-    emitter = _CppEmitter(jitable=jitable)
+    emitter = _CppEmitter()
     return emitter.emit_cpp(root=root, function_name=function_name)
