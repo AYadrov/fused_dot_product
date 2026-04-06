@@ -14,9 +14,22 @@ class StaticType:
     def total_bits(self):
         raise NotImplementedError
 
-    def to_cpp_type(self) -> str:
-        return f"ap_uint<{self.total_bits()}>"
-    
+    def to_cpp_type(self, jitable) -> str:
+        if jitable:
+            total_bits = self.total_bits()
+            if total_bits <= 8:
+                return "uint_fast8_t"
+            elif total_bits <= 16:
+                return "uint_fast16_t"
+            elif total_bits <= 32:
+                return "uint_fast32_t"
+            elif total_bits <= 64:
+                return "uint_fast64_t"
+            else:
+                raise TypeError("Can not find an ABI-safe type with more than 64 bits in C")  # can use pointer buffers for this
+        else:
+            return f"ap_uint<{self.total_bits()}>"  # Not ABI-safe
+        
     def __repr__(self):
         raise NotImplementedError
     
@@ -211,8 +224,8 @@ class TupleT(StaticType):
     def to_spec(self, name, ctx):
         return tuple(x.to_spec(name=f"{name}_{i}", ctx=ctx) for i, x in enumerate(self.args))
 
-    def to_cpp_type(self) -> str:
-        inner = ", ".join(arg.to_cpp_type() for arg in self.args)
+    def to_cpp_type(self, jitable) -> str:
+        inner = ", ".join(arg.to_cpp_type(jitable=jitable) for arg in self.args)
         return f"std::tuple<{inner}>"
 
 

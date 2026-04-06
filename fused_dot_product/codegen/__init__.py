@@ -1,7 +1,6 @@
-from .cpp import CppLoweringError, emit_functions, lower_to_cpp
+from .cpp import CppLoweringError, lower_to_cpp
 
 __all__ = [
     "CppLoweringError",
-    "emit_functions",
     "lower_to_cpp",
 ]

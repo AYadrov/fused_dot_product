@@ -34,7 +34,7 @@ def fraction_to_integer(x: Node) -> Primitive:
     def spec(x, ctx):
         return x * (ctx.real_val(2) ** ctx.real_val(frac_bits))
 
-    @Primitive(name="fraction_to_bits", spec=spec)
+    @Primitive(name="fraction_to_bits", spec=spec, c_inline=True)
     def impl(x: Node):
         return basic_identity(x=x, out=Const(UQ(0, frac_bits, 0)))
 

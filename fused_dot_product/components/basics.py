@@ -270,7 +270,7 @@ def basic_select(x: Node, start: int, end: int, out: Node) -> Op:
         x=x,
         out=out,
         c_lowering=_format_c_lowering(
-            f"(({{}} >> {end}) & {_c_uint(start - end + 1, (1 << (start - end + 1)) - 1)})",
+            f"(({{}} >> {end}) & {(1 << (start - end + 1)) - 1})",
             0,
         ),
         name="basic_select",
@@ -311,6 +311,6 @@ def basic_and_reduce(x: Node, out: Node) -> Op:
         op=lambda x: 1 if x.val == ((1 << x.total_bits()) - 1) else 0,
         x=x,
         out=out,
-        c_lowering=_format_c_lowering(f"({{}} == {_c_uint(x.node_type.total_bits(), (1 << x.node_type.total_bits()) - 1)})", 0),
+        c_lowering=_format_c_lowering(f"({{}} == {(1 << x.node_type.total_bits()) - 1})", 0),
         name="basic_and_reduce",
     )

@@ -150,9 +150,12 @@ class Node:
 
     ################ PUBLIC API ##################
 
-    def to_cpp(self, name="main"):
+    def to_cpp(self, name=None):
         from ..codegen import lower_to_cpp
-        return lower_to_cpp(self, name)
+        if name is None:
+            return lower_to_cpp(self)
+        else:
+            return lower_to_cpp(self, name)
     
     def copy(self):
         from .helpers import Copy

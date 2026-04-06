@@ -31,21 +31,25 @@ _Fingerprint = tuple[tp.Any, ...]
 
 
 class _CppEmitter:
-    def __init__(self) -> None:
-        self._sym_counter = 0
+    def __init__(self, jitable: bool = True) -> None:
+        self._reserved_names = {}
         self._function_cache: dict[_Fingerprint, str] = {}
         self._functions: list[str] = []
         self._fingerprint_cache: dict[Node, _Fingerprint] = {}
+        self._jitable = jitable
 
     def emit_cpp(self, root: Node, function_name: str) -> str:
         self.emit_function(root=root, function_name=function_name)
 
-        parts = [
-            "#include <ap_int.h>",
-            "#include <tuple>",
-            "",
-            *list(self._functions),
-        ]
+        if self._jitable is True:
+            parts =  [*list(self._functions)]
+        else: 
+            parts = [
+                "#include <ap_int.h>",
+                "#include <tuple>",
+                "",
+                *list(self._functions),
+            ]
         return "\n".join(parts)
 
     def emit_function(self, root: Node, function_name: str) -> str:
@@ -157,23 +161,23 @@ class _CppEmitter:
         if node in self._fingerprint_cache:
             return self._fingerprint_cache[node]
         if isinstance(node, Var):
-            result = ("Var", node.name, node.node_type.to_cpp_type())
+            result = ("Var", node.name, node.node_type.to_cpp_type(jitable=self._jitable))
         elif isinstance(node, Const):
-            result = ("Const", node.name, node.node_type.to_cpp_type())
+            result = ("Const", node.name, node.node_type.to_cpp_type(jitable=self._jitable))
         elif isinstance(node, Op):
             template = None
             result = (
                 "Op",
                 node.name,
-                node.node_type.to_cpp_type(),
+                node.node_type.to_cpp_type(jitable=self._jitable),
                 tuple(self._fingerprint(arg) for arg in node.args),
             )
         elif isinstance(node, (primitive, composite)):
             result = (
                 type(node).__name__,
                 node.name,
-                node.node_type.to_cpp_type(),
-                tuple(arg.node_type.to_cpp_type() for arg in node.inner_args),
+                node.node_type.to_cpp_type(jitable=self._jitable),
+                tuple(arg.node_type.to_cpp_type(jitable=self._jitable) for arg in node.inner_args),
                 self._fingerprint(node.inner_tree),
             )
         else:
@@ -185,7 +189,7 @@ class _CppEmitter:
     
     def _freeze(self, value: tp.Any) -> tp.Any:
         if isinstance(value, StaticType):
-            return value.to_cpp_type()
+            return value.to_cpp_type(jitable=self._jitable)
         if isinstance(value, RuntimeType):
             return self._fingerprint_value(value)
         if isinstance(value, list):
@@ -234,7 +238,7 @@ class _CppEmitter:
         return f"{self._render_type(return_type)} {name}({params_sig})"
     
     def _render_type(self, type_: StaticType) -> str:
-        return type_.to_cpp_type()
+        return type_.to_cpp_type(jitable=self._jitable)
     
     def _cast(self, type_: StaticType, expr: str) -> str:
         return f"{self._render_type(type_)}({expr})"
@@ -253,8 +257,15 @@ class _CppEmitter:
     
     def _make_name(self, base: str) -> str:
         safe_base = self._sanitize_identifier(base)
-        name = f"{safe_base}_{self._sym_counter}"
-        self._sym_counter += 1
+        name = safe_base
+        i = 0
+        while True:
+            i += 1
+            if name in self._reserved_names:
+                name = f"{safe_base}_{i}"
+            else:
+                self._reserved_names[name] = True
+                break
         return name
     
     def _sanitize_identifier(self, name: str) -> str:
@@ -265,14 +276,8 @@ class _CppEmitter:
         return safe
 
 
-def lower_to_cpp(root: Node, function_name: str | None = None) -> str:
+def lower_to_cpp(root: Node, jitable: bool = True, function_name: str | None = None) -> str:
     if function_name is None:
         function_name = root.name
-    emitter = _CppEmitter()
+    emitter = _CppEmitter(jitable=jitable)
     return emitter.emit_cpp(root=root, function_name=function_name)
-
-
-def emit_functions(root: Node, function_name: str = "compute") -> list[str]:
-    emitter = _CppEmitter()
-    emitter.emit_function(root=root, function_name=function_name)
-    return list(emitter._functions)
