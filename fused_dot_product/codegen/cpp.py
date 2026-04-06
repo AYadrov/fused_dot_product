@@ -39,11 +39,33 @@ class _CppEmitter:
         self._jitable = jitable
 
     def emit_cpp(self, root: Node, function_name: str) -> str:
-        self.emit_function(root=root, function_name=function_name)
-
         if self._jitable is True:
-            parts =  [*list(self._functions)]
+            public_name = self._make_name(function_name)
+            internal_name = self._make_name(f"{public_name}_impl")
+            self.emit_function(root=root, function_name=internal_name)
+            wrapper_signature = self._signature(
+                name=public_name,
+                args=root.inner_args,
+                return_type=root.node_type,
+            )
+            self._functions.append(
+                "\n".join(
+                    [
+                        f'extern "C" inline {wrapper_signature} {{',
+                        f"    return {internal_name}({', '.join(arg.name for arg in root.inner_args)});",
+                        "}",
+                    ]
+                )
+            )
+            parts = [
+                "#pragma once",
+                "#include <cstdint>",
+                "#include <tuple>",
+                "",
+                *list(self._functions),
+            ]
         else: 
+            self.emit_function(root=root, function_name=function_name)
             parts = [
                 "#include <ap_int.h>",
                 "#include <tuple>",
@@ -92,7 +114,10 @@ class _CppEmitter:
         params_sig = ", ".join(
             f"{self._render_type(arg.node_type)} {arg.name}" for arg in args
         )
-        signature = f"{self._render_type(return_type)} {name}({params_sig})"
+        if self._jitable:
+            signature = f"static inline {self._render_type(return_type)} {name}({params_sig})"
+        else:
+            signature = f"{self._render_type(return_type)} {name}({params_sig})"
         
         body = [*ctx.statements, f"return {result.expr};"]
         indented_body = "\n".join(f"    {line}" for line in body)

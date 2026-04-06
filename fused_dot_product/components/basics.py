@@ -11,11 +11,6 @@ def _format_c_lowering(template: str, *args_ids: list[int]):
     def lower(args: list[str]) -> str:
         return template.format(*[args[idx] for idx in args_ids])
     return lower
-
-
-def _c_uint(width: int, value: int) -> str:
-    return f"ap_uint<{width}>({value})"
-
 def _impl_constructor(op):
     # To be called with op's arguments and output
     def impl(*args: RuntimeType) -> RuntimeType:

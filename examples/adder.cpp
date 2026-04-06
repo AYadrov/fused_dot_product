@@ -1,62 +1,66 @@
-std::tuple<uint_fast8_t, uint_fast8_t, uint_fast32_t> fp32_unpack(uint_fast32_t arg_0) {  // fp32_unpack
+#pragma once
+#include <cstdint>
+#include <tuple>
+
+static inline std::tuple<uint_fast8_t, uint_fast8_t, uint_fast32_t> fp32_unpack(uint_fast32_t arg_0) {  // fp32_unpack
     const uint_fast8_t tmp = uint_fast8_t(((arg_0 >> 31) & 1));  // _fp32_sign
     const uint_fast8_t tmp_1 = uint_fast8_t(((arg_0 >> 23) & 255));  // _fp32_exponent
     const uint_fast32_t tmp_2 = uint_fast32_t(((arg_0 >> 0) & 8388607));  // _fp32_mantissa
     const std::tuple<uint_fast8_t, uint_fast8_t, uint_fast32_t> tmp_3 = std::tuple<uint_fast8_t, uint_fast8_t, uint_fast32_t>(std::make_tuple(tmp, tmp_1, tmp_2));  // basic_tuple_maker_3
     return tmp_3;
 }
-uint_fast32_t add_implicit_bit(uint_fast32_t arg_0) {  // add_implicit_bit
+static inline uint_fast32_t add_implicit_bit(uint_fast32_t arg_0) {  // add_implicit_bit
     const uint_fast32_t tmp_6 = uint_fast32_t(((uint_fast8_t(1) << 23) | arg_0));  // basic_concat
     return tmp_6;
 }
-uint_fast32_t uq_resize(uint_fast32_t arg_0) {  // uq_resize
+static inline uint_fast32_t uq_resize(uint_fast32_t arg_0) {  // uq_resize
     const uint_fast32_t tmp_8 = uint_fast32_t((arg_0 << uint_fast8_t(6)));  // basic_lshift
     return tmp_8;
 }
-std::tuple<uint_fast8_t, uint_fast8_t> uq_aligner(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_aligner
+static inline std::tuple<uint_fast8_t, uint_fast8_t> uq_aligner(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_aligner
     const uint_fast8_t tmp_13 = uint_fast8_t((arg_0 << uint_fast8_t(0)));  // basic_lshift
     const uint_fast8_t tmp_14 = uint_fast8_t((arg_1 << uint_fast8_t(0)));  // basic_lshift
     const std::tuple<uint_fast8_t, uint_fast8_t> tmp_15 = std::tuple<uint_fast8_t, uint_fast8_t>(std::make_tuple(tmp_13, tmp_14));  // basic_tuple_maker_2
     return tmp_15;
 }
-uint_fast8_t uq_max(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_max
+static inline uint_fast8_t uq_max(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_max
     const std::tuple<uint_fast8_t, uint_fast8_t> tmp_16 = uq_aligner(arg_0, arg_1);  // uq_aligner
     const uint_fast8_t tmp_17 = uint_fast8_t(std::get<0>(tmp_16));  // basic_get_item_0
     const uint_fast8_t tmp_18 = uint_fast8_t(std::get<1>(tmp_16));  // basic_get_item_1
     const uint_fast8_t tmp_19 = uint_fast8_t((tmp_17 > tmp_18 ? tmp_17 : tmp_18));  // basic_max
     return tmp_19;
 }
-std::tuple<uint_fast16_t, uint_fast16_t> uq_aligner_1(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_aligner
+static inline std::tuple<uint_fast16_t, uint_fast16_t> uq_aligner_1(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_aligner
     const uint_fast16_t tmp_21 = uint_fast16_t((arg_0 << uint_fast8_t(0)));  // basic_lshift
     const uint_fast16_t tmp_22 = uint_fast16_t((arg_1 << uint_fast8_t(0)));  // basic_lshift
     const std::tuple<uint_fast16_t, uint_fast16_t> tmp_23 = std::tuple<uint_fast16_t, uint_fast16_t>(std::make_tuple(tmp_21, tmp_22));  // basic_tuple_maker_2
     return tmp_23;
 }
-uint_fast16_t uq_sub(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_sub
+static inline uint_fast16_t uq_sub(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_sub
     const std::tuple<uint_fast16_t, uint_fast16_t> tmp_24 = uq_aligner_1(arg_0, arg_1);  // uq_aligner
     const uint_fast16_t tmp_25 = uint_fast16_t(std::get<0>(tmp_24));  // basic_get_item_0
     const uint_fast16_t tmp_26 = uint_fast16_t(std::get<1>(tmp_24));  // basic_get_item_1
     const uint_fast16_t tmp_27 = uint_fast16_t((tmp_25 - tmp_26));  // basic_sub
     return tmp_27;
 }
-uint_fast32_t uq_rshift(uint_fast32_t arg_0, uint_fast16_t arg_1) {  // uq_rshift
+static inline uint_fast32_t uq_rshift(uint_fast32_t arg_0, uint_fast16_t arg_1) {  // uq_rshift
     const uint_fast32_t tmp_29 = uint_fast32_t((arg_0 >> arg_1));  // basic_rshift
     return tmp_29;
 }
-uint_fast8_t uq_add(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_add
+static inline uint_fast8_t uq_add(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_add
     const std::tuple<uint_fast8_t, uint_fast8_t> tmp_31 = uq_aligner(arg_0, arg_1);  // uq_aligner
     const uint_fast8_t tmp_32 = uint_fast8_t(std::get<0>(tmp_31));  // basic_get_item_0
     const uint_fast8_t tmp_33 = uint_fast8_t(std::get<1>(tmp_31));  // basic_get_item_1
     const uint_fast8_t tmp_34 = uint_fast8_t((tmp_32 + tmp_33));  // basic_add
     return tmp_34;
 }
-uint_fast32_t uq_to_q(uint_fast32_t arg_0) {  // uq_to_q
+static inline uint_fast32_t uq_to_q(uint_fast32_t arg_0) {  // uq_to_q
     const uint_fast8_t tmp_35 = uq_add(uint_fast8_t(1), uint_fast8_t(1));  // uq_add
     const uint_fast32_t tmp_36 = uint_fast32_t(0);  // q_alloc
     const uint_fast32_t tmp_37 = uint_fast32_t(arg_0);  // basic_identity
     return tmp_37;
 }
-uint_fast32_t q_neg(uint_fast32_t arg_0) {  // q_neg
+static inline uint_fast32_t q_neg(uint_fast32_t arg_0) {  // q_neg
     const uint_fast8_t tmp_40 = uint_fast8_t((arg_0 == 1073741824));  // _q_is_min_val
     const uint_fast32_t tmp_41 = uint_fast32_t((~arg_0));  // basic_invert
     const uint_fast32_t tmp_42 = uint_fast32_t((tmp_41 + uint_fast8_t(1)));  // basic_add
@@ -65,16 +69,16 @@ uint_fast32_t q_neg(uint_fast32_t arg_0) {  // q_neg
     const uint_fast32_t tmp_45 = uint_fast32_t((tmp_40 ? tmp_44 : tmp_42));  // basic_mux_2_1
     return tmp_45;
 }
-uint_fast32_t q_add_sign(uint_fast32_t arg_0, uint_fast8_t arg_1) {  // q_add_sign
+static inline uint_fast32_t q_add_sign(uint_fast32_t arg_0, uint_fast8_t arg_1) {  // q_add_sign
     const uint_fast32_t tmp_46 = q_neg(arg_0);  // q_neg
     const uint_fast32_t tmp_47 = uint_fast32_t((arg_1 ? tmp_46 : arg_0));  // basic_mux_2_1
     return tmp_47;
 }
-uint_fast8_t q_sign_bit(uint_fast32_t arg_0) {  // q_sign_bit
+static inline uint_fast8_t q_sign_bit(uint_fast32_t arg_0) {  // q_sign_bit
     const uint_fast8_t tmp_58 = uint_fast8_t(((arg_0 >> 30) & 1));  // basic_select
     return tmp_58;
 }
-uint_fast32_t q_sign_extend(uint_fast32_t arg_0) {  // q_sign_extend
+static inline uint_fast32_t q_sign_extend(uint_fast32_t arg_0) {  // q_sign_extend
     const uint_fast8_t tmp_59 = q_sign_bit(arg_0);  // q_sign_bit
     const uint_fast8_t tmp_60 = uint_fast8_t((tmp_59 << uint_fast8_t(1)));  // basic_lshift
     const uint_fast8_t tmp_61 = uint_fast8_t((tmp_60 - tmp_59));  // basic_sub
@@ -82,7 +86,7 @@ uint_fast32_t q_sign_extend(uint_fast32_t arg_0) {  // q_sign_extend
     const uint_fast32_t tmp_63 = uint_fast32_t(((tmp_61 << 31) | arg_0));  // basic_concat
     return tmp_63;
 }
-std::tuple<uint_fast32_t, uint_fast32_t> q_aligner(uint_fast32_t arg_0, uint_fast32_t arg_1) {  // q_aligner
+static inline std::tuple<uint_fast32_t, uint_fast32_t> q_aligner(uint_fast32_t arg_0, uint_fast32_t arg_1) {  // q_aligner
     const uint_fast32_t tmp_57 = uint_fast32_t((arg_0 << uint_fast8_t(0)));  // basic_lshift
     const uint_fast32_t tmp_64 = q_sign_extend(tmp_57);  // q_sign_extend
     const uint_fast32_t tmp_65 = uint_fast32_t((arg_1 << uint_fast8_t(0)));  // basic_lshift
@@ -90,29 +94,29 @@ std::tuple<uint_fast32_t, uint_fast32_t> q_aligner(uint_fast32_t arg_0, uint_fas
     const std::tuple<uint_fast32_t, uint_fast32_t> tmp_67 = std::tuple<uint_fast32_t, uint_fast32_t>(std::make_tuple(tmp_64, tmp_66));  // basic_tuple_maker_2
     return tmp_67;
 }
-uint_fast32_t q_add(uint_fast32_t arg_0, uint_fast32_t arg_1) {  // q_add
+static inline uint_fast32_t q_add(uint_fast32_t arg_0, uint_fast32_t arg_1) {  // q_add
     const std::tuple<uint_fast32_t, uint_fast32_t> tmp_68 = q_aligner(arg_0, arg_1);  // q_aligner
     const uint_fast32_t tmp_69 = uint_fast32_t(std::get<0>(tmp_68));  // basic_get_item_0
     const uint_fast32_t tmp_70 = uint_fast32_t(std::get<1>(tmp_68));  // basic_get_item_1
     const uint_fast32_t tmp_71 = uint_fast32_t((tmp_69 + tmp_70));  // basic_add
     return tmp_71;
 }
-uint_fast16_t uq_to_q_1(uint_fast8_t arg_0) {  // uq_to_q
+static inline uint_fast16_t uq_to_q_1(uint_fast8_t arg_0) {  // uq_to_q
     const uint_fast8_t tmp_73 = uq_add(uint_fast8_t(8), uint_fast8_t(1));  // uq_add
     const uint_fast16_t tmp_74 = uint_fast16_t(0);  // q_alloc
     const uint_fast16_t tmp_75 = uint_fast16_t(arg_0);  // basic_identity
     return tmp_75;
 }
-uint_fast32_t q_abs(uint_fast32_t arg_0) {  // q_abs
+static inline uint_fast32_t q_abs(uint_fast32_t arg_0) {  // q_abs
     const uint_fast8_t tmp_78 = q_sign_bit(arg_0);  // q_sign_bit
     const uint_fast32_t tmp_79 = q_add_sign(arg_0, tmp_78);  // q_add_sign
     return tmp_79;
 }
-uint_fast32_t q_to_uq(uint_fast32_t arg_0) {  // q_to_uq
+static inline uint_fast32_t q_to_uq(uint_fast32_t arg_0) {  // q_to_uq
     const uint_fast32_t tmp_81 = uint_fast32_t(arg_0);  // basic_identity
     return tmp_81;
 }
-uint_fast8_t lzc(uint_fast32_t arg_0) {  // lzc
+static inline uint_fast8_t lzc(uint_fast32_t arg_0) {  // lzc
     const uint_fast8_t tmp_83 = uint_fast8_t(((arg_0 >> 30) & 1));  // basic_select
     const uint_fast8_t tmp_84 = uint_fast8_t((~tmp_83));  // basic_invert
     const uint_fast8_t tmp_85 = uint_fast8_t((uint_fast8_t(1) & tmp_84));  // basic_and
@@ -239,17 +243,17 @@ uint_fast8_t lzc(uint_fast32_t arg_0) {  // lzc
     const uint_fast8_t tmp_206 = uint_fast8_t((tmp_202 + tmp_205));  // basic_add
     return tmp_206;
 }
-uint_fast8_t uq_to_q_2(uint_fast8_t arg_0) {  // uq_to_q
+static inline uint_fast8_t uq_to_q_2(uint_fast8_t arg_0) {  // uq_to_q
     const uint_fast8_t tmp_208 = uq_add(uint_fast8_t(5), uint_fast8_t(1));  // uq_add
     const uint_fast8_t tmp_209 = uint_fast8_t(0);  // q_alloc
     const uint_fast8_t tmp_210 = uint_fast8_t(arg_0);  // basic_identity
     return tmp_210;
 }
-uint_fast8_t q_sign_bit_1(uint_fast8_t arg_0) {  // q_sign_bit
+static inline uint_fast8_t q_sign_bit_1(uint_fast8_t arg_0) {  // q_sign_bit
     const uint_fast8_t tmp_214 = uint_fast8_t(((arg_0 >> 5) & 1));  // basic_select
     return tmp_214;
 }
-uint_fast8_t q_sign_extend_1(uint_fast8_t arg_0) {  // q_sign_extend
+static inline uint_fast8_t q_sign_extend_1(uint_fast8_t arg_0) {  // q_sign_extend
     const uint_fast8_t tmp_215 = q_sign_bit_1(arg_0);  // q_sign_bit
     const uint_fast8_t tmp_216 = uint_fast8_t((tmp_215 << uint_fast8_t(1)));  // basic_lshift
     const uint_fast8_t tmp_217 = uint_fast8_t((tmp_216 - tmp_215));  // basic_sub
@@ -257,7 +261,7 @@ uint_fast8_t q_sign_extend_1(uint_fast8_t arg_0) {  // q_sign_extend
     const uint_fast8_t tmp_219 = uint_fast8_t(((tmp_217 << 6) | arg_0));  // basic_concat
     return tmp_219;
 }
-uint_fast8_t q_sign_extend_2(uint_fast8_t arg_0) {  // q_sign_extend
+static inline uint_fast8_t q_sign_extend_2(uint_fast8_t arg_0) {  // q_sign_extend
     const uint_fast8_t tmp_222 = q_sign_bit_1(arg_0);  // q_sign_bit
     const uint_fast8_t tmp_223 = uint_fast8_t((tmp_222 << uint_fast8_t(4)));  // basic_lshift
     const uint_fast8_t tmp_224 = uint_fast8_t((tmp_223 - tmp_222));  // basic_sub
@@ -265,7 +269,7 @@ uint_fast8_t q_sign_extend_2(uint_fast8_t arg_0) {  // q_sign_extend
     const uint_fast8_t tmp_226 = uint_fast8_t(((tmp_224 << 3) | arg_0));  // basic_concat
     return tmp_226;
 }
-std::tuple<uint_fast8_t, uint_fast8_t> q_aligner_1(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // q_aligner
+static inline std::tuple<uint_fast8_t, uint_fast8_t> q_aligner_1(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // q_aligner
     const uint_fast8_t tmp_213 = uint_fast8_t((arg_0 << uint_fast8_t(0)));  // basic_lshift
     const uint_fast8_t tmp_220 = q_sign_extend_1(tmp_213);  // q_sign_extend
     const uint_fast8_t tmp_221 = uint_fast8_t((arg_1 << uint_fast8_t(0)));  // basic_lshift
@@ -273,25 +277,25 @@ std::tuple<uint_fast8_t, uint_fast8_t> q_aligner_1(uint_fast8_t arg_0, uint_fast
     const std::tuple<uint_fast8_t, uint_fast8_t> tmp_228 = std::tuple<uint_fast8_t, uint_fast8_t>(std::make_tuple(tmp_220, tmp_227));  // basic_tuple_maker_2
     return tmp_228;
 }
-uint_fast8_t q_sub(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // q_sub
+static inline uint_fast8_t q_sub(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // q_sub
     const std::tuple<uint_fast8_t, uint_fast8_t> tmp_229 = q_aligner_1(arg_0, arg_1);  // q_aligner
     const uint_fast8_t tmp_230 = uint_fast8_t(std::get<0>(tmp_229));  // basic_get_item_0
     const uint_fast8_t tmp_231 = uint_fast8_t(std::get<1>(tmp_229));  // basic_get_item_1
     const uint_fast8_t tmp_232 = uint_fast8_t((tmp_230 - tmp_231));  // basic_sub
     return tmp_232;
 }
-uint_fast8_t q_add_1(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // q_add
+static inline uint_fast8_t q_add_1(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // q_add
     const std::tuple<uint_fast8_t, uint_fast8_t> tmp_234 = q_aligner_1(arg_0, arg_1);  // q_aligner
     const uint_fast8_t tmp_235 = uint_fast8_t(std::get<0>(tmp_234));  // basic_get_item_0
     const uint_fast8_t tmp_236 = uint_fast8_t(std::get<1>(tmp_234));  // basic_get_item_1
     const uint_fast8_t tmp_237 = uint_fast8_t((tmp_235 + tmp_236));  // basic_add
     return tmp_237;
 }
-uint_fast32_t uq_resize_1(uint_fast32_t arg_0) {  // uq_resize
+static inline uint_fast32_t uq_resize_1(uint_fast32_t arg_0) {  // uq_resize
     const uint_fast32_t tmp_240 = uint_fast32_t((arg_0 << uint_fast8_t(1)));  // basic_lshift
     return tmp_240;
 }
-uint_fast8_t q_neg_1(uint_fast8_t arg_0) {  // q_neg
+static inline uint_fast8_t q_neg_1(uint_fast8_t arg_0) {  // q_neg
     const uint_fast8_t tmp_243 = uint_fast8_t((arg_0 == 128));  // _q_is_min_val
     const uint_fast8_t tmp_244 = uint_fast8_t((~arg_0));  // basic_invert
     const uint_fast8_t tmp_245 = uint_fast8_t((tmp_244 + uint_fast8_t(1)));  // basic_add
@@ -300,33 +304,33 @@ uint_fast8_t q_neg_1(uint_fast8_t arg_0) {  // q_neg
     const uint_fast8_t tmp_248 = uint_fast8_t((tmp_243 ? tmp_247 : tmp_245));  // basic_mux_2_1
     return tmp_248;
 }
-uint_fast8_t q_add_sign_1(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // q_add_sign
+static inline uint_fast8_t q_add_sign_1(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // q_add_sign
     const uint_fast8_t tmp_249 = q_neg_1(arg_0);  // q_neg
     const uint_fast8_t tmp_250 = uint_fast8_t((arg_1 ? tmp_249 : arg_0));  // basic_mux_2_1
     return tmp_250;
 }
-uint_fast8_t q_abs_1(uint_fast8_t arg_0) {  // q_abs
+static inline uint_fast8_t q_abs_1(uint_fast8_t arg_0) {  // q_abs
     const uint_fast8_t tmp_242 = q_sign_bit_1(arg_0);  // q_sign_bit
     const uint_fast8_t tmp_251 = q_add_sign_1(arg_0, tmp_242);  // q_add_sign
     return tmp_251;
 }
-uint_fast8_t q_to_uq_1(uint_fast8_t arg_0) {  // q_to_uq
+static inline uint_fast8_t q_to_uq_1(uint_fast8_t arg_0) {  // q_to_uq
     const uint_fast8_t tmp_253 = uint_fast8_t(arg_0);  // basic_identity
     return tmp_253;
 }
-uint_fast32_t uq_lshift(uint_fast32_t arg_0, uint_fast8_t arg_1) {  // uq_lshift
+static inline uint_fast32_t uq_lshift(uint_fast32_t arg_0, uint_fast8_t arg_1) {  // uq_lshift
     const uint_fast32_t tmp_255 = uint_fast32_t((arg_0 << arg_1));  // basic_lshift
     return tmp_255;
 }
-uint_fast32_t uq_rshift_1(uint_fast32_t arg_0, uint_fast8_t arg_1) {  // uq_rshift
+static inline uint_fast32_t uq_rshift_1(uint_fast32_t arg_0, uint_fast8_t arg_1) {  // uq_rshift
     const uint_fast32_t tmp_257 = uint_fast32_t((arg_0 >> arg_1));  // basic_rshift
     return tmp_257;
 }
-uint_fast8_t q_sign_bit_2(uint_fast16_t arg_0) {  // q_sign_bit
+static inline uint_fast8_t q_sign_bit_2(uint_fast16_t arg_0) {  // q_sign_bit
     const uint_fast8_t tmp_261 = uint_fast8_t(((arg_0 >> 8) & 1));  // basic_select
     return tmp_261;
 }
-uint_fast16_t q_sign_extend_3(uint_fast16_t arg_0) {  // q_sign_extend
+static inline uint_fast16_t q_sign_extend_3(uint_fast16_t arg_0) {  // q_sign_extend
     const uint_fast8_t tmp_262 = q_sign_bit_2(arg_0);  // q_sign_bit
     const uint_fast8_t tmp_263 = uint_fast8_t((tmp_262 << uint_fast8_t(1)));  // basic_lshift
     const uint_fast8_t tmp_264 = uint_fast8_t((tmp_263 - tmp_262));  // basic_sub
@@ -334,7 +338,7 @@ uint_fast16_t q_sign_extend_3(uint_fast16_t arg_0) {  // q_sign_extend
     const uint_fast16_t tmp_266 = uint_fast16_t(((tmp_264 << 9) | arg_0));  // basic_concat
     return tmp_266;
 }
-uint_fast16_t q_sign_extend_4(uint_fast8_t arg_0) {  // q_sign_extend
+static inline uint_fast16_t q_sign_extend_4(uint_fast8_t arg_0) {  // q_sign_extend
     const uint_fast8_t tmp_269 = q_sign_bit_1(arg_0);  // q_sign_bit
     const uint_fast8_t tmp_270 = uint_fast8_t((tmp_269 << uint_fast8_t(2)));  // basic_lshift
     const uint_fast8_t tmp_271 = uint_fast8_t((tmp_270 - tmp_269));  // basic_sub
@@ -342,7 +346,7 @@ uint_fast16_t q_sign_extend_4(uint_fast8_t arg_0) {  // q_sign_extend
     const uint_fast16_t tmp_273 = uint_fast16_t(((tmp_271 << 8) | arg_0));  // basic_concat
     return tmp_273;
 }
-std::tuple<uint_fast16_t, uint_fast16_t> q_aligner_2(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // q_aligner
+static inline std::tuple<uint_fast16_t, uint_fast16_t> q_aligner_2(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // q_aligner
     const uint_fast16_t tmp_260 = uint_fast16_t((arg_0 << uint_fast8_t(0)));  // basic_lshift
     const uint_fast16_t tmp_267 = q_sign_extend_3(tmp_260);  // q_sign_extend
     const uint_fast8_t tmp_268 = uint_fast8_t((arg_1 << uint_fast8_t(0)));  // basic_lshift
@@ -350,21 +354,21 @@ std::tuple<uint_fast16_t, uint_fast16_t> q_aligner_2(uint_fast16_t arg_0, uint_f
     const std::tuple<uint_fast16_t, uint_fast16_t> tmp_275 = std::tuple<uint_fast16_t, uint_fast16_t>(std::make_tuple(tmp_267, tmp_274));  // basic_tuple_maker_2
     return tmp_275;
 }
-uint_fast16_t q_sub_1(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // q_sub
+static inline uint_fast16_t q_sub_1(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // q_sub
     const std::tuple<uint_fast16_t, uint_fast16_t> tmp_276 = q_aligner_2(arg_0, arg_1);  // q_aligner
     const uint_fast16_t tmp_277 = uint_fast16_t(std::get<0>(tmp_276));  // basic_get_item_0
     const uint_fast16_t tmp_278 = uint_fast16_t(std::get<1>(tmp_276));  // basic_get_item_1
     const uint_fast16_t tmp_279 = uint_fast16_t((tmp_277 - tmp_278));  // basic_sub
     return tmp_279;
 }
-uint_fast16_t q_add_2(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // q_add
+static inline uint_fast16_t q_add_2(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // q_add
     const std::tuple<uint_fast16_t, uint_fast16_t> tmp_281 = q_aligner_2(arg_0, arg_1);  // q_aligner
     const uint_fast16_t tmp_282 = uint_fast16_t(std::get<0>(tmp_281));  // basic_get_item_0
     const uint_fast16_t tmp_283 = uint_fast16_t(std::get<1>(tmp_281));  // basic_get_item_1
     const uint_fast16_t tmp_284 = uint_fast16_t((tmp_282 + tmp_283));  // basic_add
     return tmp_284;
 }
-std::tuple<uint_fast32_t, uint_fast16_t> fp32_normalize(uint_fast32_t arg_0, uint_fast16_t arg_1) {  // fp32_normalize
+static inline std::tuple<uint_fast32_t, uint_fast16_t> fp32_normalize(uint_fast32_t arg_0, uint_fast16_t arg_1) {  // fp32_normalize
     const uint_fast8_t tmp_207 = lzc(arg_0);  // lzc
     const uint_fast8_t tmp_211 = uq_to_q_2(tmp_207);  // uq_to_q
     const uint_fast8_t tmp_212 = uq_to_q_2(uint_fast8_t(2));  // uq_to_q
@@ -383,12 +387,12 @@ std::tuple<uint_fast32_t, uint_fast16_t> fp32_normalize(uint_fast32_t arg_0, uin
     const std::tuple<uint_fast32_t, uint_fast16_t> tmp_287 = std::tuple<uint_fast32_t, uint_fast16_t>(std::make_tuple(tmp_259, tmp_286));  // basic_tuple_maker_2
     return tmp_287;
 }
-uint_fast8_t q_is_zero(uint_fast16_t arg_0) {  // q_is_zero
+static inline uint_fast8_t q_is_zero(uint_fast16_t arg_0) {  // q_is_zero
     const uint_fast8_t tmp_292 = uint_fast8_t((arg_0 != 0));  // basic_or_reduce
     const uint_fast8_t tmp_293 = uint_fast8_t((~tmp_292));  // basic_invert
     return tmp_293;
 }
-uint_fast16_t q_neg_2(uint_fast16_t arg_0) {  // q_neg
+static inline uint_fast16_t q_neg_2(uint_fast16_t arg_0) {  // q_neg
     const uint_fast8_t tmp_298 = uint_fast8_t((arg_0 == 512));  // _q_is_min_val
     const uint_fast16_t tmp_299 = uint_fast16_t((~arg_0));  // basic_invert
     const uint_fast16_t tmp_300 = uint_fast16_t((tmp_299 + uint_fast8_t(1)));  // basic_add
@@ -397,38 +401,38 @@ uint_fast16_t q_neg_2(uint_fast16_t arg_0) {  // q_neg
     const uint_fast16_t tmp_303 = uint_fast16_t((tmp_298 ? tmp_302 : tmp_300));  // basic_mux_2_1
     return tmp_303;
 }
-uint_fast16_t q_add_sign_2(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // q_add_sign
+static inline uint_fast16_t q_add_sign_2(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // q_add_sign
     const uint_fast16_t tmp_304 = q_neg_2(arg_0);  // q_neg
     const uint_fast16_t tmp_305 = uint_fast16_t((arg_1 ? tmp_304 : arg_0));  // basic_mux_2_1
     return tmp_305;
 }
-uint_fast16_t q_abs_2(uint_fast16_t arg_0) {  // q_abs
+static inline uint_fast16_t q_abs_2(uint_fast16_t arg_0) {  // q_abs
     const uint_fast8_t tmp_297 = q_sign_bit_2(arg_0);  // q_sign_bit
     const uint_fast16_t tmp_306 = q_add_sign_2(arg_0, tmp_297);  // q_add_sign
     return tmp_306;
 }
-uint_fast16_t q_to_uq_2(uint_fast16_t arg_0) {  // q_to_uq
+static inline uint_fast16_t q_to_uq_2(uint_fast16_t arg_0) {  // q_to_uq
     const uint_fast16_t tmp_308 = uint_fast16_t(arg_0);  // basic_identity
     return tmp_308;
 }
-std::tuple<uint_fast16_t, uint_fast16_t> uq_aligner_2(uint_fast8_t arg_0, uint_fast16_t arg_1) {  // uq_aligner
+static inline std::tuple<uint_fast16_t, uint_fast16_t> uq_aligner_2(uint_fast8_t arg_0, uint_fast16_t arg_1) {  // uq_aligner
     const uint_fast16_t tmp_310 = uint_fast16_t((arg_0 << uint_fast8_t(0)));  // basic_lshift
     const uint_fast16_t tmp_311 = uint_fast16_t((arg_1 << uint_fast8_t(0)));  // basic_lshift
     const std::tuple<uint_fast16_t, uint_fast16_t> tmp_312 = std::tuple<uint_fast16_t, uint_fast16_t>(std::make_tuple(tmp_310, tmp_311));  // basic_tuple_maker_2
     return tmp_312;
 }
-uint_fast16_t uq_add_1(uint_fast8_t arg_0, uint_fast16_t arg_1) {  // uq_add
+static inline uint_fast16_t uq_add_1(uint_fast8_t arg_0, uint_fast16_t arg_1) {  // uq_add
     const std::tuple<uint_fast16_t, uint_fast16_t> tmp_313 = uq_aligner_2(arg_0, arg_1);  // uq_aligner
     const uint_fast16_t tmp_314 = uint_fast16_t(std::get<0>(tmp_313));  // basic_get_item_0
     const uint_fast16_t tmp_315 = uint_fast16_t(std::get<1>(tmp_313));  // basic_get_item_1
     const uint_fast16_t tmp_316 = uint_fast16_t((tmp_314 + tmp_315));  // basic_add
     return tmp_316;
 }
-uint_fast64_t uq_rshift_2(uint_fast64_t arg_0, uint_fast16_t arg_1) {  // uq_rshift
+static inline uint_fast64_t uq_rshift_2(uint_fast64_t arg_0, uint_fast16_t arg_1) {  // uq_rshift
     const uint_fast64_t tmp_319 = uint_fast64_t((arg_0 >> arg_1));  // basic_rshift
     return tmp_319;
 }
-std::tuple<uint_fast64_t, uint_fast16_t> fp32_classify(uint_fast32_t arg_0, uint_fast16_t arg_1) {  // fp32_classify
+static inline std::tuple<uint_fast64_t, uint_fast16_t> fp32_classify(uint_fast32_t arg_0, uint_fast16_t arg_1) {  // fp32_classify
     const uint_fast64_t tmp_291 = uint_fast64_t((arg_0 << uint_fast8_t(10)));  // basic_lshift
     const uint_fast8_t tmp_294 = q_is_zero(arg_1);  // q_is_zero
     const uint_fast8_t tmp_295 = q_sign_bit_2(arg_1);  // q_sign_bit
@@ -442,20 +446,20 @@ std::tuple<uint_fast64_t, uint_fast16_t> fp32_classify(uint_fast32_t arg_0, uint
     const std::tuple<uint_fast64_t, uint_fast16_t> tmp_322 = std::tuple<uint_fast64_t, uint_fast16_t>(std::make_tuple(tmp_320, tmp_321));  // basic_tuple_maker_2
     return tmp_322;
 }
-uint_fast64_t drop_implicit_bit(uint_fast64_t arg_0) {  // drop_implicit_bit
+static inline uint_fast64_t drop_implicit_bit(uint_fast64_t arg_0) {  // drop_implicit_bit
     const uint_fast64_t tmp_325 = uint_fast64_t(((arg_0 >> 0) & 1099511627775));  // basic_select
     return tmp_325;
 }
-uint_fast8_t uq_is_zero(uint_fast16_t arg_0) {  // uq_is_zero
+static inline uint_fast8_t uq_is_zero(uint_fast16_t arg_0) {  // uq_is_zero
     const uint_fast8_t tmp_328 = uint_fast8_t((arg_0 != 0));  // basic_or_reduce
     const uint_fast8_t tmp_329 = uint_fast8_t((~tmp_328));  // basic_invert
     return tmp_329;
 }
-uint_fast32_t uq_resize_2(uint_fast64_t arg_0) {  // uq_resize
+static inline uint_fast32_t uq_resize_2(uint_fast64_t arg_0) {  // uq_resize
     const uint_fast32_t tmp_331 = uint_fast32_t((arg_0 >> uint_fast8_t(17)));  // basic_rshift
     return tmp_331;
 }
-uint_fast32_t uq_RNE_IEEE(uint_fast64_t arg_0) {  // uq_RNE_IEEE
+static inline uint_fast32_t uq_RNE_IEEE(uint_fast64_t arg_0) {  // uq_RNE_IEEE
     const uint_fast8_t tmp_333 = uint_fast8_t(((arg_0 >> 16) & 1));  // basic_select
     const uint_fast8_t tmp_334 = uint_fast8_t(((arg_0 >> 15) & 1));  // basic_select
     const uint_fast16_t tmp_335 = uint_fast16_t(((arg_0 >> 0) & 32767));  // basic_select
@@ -467,33 +471,33 @@ uint_fast32_t uq_RNE_IEEE(uint_fast64_t arg_0) {  // uq_RNE_IEEE
     const uint_fast32_t tmp_341 = uint_fast32_t(tmp_340);  // basic_identity
     return tmp_341;
 }
-std::tuple<uint_fast32_t, uint_fast32_t> uq_aligner_3(uint_fast32_t arg_0, uint_fast32_t arg_1) {  // uq_aligner
+static inline std::tuple<uint_fast32_t, uint_fast32_t> uq_aligner_3(uint_fast32_t arg_0, uint_fast32_t arg_1) {  // uq_aligner
     const uint_fast32_t tmp_343 = uint_fast32_t((arg_0 << uint_fast8_t(0)));  // basic_lshift
     const uint_fast32_t tmp_344 = uint_fast32_t((arg_1 << uint_fast8_t(0)));  // basic_lshift
     const std::tuple<uint_fast32_t, uint_fast32_t> tmp_345 = std::tuple<uint_fast32_t, uint_fast32_t>(std::make_tuple(tmp_343, tmp_344));  // basic_tuple_maker_2
     return tmp_345;
 }
-uint_fast32_t uq_add_2(uint_fast32_t arg_0, uint_fast32_t arg_1) {  // uq_add
+static inline uint_fast32_t uq_add_2(uint_fast32_t arg_0, uint_fast32_t arg_1) {  // uq_add
     const std::tuple<uint_fast32_t, uint_fast32_t> tmp_346 = uq_aligner_3(arg_0, arg_1);  // uq_aligner
     const uint_fast32_t tmp_347 = uint_fast32_t(std::get<0>(tmp_346));  // basic_get_item_0
     const uint_fast32_t tmp_348 = uint_fast32_t(std::get<1>(tmp_346));  // basic_get_item_1
     const uint_fast32_t tmp_349 = uint_fast32_t((tmp_347 + tmp_348));  // basic_add
     return tmp_349;
 }
-std::tuple<uint_fast16_t, uint_fast16_t> uq_aligner_4(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // uq_aligner
+static inline std::tuple<uint_fast16_t, uint_fast16_t> uq_aligner_4(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // uq_aligner
     const uint_fast16_t tmp_352 = uint_fast16_t((arg_0 << uint_fast8_t(0)));  // basic_lshift
     const uint_fast16_t tmp_353 = uint_fast16_t((arg_1 << uint_fast8_t(0)));  // basic_lshift
     const std::tuple<uint_fast16_t, uint_fast16_t> tmp_354 = std::tuple<uint_fast16_t, uint_fast16_t>(std::make_tuple(tmp_352, tmp_353));  // basic_tuple_maker_2
     return tmp_354;
 }
-uint_fast16_t uq_add_3(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // uq_add
+static inline uint_fast16_t uq_add_3(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // uq_add
     const std::tuple<uint_fast16_t, uint_fast16_t> tmp_355 = uq_aligner_4(arg_0, arg_1);  // uq_aligner
     const uint_fast16_t tmp_356 = uint_fast16_t(std::get<0>(tmp_355));  // basic_get_item_0
     const uint_fast16_t tmp_357 = uint_fast16_t(std::get<1>(tmp_355));  // basic_get_item_1
     const uint_fast16_t tmp_358 = uint_fast16_t((tmp_356 + tmp_357));  // basic_add
     return tmp_358;
 }
-std::tuple<uint_fast32_t, uint_fast16_t> fp32_round(uint_fast64_t arg_0, uint_fast16_t arg_1) {  // fp32_round
+static inline std::tuple<uint_fast32_t, uint_fast16_t> fp32_round(uint_fast64_t arg_0, uint_fast16_t arg_1) {  // fp32_round
     const uint_fast8_t tmp_330 = uq_is_zero(arg_1);  // uq_is_zero
     const uint_fast32_t tmp_332 = uq_resize_2(arg_0);  // uq_resize
     const uint_fast32_t tmp_342 = uq_RNE_IEEE(arg_0);  // uq_RNE_IEEE
@@ -508,19 +512,19 @@ std::tuple<uint_fast32_t, uint_fast16_t> fp32_round(uint_fast64_t arg_0, uint_fa
     const std::tuple<uint_fast32_t, uint_fast16_t> tmp_365 = std::tuple<uint_fast32_t, uint_fast16_t>(std::make_tuple(tmp_364, tmp_359));  // basic_tuple_maker_2
     return tmp_365;
 }
-uint_fast16_t uq_min(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // uq_min
+static inline uint_fast16_t uq_min(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // uq_min
     const std::tuple<uint_fast16_t, uint_fast16_t> tmp_369 = uq_aligner_4(arg_0, arg_1);  // uq_aligner
     const uint_fast16_t tmp_370 = uint_fast16_t(std::get<0>(tmp_369));  // basic_get_item_0
     const uint_fast16_t tmp_371 = uint_fast16_t(std::get<1>(tmp_369));  // basic_get_item_1
     const uint_fast16_t tmp_372 = uint_fast16_t((tmp_370 < tmp_371 ? tmp_370 : tmp_371));  // basic_min
     return tmp_372;
 }
-uint_fast8_t uq_is_zero_1(uint_fast32_t arg_0) {  // uq_is_zero
+static inline uint_fast8_t uq_is_zero_1(uint_fast32_t arg_0) {  // uq_is_zero
     const uint_fast8_t tmp_378 = uint_fast8_t((arg_0 != 0));  // basic_or_reduce
     const uint_fast8_t tmp_379 = uint_fast8_t((~tmp_378));  // basic_invert
     return tmp_379;
 }
-std::tuple<uint_fast32_t, uint_fast8_t> fp32_encodings(uint_fast32_t arg_0, uint_fast16_t arg_1, uint_fast32_t arg_2) {  // fp32_encodings
+static inline std::tuple<uint_fast32_t, uint_fast8_t> fp32_encodings(uint_fast32_t arg_0, uint_fast16_t arg_1, uint_fast32_t arg_2) {  // fp32_encodings
     const uint_fast16_t tmp_373 = uq_min(arg_1, uint_fast8_t(255));  // uq_min
     const uint_fast8_t tmp_374 = uint_fast8_t(tmp_373);  // basic_identity
     const uint_fast8_t tmp_375 = uint_fast8_t((tmp_374 == 255));  // basic_and_reduce
@@ -531,11 +535,11 @@ std::tuple<uint_fast32_t, uint_fast8_t> fp32_encodings(uint_fast32_t arg_0, uint
     const std::tuple<uint_fast32_t, uint_fast8_t> tmp_382 = std::tuple<uint_fast32_t, uint_fast8_t>(std::make_tuple(tmp_377, tmp_381));  // basic_tuple_maker_2
     return tmp_382;
 }
-uint_fast32_t fp32_pack(uint_fast8_t arg_0, uint_fast8_t arg_1, uint_fast32_t arg_2) {  // fp32_pack
+static inline uint_fast32_t fp32_pack(uint_fast8_t arg_0, uint_fast8_t arg_1, uint_fast32_t arg_2) {  // fp32_pack
     const uint_fast32_t tmp_386 = uint_fast32_t(((arg_0 << 31) | (arg_1 << 23) | arg_2));  // float32_alloc
     return tmp_386;
 }
-uint_fast32_t encode_Float32(uint_fast32_t arg_0, uint_fast16_t arg_1) {  // encode_Float32
+static inline uint_fast32_t encode_Float32(uint_fast32_t arg_0, uint_fast16_t arg_1) {  // encode_Float32
     const uint_fast8_t tmp_77 = q_sign_bit(arg_0);  // q_sign_bit
     const uint_fast32_t tmp_80 = q_abs(arg_0);  // q_abs
     const uint_fast32_t tmp_82 = q_to_uq(tmp_80);  // q_to_uq
@@ -555,7 +559,7 @@ uint_fast32_t encode_Float32(uint_fast32_t arg_0, uint_fast16_t arg_1) {  // enc
     const uint_fast32_t tmp_387 = fp32_pack(tmp_77, tmp_384, tmp_385);  // fp32_pack
     return tmp_387;
 }
-uint_fast32_t FP32_IEEE_adder(uint_fast32_t arg_0, uint_fast32_t arg_1) {  // FP32_IEEE_adder
+static inline uint_fast32_t FP32_IEEE_adder_impl(uint_fast32_t arg_0, uint_fast32_t arg_1) {  // FP32_IEEE_adder
     const std::tuple<uint_fast8_t, uint_fast8_t, uint_fast32_t> tmp_4 = fp32_unpack(arg_0);  // fp32_unpack
     const uint_fast32_t tmp_5 = uint_fast32_t(std::get<2>(tmp_4));  // basic_get_item_2
     const uint_fast32_t tmp_7 = add_implicit_bit(tmp_5);  // add_implicit_bit
@@ -581,4 +585,7 @@ uint_fast32_t FP32_IEEE_adder(uint_fast32_t arg_0, uint_fast32_t arg_1) {  // FP
     const uint_fast16_t tmp_76 = uq_to_q_1(tmp_20);  // uq_to_q
     const uint_fast32_t tmp_388 = encode_Float32(tmp_72, tmp_76);  // encode_Float32
     return tmp_388;
+}
+extern "C" inline uint_fast32_t FP32_IEEE_adder(uint_fast32_t arg_0, uint_fast32_t arg_1) {
+    return FP32_IEEE_adder_impl(arg_0, arg_1);
 }
