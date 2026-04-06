@@ -225,8 +225,7 @@ class TupleT(StaticType):
         return tuple(x.to_spec(name=f"{name}_{i}", ctx=ctx) for i, x in enumerate(self.args))
 
     def to_cpp_type(self, jitable) -> str:
-        inner = ", ".join(arg.to_cpp_type(jitable=jitable) for arg in self.args)
-        return f"std::tuple<{inner}>"
+        return f"std::array<uint64_t, {len(self.args)}>"
 
 
 __all__ = [

@@ -7,7 +7,7 @@ import typing as tp
 from ..ast.node import Node
 from ..ast.nodes import Const, Op, Var, composite, primitive
 from ..types.runtime import BFloat16, Bool, Float32, Q, RuntimeType, Tuple, UQ
-from ..types.static import StaticType
+from ..types.static import StaticType, TupleT
 
 
 class CppLoweringError(RuntimeError):
@@ -30,6 +30,7 @@ class _FunctionContext:
 _Fingerprint = tuple[tp.Any, ...]
 
 
+# TODO: would be nice to support nested arrays
 class _CppEmitter:
     def __init__(self, jitable: bool = True) -> None:
         self._reserved_names = {}
@@ -43,32 +44,27 @@ class _CppEmitter:
             public_name = self._make_name(function_name)
             internal_name = self._make_name(f"{public_name}_impl")
             self.emit_function(root=root, function_name=internal_name)
-            wrapper_signature = self._signature(
-                name=public_name,
-                args=root.inner_args,
-                return_type=root.node_type,
-            )
             self._functions.append(
-                "\n".join(
-                    [
-                        f'extern "C" inline {wrapper_signature} {{',
-                        f"    return {internal_name}({', '.join(arg.name for arg in root.inner_args)});",
-                        "}",
-                    ]
+                self._render_public_wrapper(
+                    public_name=public_name,
+                    internal_name=internal_name,
+                    args=root.inner_args,
+                    return_type=root.node_type,
                 )
             )
             parts = [
                 "#pragma once",
+                "#include <array>",
                 "#include <cstdint>",
-                "#include <tuple>",
                 "",
                 *list(self._functions),
             ]
         else: 
             self.emit_function(root=root, function_name=function_name)
             parts = [
+                "#include <array>",
                 "#include <ap_int.h>",
-                "#include <tuple>",
+                "#include <cstdint>",
                 "",
                 *list(self._functions),
             ]
@@ -232,8 +228,15 @@ class _CppEmitter:
 
     def _const_expr(self, value: RuntimeType) -> str:
         if isinstance(value, Tuple):
+            for arg in value.args:
+                if isinstance(arg, Tuple):
+                    raise CppLoweringError("Nested tuples are not supported in C++ lowering")
             args = [self._lower_const(arg) for arg in value.args]
-            return f"std::make_tuple({', '.join(arg.expr for arg in args)})"
+            return (
+                f"{self._render_type(value.static_type())}{{"
+                + ", ".join(f"static_cast<uint64_t>({arg.expr})" for arg in args)
+                + "}"
+            )
 
         if isinstance(value, Bool):
             return self._cast(value.static_type(), str(value.val))
@@ -261,11 +264,49 @@ class _CppEmitter:
             f"{self._render_type(arg.node_type)} {arg.name}" for arg in args
         )
         return f"{self._render_type(return_type)} {name}({params_sig})"
+
+    def _render_public_wrapper(
+        self,
+        public_name: str,
+        internal_name: str,
+        args: list[Var],
+        return_type: StaticType,
+    ) -> str:
+        call_args = ", ".join(arg.name for arg in args)
+        if isinstance(return_type, TupleT):
+            params = [f"{self._render_type(arg.node_type)} {arg.name}" for arg in args]
+            params.append("uint64_t* out")
+            body = [
+                f'extern "C" inline void {public_name}({", ".join(params)}) {{',
+                f"    const {self._render_type(return_type)} result = {internal_name}({call_args});",
+            ]
+            body.extend(
+                f"    out[{idx}] = result[{idx}];" for idx in range(len(return_type.args))
+            )
+            body.append("}")
+            return "\n".join(body)
+
+        wrapper_signature = self._signature(
+            name=public_name,
+            args=args,
+            return_type=return_type,
+        )
+        return "\n".join(
+            [
+                f'extern "C" inline {wrapper_signature} {{',
+                f"    return {internal_name}({call_args});",
+                "}",
+            ]
+        )
     
     def _render_type(self, type_: StaticType) -> str:
+        if isinstance(type_, TupleT) and any(isinstance(arg, TupleT) for arg in type_.args):
+            raise CppLoweringError("Nested tuples are not supported in C++ lowering")
         return type_.to_cpp_type(jitable=self._jitable)
     
     def _cast(self, type_: StaticType, expr: str) -> str:
+        if isinstance(type_, TupleT):
+            return expr
         return f"{self._render_type(type_)}({expr})"
     
     def _emit_temp(
