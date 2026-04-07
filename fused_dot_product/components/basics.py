@@ -140,7 +140,7 @@ def basic_rshift(x: Node, amount: Node, out: Node) -> Op:
         x=x,
         y=amount,
         out=out,
-        c_lowering=_format_c_lowering(f"({{1}} >= {width} ? 0 : ({{0}} >> {{1}}))", 0, 1),
+        c_lowering=_format_c_lowering(f"({{1}} >= {width} ? 0 : ({{0}} >> {{1}}))", 0, 1),  # Shifting more than bitwidth is undef. behavior
         name="basic_rshift",
     )
 
@@ -151,7 +151,7 @@ def basic_lshift(x: Node, amount: Node, out: Node) -> Op:
         x=x,
         y=amount,
         out=out,
-        c_lowering=_format_c_lowering(f"({{1}} >= {width} ? 0 : ({{0}} << {{1}}))", 0, 1),
+        c_lowering=_format_c_lowering(f"({{1}} >= {width} ? 0 : ({{0}} << {{1}}))", 0, 1),  # Shifting more than bitwidth is undef. behavior
         name="basic_lshift",
     )
 
