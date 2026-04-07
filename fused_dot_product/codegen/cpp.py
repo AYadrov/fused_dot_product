@@ -30,7 +30,6 @@ class _FunctionContext:
 _Fingerprint = tuple[tp.Any, ...]
 
 
-# TODO: would be nice to support nested arrays
 class _CppEmitter:
     def __init__(self) -> None:
         self._reserved_names = {}
@@ -39,6 +38,8 @@ class _CppEmitter:
         self._fingerprint_cache: dict[Node, _Fingerprint] = {}
 
     def emit_cpp(self, root: Node, function_name: str) -> str:
+        if isinstance(root.node_type, TupleT):
+            raise CppLoweringError("Tuple-typed entry points are not supported in C++ lowering")
         public_name = self._make_name(function_name)
         internal_name = self._make_name(f"{public_name}_impl")
         self.emit_function(root=root, function_name=internal_name)
@@ -109,8 +110,9 @@ class _CppEmitter:
         return root.inner_args
 
     def _should_inline(self, node: Node) -> bool:
-        return isinstance(node, (primitive, composite)) and bool(
-            getattr(node, "c_inline", False)
+        return isinstance(node, (primitive, composite)) and (
+            bool(getattr(node, "c_inline", False))
+            or isinstance(node.node_type, TupleT)  # FOR NOW. SOME TROUBLES WIT JIT AND ARRAYS - JUST INLINE EVERY TUPLE
         )
 
     def _lower(
@@ -141,14 +143,22 @@ class _CppEmitter:
             return lowered
 
         if isinstance(node, (primitive, composite)):
-            if self._should_inline(node):
+            if self._should_inline(node):  # Inlining functions into current call
+                # Lowering args
                 lowered_args = [self._lower(arg, env, ctx) for arg in node.args]
                 inline_env = dict(env)
                 inline_env.update(dict(zip(node.inner_args, lowered_args)))
+
+                # Lowering body
+                if not node.c_inline:
+                    ctx.statements.append(f"// begin inline {type(node).__name__} {node.name}")
                 lowered = self._lower(node.inner_tree, inline_env, ctx)
+                if not node.c_inline:
+                    ctx.statements.append(f"// end inline {type(node).__name__} {node.name}")
+                    
                 ctx.memo[node] = lowered
                 return lowered
-            else:
+            else:  # Create a separate function for the node
                 lowered_args = [self._lower(arg, env, ctx) for arg in node.args]
                 helper_name = self._function_cache.get(self._fingerprint(node))
                 if helper_name is None:
@@ -259,19 +269,6 @@ class _CppEmitter:
         return_type: StaticType,
     ) -> str:
         call_args = ", ".join(arg.name for arg in args)
-        if isinstance(return_type, TupleT):
-            params = [f"{self._render_type(arg.node_type)} {arg.name}" for arg in args]
-            params.append("uint64_t* out")
-            body = [
-                f'extern "C" inline void {public_name}({", ".join(params)}) {{',
-                f"    const {self._render_type(return_type)} result = {internal_name}({call_args});",
-            ]
-            body.extend(
-                f"    out[{idx}] = result[{idx}];" for idx in range(len(return_type.args))
-            )
-            body.append("}")
-            return "\n".join(body)
-
         wrapper_signature = self._signature(
             name=public_name,
             args=args,
