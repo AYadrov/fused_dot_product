@@ -178,23 +178,28 @@ class _CppEmitter:
         if node in self._fingerprint_cache:
             return self._fingerprint_cache[node]
         if isinstance(node, Var):
-            result = ("Var", node.name, node.node_type.to_cpp_type())
+            result = ("Var", node.name, node.node_type)
         elif isinstance(node, Const):
-            result = ("Const", node.name, node.node_type.to_cpp_type())
+            result = ("Const", node.val)
         elif isinstance(node, Op):
-            template = None
+            lowering_fingerprint = None
+            if node.c_lowering is not None:
+                lowering_fingerprint = node.c_lowering(
+                    [f"${idx}" for idx in range(len(node.args))]
+                )
             result = (
                 "Op",
                 node.name,
-                node.node_type.to_cpp_type(),
+                node.node_type,
+                lowering_fingerprint,
                 tuple(self._fingerprint(arg) for arg in node.args),
             )
         elif isinstance(node, (primitive, composite)):
             result = (
                 type(node).__name__,
                 node.name,
-                node.node_type.to_cpp_type(),
-                tuple(arg.node_type.to_cpp_type() for arg in node.inner_args),
+                node.node_type,
+                tuple(arg.node_type for arg in node.inner_args),
                 self._fingerprint(node.inner_tree),
             )
         else:
@@ -206,9 +211,9 @@ class _CppEmitter:
     
     def _freeze(self, value: tp.Any) -> tp.Any:
         if isinstance(value, StaticType):
-            return value.to_cpp_type()
+            return self._fingerprint_static_type(value)
         if isinstance(value, RuntimeType):
-            return self._fingerprint_value(value)
+            return self._fingerprint_runtime_value(value)
         if isinstance(value, list):
             return tuple(self._freeze(item) for item in value)
         if isinstance(value, tuple):
@@ -216,6 +221,30 @@ class _CppEmitter:
         if isinstance(value, dict):
             return tuple(sorted((key, self._freeze(item)) for key, item in value.items()))
         return value
+
+    def _fingerprint_static_type(self, value: StaticType) -> tp.Any:
+        if isinstance(value, TupleT):
+            return (
+                type(value).__name__,
+                tuple(self._fingerprint_static_type(arg) for arg in value.args),
+            )
+        attrs = tuple(
+            sorted(
+                (key, self._freeze(item))
+                for key, item in vars(value).items()
+                if key != "runtime_val"
+            )
+        )
+        return (type(value).__name__, attrs)
+
+    def _fingerprint_runtime_value(self, value: RuntimeType) -> tp.Any:
+        if isinstance(value, Tuple):
+            return (
+                type(value).__name__,
+                tuple(self._fingerprint_runtime_value(arg) for arg in value.args),
+            )
+        attrs = tuple(sorted((key, self._freeze(item)) for key, item in vars(value).items()))
+        return (type(value).__name__, attrs)
     
     
     def _lower_const(self, value: RuntimeType) -> _CppValue:
@@ -290,7 +319,10 @@ class _CppEmitter:
     def _cast(self, type_: StaticType, expr: str) -> str:
         if isinstance(type_, TupleT):
             return expr
-        return f"{self._render_type(type_)}({expr})"
+        return f"{self._render_type(type_)}({self._mask(expr, type_)})"
+
+    def _mask(self, expr: str, type_):
+        return f"{expr} & {(1 << type_.total_bits()) - 1}"
     
     def _emit_temp(
         self,

@@ -50,8 +50,7 @@ class composite(Node):
         
         def impl_(*args):
             for var, arg in zip(self.inner_args, args):
-                if isinstance(var, Var):
-                    var.load_val(arg)
+                var.load_val(arg)
             return self.inner_tree.evaluate()
         
         # Signature is obtained from the inner tree

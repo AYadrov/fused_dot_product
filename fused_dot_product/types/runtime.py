@@ -253,13 +253,11 @@ class Float32(RuntimeType):
             raise ValueError(f"Float32 mantissa out of range: {mantissa}")
         if not (0 <= exponent < (1 << self.exponent_bits)):
             raise ValueError(f"Float32 exponent out of range: {exponent}")
-        
-        self.val = (sign << (self.exponent_bits + self.mantissa_bits)) \
-                 | (exponent << self.mantissa_bits) \
-                 | mantissa
+         
         self.sign = sign
         self.mantissa = mantissa
         self.exponent = exponent
+        self.val = self.to_bits()
     
     def __str__(self):
         return f"Float({str(self.to_val())})"
@@ -283,7 +281,25 @@ class Float32(RuntimeType):
             frac = 1.0 + self.mantissa / (2 ** self.mantissa_bits)
             exp_val = self.exponent - self.exponent_bias
             return float((-1) ** self.sign * frac * (2 ** exp_val))
+
+    @classmethod
+    def random_generator(cls, seed: int = int(time.time())):
+        rnd = random.Random(seed)
+        def gen():
+            return Float32.from_bits(rnd.getrandbits(32))
+        return gen
+
+    def to_bits(self):
+        return (self.sign << (self.exponent_bits + self.mantissa_bits)) | (self.exponent << self.mantissa_bits) | self.mantissa
     
+    @classmethod
+    def from_bits(cls, x: int):
+        assert x >= 0 and x < (1 << 32), f"out of range/negative value is provided ({x})"
+        sign_bit = (x >> (cls.exponent_bits + cls.mantissa_bits)) & 1
+        exponent_bits = (x >> cls.mantissa_bits) & ((1 << cls.exponent_bits) - 1)
+        mantissa_bits = x & ((1 << cls.mantissa_bits) - 1)
+        return Float32(sign_bit, exponent_bits, mantissa_bits)
+        
     # TODO: that's sketchy
     def to_spec(self, ctx):
         return ctx.real_val(self.to_val())
@@ -320,7 +336,7 @@ class Float32(RuntimeType):
     def __eq__(self, other):
         return (
             isinstance(other, Float32)
-            and self.val == other.val
+            and self.to_bits() == other.to_bits()
         )
 
 

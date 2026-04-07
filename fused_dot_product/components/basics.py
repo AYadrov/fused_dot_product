@@ -74,7 +74,7 @@ def basic_mux_2_1(sel: Node, in0: Node, in1: Node, out: Node) -> Op:
         y=in0,
         z=in1,
         out=out,
-        c_lowering=_format_c_lowering("({} ? {} : {})", 0, 2, 1),  # TODO: not always a boolean
+        c_lowering=_format_c_lowering("({} == 1 ? {} : {})", 0, 2, 1),  # TODO: not always a boolean
         name="basic_mux_2_1",
     )
 
@@ -134,22 +134,24 @@ def basic_min(x: Node, y: Node, out: Node) -> Op:
     )
 
 def basic_rshift(x: Node, amount: Node, out: Node) -> Op:
+    width = x.node_type.total_bits()
     return _binary_operator(
         op=lambda x, amount: x.val >> amount.val,
         x=x,
         y=amount,
         out=out,
-        c_lowering=_format_c_lowering("({} >> {})", 0, 1),
+        c_lowering=_format_c_lowering(f"({{1}} >= {width} ? 0 : ({{0}} >> {{1}}))", 0, 1),
         name="basic_rshift",
     )
 
 def basic_lshift(x: Node, amount: Node, out: Node) -> Op:
+    width = x.node_type.total_bits()
     return _binary_operator(
         op=lambda x, amount: x.val << amount.val,
         x=x,
         y=amount,
         out=out,
-        c_lowering=_format_c_lowering("({} << {})", 0, 1),
+        c_lowering=_format_c_lowering(f"({{1}} >= {width} ? 0 : ({{0}} << {{1}}))", 0, 1),
         name="basic_lshift",
     )
 
@@ -169,7 +171,7 @@ def basic_xor(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=_format_c_lowering(f"(({{}} ^ {{}}) & {(1 << out.node_type.total_bits()) - 1})", 0, 1),
+        c_lowering=_format_c_lowering(f"({{}} ^ {{}})", 0, 1),
         name="basic_xor",
     )
 
@@ -278,7 +280,7 @@ def basic_invert(x: Node, out: Node) -> Op:
         op=lambda x: ((1 << x.total_bits()) - 1) - x.val,
         x=x,
         out=out,
-        c_lowering=_format_c_lowering(f"((~{{}}) & {(1 << out.node_type.total_bits()) - 1})", 0),
+        c_lowering=_format_c_lowering(f"((~{{}}) & {(1 << x.node_type.total_bits()) - 1})", 0),
         name="basic_invert",
     )
 

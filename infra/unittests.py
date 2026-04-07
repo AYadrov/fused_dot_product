@@ -4,10 +4,6 @@ import time
 import unittest
 import json
 import sys
-import ctypes
-import shutil
-import subprocess
-import tempfile
 import numpy as np
 from pprint import pprint, pformat
 from pathlib import Path
@@ -17,67 +13,15 @@ from fused_dot_product.egglog.rules import check_rules, rewrite_rules
 from examples.optimized import Optimized
 from examples.conventional import Conventional
 from examples.CSA import CSA_tree4
+from examples.FP32_IEEE_adder import FP32_IEEE_adder
+
+from infra.jit_compile import jit_compile
 
 DEFAULT_SEED = 0
 DEFAULT_N_POINTS = 1000
 
 
-def _find_cpp_compiler() -> str | None:
-    for candidate in ("c++", "g++", "clang++"):
-        compiler = shutil.which(candidate)
-        if compiler is not None:
-            return compiler
-    raise unittest.SkipTest("A C++ compiler is required for lowering round-trip tests")
 
-
-def _compile_lowered_function(source: str, function_name: str):
-    compiler = _find_cpp_compiler()
-
-    tempdir = tempfile.TemporaryDirectory()
-    temp_path = Path(tempdir.name)
-    header_path = temp_path / "lowered.hpp"
-    wrapper_path = temp_path / "wrapper.cpp"
-    library_path = temp_path / "lowered.so"
-
-    header_path.write_text(source, encoding="utf-8")
-    wrapper_path.write_text(
-        "\n".join(
-            [
-                "#include <cstdint>",
-                '#include "lowered.hpp"',
-                "",
-                f'extern "C" std::uint64_t {function_name}_entry(std::uint64_t x, std::uint64_t y) {{',
-                f"    return static_cast<std::uint64_t>({function_name}(x, y));",
-                "}",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    command = [
-        compiler,
-        "-std=c++17",
-        "-shared",
-        "-fPIC",
-        str(wrapper_path),
-        "-o",
-        str(library_path),
-    ]
-    result = subprocess.run(command, capture_output=True, text=True, check=False)
-    if result.returncode != 0:
-        tempdir.cleanup()
-        raise AssertionError(
-            "Failed to compile lowered C++:\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
-
-    library = ctypes.CDLL(str(library_path))
-    func = getattr(library, f"{function_name}_entry")
-    func.argtypes = [ctypes.c_uint64, ctypes.c_uint64]
-    func.restype = ctypes.c_uint64
-    return tempdir, func
 
 def dot_product_spec(a_0, a_1, a_2, a_3, b_0, b_1, b_2, b_3):
         res = 0.0
@@ -270,30 +214,22 @@ class TestFusedDotProduct(unittest.TestCase):
         pprint(TestFusedDotProduct.IMPL_REPORT)
 
     def test_cpp_lowering_round_trip_via_jit(self):
-        x = Var(name="x", sign=UQT(40, 0))
-        y = Var(name="y", sign=UQT(39, 0))
-        lowered = uq_add(x, y)
-
-        function_name = "jit_uq_add"
-        source = lowered.to_cpp(function_name)
-        tempdir, lowered_fn = _compile_lowered_function(source, function_name)
+        x = Var(name="x", sign=Float32T())
+        y = Var(name="y", sign=Float32T())
+    
+        design = FP32_IEEE_adder(x, y)
+        tempdir, fn = jit_compile(design)
 
         try:
-            test_vectors = [
-                (0, 0),
-                ((1 << 20) + 7, (1 << 19) + 9),
-                ((1 << 39) - 1, (1 << 38) - 1),
-            ]
-
-            for x_val, y_val in test_vectors:
-                x.load_val(UQ(x_val, 40, 0))
-                y.load_val(UQ(y_val, 39, 0))
-
-                expected = lowered.evaluate()
-                actual = lowered_fn(x_val, y_val)
-                # print(expected, actual)
-
-                self.assertEqual(actual, expected.val)
+            random_gen = Float32.random_generator()
+            for _ in range(self.N_POINTS):
+                lhs = random_gen()
+                rhs = random_gen()
+                with self.subTest(lhs=lhs.to_bits(), rhs=rhs.to_bits()):
+                    x.load_val(lhs)
+                    y.load_val(rhs)
+                    print(lhs, rhs, Float32.from_bits(fn(lhs.to_bits(), rhs.to_bits())), design.evaluate())
+                    self.assertEqual(fn(lhs.to_bits(), rhs.to_bits()), design.evaluate().to_bits())
         finally:
             tempdir.cleanup()
 
