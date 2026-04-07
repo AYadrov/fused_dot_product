@@ -169,7 +169,7 @@ def basic_xor(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=_format_c_lowering("({} ^ {})", 0, 1),
+        c_lowering=_format_c_lowering(f"(({{}} ^ {{}}) & {(1 << out.node_type.total_bits()) - 1})", 0, 1),
         name="basic_xor",
     )
 
@@ -278,7 +278,7 @@ def basic_invert(x: Node, out: Node) -> Op:
         op=lambda x: ((1 << x.total_bits()) - 1) - x.val,
         x=x,
         out=out,
-        c_lowering=_format_c_lowering("(~{})", 0),
+        c_lowering=_format_c_lowering(f"((~{{}}) & {(1 << out.node_type.total_bits()) - 1})", 0),
         name="basic_invert",
     )
 

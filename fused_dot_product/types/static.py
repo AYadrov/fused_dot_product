@@ -222,7 +222,7 @@ class TupleT(StaticType):
         return tuple(x.to_spec(name=f"{name}_{i}", ctx=ctx) for i, x in enumerate(self.args))
 
     def to_cpp_type(self) -> str:
-        return f"std::array<uint64_t, {len(self.args)}>"
+        return f"std::array<uint_fast64_t, {len(self.args)}>"
 
 
 __all__ = [
