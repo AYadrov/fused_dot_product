@@ -213,7 +213,7 @@ class TestFusedDotProduct(unittest.TestCase):
 
         pprint(TestFusedDotProduct.IMPL_REPORT)
 
-    def test_cpp_lowering_via_jit_1(self):
+    def test_cpp_lowering_via_jit_adder(self):
         x = Var(name="x", sign=Float32T())
         y = Var(name="y", sign=Float32T())
     
@@ -232,7 +232,7 @@ class TestFusedDotProduct(unittest.TestCase):
         finally:
             tempdir.cleanup()
 
-    def test_cpp_lowering_via_jit_2(self):
+    def test_cpp_lowering_via_jit_conventional(self):
         a = [
             Var(name="a_0", sign=BFloat16T()),
             Var(name="a_1", sign=BFloat16T()),
@@ -265,6 +265,30 @@ class TestFusedDotProduct(unittest.TestCase):
                     
                 with self.subTest(a=a, b=b):
                     self.assertEqual(fn(*args), design.evaluate().to_bits())
+        finally:
+            tempdir.cleanup()
+
+            
+    def test_cpp_lowering_via_jit_csa(self):
+        args = [Var(f"arg_{i}", sign=QT(random.randint(1, 20), random.randint(1, 20))) for i in range(4)]
+        
+        design = CSA_tree4(*args)
+        tempdir, fn = jit_compile(design)
+        try:
+            rnd = random.Random(self.SEED)
+
+            def random_q(sign: QT) -> Q:
+                return Q(rnd.getrandbits(sign.total_bits()), sign.int_bits, sign.frac_bits)
+
+            for _ in range(self.N_POINTS):
+                call_args = []
+                for arg in args:
+                    val = random_q(arg.node_type)
+                    arg.load_val(val)
+                    call_args.append(val.val)
+                    
+                with self.subTest(args=call_args):
+                    self.assertEqual(fn(*call_args), design.evaluate().val)
         finally:
             tempdir.cleanup()
 
