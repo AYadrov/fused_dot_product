@@ -178,9 +178,9 @@ class _CppEmitter:
         if node in self._fingerprint_cache:
             return self._fingerprint_cache[node]
         if isinstance(node, Var):
-            result = ("Var", node.name, node.node_type)
+            result = ("Var", node.name, self._fingerprint_static_type(node.node_type))
         elif isinstance(node, Const):
-            result = ("Const", node.val)
+            result = ("Const", self._fingerprint_runtime_value(node.val))
         elif isinstance(node, Op):
             lowering_fingerprint = None
             if node.c_lowering is not None:
@@ -190,7 +190,7 @@ class _CppEmitter:
             result = (
                 "Op",
                 node.name,
-                node.node_type,
+                self._fingerprint_static_type(node.node_type),
                 lowering_fingerprint,
                 tuple(self._fingerprint(arg) for arg in node.args),
             )
@@ -198,14 +198,16 @@ class _CppEmitter:
             result = (
                 type(node).__name__,
                 node.name,
-                node.node_type,
-                tuple(arg.node_type for arg in node.inner_args),
+                self._fingerprint_static_type(node.node_type),
+                tuple(
+                    self._fingerprint_static_type(arg.node_type)
+                    for arg in node.inner_args
+                ),
                 self._fingerprint(node.inner_tree),
             )
         else:
             raise CppLoweringError(f"Unsupported node type: {type(node).__name__}")
 
-        result = self._freeze(result)
         self._fingerprint_cache[node] = result
         return result
     

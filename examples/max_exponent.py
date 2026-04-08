@@ -19,7 +19,7 @@ def OPTIMIZED_MAX_EXP4(e0: Node, e1: Node, e2: Node, e3: Node) -> Node:
         return basic_concat(
             x=high,
             y=low,
-            out=Const(UQ(0, high.node_type.int_bits + low.node_type.int_bits, 0))
+            out=Const(UQ(0, high.node_type.int_bits + low.node_type.int_bits, 0)),
         )
 
     inputs = [e0, e1, e2, e3]
@@ -46,6 +46,7 @@ def OPTIMIZED_MAX_EXP4(e0: Node, e1: Node, e2: Node, e3: Node) -> Node:
         for i, (prev_bit, curr_bit, was_smaller) in enumerate(zip(prev_bits, curr_bits, smaller)):
             is_smaller = bit_or(bit_and(max_prev, bit_not(prev_bit)), was_smaller)
             next_smaller.append(is_smaller)
+            
             candidate = bit_and(curr_bit, bit_not(is_smaller))
             candidates = concat(candidates, candidate)
 
@@ -59,7 +60,7 @@ def OPTIMIZED_MAX_EXP4(e0: Node, e1: Node, e2: Node, e3: Node) -> Node:
     return bits
 
 if __name__ == '__main__':
-    inputs = [Var(f"arg_{i}", sign=UQT(7,0)) for i in range(4)]
+    inputs = [Var(f"arg_{i}", sign=UQT(10, 0)) for i in range(4)]
     design = OPTIMIZED_MAX_EXP4(*inputs)
     # design.print_tree(depth=1)
     with open("examples/max_exp.cpp", "w") as file:
