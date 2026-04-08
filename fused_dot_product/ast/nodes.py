@@ -212,7 +212,7 @@ class Op(Node):
         sign: tp.Callable[..., StaticType],
         args: list[Node],
         name: str,
-        c_lowering: tp.Optional[CLowering] = None,
+        c_lowering: tp.Optional[CLowering],
     ):
         self.c_lowering = c_lowering
         super().__init__(

@@ -174,23 +174,23 @@ class _CppEmitter:
 
         raise CppLoweringError(f"Unsupported node type: {type(node).__name__}")
 
+    # Caching for not lowering the same function twice
     def _fingerprint(self, node: Node) -> _Fingerprint:
         if node in self._fingerprint_cache:
             return self._fingerprint_cache[node]
+        
         if isinstance(node, Var):
-            result = ("Var", node.name, self._fingerprint_static_type(node.node_type))
+            result = ("Var", node.name, repr(node.node_type))
         elif isinstance(node, Const):
-            result = ("Const", self._fingerprint_runtime_value(node.val))
+            result = ("Const", self._value_key(node.val))
         elif isinstance(node, Op):
-            lowering_fingerprint = None
-            if node.c_lowering is not None:
-                lowering_fingerprint = node.c_lowering(
-                    [f"${idx}" for idx in range(len(node.args))]
-                )
+            lowering_fingerprint = node.c_lowering(
+                [f"${idx}" for idx in range(len(node.args))]
+            )
             result = (
                 "Op",
                 node.name,
-                self._fingerprint_static_type(node.node_type),
+                repr(node.node_type),
                 lowering_fingerprint,
                 tuple(self._fingerprint(arg) for arg in node.args),
             )
@@ -198,11 +198,8 @@ class _CppEmitter:
             result = (
                 type(node).__name__,
                 node.name,
-                self._fingerprint_static_type(node.node_type),
-                tuple(
-                    self._fingerprint_static_type(arg.node_type)
-                    for arg in node.inner_args
-                ),
+                repr(node.node_type),
+                tuple(repr(arg.node_type) for arg in node.inner_args),
                 self._fingerprint(node.inner_tree),
             )
         else:
@@ -210,43 +207,14 @@ class _CppEmitter:
 
         self._fingerprint_cache[node] = result
         return result
-    
-    def _freeze(self, value: tp.Any) -> tp.Any:
-        if isinstance(value, StaticType):
-            return self._fingerprint_static_type(value)
-        if isinstance(value, RuntimeType):
-            return self._fingerprint_runtime_value(value)
-        if isinstance(value, list):
-            return tuple(self._freeze(item) for item in value)
-        if isinstance(value, tuple):
-            return tuple(self._freeze(item) for item in value)
-        if isinstance(value, dict):
-            return tuple(sorted((key, self._freeze(item)) for key, item in value.items()))
-        return value
 
-    def _fingerprint_static_type(self, value: StaticType) -> tp.Any:
-        if isinstance(value, TupleT):
-            return (
-                type(value).__name__,
-                tuple(self._fingerprint_static_type(arg) for arg in value.args),
-            )
-        attrs = tuple(
-            sorted(
-                (key, self._freeze(item))
-                for key, item in vars(value).items()
-                if key != "runtime_val"
-            )
-        )
-        return (type(value).__name__, attrs)
-
-    def _fingerprint_runtime_value(self, value: RuntimeType) -> tp.Any:
+    def _value_key(self, value: RuntimeType) -> tp.Any:
         if isinstance(value, Tuple):
             return (
                 type(value).__name__,
-                tuple(self._fingerprint_runtime_value(arg) for arg in value.args),
+                tuple(self._value_key(arg) for arg in value.args),
             )
-        attrs = tuple(sorted((key, self._freeze(item)) for key, item in vars(value).items()))
-        return (type(value).__name__, attrs)
+        return (type(value).__name__, tuple(sorted(vars(value).items())))
     
     def _lower_const(self, value: RuntimeType) -> _CppValue:
         cpp_type = self._render_type(value.static_type())

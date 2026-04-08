@@ -10,6 +10,9 @@ class RuntimeType:
     
     def __str__(self):
         raise NotImplementedError
+
+    def __repr__(self):
+        return self.__str__()
     
     @classmethod
     def random_generator(cls):
