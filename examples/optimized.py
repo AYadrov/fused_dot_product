@@ -172,5 +172,5 @@ if __name__ == '__main__':
     design.print_tree(depth=1)
     report = design.check_spec()
     pprint(report)
-    # with open("examples/optimized.cpp", "w") as file:
-    #     file.write(design.to_cpp())
+    with open("examples/optimized.cpp", "w") as file:
+        file.write(design.to_cpp())

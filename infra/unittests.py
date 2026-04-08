@@ -14,6 +14,7 @@ from examples.optimized import Optimized
 from examples.conventional import Conventional
 from examples.CSA import CSA_tree4
 from examples.FP32_IEEE_adder import FP32_IEEE_adder
+from examples.max_exponent import OPTIMIZED_MAX_EXP4
 
 from infra.jit_compile import jit_compile
 
@@ -292,6 +293,65 @@ class TestFusedDotProduct(unittest.TestCase):
         finally:
             tempdir.cleanup()
 
+
+    def test_cpp_lowering_via_jit_optimized(self):
+        a = [
+            Var(name="a_0", sign=BFloat16T()),
+            Var(name="a_1", sign=BFloat16T()),
+            Var(name="a_2", sign=BFloat16T()),
+            Var(name="a_3", sign=BFloat16T()),
+        ]
+        
+        b = [
+            Var(name="b_0", sign=BFloat16T()),
+            Var(name="b_1", sign=BFloat16T()),
+            Var(name="b_2", sign=BFloat16T()),
+            Var(name="b_3", sign=BFloat16T()),
+        ]
+        
+        design = Optimized(*a, *b)
+        tempdir, fn = jit_compile(design)
+
+        try:
+            random_gen, _ = BFloat16.random_generator()
+            for _ in range(self.N_POINTS):
+                args = []
+                for i in range(4):
+                    val = random_gen()
+                    a[i].load_val(val)
+                    args.append(val.to_bits())
+                for i in range(4):
+                    val = random_gen()
+                    b[i].load_val(val)
+                    args.append(val.to_bits())
+                    
+                with self.subTest(a=a, b=b):
+                    self.assertEqual(fn(*args), design.evaluate().to_bits())
+        finally:
+            tempdir.cleanup()
+
+    def test_cpp_lowering_via_jit_max_exponent(self):
+        args = [Var(f"arg_{i}", sign=UQT(random.randint(1, 10), 0)) for i in range(4)]
+        
+        design = OPTIMIZED_MAX_EXP4(*args)
+        tempdir, fn = jit_compile(design)
+        try:
+            rnd = random.Random(self.SEED)
+
+            def random_uq(sign: UQT) -> UQ:
+                return UQ(rnd.getrandbits(sign.total_bits()), sign.int_bits, sign.frac_bits)
+
+            for _ in range(self.N_POINTS):
+                call_args = []
+                for arg in args:
+                    val = random_uq(arg.node_type)
+                    arg.load_val(val)
+                    call_args.append(val.val)
+                    
+                with self.subTest(args=call_args):
+                    self.assertEqual(fn(*call_args), design.evaluate().val)
+        finally:
+            tempdir.cleanup()
 
 
 
