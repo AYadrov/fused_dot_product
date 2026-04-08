@@ -213,7 +213,7 @@ class TestFusedDotProduct(unittest.TestCase):
 
         pprint(TestFusedDotProduct.IMPL_REPORT)
 
-    def test_cpp_lowering_round_trip_via_jit(self):
+    def test_cpp_lowering_via_jit_1(self):
         x = Var(name="x", sign=Float32T())
         y = Var(name="y", sign=Float32T())
     
@@ -228,10 +228,46 @@ class TestFusedDotProduct(unittest.TestCase):
                 with self.subTest(lhs=lhs.to_bits(), rhs=rhs.to_bits()):
                     x.load_val(lhs)
                     y.load_val(rhs)
-                    print(lhs, rhs, Float32.from_bits(fn(lhs.to_bits(), rhs.to_bits())), design.evaluate())
                     self.assertEqual(fn(lhs.to_bits(), rhs.to_bits()), design.evaluate().to_bits())
         finally:
             tempdir.cleanup()
+
+    def test_cpp_lowering_via_jit_2(self):
+        a = [
+            Var(name="a_0", sign=BFloat16T()),
+            Var(name="a_1", sign=BFloat16T()),
+            Var(name="a_2", sign=BFloat16T()),
+            Var(name="a_3", sign=BFloat16T()),
+        ]
+        
+        b = [
+            Var(name="b_0", sign=BFloat16T()),
+            Var(name="b_1", sign=BFloat16T()),
+            Var(name="b_2", sign=BFloat16T()),
+            Var(name="b_3", sign=BFloat16T()),
+        ]
+        
+        design = Conventional(*a, *b)
+        tempdir, fn = jit_compile(design)
+
+        try:
+            random_gen, _ = BFloat16.random_generator()
+            for _ in range(self.N_POINTS):
+                args = []
+                for i in range(4):
+                    val = random_gen()
+                    a[i].load_val(val)
+                    args.append(val.to_bits())
+                for i in range(4):
+                    val = random_gen()
+                    b[i].load_val(val)
+                    args.append(val.to_bits())
+                    
+                with self.subTest(a=a, b=b):
+                    self.assertEqual(fn(*args), design.evaluate().to_bits())
+        finally:
+            tempdir.cleanup()
+
 
 
 

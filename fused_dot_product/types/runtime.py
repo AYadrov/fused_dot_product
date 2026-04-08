@@ -283,7 +283,9 @@ class Float32(RuntimeType):
             return float((-1) ** self.sign * frac * (2 ** exp_val))
 
     @classmethod
-    def random_generator(cls, seed: int = int(time.time())):
+    def random_generator(cls, seed = None):
+        if seed is None:
+            seed = int(time.time())
         rnd = random.Random(seed)
         def gen():
             return Float32.from_bits(rnd.getrandbits(32))
@@ -354,12 +356,10 @@ class BFloat16(RuntimeType):
         if not (0 <= exponent < (1 << self.exponent_bits)):
             raise ValueError(f"BFloat16 exponent out of range: {exponent}")
         
-        self.val = (sign << (self.exponent_bits + self.mantissa_bits)) \
-                 | (exponent << self.mantissa_bits) \
-                 | mantissa
         self.sign = sign
         self.mantissa = mantissa
         self.exponent = exponent
+        self.val = self.to_bits()
     
     def __str__(self):
         return f"BFloat16({str(self.to_val())})"
@@ -379,9 +379,22 @@ class BFloat16(RuntimeType):
     
     def static_type(self):
         return BFloat16T()
+
+    def to_bits(self):
+        return (self.sign << (self.exponent_bits + self.mantissa_bits)) | (self.exponent << self.mantissa_bits) | self.mantissa
     
     @classmethod
-    def random_generator(cls, seed: int = int(time.time()), shared_exponent_bits: int = 0):
+    def from_bits(cls, x: int):
+        assert x >= 0 and x < (1 << 16), f"out of range/negative value is provided ({x})"
+        sign_bit = (x >> (cls.exponent_bits + cls.mantissa_bits)) & 1
+        exponent_bits = (x >> cls.mantissa_bits) & ((1 << cls.exponent_bits) - 1)
+        mantissa_bits = x & ((1 << cls.mantissa_bits) - 1)
+        return BFloat16(sign_bit, exponent_bits, mantissa_bits)
+    
+    @classmethod
+    def random_generator(cls, seed = None, shared_exponent_bits: int = 0):
+        if seed is None:
+            seed = int(time.time())
         if not (0 <= shared_exponent_bits <= cls.exponent_bits):
             raise ValueError(
                 f"shared_exponent_bits must be between 0 and {cls.exponent_bits}, "

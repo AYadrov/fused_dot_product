@@ -246,7 +246,6 @@ class _CppEmitter:
         attrs = tuple(sorted((key, self._freeze(item)) for key, item in vars(value).items()))
         return (type(value).__name__, attrs)
     
-    
     def _lower_const(self, value: RuntimeType) -> _CppValue:
         cpp_type = self._render_type(value.static_type())
         return _CppValue(expr=self._const_expr(value), cpp_type=cpp_type)
@@ -262,15 +261,9 @@ class _CppEmitter:
                 + ", ".join(f"static_cast<uint64_t>({arg.expr})" for arg in args)
                 + "}"
             )
-
-        if isinstance(value, Bool):
+        else:
             return self._cast(value.static_type(), str(value.val))
-
-        if isinstance(value, (Q, UQ, Float32, BFloat16)):
-            return self._cast(value.static_type(), str(value.val))
-
-        raise CppLoweringError(f"Unsupported constant type: {type(value).__name__}")
-
+    
     def _lower_op(
         self,
         node: Op,
@@ -297,7 +290,7 @@ class _CppEmitter:
         args: list[Var],
         return_type: StaticType,
     ) -> str:
-        call_args = ", ".join(arg.name for arg in args)
+        call_args = ", ".join([f"({arg.name} & {(1 << arg.node_type.total_bits()) - 1})" for arg in args])
         wrapper_signature = self._signature(
             name=public_name,
             args=args,

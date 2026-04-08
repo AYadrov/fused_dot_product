@@ -145,13 +145,12 @@ def basic_rshift(x: Node, amount: Node, out: Node) -> Op:
     )
 
 def basic_lshift(x: Node, amount: Node, out: Node) -> Op:
-    width = x.node_type.total_bits()
     return _binary_operator(
         op=lambda x, amount: x.val << amount.val,
         x=x,
         y=amount,
         out=out,
-        c_lowering=_format_c_lowering(f"({{1}} >= {width} ? 0 : ({{0}} << {{1}}))", 0, 1),  # Shifting more than bitwidth is undef. behavior
+        c_lowering=_format_c_lowering("({1} >= 64 ? 0 : (uint_fast64_t({0}) << {1}))", 0, 1),  # avoiding undef. behavior when shifting
         name="basic_lshift",
     )
 
@@ -192,7 +191,7 @@ def basic_concat(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=_format_c_lowering(f"(({{}} << {shift}) | {{}})", 0, 1),
+        c_lowering=_format_c_lowering(f"((uint_fast64_t({{}}) << {shift}) | {{}})", 0, 1),  # casting to 64 because some nonsense with undefined behavior
         name="basic_concat",
     )
 
