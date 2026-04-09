@@ -144,8 +144,9 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     E_m = uq_to_q(E_m)
     
     E_m = q_sub(E_m, bf16_bias)
-    
-    root = encode_Float32(M_sum, E_m)
+
+    encode_nan = Const(UQ(0, 1, 0))
+    root = encode_Float32(M_sum, E_m, encode_nan)
     return root
 
 

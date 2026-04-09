@@ -224,12 +224,12 @@ def fp32_classify(normalized_m_uq: Node, normalized_e_q: Node):
     return make_Tuple(classified_m_uq, classified_e_uq)
 
 
-def fp32_encodings_spec(m, e, m_pre, ctx):
+def fp32_encodings_spec(m, e, m_pre, is_nan, ctx):
     return m * ctx.real_val(2) ** ctx.real_val(Float32.mantissa_bits), e
 
 # TODO: this function should work for any input, or at least give an error
 @Primitive(name="fp32_encodings", spec=fp32_encodings_spec)
-def fp32_encodings(m_rounded_uq: Node, e_rounded_uq: Node, m_prerounded_uq: Node):
+def fp32_encodings(m_rounded_uq: Node, e_rounded_uq: Node, m_prerounded_uq: Node, is_nan: Node):
     # Inf handling
     final_e_uq_wide = uq_min(e_rounded_uq, Const(UQ.from_int(Float32.inf_code)))
     final_e_uq = basic_identity(x=final_e_uq_wide, out=Const(UQ.from_int(Float32.inf_code)))
@@ -249,6 +249,22 @@ def fp32_encodings(m_rounded_uq: Node, e_rounded_uq: Node, m_prerounded_uq: Node
         in1=Const(UQ(0, 1, 0)),
         out=final_e_uq.copy(),
     )
+
+    # NaN handling
+    final_m_uq = basic_mux_2_1(
+        sel=is_nan,
+        in0=final_m_uq,
+        in1=Const(UQ(1, 1, 0)),
+        out=final_m_uq.copy(),
+    )
+    final_e_uq = basic_mux_2_1(
+        sel=is_nan,
+        in0=final_e_uq,
+        in1=Const(UQ.from_int(Float32.nan_code)),
+        out=final_e_uq.copy(),
+    )
+
+    
     # Reinterpret the fractional significand bits as the raw IEEE mantissa field.
     final_m_uq = fraction_to_integer(final_m_uq)
     return make_Tuple(final_m_uq, final_e_uq)
@@ -256,14 +272,14 @@ def fp32_encodings(m_rounded_uq: Node, e_rounded_uq: Node, m_prerounded_uq: Node
 
 # Assume that e is biased
 # TODO: NaNs
-def encode_Float32(m: Node, e: Node) -> Primitive:
+def encode_Float32(m: Node, e: Node, is_nan: Node) -> Primitive:
     assert e.node_type.frac_bits == 0
     
-    def spec(m, e, ctx):
+    def spec(m, e, is_nan, ctx):
         return m * (ctx.real_val(2) ** (e - ctx.real_val(127)))
     
     @Composite(name="encode_Float32", spec=spec)
-    def impl(m_q: Node, e_q: Node) -> Node:
+    def impl(m_q: Node, e_q: Node, is_nan: Node) -> Node:
         sign_bit = q_sign_bit(m_q)
         m_uq = q_to_uq(q_abs(m_q))
         
@@ -271,10 +287,10 @@ def encode_Float32(m: Node, e: Node) -> Primitive:
         classified_m_uq, classified_e_uq = fp32_classify(normalized_m_uq, normalized_e_q)
         classified_m_uq = drop_implicit_bit(classified_m_uq)
         m_rounded_uq, e_rounded_uq = fp32_round(classified_m_uq, classified_e_uq)
-        final_m_uq, final_e_uq = fp32_encodings(m_rounded_uq, e_rounded_uq, m_uq)
+        final_m_uq, final_e_uq = fp32_encodings(m_rounded_uq, e_rounded_uq, m_uq, is_nan)
         return fp32_pack(sign_bit, final_e_uq, final_m_uq)
     
-    return impl(m, e)
+    return impl(m, e, is_nan)
 
 
 if __name__ == '__main__':

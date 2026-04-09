@@ -9,38 +9,11 @@ import numpy as np
 Wf = 30
 
 
-@Primitive(
-    name="fp32_select",
-    spec=lambda sel, in0, in1, ctx: (ctx.real_val(1) - sel) * in0 + sel * in1,
-)
-def fp32_select(sel: Node, in0: Node, in1: Node) -> Node:
-    in0_s, in0_e, in0_m = fp32_unpack(in0)
-    in1_s, in1_e, in1_m = fp32_unpack(in1)
-    out_s = basic_mux_2_1(
-        sel=sel,
-        in0=in0_s,
-        in1=in1_s,
-        out=Const(UQ(0, 1, 0)),
-    )
-    out_e = basic_mux_2_1(
-        sel=sel,
-        in0=in0_e,
-        in1=in1_e,
-        out=Const(UQ(0, Float32.exponent_bits, 0)),
-    )
-    out_m = basic_mux_2_1(
-        sel=sel,
-        in0=in0_m,
-        in1=in1_m,
-        out=Const(UQ(0, Float32.mantissa_bits, 0)),
-    )
-    return fp32_pack(out_s, out_e, out_m)
-
-
 @Composite(name="FP32_IEEE_adder", spec=lambda x, y, ctx: x + y)
 def FP32_IEEE_adder(x: Node, y: Node) -> Node:
-    x_is_nan = fp32_is_nan(x) 
+    x_is_nan = fp32_is_nan(x)
     y_is_nan = fp32_is_nan(y)
+    any_is_nan = uq_max(x_is_nan, y_is_nan)
     
     x_s, x_e, x_m = fp32_unpack(x)
     y_s, y_e, y_m = fp32_unpack(y)
@@ -67,12 +40,7 @@ def FP32_IEEE_adder(x: Node, y: Node) -> Node:
 
     m_sum = q_add(x_m_signed, y_m_signed)
 
-    encoded_float = encode_Float32(m_sum, uq_to_q(max_exp))
-
-    out = fp32_select(y_is_nan, encoded_float, y)
-    out = fp32_select(x_is_nan, out, x)
-
-    return out
+    return encode_Float32(m_sum, uq_to_q(max_exp), any_is_nan)
 
 
 if __name__ == '__main__':
