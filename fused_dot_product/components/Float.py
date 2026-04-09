@@ -1,6 +1,7 @@
 from ..types import *
 from ..ast import *
 from .Tuple import make_Tuple
+from .basics import *
 
 ########### Private Helpers ############
 
@@ -48,7 +49,18 @@ def _fp32_sign(x: Node) -> Op:
 
 ############## Public API ##############
 
-def float32_alloc(sign_bit: Node,
+# For spec, we assume that we can not have nan. So, this pass should not exist in spec
+@Primitive(name="fp32_is_nan", spec=lambda x, ctx: ctx.real_val(0))
+def fp32_is_nan(x: Node) -> Node:
+    exponent_is_all_ones = basic_and_reduce(_fp32_exponent(x), out=Const(UQ(0, 1, 0)))
+    mantissa_is_nonzero = basic_or_reduce(_fp32_mantissa(x), out=Const(UQ(0, 1, 0)))
+    return basic_and(
+        x=exponent_is_all_ones,
+        y=mantissa_is_nonzero,
+        out=Const(UQ(0, 1, 0)),
+    )
+
+def _float32_alloc(sign_bit: Node,
                   exponent: Node,
                   mantissa: Node) -> Op:
     def sign(sign_bit: StaticType, exponent: StaticType, mantissa: StaticType) -> Float32T:
@@ -71,7 +83,7 @@ def fp32_pack_spec(s, e, m, ctx):
 
 @Primitive(name="fp32_pack", spec=fp32_pack_spec)
 def fp32_pack(sign: Node, exponent: Node, mantissa: Node) -> Node:
-    return float32_alloc(sign, exponent, mantissa)
+    return _float32_alloc(sign, exponent, mantissa)
 
 
 def fp32_unpack_spec(x, ctx):
