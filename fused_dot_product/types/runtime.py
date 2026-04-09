@@ -154,7 +154,6 @@ class Q(RuntimeType):
             int_bits = max(2, x.bit_length() + 1)
             val = x
         return Q(val, int_bits, 0)
-        
     
     @staticmethod
     def from_float(x: float, target_int: int, target_frac: int):
@@ -249,18 +248,42 @@ class Float32(RuntimeType):
     nan_code = 255
     zero_code = 0
     
-    def __init__(self, sign: int, exponent: int, mantissa: int):
+    def __init__(self, val: int):
+        if not isinstance(val, int):
+            raise TypeError(f"Float32 expects packed bits as int, got {type(val).__name__}")
+        if not (0 <= val < (1 << self.total_bits())):
+            raise ValueError(f"Float32 packed bits out of range: {val}")
+        self.val = val
+
+    @classmethod
+    def from_fields(cls, sign: int, exponent: int, mantissa: int):
         if sign not in (0, 1):
             raise ValueError(f"Float32 sign must be 0 or 1, got {sign}")
-        if not (0 <= mantissa < (1 << self.mantissa_bits)):
+        if not (0 <= mantissa < (1 << cls.mantissa_bits)):
             raise ValueError(f"Float32 mantissa out of range: {mantissa}")
-        if not (0 <= exponent < (1 << self.exponent_bits)):
+        if not (0 <= exponent < (1 << cls.exponent_bits)):
             raise ValueError(f"Float32 exponent out of range: {exponent}")
-         
-        self.sign = sign
-        self.mantissa = mantissa
-        self.exponent = exponent
-        self.val = self.to_bits()
+        return cls(
+            (sign << (cls.exponent_bits + cls.mantissa_bits))
+            | (exponent << cls.mantissa_bits)
+            | mantissa
+        )
+
+    @property
+    def sign(self):
+        return (self.val >> (self.exponent_bits + self.mantissa_bits)) & 1
+
+    @property
+    def exponent(self):
+        return (self.val >> self.mantissa_bits) & ((1 << self.exponent_bits) - 1)
+
+    @property
+    def mantissa(self):
+        return self.val & ((1 << self.mantissa_bits) - 1)
+
+    @property
+    def significand(self):
+        return self.mantissa
     
     def __str__(self):
         return f"Float({str(self.to_val())})"
@@ -291,19 +314,8 @@ class Float32(RuntimeType):
             seed = int(time.time())
         rnd = random.Random(seed)
         def gen():
-            return Float32.from_bits(rnd.getrandbits(32))
+            return Float32(rnd.getrandbits(32))
         return gen
-
-    def to_bits(self):
-        return (self.sign << (self.exponent_bits + self.mantissa_bits)) | (self.exponent << self.mantissa_bits) | self.mantissa
-    
-    @classmethod
-    def from_bits(cls, x: int):
-        assert x >= 0 and x < (1 << 32), f"out of range/negative value is provided ({x})"
-        sign_bit = (x >> (cls.exponent_bits + cls.mantissa_bits)) & 1
-        exponent_bits = (x >> cls.mantissa_bits) & ((1 << cls.exponent_bits) - 1)
-        mantissa_bits = x & ((1 << cls.mantissa_bits) - 1)
-        return Float32(sign_bit, exponent_bits, mantissa_bits)
         
     # TODO: that's sketchy
     def to_spec(self, ctx):
@@ -314,26 +326,26 @@ class Float32(RuntimeType):
     
     @classmethod
     def nInf(cls):
-        return cls(1, cls.inf_code, 0)
+        return cls.from_fields(1, cls.inf_code, 0)
     
     @classmethod
     def Inf(cls):
-        return cls(0, cls.inf_code, 0)
+        return cls.from_fields(0, cls.inf_code, 0)
     
     @classmethod
     def nZero(cls):
-        return cls(1, cls.zero_code, 0)
+        return cls.from_fields(1, cls.zero_code, 0)
     
     @classmethod
     def Zero(cls):
-        return cls(0, cls.zero_code, 0)
+        return cls.from_fields(0, cls.zero_code, 0)
     
     @classmethod
     def NaN(cls):
-        return cls(0, cls.nan_code, 1)
+        return cls.from_fields(0, cls.nan_code, 1)
     
     def copy(self):
-        return Float32(self.sign, self.exponent, self.mantissa)
+        return Float32(self.val)
     
     def total_bits(self):
         return 32
@@ -351,18 +363,42 @@ class BFloat16(RuntimeType):
     exponent_bits = 8
     exponent_bias = 127
     
-    def __init__(self, sign: int, mantissa: int, exponent: int):
+    def __init__(self, val: int):
+        if not isinstance(val, int):
+            raise TypeError(f"BFloat16 expects packed bits as int, got {type(val).__name__}")
+        if not (0 <= val < (1 << 32)):
+            raise ValueError(f"BFloat16 packed bits must fit in 32 bits, got {val}")
+        self.val = val & ((1 << self.total_bits()) - 1)
+
+    @classmethod
+    def from_fields(cls, sign: int, mantissa: int, exponent: int):
         if sign not in (0, 1):
             raise ValueError(f"BFloat16 sign must be 0 or 1, got {sign}")
-        if not (0 <= mantissa < (1 << self.mantissa_bits)):
+        if not (0 <= mantissa < (1 << cls.mantissa_bits)):
             raise ValueError(f"BFloat16 mantissa out of range: {mantissa}")
-        if not (0 <= exponent < (1 << self.exponent_bits)):
+        if not (0 <= exponent < (1 << cls.exponent_bits)):
             raise ValueError(f"BFloat16 exponent out of range: {exponent}")
-        
-        self.sign = sign
-        self.mantissa = mantissa
-        self.exponent = exponent
-        self.val = self.to_bits()
+        return cls(
+            (sign << (cls.exponent_bits + cls.mantissa_bits))
+            | (exponent << cls.mantissa_bits)
+            | mantissa
+        )
+
+    @property
+    def sign(self):
+        return (self.val >> (self.exponent_bits + self.mantissa_bits)) & 1
+
+    @property
+    def exponent(self):
+        return (self.val >> self.mantissa_bits) & ((1 << self.exponent_bits) - 1)
+
+    @property
+    def mantissa(self):
+        return self.val & ((1 << self.mantissa_bits) - 1)
+
+    @property
+    def significand(self):
+        return self.mantissa
     
     def __str__(self):
         return f"BFloat16({str(self.to_val())})"
@@ -382,17 +418,6 @@ class BFloat16(RuntimeType):
     
     def static_type(self):
         return BFloat16T()
-
-    def to_bits(self):
-        return (self.sign << (self.exponent_bits + self.mantissa_bits)) | (self.exponent << self.mantissa_bits) | self.mantissa
-    
-    @classmethod
-    def from_bits(cls, x: int):
-        assert x >= 0 and x < (1 << 16), f"out of range/negative value is provided ({x})"
-        sign_bit = (x >> (cls.exponent_bits + cls.mantissa_bits)) & 1
-        exponent_bits = (x >> cls.mantissa_bits) & ((1 << cls.exponent_bits) - 1)
-        mantissa_bits = x & ((1 << cls.mantissa_bits) - 1)
-        return BFloat16(sign_bit, exponent_bits, mantissa_bits)
     
     @classmethod
     def random_generator(cls, seed = None, shared_exponent_bits: int = 0):
@@ -412,7 +437,7 @@ class BFloat16(RuntimeType):
             sign = rnd.getrandbits(1)
             mantissa = rnd.getrandbits(cls.mantissa_bits)
             exponent = shared_exp + rnd.getrandbits(unshared_exponent_bits)
-            return BFloat16(sign=sign, mantissa=mantissa, exponent=exponent)
+            return cls.from_fields(sign=sign, mantissa=mantissa, exponent=exponent)
         
         def gen_shared_exp():
             nonlocal shared_exp
@@ -422,7 +447,7 @@ class BFloat16(RuntimeType):
         return gen, gen_shared_exp
     
     def copy(self):
-        return BFloat16(self.sign, self.mantissa, self.exponent)
+        return BFloat16(self.val)
     
     def total_bits(self):
         return 16

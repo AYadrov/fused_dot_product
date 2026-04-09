@@ -67,7 +67,7 @@ def _float32_alloc(sign_bit: Node,
         return Float32T()
     
     def impl(sign_bit: RuntimeType, exponent: RuntimeType, mantissa: RuntimeType) -> Float32:
-        return Float32(sign_bit.val, exponent.val, mantissa.val)
+        return Float32.from_fields(sign_bit.val, exponent.val, mantissa.val)
     
     return Op(
         sign=sign,

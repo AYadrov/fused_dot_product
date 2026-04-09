@@ -226,10 +226,10 @@ class TestFusedDotProduct(unittest.TestCase):
             for _ in range(self.N_POINTS):
                 lhs = random_gen()
                 rhs = random_gen()
-                with self.subTest(lhs=lhs.to_bits(), rhs=rhs.to_bits()):
+                with self.subTest(lhs=lhs.val, rhs=rhs.val):
                     x.load_val(lhs)
                     y.load_val(rhs)
-                    self.assertEqual(fn(lhs.to_bits(), rhs.to_bits()), design.evaluate().to_bits())
+                    self.assertEqual(fn(lhs.val, rhs.val), design.evaluate().val)
         finally:
             tempdir.cleanup()
 
@@ -258,14 +258,14 @@ class TestFusedDotProduct(unittest.TestCase):
                 for i in range(4):
                     val = random_gen()
                     a[i].load_val(val)
-                    args.append(val.to_bits())
+                    args.append(val.val)
                 for i in range(4):
                     val = random_gen()
                     b[i].load_val(val)
-                    args.append(val.to_bits())
+                    args.append(val.val)
                     
                 with self.subTest(a=a, b=b):
-                    self.assertEqual(fn(*args), design.evaluate().to_bits())
+                    self.assertEqual(fn(*args), design.evaluate().val)
         finally:
             tempdir.cleanup()
 
@@ -319,14 +319,14 @@ class TestFusedDotProduct(unittest.TestCase):
                 for i in range(4):
                     val = random_gen()
                     a[i].load_val(val)
-                    args.append(val.to_bits())
+                    args.append(val.val)
                 for i in range(4):
                     val = random_gen()
                     b[i].load_val(val)
-                    args.append(val.to_bits())
+                    args.append(val.val)
                     
                 with self.subTest(a=a, b=b):
-                    self.assertEqual(fn(*args), design.evaluate().to_bits())
+                    self.assertEqual(fn(*args), design.evaluate().val)
         finally:
             tempdir.cleanup()
 
