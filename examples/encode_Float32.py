@@ -43,7 +43,10 @@ def uq_RNE_IEEE(m: Node, bits_to_cut: int):
 
 
 def round_spec(m, e, ctx):
-    return m, e
+    m_ = ctx.fresh_real('rounded_m')
+    e_ = ctx.fresh_real('rounded_e')
+    ctx.assume((m * ctx.real_val(2) ** e).eq(m_ * ctx.real_val(2) ** e_))
+    return m_, e_
 
 def fp32_round(m: Node, e: Node, target_bits: int = Float32.mantissa_bits, rounding_mode: str = "RNE") -> Primitive:
     assert target_bits > 0, "Cannot round fixed point to zero/negative number of bits"
@@ -132,7 +135,10 @@ def lzc(x: Node) -> Node:
 
 
 def normalize_spec(m, e, ctx):
-    return m, e
+    m_ = ctx.fresh_real('normalized_m')
+    e_ = ctx.fresh_real('normalized_e')
+    ctx.assume((m * ctx.real_val(2) ** e).eq(m_ * ctx.real_val(2) ** e_))
+    return m_, e_
 
 @Primitive(name="fp32_normalize", spec=normalize_spec)
 def fp32_normalize(m: Node, e: Node) -> Node:
@@ -180,8 +186,11 @@ def fp32_normalize(m: Node, e: Node) -> Node:
 
 
 def classify_fp32_spec(m, e, ctx):
-    return m, e
-     
+    m_ = ctx.fresh_real('classified_m')
+    e_ = ctx.fresh_real('classified_e')
+    ctx.assume((m * ctx.real_val(2) ** e).eq(m_ * ctx.real_val(2) ** e_))
+    return m_, e_
+
 @Primitive(name="fp32_classify", spec=classify_fp32_spec)
 def fp32_classify(normalized_m_uq: Node, normalized_e_q: Node):
     # Classifying exponent and shifting mantissa
