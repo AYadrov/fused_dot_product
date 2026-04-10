@@ -84,7 +84,7 @@ class TestFusedDotProduct(unittest.TestCase):
     N_POINTS = DEFAULT_N_POINTS
     SPEC_REPORT = None
     IMPL_REPORT = None
-
+    
     def test_rules_with_z3(self):
         rules = rewrite_rules()
         results = check_rules(rules, z3_timeout_ms=10000)
@@ -222,14 +222,12 @@ class TestFusedDotProduct(unittest.TestCase):
         tempdir, fn = jit_compile(design)
 
         try:
-            random_gen = Float32.random_generator()
+            rnd = random.Random(self.SEED)
             for _ in range(self.N_POINTS):
-                lhs = random_gen()
-                rhs = random_gen()
-                with self.subTest(lhs=lhs.val, rhs=rhs.val):
-                    x.load_val(lhs)
-                    y.load_val(rhs)
-                    self.assertEqual(fn(lhs.val, rhs.val), design.evaluate().val)
+                x.load_rand(rnd)
+                y.load_rand(rnd)
+                with self.subTest(lhs=x.val, rhs=y.val):
+                    self.assertEqual(fn(x.val.val, y.val.val), design.evaluate().val)
         finally:
             tempdir.cleanup()
 
@@ -252,8 +250,9 @@ class TestFusedDotProduct(unittest.TestCase):
         tempdir, fn = jit_compile(design)
 
         try:
-            random_gen, _ = BFloat16.random_generator()
+            random_gen, exp_shuffle = BFloat16.random_generator()
             for _ in range(self.N_POINTS):
+                exp_shuffle()
                 args = []
                 for i in range(4):
                     val = random_gen()
@@ -277,16 +276,11 @@ class TestFusedDotProduct(unittest.TestCase):
         tempdir, fn = jit_compile(design)
         try:
             rnd = random.Random(self.SEED)
-
-            def random_q(sign: QT) -> Q:
-                return Q(rnd.getrandbits(sign.total_bits()), sign.int_bits, sign.frac_bits)
-
             for _ in range(self.N_POINTS):
                 call_args = []
                 for arg in args:
-                    val = random_q(arg.node_type)
-                    arg.load_val(val)
-                    call_args.append(val.val)
+                    arg.load_rand(rnd)
+                    call_args.append(arg.val.val)
                     
                 with self.subTest(args=call_args):
                     self.assertEqual(fn(*call_args), design.evaluate().val)
@@ -313,8 +307,9 @@ class TestFusedDotProduct(unittest.TestCase):
         tempdir, fn = jit_compile(design)
 
         try:
-            random_gen, _ = BFloat16.random_generator()
+            random_gen, exp_shuffle = BFloat16.random_generator()
             for _ in range(self.N_POINTS):
+                exp_shuffle()
                 args = []
                 for i in range(4):
                     val = random_gen()
@@ -337,16 +332,11 @@ class TestFusedDotProduct(unittest.TestCase):
         tempdir, fn = jit_compile(design)
         try:
             rnd = random.Random(self.SEED)
-
-            def random_uq(sign: UQT) -> UQ:
-                return UQ(rnd.getrandbits(sign.total_bits()), sign.int_bits, sign.frac_bits)
-
             for _ in range(self.N_POINTS):
                 call_args = []
                 for arg in args:
-                    val = random_uq(arg.node_type)
-                    arg.load_val(val)
-                    call_args.append(val.val)
+                    arg.load_rand(rnd)
+                    call_args.append(arg.val.val)
                     
                 with self.subTest(args=call_args):
                     self.assertEqual(fn(*call_args), design.evaluate().val)
@@ -378,6 +368,7 @@ if __name__ == "__main__":
 
     TestFusedDotProduct.SEED = args.seed
     TestFusedDotProduct.N_POINTS = args.num_points
+    TestFusedDotProduct.rnd = random.Random(args.seed)
     
     program = unittest.main(argv=[__file__, *unittest_args], exit=False)
     

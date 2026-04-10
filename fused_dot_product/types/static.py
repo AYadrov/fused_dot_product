@@ -1,3 +1,6 @@
+import random
+
+
 class StaticType:
     def __init__(self):
         self.runtime_val = None
@@ -36,6 +39,9 @@ class StaticType:
     def to_spec(self, name, ctx):
         raise NotImplementedError
 
+    def random_runtime_value(self, rng: random.Random):
+        raise NotImplementedError
+
 
 class BoolT(StaticType):
     def __init__(self):
@@ -58,6 +64,10 @@ class BoolT(StaticType):
     
     def to_spec(self, name, ctx):
         return ctx.fresh_bool(name)
+
+    def random_runtime_value(self, rng: random.Random):
+        from .runtime import Bool
+        return Bool(rng.getrandbits(1))
      
 
 class QT(StaticType):
@@ -93,6 +103,10 @@ class QT(StaticType):
     def to_spec(self, name, ctx):
         return ctx.fresh_real(name)
 
+    def random_runtime_value(self, rng: random.Random):
+        from .runtime import Q
+        return Q(rng.getrandbits(self.total_bits()), self.int_bits, self.frac_bits)
+
 
 class UQT(StaticType):
     def __init__(self, int_bits: int, frac_bits: int):
@@ -127,6 +141,10 @@ class UQT(StaticType):
     def to_spec(self, name, ctx):
         return ctx.fresh_real(name)
 
+    def random_runtime_value(self, rng: random.Random):
+        from .runtime import UQ
+        return UQ(rng.getrandbits(self.total_bits()), self.int_bits, self.frac_bits)
+
 
 class Float32T(StaticType):
     def __init__(self):
@@ -158,6 +176,10 @@ class Float32T(StaticType):
     def to_spec(self, name, ctx):
         return ctx.fresh_real(name)
 
+    def random_runtime_value(self, rng: random.Random):
+        from .runtime import Float32
+        return Float32(rng.getrandbits(self.total_bits()))
+
 
 class BFloat16T(StaticType):
     def __init__(self):
@@ -188,6 +210,10 @@ class BFloat16T(StaticType):
     
     def to_spec(self, name, ctx):
         return ctx.fresh_real(name)
+
+    def random_runtime_value(self, rng: random.Random):
+        from .runtime import BFloat16
+        return BFloat16(rng.getrandbits(self.total_bits()))
 
 class TupleT(StaticType):
     def __init__(self, *args: StaticType):
@@ -223,6 +249,10 @@ class TupleT(StaticType):
 
     def to_cpp_type(self) -> str:
         return f"std::array<uint_fast64_t, {len(self.args)}>"
+
+    def random_runtime_value(self, rng: random.Random):
+        from .runtime import Tuple
+        return Tuple(*[arg.random_runtime_value(rng) for arg in self.args])
 
 
 __all__ = [

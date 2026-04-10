@@ -105,13 +105,13 @@ class Q(RuntimeType):
     def __init__(self, val: int, int_bits: int, frac_bits: int):
         self.val, self.int_bits, self.frac_bits = val, int_bits, frac_bits
         
-        if self.int_bits < 1:
-            raise ValueError("Q requires at least one integer bit for the sign")
+        if self.int_bits < 0:
+            raise ValueError(f"Q integer bits must be non-negative, got {self.int_bits}")
         if self.frac_bits < 0:
             raise ValueError(f"Q fractional bits must be non-negative, got {self.frac_bits}")
-        if self.int_bits + self.frac_bits < 2:
+        if self.int_bits + self.frac_bits < 1:
             raise ValueError(
-                f"Q requires at least two total bits, got {self.int_bits + self.frac_bits}"
+                f"Q requires at least one total bit, got {self.int_bits + self.frac_bits}"
             )
         if not (0 <= self.val < (1 << self.total_bits())):
             raise ValueError(
@@ -307,15 +307,6 @@ class Float32(RuntimeType):
             frac = 1.0 + self.mantissa / (2 ** self.mantissa_bits)
             exp_val = self.exponent - self.exponent_bias
             return float((-1) ** self.sign * frac * (2 ** exp_val))
-
-    @classmethod
-    def random_generator(cls, seed = None):
-        if seed is None:
-            seed = int(time.time())
-        rnd = random.Random(seed)
-        def gen():
-            return Float32(rnd.getrandbits(32))
-        return gen
         
     # TODO: that's sketchy
     def to_spec(self, ctx):

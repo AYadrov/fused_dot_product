@@ -1,4 +1,5 @@
 import typing as tp
+import random
 
 from ..types.runtime import RuntimeType
 from ..types.static import StaticType
@@ -70,7 +71,6 @@ class composite(Node):
             args=args,
             name=name,
         )
-    
     
     def check_spec(self, z3_timeout_ms: int = 5000, egglog_iters=6):
         ctx = self.ctx.copy()
@@ -291,7 +291,12 @@ class Var(Node):
             args=[],
             name=name,
         )
-    
+
+    def load_rand(self, rng: tp.Optional[random.Random] = None):
+        if rng is None:
+            rng = random.Random()
+        self.load_val(self.sign().random_runtime_value(rng))
+        
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.node_type}: {self.name} [Var]")
