@@ -89,6 +89,8 @@ def jit_compile(node: Node):
         "-std=c++17",
         "-shared",
         "-fPIC",
+        "-O3",
+        "-march=native",
         str(wrapper_path),
         "-o",
         str(library_path),

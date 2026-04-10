@@ -50,6 +50,6 @@ if __name__ == '__main__':
         Var(name="b", sign=Float32T()),
     )
     pprint(adder.check_spec())
-    with open("examples/adder.cpp", "w") as file:
+    with open("examples/adder.hpp", "w") as file:
         file.write(adder.to_cpp())
     

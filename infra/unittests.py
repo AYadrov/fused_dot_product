@@ -214,6 +214,50 @@ class TestFusedDotProduct(unittest.TestCase):
 
         pprint(TestFusedDotProduct.IMPL_REPORT)
 
+    def test_cpp_lowering_performance(self):
+        x = Var(name="x", sign=Float32T())
+        y = Var(name="y", sign=Float32T())
+        design = FP32_IEEE_adder(x, y)
+        
+        tempdir, fn = jit_compile(design)
+        
+        try:
+            design_runtime = 0.0
+            reference_runtime = 0.0
+                
+            rnd = random.Random(self.SEED)
+            for _ in range(self.N_POINTS):
+                x_bits = rnd.getrandbits(32)
+                y_bits = rnd.getrandbits(32)
+                x_fp = float(np.float32(Float32(x_bits).to_val()))
+                y_fp = float(np.float32(Float32(y_bits).to_val()))
+
+                t0 = time.perf_counter()
+                design_bits = fn(x_bits, y_bits)
+                design_runtime += time.perf_counter() - t0
+                design_fp32 = float(np.float32(Float32(design_bits).to_val()))
+                
+                t0 = time.perf_counter()
+                reference_fp64 = x_fp + y_fp
+                reference_runtime += time.perf_counter() - t0
+                reference_fp32 = float(np.float32(reference_fp64))
+
+                with self.subTest(lhs=x_fp, rhs=y_fp):
+                    self.assertEqual(reference_fp32, design_fp32)
+
+            print(
+                "cpp_lowering_performance_s:",
+                {
+                    "jit_total": design_runtime,
+                    "reference_total": reference_runtime,
+                    "jit_per_point": design_runtime / self.N_POINTS,
+                    "reference_per_point": reference_runtime / self.N_POINTS,
+                },
+            )
+        finally:
+            tempdir.cleanup()
+
+        
     def test_cpp_lowering_via_jit_adder(self):
         x = Var(name="x", sign=Float32T())
         y = Var(name="y", sign=Float32T())
