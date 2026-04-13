@@ -47,13 +47,57 @@ def _fp32_sign(x: Node) -> Op:
             args=[x],
             name="_fp32_sign")
 
+
+def _is_nonzero_bits(x: Node) -> Node:
+    return basic_or_reduce(x, out=Const(UQ(0, 1, 0)))
+
+def _is_zero_bits(x: Node) -> Node:
+    return basic_invert(_is_nonzero_bits(x), out=Const(UQ(0, 1, 0)),
+    )
+
 ############## Public API ##############
+
+@Primitive(name="fp32_is_normal", spec=lambda x, ctx: ctx.real_val(1))
+def fp32_is_normal(x: Node) -> Node:
+    exponent = _fp32_exponent(x)
+    exponent_is_nonzero = _is_nonzero_bits(exponent)
+    exponent_is_not_all_ones = basic_invert(
+        basic_and_reduce(exponent, out=Const(UQ(0, 1, 0))),
+        out=Const(UQ(0, 1, 0)),
+    )
+    return basic_and(
+        x=exponent_is_nonzero,
+        y=exponent_is_not_all_ones,
+        out=Const(UQ(0, 1, 0)),
+    )
+
+# For spec, we assume that we can not have subnormal. So, this pass should not exist in spec
+@Primitive(name="fp32_is_subnormal", spec=lambda x, ctx: ctx.real_val(0))
+def fp32_is_subnormal(x: Node) -> Node:
+    exponent_is_all_zeros = _is_zero_bits(_fp32_exponent(x))
+    mantissa_is_nonzero = _is_nonzero_bits(_fp32_mantissa(x))
+    return basic_and(
+        x=exponent_is_all_zeros,
+        y=mantissa_is_nonzero,
+        out=Const(UQ(0, 1, 0)),
+    )
+
+# For spec, we assume that we can not have subnormal. So, this pass should not exist in spec
+@Primitive(name="fp32_is_zero", spec=lambda x, ctx: ctx.real_val(0))
+def fp32_is_zero(x: Node) -> Node:
+    exponent_is_all_zeros = _is_zero_bits(_fp32_exponent(x))
+    mantissa_is_zero = _is_zero_bits(_fp32_mantissa(x))
+    return basic_and(
+        x=exponent_is_all_zeros,
+        y=mantissa_is_zero,
+        out=Const(UQ(0, 1, 0)),
+    )
 
 # For spec, we assume that we can not have nan. So, this pass should not exist in spec
 @Primitive(name="fp32_is_nan", spec=lambda x, ctx: ctx.real_val(0))
 def fp32_is_nan(x: Node) -> Node:
     exponent_is_all_ones = basic_and_reduce(_fp32_exponent(x), out=Const(UQ(0, 1, 0)))
-    mantissa_is_nonzero = basic_or_reduce(_fp32_mantissa(x), out=Const(UQ(0, 1, 0)))
+    mantissa_is_nonzero =_is_nonzero_bits(_fp32_mantissa(x))
     return basic_and(
         x=exponent_is_all_ones,
         y=mantissa_is_nonzero,

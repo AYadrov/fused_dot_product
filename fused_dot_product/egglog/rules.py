@@ -5,7 +5,7 @@ from egglog import *
 
 from .datatypes import Math, MathBool
 
-def rewrite_rules():
+def simplify_rules():
     from ..spec.spec_ast import RealLit, RealVar, BoolLit, BoolVar
     
     a = RealVar("a")
@@ -211,14 +211,17 @@ def check_rules(rules, z3_timeout_ms: int = 10000):
     return results
 
 
-def load_rules(egraph: EGraph) -> None:
-    rules_ = rewrite_rules()
+def load_rules(egraph: EGraph, simplify=False) -> None:
+    simpl_rules = simplify_rules()
     
     # Constant rules are not checked with z3 for now
-    res = check_rules(rules_)
+    res = check_rules(simpl_rules)
     # pprint(res)
-    
-    rules = constant_rules() + lower_rules(rules_)
+
+    if simplify:
+        rules = lower_rules(simpl_rules)
+    else:
+        rules = constant_rules() + lower_rules(simpl_rules)
     egraph.register(*rules)
 
     

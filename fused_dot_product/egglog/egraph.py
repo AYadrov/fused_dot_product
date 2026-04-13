@@ -5,13 +5,13 @@ from egglog import *
 from .rules import load_rules
 
 
-def create_egraph() -> EGraph:
+def create_egraph(simplify=False) -> EGraph:
     egraph = EGraph()
-    load_rules(egraph)
+    load_rules(egraph, simplify=simplify)
     return egraph
 
-def egglog_check_eq(ctx: "SpecContext", iterations=6):
-    egraph = create_egraph()
+def egglog_check_eq(ctx: "SpecContext", iterations=6, simplify=False):
+    egraph = create_egraph(simplify=simplify)
     
     to_check = ctx.to_egglog(egraph)
     
