@@ -8,6 +8,7 @@ from egglog import Expr
 from .spec_ast import (
     Abs,
     Add,
+    And,
     BoolEq,
     BoolExpr,
     BoolLit,
@@ -25,6 +26,7 @@ from .spec_ast import (
     Neg,
     Not,
     NotEq,
+    Or,
     RealExpr,
     RealLit,
     RealVar,

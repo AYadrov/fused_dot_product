@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..spec import SpecContext, SpecNode
-from ..egglog import egglog_check_eq, egglog_simplify_ctx
+from ..egglog import egglog_check_ctx, egglog_preprocess_ctx, egglog_simplify_ctx
 from ..smt import z3_check_eq, dreal_check_eq
 
 
@@ -42,27 +42,21 @@ def check_equivalence(
     
     original_ctx = ctx.copy()
     proof_trace: list[dict[str, Any]] = []
-    
-    # warm up context
-    egglog_equivalence, egglog_report = egglog_check_eq(original_ctx, iterations=2, simplify=True)
-    proof_trace.append(egglog_report)
-    if egglog_equivalence:
+
+    preprocessed_equivalence, preprocessed_ctx, preprocess_report = egglog_preprocess_ctx(original_ctx, iterations=3)
+    proof_trace.append(preprocess_report)
+    if preprocessed_equivalence:
         return True, proof_trace
-    
-    
-    simplified_equivalence, simplified_ctx, simplified_report = egglog_simplify_ctx(original_ctx, egglog_report["egraph"])
-    proof_trace.append(simplified_report)
-    if simplified_equivalence:
-        return True, proof_trace  # never should be the case
-    
-    print(simplified_ctx)
-    
-    
-    egglog_equivalence, egglog_report = egglog_check_eq(simplified_ctx, iterations=egglog_iters)
+
+    egglog_equivalence, egglog_report = egglog_check_ctx(preprocessed_ctx, iterations=egglog_iters)
     proof_trace.append(egglog_report)
     if egglog_equivalence:
         return True, proof_trace
 
+    simplified_equivalence, simplified_ctx, simplified_report = egglog_simplify_ctx(preprocessed_ctx, egglog_report["egraph"])
+    proof_trace.append(simplified_report)
+    if simplified_equivalence:
+        return True, proof_trace  # never should be the case
     
     z3_equivalence, z3_report = z3_check_eq(simplified_ctx, timeout_ms=z3_timeout_ms)
     proof_trace.append(z3_report)

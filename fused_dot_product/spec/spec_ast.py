@@ -533,7 +533,7 @@ class Or(BoolExpr):
     rhs: BoolExpr
     
     def to_egglog(self):
-        raise NotImplementedError()
+        return MathBool.Or(self.lhs.to_egglog(), self.rhs.to_egglog())
     
     def to_z3(self, env):
         return z3.Or(self.lhs.to_z3(env=env), self.rhs.to_z3(env=env))
@@ -551,7 +551,7 @@ class And(BoolExpr):
     rhs: BoolExpr
     
     def to_egglog(self):
-        raise NotImplementedError()
+        return MathBool.And(self.lhs.to_egglog(), self.rhs.to_egglog())
     
     def to_z3(self, env):
         return z3.And(self.lhs.to_z3(env=env), self.rhs.to_z3(env=env))

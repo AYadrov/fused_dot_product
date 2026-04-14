@@ -94,6 +94,7 @@ def _lower_expr(node: SpecNode) -> Expr:
     from ..spec.spec_ast import (
         Abs,
         Add,
+        And,
         BoolEq,
         BoolLit,
         BoolVar,
@@ -110,6 +111,7 @@ def _lower_expr(node: SpecNode) -> Expr:
         Neg,
         Not,
         NotEq,
+        Or,
         RealLit,
         RealVar,
         Sub,
