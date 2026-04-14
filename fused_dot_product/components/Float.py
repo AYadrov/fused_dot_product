@@ -55,6 +55,22 @@ def _is_zero_bits(x: Node) -> Node:
     return basic_invert(_is_nonzero_bits(x), out=Const(UQ(0, 1, 0)),
     )
 
+def _float32_alloc(sign_bit: Node,
+                  exponent: Node,
+                  mantissa: Node) -> Op:
+    def sign(sign_bit: StaticType, exponent: StaticType, mantissa: StaticType) -> Float32T:
+        return Float32T()
+    
+    def impl(sign_bit: RuntimeType, exponent: RuntimeType, mantissa: RuntimeType) -> Float32:
+        return Float32.from_fields(sign_bit.val, exponent.val, mantissa.val)
+    
+    return Op(
+        sign=sign,
+        impl=impl,
+        c_lowering=lambda lowered_args: f"(({lowered_args[0]} << 31) | ({lowered_args[1]} << 23) | {lowered_args[2]})",
+        args=[sign_bit, exponent, mantissa],
+        name="float32_alloc")
+
 ############## Public API ##############
 
 @Primitive(name="fp32_is_normal", spec=lambda x, ctx: ctx.real_val(1))
@@ -104,21 +120,29 @@ def fp32_is_nan(x: Node) -> Node:
         out=Const(UQ(0, 1, 0)),
     )
 
-def _float32_alloc(sign_bit: Node,
-                  exponent: Node,
-                  mantissa: Node) -> Op:
-    def sign(sign_bit: StaticType, exponent: StaticType, mantissa: StaticType) -> Float32T:
-        return Float32T()
-    
-    def impl(sign_bit: RuntimeType, exponent: RuntimeType, mantissa: RuntimeType) -> Float32:
-        return Float32.from_fields(sign_bit.val, exponent.val, mantissa.val)
-    
-    return Op(
-        sign=sign,
-        impl=impl,
-        c_lowering=lambda lowered_args: f"(({lowered_args[0]} << 31) | ({lowered_args[1]} << 23) | {lowered_args[2]})",
-        args=[sign_bit, exponent, mantissa],
-        name="float32_alloc")
+# For spec, we assume that we can not have inf. So, this path should not exist in spec
+@Primitive(name="fp32_is_inf", spec=lambda x, ctx: ctx.real_val(0))
+def fp32_is_inf(x: Node) -> Node:
+    exponent_is_all_ones = basic_and_reduce(_fp32_exponent(x), out=Const(UQ(0, 1, 0)))
+    mantissa_is_zero = _is_zero_bits(_fp32_mantissa(x))
+    return basic_and(
+        x=exponent_is_all_ones,
+        y=mantissa_is_zero,
+        out=Const(UQ(0, 1, 0)),
+    )
+
+@Composite(
+    name="fp32_classify",
+    spec=lambda x, ctx: tuple([ctx.real_val(1), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0)])
+)
+def fp32_classify(x: Node):
+    return make_Tuple(
+        fp32_is_normal(x),
+        fp32_is_subnormal(x),
+        fp32_is_zero(x),
+        fp32_is_inf(x),
+        fp32_is_nan(x),
+    )
 
 def fp32_pack_spec(s, e, m, ctx):
     mantissa = ctx.real_val(1) + m * ctx.real_val(2) ** (-ctx.real_val(Float32.mantissa_bits))

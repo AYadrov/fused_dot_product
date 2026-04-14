@@ -146,8 +146,8 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     E_m = q_sub(E_m, bf16_bias)
 
     encode_nan = Const(UQ(0, 1, 0))
-    root = encode_Float32(M_sum, E_m, encode_nan)
-    return root
+    encode_inf = Const(UQ(0, 1, 0))
+    return encode_Float32(M_sum, E_m, encode_nan, encode_inf)
 
 
 if __name__ == '__main__':
