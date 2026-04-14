@@ -92,7 +92,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     
     encode_nan = Const(UQ(0, 1, 0))
     encode_inf = Const(UQ(0, 1, 0))
-    return encode_Float32(M_sum, E_m_q_biased, encode_nan, encode_inf)
+    return fp32_encode(M_sum, E_m_q_biased, encode_nan, encode_inf)
 
 
 if __name__ == '__main__':
