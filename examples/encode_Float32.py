@@ -255,38 +255,41 @@ def fp32_encodings(m_rounded_uq: Node, e_rounded_uq: Node):
 
 
 # Assume that e is biased
-def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node, encode_zero: Node) -> Primitive:
+def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node) -> Primitive:
     assert e.node_type.frac_bits == 0
     
-    def spec(s, e, m, encode_nan, encode_inf, encode_zero, ctx):
+    def spec(s, e, m, encode_nan, encode_inf, ctx):
         ctx.check(encode_nan.eq(ctx.real_val(0)))
         ctx.check(encode_inf.eq(ctx.real_val(0)))
         return s * m * (ctx.real_val(2) ** (e - ctx.real_val(127)))
     
     @Composite(name="fp32_encode", spec=spec)
-    def impl(s_uq: Node, e_q: Node, m_uq: Node, encode_nan: Node, encode_inf: Node, encode_zero: Node) -> Node:
+    def impl(s_uq: Node, e_q: Node, m_uq: Node, encode_nan: Node, encode_inf: Node) -> Node:
+        encode_zero = uq_is_zero(m_uq)
         normalized_m_uq, normalized_e_q = normalize_to_1_xxx(m_uq, e_q)
         shifted_m_uq, shifted_e_uq = shift_if_subnormal(normalized_m_uq, normalized_e_q)
         shifted_m_uq = drop_implicit_bit(shifted_m_uq)
         m_rounded_uq, e_rounded_uq = round_mantissa(shifted_m_uq, shifted_e_uq)
         
         final_m_uq, final_e_uq = fp32_encodings(m_rounded_uq, e_rounded_uq)
+
+        # Priority (lowest to highest): normal/subnormal -> zero -> inf -> nan 
         packed_fp32 = fp32_pack(s_uq, final_e_uq, final_m_uq)
-        
-        result = if_then_else(encode_nan, Const(Float32.NaN()), packed_fp32)
+
+        result = if_then_else(
+            encode_zero,
+            if_then_else(s_uq, Const(Float32.nZero()), Const(Float32.Zero())),
+            packed_fp32,
+        )
         result = if_then_else(
             encode_inf,
             if_then_else(s_uq, Const(Float32.nInf()), Const(Float32.Inf())),
             result,
         )
-        result = if_then_else(
-            encode_zero,
-            if_then_else(s_uq, Const(Float32.nZero()), Const(Float32.Zero())),
-            result,
-        )
+        result = if_then_else(encode_nan, Const(Float32.NaN()), result)
         return result
     
-    return impl(s, e, m, encode_nan, encode_inf, encode_zero)
+    return impl(s, e, m, encode_nan, encode_inf)
 
 
 if __name__ == '__main__':

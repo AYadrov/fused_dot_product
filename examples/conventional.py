@@ -43,8 +43,8 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     ############ MANTISSAS #############
     
     # Step 1. Convert mantissas to UQ1.7
-    M_a = [add_implicit_bit(M_a[i]) for i in range(N)]
-    M_b = [add_implicit_bit(M_b[i]) for i in range(N)]
+    M_a = [add_implicit_bit(integer_to_fraction(M_a[i])) for i in range(N)]
+    M_b = [add_implicit_bit(integer_to_fraction(M_b[i])) for i in range(N)]
     
     # Step 2. Multiply mantissas
     M_p = [uq_mul(M_a[i], M_b[i]) for i in range(N)]
@@ -89,10 +89,13 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     E_m_q = uq_to_q(E_m)
     
     E_m_q_biased = q_sub(E_m_q, bf16_bias)
+
+    sign_bit = q_sign_bit(M_sum)
+    M_sum_uq = q_to_uq(q_abs(M_sum))
     
     encode_nan = Const(UQ(0, 1, 0))
     encode_inf = Const(UQ(0, 1, 0))
-    return fp32_encode(M_sum, E_m_q_biased, encode_nan, encode_inf)
+    return fp32_encode(sign_bit, E_m_q_biased, M_sum_uq, encode_nan, encode_inf)
 
 
 if __name__ == '__main__':

@@ -60,8 +60,6 @@ def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     
     m_sum = q_add(x_m_signed, y_m_signed)
     
-    encode_zero = q_is_zero(m_sum)
-    
     sign_bit = q_sign_bit(m_sum)
     
     return fp32_encode(
@@ -70,7 +68,6 @@ def FP32_IEEE_adder(x: Node, y: Node) -> Node:
         q_to_uq(q_abs(m_sum)),  # mantissa: UQ
         encode_nan,
         encode_inf,
-        encode_zero,
     )
 
 
