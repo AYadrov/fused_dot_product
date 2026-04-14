@@ -3,6 +3,7 @@ import math
 from fused_dot_product import *
 from .common import *
 
+
 # Round to Nearest, Ties to Even
 def uq_RNE_IEEE(m: Node, bits_to_cut: int):
     assert bits_to_cut >= 0, "Cannot cut negative number of bits"
@@ -58,7 +59,7 @@ def uq_RNE_IEEE(m: Node, bits_to_cut: int):
     return impl(m)
 
 
-def round_spec(m, e, ctx):
+def round_mantissa_spec(m, e, ctx):
     m_ = ctx.fresh_real('rounded_m')
     e_ = ctx.fresh_real('rounded_e')
     ctx.assume((m * ctx.real_val(2) ** e).eq(m_ * ctx.real_val(2) ** e_))
@@ -67,7 +68,7 @@ def round_spec(m, e, ctx):
 def round_mantissa(m: Node, e: Node, target_bits: int = Float32.mantissa_bits, rounding_mode: str = "RNE") -> Primitive:
     assert target_bits > 0, "Cannot round fixed point to zero/negative number of bits"
     
-    @Primitive(name="round_mantissa", spec=round_spec)
+    @Primitive(name="round_mantissa", spec=round_mantissa_spec)
     def impl(m_prerounded: Node, e_prerounded: Node) -> Node:
         ####################################################
         #  Constants
@@ -254,17 +255,16 @@ def fp32_encodings(m_rounded_uq: Node, e_rounded_uq: Node):
 
 
 # Assume that e is biased
-# TODO: NaNs
-def fp32_encode(s: Node, m: Node, e: Node, encode_nan: Node, encode_inf: Node, encode_zero: Node) -> Primitive:
+def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node, encode_zero: Node) -> Primitive:
     assert e.node_type.frac_bits == 0
     
-    def spec(s, m, e, encode_nan, encode_inf, encode_zero, ctx):
+    def spec(s, e, m, encode_nan, encode_inf, encode_zero, ctx):
         ctx.check(encode_nan.eq(ctx.real_val(0)))
         ctx.check(encode_inf.eq(ctx.real_val(0)))
         return s * m * (ctx.real_val(2) ** (e - ctx.real_val(127)))
     
     @Composite(name="fp32_encode", spec=spec)
-    def impl(s_uq: Node, m_uq: Node, e_q: Node, encode_nan: Node, encode_inf: Node, encode_zero: Node) -> Node:
+    def impl(s_uq: Node, e_q: Node, m_uq: Node, encode_nan: Node, encode_inf: Node, encode_zero: Node) -> Node:
         normalized_m_uq, normalized_e_q = normalize_to_1_xxx(m_uq, e_q)
         shifted_m_uq, shifted_e_uq = shift_if_subnormal(normalized_m_uq, normalized_e_q)
         shifted_m_uq = drop_implicit_bit(shifted_m_uq)
@@ -274,11 +274,19 @@ def fp32_encode(s: Node, m: Node, e: Node, encode_nan: Node, encode_inf: Node, e
         packed_fp32 = fp32_pack(s_uq, final_e_uq, final_m_uq)
         
         result = if_then_else(encode_nan, Const(Float32.NaN()), packed_fp32)
-        result = if_then_else(encode_inf, Const(Float32.Inf()), result)
-        result = if_then_else(encode_zero, Const(Float32.Zero()), result)
+        result = if_then_else(
+            encode_inf,
+            if_then_else(s_uq, Const(Float32.nInf()), Const(Float32.Inf())),
+            result,
+        )
+        result = if_then_else(
+            encode_zero,
+            if_then_else(s_uq, Const(Float32.nZero()), Const(Float32.Zero())),
+            result,
+        )
         return result
     
-    return impl(s, m, e, encode_nan, encode_inf, encode_zero)
+    return impl(s, e, m, encode_nan, encode_inf, encode_zero)
 
 
 if __name__ == '__main__':

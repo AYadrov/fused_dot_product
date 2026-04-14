@@ -39,25 +39,25 @@ def check_equivalence(
     dreal_precision: float = 0.001,
 ):
     _enqueue_equivalence(query1, query2, ctx=ctx)
- 
+    
     original_ctx = ctx.copy()
     proof_trace: list[dict[str, Any]] = []
-
+    
     # warm up context
     egglog_equivalence, egglog_report = egglog_check_eq(original_ctx, iterations=2, simplify=True)
     proof_trace.append(egglog_report)
     if egglog_equivalence:
         return True, proof_trace
-
+    
     
     simplified_equivalence, simplified_ctx, simplified_report = egglog_simplify_ctx(original_ctx, egglog_report["egraph"])
     proof_trace.append(simplified_report)
     if simplified_equivalence:
         return True, proof_trace  # never should be the case
-
+    
     print(simplified_ctx)
-
-
+    
+    
     egglog_equivalence, egglog_report = egglog_check_eq(simplified_ctx, iterations=egglog_iters)
     proof_trace.append(egglog_report)
     if egglog_equivalence:
