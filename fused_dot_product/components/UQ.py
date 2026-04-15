@@ -209,6 +209,29 @@ def uq_rshift(x: Node, amount: Node) -> Node:
         out=x.copy(),
     )
 
+@Primitive(name="uq_rshift_jam", spec=lambda x, amount, ctx: x * (ctx.real_val(2) ** (-amount)))
+def uq_rshift_jam(x: Node, amount: Node) -> Node:
+    width = x.node_type.total_bits()
+    amount_to_truncate = uq_sub(Const(UQ.from_int(width)), amount)
+    to_be_truncated = basic_lshift(x, amount_to_truncate, out=x.copy())
+    sticky_mid = basic_or_reduce(to_be_truncated, Const(UQ(0, 1, 0)))
+    sticky_all = basic_or_reduce(x, Const(UQ(0, 1, 0)))
+
+    sticky_bit = basic_mux_2_1(
+        sel=uq_ge(amount, Const(UQ.from_int(width))),
+        in0=sticky_mid,
+        in1=sticky_all,
+        out=Const(UQ(0, 1, 0)),
+    )
+    sticky_bit = basic_mux_2_1(
+        sel=uq_is_zero(amount),
+        in0=sticky_bit,
+        in1=Const(UQ(0, 1, 0)),
+        out=Const(UQ(0, 1, 0)),
+    )
+    
+    return basic_or(uq_rshift(x, amount), sticky_bit, x.copy())
+
 
 # TODO: truncation
 @Primitive(name="uq_lshift", spec=lambda x, amount, ctx: x * (ctx.real_val(2) ** amount))
