@@ -7,6 +7,7 @@ import struct
 import numpy as np
 
 
+# TODO: NaN payload
 @Composite(name="FP32_IEEE_adder", spec=lambda x, y, ctx: x + y)
 def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     x_norm, x_sub, x_zero, x_inf, x_nan = fp32_classify(x)
