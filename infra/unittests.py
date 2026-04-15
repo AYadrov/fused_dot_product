@@ -241,7 +241,7 @@ class TestFusedDotProduct(unittest.TestCase):
                 reference_fp32 = float(np.float32(reference_fp64))
 
                 with self.subTest(lhs=x_fp, rhs=y_fp):
-                    self.assertEqual(reference_fp32, design_fp32)
+                    self.assertEqual(ulp_distance(reference_fp32, design_fp32), 0, msg=f"{reference_fp32} != {design_fp32}")
 
             print(
                 "cpp_lowering_performance_s:",
@@ -384,7 +384,6 @@ class TestFusedDotProduct(unittest.TestCase):
                     self.assertEqual(fn(*call_args), design.evaluate().val)
         finally:
             tempdir.cleanup()
-
 
 
 def build_unittest_report(seed: int, spec_report: dict, impl_report: dict):
