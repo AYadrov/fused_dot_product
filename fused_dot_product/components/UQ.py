@@ -209,6 +209,7 @@ def uq_rshift(x: Node, amount: Node) -> Node:
         out=x.copy(),
     )
 
+
 @Primitive(name="uq_rshift_jam", spec=lambda x, amount, ctx: x * (ctx.real_val(2) ** (-amount)))
 def uq_rshift_jam(x: Node, amount: Node) -> Node:
     width = x.node_type.total_bits()

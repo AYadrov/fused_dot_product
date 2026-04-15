@@ -6,8 +6,6 @@ import struct
 
 import numpy as np
 
-Wf = 30
-
 
 @Composite(name="FP32_IEEE_adder", spec=lambda x, y, ctx: x + y)
 def FP32_IEEE_adder(x: Node, y: Node) -> Node:
@@ -24,7 +22,7 @@ def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     
     # Inf encoding
     encode_inf = bit_and(bit_neg(encode_nan), bit_or(x_inf, y_inf))
-
+    
     # Signed zero encoding
     both_negative_zeros = bit_and(bit_and(x_zero, y_zero), bit_and(x_s, y_s))
     
@@ -56,9 +54,9 @@ def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     x_shift_amount = uq_sub(max_exp, x_effective_e)
     y_shift_amount = uq_sub(max_exp, y_effective_e)
     
-    # Make some room for right shift
-    x_m_resized = uq_resize(x_m_formatted, 1, Wf-1)
-    y_m_resized = uq_resize(y_m_formatted, 1, Wf-1)
+    # Make room for latter correct rounding
+    x_m_resized = uq_resize(x_m_formatted, 1, Float32.mantissa_bits + 3)
+    y_m_resized = uq_resize(y_m_formatted, 1, Float32.mantissa_bits + 3)
     
     x_m_shifted = uq_rshift_jam(x_m_resized, x_shift_amount)
     y_m_shifted = uq_rshift_jam(y_m_resized, y_shift_amount)

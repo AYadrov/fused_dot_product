@@ -157,7 +157,7 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Node:
     m_resized = uq_resize(m, max(m_int_target_bits, m.node_type.int_bits), m_frac_target_bits)
     
     left_m_uq = uq_lshift(m_resized, shift_magnitude_uq)  # Shift amount is positive
-    right_m_uq = uq_rshift(m_resized, shift_magnitude_uq)  # Shift amount is negative
+    right_m_uq = uq_rshift_jam(m_resized, shift_magnitude_uq)  # Shift amount is negative
     norm_m_uq = basic_mux_2_1(
         sel=shift_sign_uq,
         in0=left_m_uq,
@@ -227,7 +227,7 @@ def shift_if_subnormal(normalized_m_uq: Node, normalized_e_q: Node):
         amount=Const(UQ.from_int(subnormal_extra_bits)),
         out=Const(UQ(0, int_bits, frac_bits)),
     )
-    classified_m_uq = uq_rshift(classified_m_uq, shift_amount)
+    classified_m_uq = uq_rshift_jam(classified_m_uq, shift_amount)
     
     return make_Tuple(classified_m_uq, classified_e_uq)
 
