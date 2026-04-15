@@ -307,7 +307,7 @@ class Float32(RuntimeType):
             frac = 1.0 + self.mantissa / (2 ** self.mantissa_bits)
             exp_val = self.exponent - self.exponent_bias
             return float((-1) ** self.sign * frac * (2 ** exp_val))
-        
+    
     # TODO: that's sketchy
     def to_spec(self, ctx):
         return ctx.real_val(self.to_val())
@@ -332,8 +332,14 @@ class Float32(RuntimeType):
         return cls.from_fields(0, cls.zero_code, 0)
     
     @classmethod
-    def NaN(cls):
-        return cls.from_fields(0, cls.nan_code, 1)
+    def NaN(cls, payload: int = 1):
+        if not isinstance(payload, int):
+            raise TypeError(f"Float32 NaN payload must be int, got {type(payload).__name__}")
+        if not (1 <= payload < (1 << cls.mantissa_bits)):
+            raise ValueError(
+                f"Float32 NaN payload must fit in {cls.mantissa_bits} mantissa bits and be non-zero, got {payload}"
+            )
+        return cls.from_fields(0, cls.nan_code, payload)
     
     def copy(self):
         return Float32(self.val)
@@ -344,7 +350,7 @@ class Float32(RuntimeType):
     def __eq__(self, other):
         return (
             isinstance(other, Float32)
-            and self.to_bits() == other.to_bits()
+            and self.val == other.val
         )
 
 
@@ -357,9 +363,9 @@ class BFloat16(RuntimeType):
     def __init__(self, val: int):
         if not isinstance(val, int):
             raise TypeError(f"BFloat16 expects packed bits as int, got {type(val).__name__}")
-        if not (0 <= val < (1 << 32)):
-            raise ValueError(f"BFloat16 packed bits must fit in 32 bits, got {val}")
-        self.val = val & ((1 << self.total_bits()) - 1)
+        if not (0 <= val < (1 << self.total_bits())):
+            raise ValueError(f"BFloat16 packed bits must fit in {self.total_bits()} bits, got {val}")
+        self.val = val
 
     @classmethod
     def from_fields(cls, sign: int, mantissa: int, exponent: int):

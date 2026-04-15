@@ -94,14 +94,10 @@ class TestFusedDotProduct(unittest.TestCase):
         print("\nRunning test_run_spec_verification_and_timing:")
         print("\tConstructing CSA_tree4, Conventional, and Optimized composites.")
         print("\tRunning run_spec() for each design and reporting verification runtime.\n")
-        
-        csa_args = [
-            Var(name="csa_0", sign=QT(3, 4)),
-            Var(name="csa_1", sign=QT(8, 3)),
-            Var(name="csa_2", sign=QT(5, 0)),
-            Var(name="csa_3", sign=QT(1, 5)),
-        ]
-        csa_tree4 = CSA_tree4(*csa_args)
+
+        rnd = random.Random(self.SEED)
+        args = [Var(f"arg_{i}", sign=QT(rnd.randint(1, 20), rnd.randint(1, 20))) for i in range(4)]
+        csa_tree4 = CSA_tree4(*args)
         
         a = [
             Var(name="a_0", sign=BFloat16T()),
@@ -292,7 +288,7 @@ class TestFusedDotProduct(unittest.TestCase):
         tempdir, fn = jit_compile(design)
 
         try:
-            random_gen, exp_shuffle = BFloat16.random_generator()
+            random_gen, exp_shuffle = BFloat16.random_generator(seed=self.SEED)
             for _ in range(self.N_POINTS):
                 exp_shuffle()
                 args = []
@@ -312,12 +308,12 @@ class TestFusedDotProduct(unittest.TestCase):
 
             
     def test_cpp_lowering_via_jit_csa(self):
-        args = [Var(f"arg_{i}", sign=QT(random.randint(1, 20), random.randint(1, 20))) for i in range(4)]
+        rnd = random.Random(self.SEED)
+        args = [Var(f"arg_{i}", sign=QT(rnd.randint(1, 20), rnd.randint(1, 20))) for i in range(4)]
         
         design = CSA_tree4(*args)
         tempdir, fn = jit_compile(design)
         try:
-            rnd = random.Random(self.SEED)
             for _ in range(self.N_POINTS):
                 call_args = []
                 for arg in args:
@@ -349,7 +345,7 @@ class TestFusedDotProduct(unittest.TestCase):
         tempdir, fn = jit_compile(design)
 
         try:
-            random_gen, exp_shuffle = BFloat16.random_generator()
+            random_gen, exp_shuffle = BFloat16.random_generator(seed=self.SEED)
             for _ in range(self.N_POINTS):
                 exp_shuffle()
                 args = []
@@ -368,12 +364,12 @@ class TestFusedDotProduct(unittest.TestCase):
             tempdir.cleanup()
 
     def test_cpp_lowering_via_jit_max_exponent(self):
-        args = [Var(f"arg_{i}", sign=UQT(random.randint(1, 10), 0)) for i in range(4)]
+        rnd = random.Random(self.SEED)
+        args = [Var(f"arg_{i}", sign=UQT(rnd.randint(1, 10), 0)) for i in range(4)]
         
         design = OPTIMIZED_MAX_EXP4(*args)
         tempdir, fn = jit_compile(design)
         try:
-            rnd = random.Random(self.SEED)
             for _ in range(self.N_POINTS):
                 call_args = []
                 for arg in args:
