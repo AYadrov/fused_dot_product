@@ -58,11 +58,14 @@ class _CppEmitter:
         else:
             includes.extend([
                 "#include <tuple>",
-                "#include <ac_uint.h>",
+                "#include <ac_int.h>",
             ])
         parts = [
             "#pragma once",
             *includes,
+            "",
+            "template <int W>",
+            "using ac_uint = ac_int<W, false>;",
             "",
             *list(self._functions),
         ]

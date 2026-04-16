@@ -16,7 +16,7 @@ from examples.CSA import CSA_tree4
 from examples.FP32_IEEE_adder import FP32_IEEE_adder
 from examples.max_exponent import OPTIMIZED_MAX_EXP4
 
-from infra.jit_compile import jit_compile
+from infra.compile_cpp import jit_compile, nonjit_compile
 
 DEFAULT_SEED = 0
 DEFAULT_N_POINTS = 1000
@@ -213,10 +213,12 @@ class TestFusedDotProduct(unittest.TestCase):
         y = Var(name="y", sign=Float32T())
         design = FP32_IEEE_adder(x, y)
         
-        tempdir, fn = jit_compile(design)
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
         
         try:
-            design_runtime = 0.0
+            jit_runtime = 0.0
+            no_jit_runtime = 0.0
             reference_runtime = 0.0
                 
             rnd = random.Random(self.SEED)
@@ -227,9 +229,14 @@ class TestFusedDotProduct(unittest.TestCase):
                 y_fp = float(np.float32(Float32(y_bits).to_val()))
 
                 t0 = time.perf_counter()
-                design_bits = fn(x_bits, y_bits)
-                design_runtime += time.perf_counter() - t0
-                design_fp32 = float(np.float32(Float32(design_bits).to_val()))
+                jit_bits = fn_jit(x_bits, y_bits)
+                jit_runtime += time.perf_counter() - t0
+                jit_fp32 = float(np.float32(Float32(jit_bits).to_val()))
+
+                t0 = time.perf_counter()
+                no_jit_bits = fn_no_jit(x_bits, y_bits)
+                no_jit_runtime += time.perf_counter() - t0
+                no_jit_fp32 = float(np.float32(Float32(no_jit_bits).to_val()))
                 
                 t0 = time.perf_counter()
                 reference_fp64 = x_fp + y_fp
@@ -237,19 +244,23 @@ class TestFusedDotProduct(unittest.TestCase):
                 reference_fp32 = float(np.float32(reference_fp64))
 
                 with self.subTest(lhs=x_fp, rhs=y_fp):
-                    self.assertEqual(ulp_distance(reference_fp32, design_fp32), 0, msg=f"{reference_fp32} != {design_fp32}")
+                    self.assertEqual(ulp_distance(reference_fp32, jit_fp32), 0, msg=f"{reference_fp32} != {jit_fp32}")
+                    self.assertEqual(ulp_distance(jit_fp32, no_jit_fp32), 0, msg=f"{jit_fp32} != {no_jit_fp32}")
 
             print(
                 "cpp_lowering_performance_s:",
                 {
-                    "jit_total": design_runtime,
+                    "jit_total": jit_runtime,
+                    "no_jit_total": no_jit_runtime,
                     "reference_total": reference_runtime,
-                    "jit_per_point": design_runtime / self.N_POINTS,
+                    "jit_per_point": jit_runtime / self.N_POINTS,
+                    "no_jit_per_point": no_jit_runtime / self.N_POINTS,
                     "reference_per_point": reference_runtime / self.N_POINTS,
                 },
             )
         finally:
-            tempdir.cleanup()
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
 
         
     def test_cpp_lowering_via_jit_adder(self):
@@ -257,7 +268,8 @@ class TestFusedDotProduct(unittest.TestCase):
         y = Var(name="y", sign=Float32T())
     
         design = FP32_IEEE_adder(x, y)
-        tempdir, fn = jit_compile(design)
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
 
         try:
             rnd = random.Random(self.SEED)
@@ -265,9 +277,12 @@ class TestFusedDotProduct(unittest.TestCase):
                 x.load_rand(rnd)
                 y.load_rand(rnd)
                 with self.subTest(lhs=x.val, rhs=y.val):
-                    self.assertEqual(fn(x.val.val, y.val.val), design.evaluate().val)
+                    expected = design.evaluate().val
+                    self.assertEqual(fn_jit(x.val.val, y.val.val), expected)
+                    self.assertEqual(fn_no_jit(x.val.val, y.val.val), expected)
         finally:
-            tempdir.cleanup()
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
 
     def test_cpp_lowering_via_jit_conventional(self):
         a = [
@@ -285,7 +300,8 @@ class TestFusedDotProduct(unittest.TestCase):
         ]
         
         design = Conventional(*a, *b)
-        tempdir, fn = jit_compile(design)
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
 
         try:
             random_gen, exp_shuffle = BFloat16.random_generator(seed=self.SEED)
@@ -302,9 +318,12 @@ class TestFusedDotProduct(unittest.TestCase):
                     args.append(val.val)
                     
                 with self.subTest(a=a, b=b):
-                    self.assertEqual(fn(*args), design.evaluate().val)
+                    expected = design.evaluate().val
+                    self.assertEqual(fn_jit(*args), expected)
+                    self.assertEqual(fn_no_jit(*args), expected)
         finally:
-            tempdir.cleanup()
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
 
             
     def test_cpp_lowering_via_jit_csa(self):
@@ -312,7 +331,8 @@ class TestFusedDotProduct(unittest.TestCase):
         args = [Var(f"arg_{i}", sign=QT(rnd.randint(1, 20), rnd.randint(1, 20))) for i in range(4)]
         
         design = CSA_tree4(*args)
-        tempdir, fn = jit_compile(design)
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
         try:
             for _ in range(self.N_POINTS):
                 call_args = []
@@ -321,9 +341,12 @@ class TestFusedDotProduct(unittest.TestCase):
                     call_args.append(arg.val.val)
                     
                 with self.subTest(args=call_args):
-                    self.assertEqual(fn(*call_args), design.evaluate().val)
+                    expected = design.evaluate().val
+                    self.assertEqual(fn_jit(*call_args), expected)
+                    self.assertEqual(fn_no_jit(*call_args), expected)
         finally:
-            tempdir.cleanup()
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
 
 
     def test_cpp_lowering_via_jit_optimized(self):
@@ -342,7 +365,8 @@ class TestFusedDotProduct(unittest.TestCase):
         ]
         
         design = Optimized(*a, *b)
-        tempdir, fn = jit_compile(design)
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
 
         try:
             random_gen, exp_shuffle = BFloat16.random_generator(seed=self.SEED)
@@ -359,16 +383,20 @@ class TestFusedDotProduct(unittest.TestCase):
                     args.append(val.val)
                     
                 with self.subTest(a=a, b=b):
-                    self.assertEqual(fn(*args), design.evaluate().val)
+                    expected = design.evaluate().val
+                    self.assertEqual(fn_jit(*args), expected)
+                    self.assertEqual(fn_no_jit(*args), expected)
         finally:
-            tempdir.cleanup()
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
 
     def test_cpp_lowering_via_jit_max_exponent(self):
         rnd = random.Random(self.SEED)
         args = [Var(f"arg_{i}", sign=UQT(rnd.randint(1, 10), 0)) for i in range(4)]
         
         design = OPTIMIZED_MAX_EXP4(*args)
-        tempdir, fn = jit_compile(design)
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
         try:
             for _ in range(self.N_POINTS):
                 call_args = []
@@ -377,9 +405,12 @@ class TestFusedDotProduct(unittest.TestCase):
                     call_args.append(arg.val.val)
                     
                 with self.subTest(args=call_args):
-                    self.assertEqual(fn(*call_args), design.evaluate().val)
+                    expected = design.evaluate().val
+                    self.assertEqual(fn_jit(*call_args), expected)
+                    self.assertEqual(fn_no_jit(*call_args), expected)
         finally:
-            tempdir.cleanup()
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
 
 
 def build_unittest_report(seed: int, spec_report: dict, impl_report: dict):
