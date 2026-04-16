@@ -161,7 +161,7 @@ def basic_lshift(x: Node, amount: Node, out: Node) -> Op:
         x=x,
         y=amount,
         out=out,
-        c_lowering=_format_c_lowering(f"({1} >= {out_width} ? 0 : ({out_cpp_type}({0}) << {1}))", 0, 1),  # avoiding undef. behavior when shifting
+        c_lowering=_format_c_lowering(f"({{1}} >= {out_width} ? 0 : ({out_cpp_type}({{0}}) << {{1}}))", 0, 1),  # avoiding undef. behavior when shifting
         name="basic_lshift",
     )
 
