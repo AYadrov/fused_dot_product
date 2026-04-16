@@ -186,7 +186,8 @@ class _CppEmitter:
             result = ("Const", self._value_key(node.val))
         elif isinstance(node, Op):
             lowering_fingerprint = node.c_lowering(
-                [f"${idx}" for idx in range(len(node.args))]
+                [f"${idx}" for idx in range(len(node.args))],
+                self._render_type,
             )
             result = (
                 "Op",
@@ -245,7 +246,7 @@ class _CppEmitter:
             raise CppLoweringError(f"Unsupported op lowering for {node.name}")
         
         lowered_args = [self._lower(arg, env, ctx).expr for arg in node.args]
-        expr = self._cast(node.node_type, node.c_lowering(lowered_args))
+        expr = self._cast(node.node_type, node.c_lowering(lowered_args, self._render_type))
         return self._emit_temp(node.node_type, expr, node.name, ctx)
     
     def _signature(self, name: str, args: list[Var], return_type: StaticType) -> str:
@@ -278,7 +279,7 @@ class _CppEmitter:
     def _render_type(self, type_: StaticType) -> str:
         if isinstance(type_, TupleT) and any(isinstance(arg, TupleT) for arg in type_.args):
             raise CppLoweringError("Nested tuples are not supported in C++ lowering")
-        return type_.to_cpp_type()
+        return type_.to_cpp_type(jittable=self.jittable)
     
     def _cast(self, type_: StaticType, expr: str) -> str:
         if isinstance(type_, TupleT):

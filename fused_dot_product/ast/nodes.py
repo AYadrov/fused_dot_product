@@ -10,7 +10,8 @@ from ..solver import check_equivalence
 from ..spec import SpecContext
 
 
-CLowering = tp.Callable[[list[str]], str]
+CppTypeRenderer = tp.Callable[[StaticType], str]
+CLowering = tp.Callable[[list[str], CppTypeRenderer], str]
 
 
 def Composite(

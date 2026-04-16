@@ -22,7 +22,7 @@ def _q_is_min_val(x: Node) -> Op:
     return Op(
         impl=impl,
         sign=sign,
-        c_lowering=lambda lowered_args: f"({lowered_args[0]} == {1 << (x.node_type.total_bits() - 1)})",
+        c_lowering=lambda lowered_args, render_type: f"({lowered_args[0]} == {1 << (x.node_type.total_bits() - 1)})",
         args=[x],
         name="_q_is_min_val")
         
@@ -42,7 +42,7 @@ def q_alloc(int_bits: Node, frac_bits: Node) -> Op:
     return Op(
         sign=sign,
         impl=impl,
-        c_lowering=lambda lowered_args: "0",
+        c_lowering=lambda lowered_args, render_type: "0",
         args=[int_bits, frac_bits],
         name="q_alloc")
 

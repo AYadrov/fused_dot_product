@@ -22,7 +22,7 @@ def _basic_get_item(x: Node, idx: int) -> Op:
     return Op(
         impl=op,
         sign=sign,
-        c_lowering=lambda lowered_args: f"{lowered_args[0]}[{idx}]",
+        c_lowering=lambda lowered_args, render_type: f"{lowered_args[0]}[{idx}]",
         args=[x],
         name=f"_basic_get_item_{idx}",
     )

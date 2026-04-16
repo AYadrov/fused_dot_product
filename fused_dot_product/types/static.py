@@ -17,7 +17,7 @@ class StaticType:
     def total_bits(self):
         raise NotImplementedError
 
-    def to_cpp_type(self) -> str:
+    def to_cpp_type(self, jittable: bool = True) -> str:
         total_bits = self.total_bits()
         if total_bits <= 8:
             return "uint_fast8_t"
@@ -247,7 +247,7 @@ class TupleT(StaticType):
     def to_spec(self, name, ctx):
         return tuple(x.to_spec(name=f"{name}_{i}", ctx=ctx) for i, x in enumerate(self.args))
 
-    def to_cpp_type(self) -> str:
+    def to_cpp_type(self, jittable: bool = True) -> str:
         return f"std::array<uint_fast64_t, {len(self.args)}>"
 
     def random_runtime_value(self, rng: random.Random):
