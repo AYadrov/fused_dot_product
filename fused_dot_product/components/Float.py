@@ -67,7 +67,11 @@ def _float32_alloc(sign_bit: Node,
     return Op(
         sign=sign,
         impl=impl,
-        c_lowering=lambda lowered_args, jittable: f"(({lowered_args[0]} << 31) | ({lowered_args[1]} << 23) | {lowered_args[2]})",
+        c_lowering=lambda lowered_args, jittable: (
+            f"(({Float32T().to_cpp_type(jittable=jittable)}({lowered_args[0]}) << 31) | "
+            f"({Float32T().to_cpp_type(jittable=jittable)}({lowered_args[1]}) << 23) | "
+            f"{Float32T().to_cpp_type(jittable=jittable)}({lowered_args[2]}))"
+        ),
         args=[sign_bit, exponent, mantissa],
         name="float32_alloc")
 

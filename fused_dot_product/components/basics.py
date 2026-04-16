@@ -12,6 +12,14 @@ def _format_c_lowering(template: str, *args_ids: list[int]):
         return template.format(*[args[idx] for idx in args_ids])
     return lower
 
+def _cpp_cast(type_: StaticType, expr: str, *, jittable: bool) -> str:
+    return f"{type_.to_cpp_type(jittable=jittable)}({expr})"
+
+
+def _cpp_zero(type_: StaticType, *, jittable: bool) -> str:
+    return _cpp_cast(type_, "0", jittable=jittable)
+
+
 def _impl_constructor(op):
     # To be called with op's arguments and output
     def impl(*args: RuntimeType) -> RuntimeType:
@@ -75,7 +83,11 @@ def basic_mux_2_1(sel: Node, in0: Node, in1: Node, out: Node) -> Op:
         y=in0,
         z=in1,
         out=out,
-        c_lowering=_format_c_lowering("({} != 0 ? {} : {})", 0, 2, 1),
+        c_lowering=lambda lowered_args, jittable: (
+            f"({lowered_args[0]} != 0 ? "
+            f"{_cpp_cast(out.node_type, lowered_args[2], jittable=jittable)} : "
+            f"{_cpp_cast(out.node_type, lowered_args[1], jittable=jittable)})"
+        ),
         name="basic_mux_2_1",
     )
 
@@ -126,7 +138,11 @@ def basic_max(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=_format_c_lowering("({} > {} ? {} : {})", 0, 1, 0, 1),
+        c_lowering=lambda lowered_args, jittable: (
+            f"({lowered_args[0]} > {lowered_args[1]} ? "
+            f"{_cpp_cast(out.node_type, lowered_args[0], jittable=jittable)} : "
+            f"{_cpp_cast(out.node_type, lowered_args[1], jittable=jittable)})"
+        ),
         name="basic_max",
     )
 
@@ -136,7 +152,11 @@ def basic_min(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=_format_c_lowering("({} < {} ? {} : {})", 0, 1, 0, 1),
+        c_lowering=lambda lowered_args, jittable: (
+            f"({lowered_args[0]} < {lowered_args[1]} ? "
+            f"{_cpp_cast(out.node_type, lowered_args[0], jittable=jittable)} : "
+            f"{_cpp_cast(out.node_type, lowered_args[1], jittable=jittable)})"
+        ),
         name="basic_min",
     )
 
@@ -147,7 +167,10 @@ def basic_rshift(x: Node, amount: Node, out: Node) -> Op:
         x=x,
         y=amount,
         out=out,
-        c_lowering=_format_c_lowering(f"({{1}} >= {width} ? 0 : ({{0}} >> {{1}}))", 0, 1),  # Shifting more than bitwidth is undef. behavior
+        c_lowering=lambda lowered_args, jittable: (
+            f"({lowered_args[1]} >= {width} ? {_cpp_zero(x.node_type, jittable=jittable)} : "
+            f"({lowered_args[0]} >> {lowered_args[1]}))"
+        ),  # Shifting more than bitwidth is undefined behavior.
         name="basic_rshift",
     )
 
@@ -159,9 +182,9 @@ def basic_lshift(x: Node, amount: Node, out: Node) -> Op:
         y=amount,
         out=out,
         c_lowering=lambda lowered_args, jittable: (
-            f"({lowered_args[1]} >= {out_width} ? 0 : "
-            f"({out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[0]}) << {lowered_args[1]}))"
-        ),  # avoiding undef. behavior when shifting
+            f"({lowered_args[1]} >= {out_width} ? {_cpp_zero(out.node_type, jittable=jittable)} : "
+            f"({_cpp_cast(out.node_type, lowered_args[0], jittable=jittable)} << {lowered_args[1]}))"
+        ),  # Avoid undefined behavior when shifting.
         name="basic_lshift",
     )
 

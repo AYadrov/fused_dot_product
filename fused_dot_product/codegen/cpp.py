@@ -64,11 +64,14 @@ class _CppEmitter:
             "#pragma once",
             *includes,
             "",
-            "template <int W>",
-            "using ac_uint = ac_int<W, false>;",
-            "",
-            *list(self._functions),
         ]
+        if not self.jittable:
+            parts.extend([
+                "template <int W>",
+                "using ac_uint = ac_int<W, false>;",
+                "",
+            ])
+        parts.extend(self._functions)
         return "\n".join(parts)
 
     def emit_function(self, root: Node, function_name: str) -> str:

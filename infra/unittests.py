@@ -261,7 +261,6 @@ class TestFusedDotProduct(unittest.TestCase):
         finally:
             tempdir_jit.cleanup()
             tempdir_no_jit.cleanup()
-
         
     def test_cpp_lowering_via_jit_adder(self):
         x = Var(name="x", sign=Float32T())
