@@ -15,7 +15,7 @@ def _bf16_mantissa(x: Node) -> Op:
     return Op(
             impl=impl,
             sign=sign,
-            c_lowering=lambda lowered_args, render_type: f"(({lowered_args[0]} >> 0) & {(1 << 7) - 1})",
+            c_lowering=lambda lowered_args, jittable: f"({lowered_args[0]} & {(1 << 7) - 1})",
             args=[x],
             name="_bf16_mantissa")
 
@@ -29,7 +29,7 @@ def _bf16_exponent(x: Node) -> Op:
     return Op(
             impl=impl,
             sign=sign,
-            c_lowering=lambda lowered_args, render_type: f"(({lowered_args[0]} >> 7) & {(1 << 8) - 1})",
+            c_lowering=lambda lowered_args, jittable: f"(({lowered_args[0]} >> 7) & {(1 << 8) - 1})",
             args=[x],
             name="_bf16_exponent")
 
@@ -43,7 +43,7 @@ def _bf16_sign(x: Node) -> Op:
     return Op(
             impl=impl,
             sign=sign,
-            c_lowering=lambda lowered_args, render_type: f"(({lowered_args[0]} >> 15) & 1)",
+            c_lowering=lambda lowered_args, jittable: f"(({lowered_args[0]} >> 15) & 1)",
             args=[x],
             name="_bf16_sign")
 

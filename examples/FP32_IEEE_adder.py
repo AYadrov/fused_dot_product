@@ -88,5 +88,8 @@ if __name__ == '__main__':
         Var(name="b", sign=Float32T()),
     )
     pprint(adder.check_spec())
-    with open("examples/adder.hpp", "w") as file:
-        file.write(adder.to_cpp())
+    with open("examples/adder_jit.hpp", "w") as file:
+        file.write(adder.to_cpp(jittable=True))
+
+    with open("examples/adder_no_jit.hpp", "w") as file:
+        file.write(adder.to_cpp(jittable=False))

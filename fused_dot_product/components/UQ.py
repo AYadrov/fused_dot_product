@@ -25,7 +25,7 @@ def uq_alloc(int_bits: Node,
     return Op(
         sign=sign,
         impl=impl,
-        c_lowering=lambda lowered_args, render_type: "0",
+        c_lowering=lambda lowered_args, jittable: "0",
         args=[int_bits, frac_bits],
         name="uq_alloc")
 
@@ -78,8 +78,12 @@ def uq_aligner(x: Node,
         def align(x):
             shift = frac_bits - x.node_type.frac_bits
             if shift < 0:
-                raise NotImplementedError("truncation is not implemented yet")
-            return basic_lshift(x, Const(UQ.from_int(shift)), Const(UQ(0, int_bits, frac_bits)))
+                raise NotImplementedError("truncation is not implemented yet")  # truncation
+            elif shift > 0:
+                return basic_lshift(x, Const(UQ.from_int(shift)), Const(UQ(0, int_bits, frac_bits)))  # frac bits extension
+            elif int_bits == x.node_type.int_bits and frac_bits == x.node_type.frac_bits:
+                return x  # no extension
+            return basic_identity(x, Const(UQ(0, int_bits, frac_bits)))  # int bits extension
         return make_Tuple(align(x), align(y))
     
     return impl(x, y)

@@ -8,7 +8,7 @@ from ..ast import *
 ############ Constructors ##############
 
 def _format_c_lowering(template: str, *args_ids: list[int]):
-    def lower(args: list[str], render_type) -> str:
+    def lower(args: list[str], jittable: bool) -> str:
         return template.format(*[args[idx] for idx in args_ids])
     return lower
 
@@ -87,9 +87,9 @@ def basic_add(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=lambda lowered_args, render_type: (
-            f"({render_type(out.node_type)}({lowered_args[0]}) + "
-            f"{render_type(out.node_type)}({lowered_args[1]}))"
+        c_lowering=lambda lowered_args, jittable: (
+            f"({out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[0]}) + "
+            f"{out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[1]}))"
         ),
         name="basic_add",
     )
@@ -100,9 +100,9 @@ def basic_sub(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=lambda lowered_args, render_type: (
-            f"({render_type(out.node_type)}({lowered_args[0]}) - "
-            f"{render_type(out.node_type)}({lowered_args[1]}))"
+        c_lowering=lambda lowered_args, jittable: (
+            f"({out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[0]}) - "
+            f"{out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[1]}))"
         ),
         name="basic_sub",
     )
@@ -113,9 +113,9 @@ def basic_mul(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=lambda lowered_args, render_type: (
-            f"({render_type(out.node_type)}({lowered_args[0]}) * "
-            f"{render_type(out.node_type)}({lowered_args[1]}))"
+        c_lowering=lambda lowered_args, jittable: (
+            f"({out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[0]}) * "
+            f"{out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[1]}))"
         ),
         name="basic_mul",
     )
@@ -158,9 +158,9 @@ def basic_lshift(x: Node, amount: Node, out: Node) -> Op:
         x=x,
         y=amount,
         out=out,
-        c_lowering=lambda lowered_args, render_type: (
+        c_lowering=lambda lowered_args, jittable: (
             f"({lowered_args[1]} >= {out_width} ? 0 : "
-            f"({render_type(out.node_type)}({lowered_args[0]}) << {lowered_args[1]}))"
+            f"({out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[0]}) << {lowered_args[1]}))"
         ),  # avoiding undef. behavior when shifting
         name="basic_lshift",
     )
@@ -202,8 +202,8 @@ def basic_concat(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=lambda lowered_args, render_type: (
-            f"(({render_type(out.node_type)}({lowered_args[0]}) << {shift}) | {lowered_args[1]})"
+        c_lowering=lambda lowered_args, jittable: (
+            f"(({out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[0]}) << {shift}) | {lowered_args[1]})"
         ),
         name="basic_concat",
     )

@@ -52,10 +52,17 @@ class _CppEmitter:
                 return_type=root.node_type,
             )
         )
+        includes = ["#include <cstdint>"]
+        if self.jittable:
+            includes.append("#include <array>")
+        else:
+            includes.extend([
+                "#include <tuple>",
+                "#include <ac_uint.h>",
+            ])
         parts = [
             "#pragma once",
-            "#include <array>",
-            "#include <cstdint>",
+            *includes,
             "",
             *list(self._functions),
         ]
@@ -187,7 +194,7 @@ class _CppEmitter:
         elif isinstance(node, Op):
             lowering_fingerprint = node.c_lowering(
                 [f"${idx}" for idx in range(len(node.args))],
-                self._render_type,
+                self.jittable,
             )
             result = (
                 "Op",
@@ -228,11 +235,13 @@ class _CppEmitter:
                 if isinstance(arg, Tuple):
                     raise CppLoweringError("Nested tuples are not supported in C++ lowering")
             args = [self._lower_const(arg) for arg in value.args]
-            return (
-                f"{self._render_type(value.static_type())}{{"
-                + ", ".join(f"static_cast<uint64_t>({arg.expr})" for arg in args)
-                + "}"
-            )
+            if self.jittable:
+                return (
+                    f"{self._render_type(value.static_type())}{{"
+                    + ", ".join(f"static_cast<uint64_t>({arg.expr})" for arg in args)
+                    + "}"
+                )
+            return f"std::make_tuple({', '.join(arg.expr for arg in args)})"
         else:
             return self._cast(value.static_type(), str(value.val))
     
@@ -246,7 +255,7 @@ class _CppEmitter:
             raise CppLoweringError(f"Unsupported op lowering for {node.name}")
         
         lowered_args = [self._lower(arg, env, ctx).expr for arg in node.args]
-        expr = self._cast(node.node_type, node.c_lowering(lowered_args, self._render_type))
+        expr = self._cast(node.node_type, node.c_lowering(lowered_args, self.jittable))
         return self._emit_temp(node.node_type, expr, node.name, ctx)
     
     def _signature(self, name: str, args: list[Var], return_type: StaticType) -> str:
@@ -262,7 +271,7 @@ class _CppEmitter:
         args: list[Var],
         return_type: StaticType,
     ) -> str:
-        call_args = ", ".join([f"({arg.name} & {(1 << arg.node_type.total_bits()) - 1})" for arg in args])
+        call_args = ", ".join(self._render_public_arg(arg) for arg in args)
         wrapper_signature = self._signature(
             name=public_name,
             args=args,
@@ -284,10 +293,20 @@ class _CppEmitter:
     def _cast(self, type_: StaticType, expr: str) -> str:
         if isinstance(type_, TupleT):
             return expr
-        return f"{self._render_type(type_)}({self._mask(expr, type_)})"
+        if self.jittable:
+            return f"{self._render_type(type_)}({self._mask(expr, type_)})"
+        return f"{self._render_type(type_)}({expr})"
 
     def _mask(self, expr: str, type_):
-        return f"{expr} & {(1 << type_.total_bits()) - 1}"
+        return f"({expr}) & {self._mask_literal(type_.total_bits())}"
+
+    def _mask_literal(self, bits: int) -> str:
+        return str((1 << bits) - 1)
+
+    def _render_public_arg(self, arg: Var) -> str:
+        if not self.jittable:
+            return arg.name
+        return f"({arg.name} & {self._mask_literal(arg.node_type.total_bits())})"
     
     def _emit_temp(
         self,

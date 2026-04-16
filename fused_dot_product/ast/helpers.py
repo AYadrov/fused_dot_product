@@ -22,7 +22,7 @@ def _basic_get_item(x: Node, idx: int) -> Op:
     return Op(
         impl=op,
         sign=sign,
-        c_lowering=lambda lowered_args, render_type: f"{lowered_args[0]}[{idx}]",
+        c_lowering=lambda lowered_args, jittable: f"{lowered_args[0]}[{idx}]" if jittable else f"std::get<{idx}>({lowered_args[0]})",
         args=[x],
         name=f"_basic_get_item_{idx}",
     )
@@ -34,7 +34,7 @@ def Tuple_get_item(x: Node, idx: int) -> Primitive:
     
     return impl(x)
 
-@Primitive(name="if_then_else", spec=lambda sel, in1, in0, ctx: (ctx.real_val(1) - sel) * in0 + sel * in1)
+@Primitive(name="if_then_else", spec=lambda sel, in1, in0, ctx: (ctx.real_val(1) - sel) * in0 + sel * in1, c_inline=True)
 def if_then_else(sel: Node, in1: Node, in0: Node) -> Node:
     from ..components.basics import basic_mux_2_1
     assert in1.node_type == in0.node_type, "Non-deterministic type"

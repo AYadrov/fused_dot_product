@@ -19,16 +19,19 @@ class StaticType:
 
     def to_cpp_type(self, jittable: bool = True) -> str:
         total_bits = self.total_bits()
-        if total_bits <= 8:
-            return "uint_fast8_t"
-        elif total_bits <= 16:
-            return "uint_fast16_t"
-        elif total_bits <= 32:
-            return "uint_fast32_t"
-        elif total_bits <= 64:
-            return "uint_fast64_t"
+        if jittable:
+            if total_bits <= 8:
+                return "uint_fast8_t"
+            elif total_bits <= 16:
+                return "uint_fast16_t"
+            elif total_bits <= 32:
+                return "uint_fast32_t"
+            elif total_bits <= 64:
+                return "uint_fast64_t"
+            else:
+                raise TypeError("Can not find an ABI-safe type with more than 64 bits in C")  # can use pointer buffers for this
         else:
-            raise TypeError("Can not find an ABI-safe type with more than 64 bits in C")  # can use pointer buffers for this
+            return f"ac_uint<{total_bits}>"
         
     def __repr__(self):
         raise NotImplementedError
@@ -248,7 +251,7 @@ class TupleT(StaticType):
         return tuple(x.to_spec(name=f"{name}_{i}", ctx=ctx) for i, x in enumerate(self.args))
 
     def to_cpp_type(self, jittable: bool = True) -> str:
-        return f"std::array<uint_fast64_t, {len(self.args)}>"
+        return f"std::array<uint_fast64_t, {len(self.args)}>" if jittable else f"std::tuple<{', '.join(arg.to_cpp_type(jittable=jittable) for arg in self.args)}>"
 
     def random_runtime_value(self, rng: random.Random):
         from .runtime import Tuple
