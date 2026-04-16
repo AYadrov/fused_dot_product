@@ -150,12 +150,12 @@ class Node:
 
     ################ PUBLIC API ##################
 
-    def to_cpp(self, name=None):
+    def to_cpp(self, name=None, jittable: bool = True):
         from ..codegen import lower_to_cpp
         if name is None:
-            return lower_to_cpp(self)
+            return lower_to_cpp(self, jittable=jittable)
         else:
-            return lower_to_cpp(self, name)
+            return lower_to_cpp(self, name, jittable=jittable)
     
     def copy(self):
         from .helpers import Copy

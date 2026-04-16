@@ -31,7 +31,8 @@ _Fingerprint = tuple[tp.Any, ...]
 
 
 class _CppEmitter:
-    def __init__(self) -> None:
+    def __init__(self, jittable: bool = True) -> None:
+        self.jittable = jittable
         self._reserved_names = {}
         self._function_cache: dict[_Fingerprint, str] = {}
         self._functions: list[str] = []
@@ -320,8 +321,12 @@ class _CppEmitter:
         return safe
 
 
-def lower_to_cpp(root: Node,  function_name: str | None = None) -> str:
+def lower_to_cpp(
+    root: Node,
+    function_name: str | None = None,
+    jittable: bool = True,
+) -> str:
     if function_name is None:
         function_name = root.name
-    emitter = _CppEmitter()
+    emitter = _CppEmitter(jittable=jittable)
     return emitter.emit_cpp(root=root, function_name=function_name)

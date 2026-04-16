@@ -11,6 +11,7 @@ def _format_c_lowering(template: str, *args_ids: list[int]):
     def lower(args: list[str]) -> str:
         return template.format(*[args[idx] for idx in args_ids])
     return lower
+
 def _impl_constructor(op):
     # To be called with op's arguments and output
     def impl(*args: RuntimeType) -> RuntimeType:
@@ -74,42 +75,50 @@ def basic_mux_2_1(sel: Node, in0: Node, in1: Node, out: Node) -> Op:
         y=in0,
         z=in1,
         out=out,
-        c_lowering=_format_c_lowering("({} == 1 ? {} : {})", 0, 2, 1),  # TODO: not always a boolean
+        c_lowering=_format_c_lowering("({} != 0 ? {} : {})", 0, 2, 1),
         name="basic_mux_2_1",
     )
 
 ########### Binary Operators ###########
 
 def basic_add(x: Node, y: Node, out: Node) -> Op:
+    out_cpp_type = out.node_type.to_cpp_type()
     return _binary_operator(
         op=lambda x, y: x.val + y.val,
         x=x,
         y=y,
         out=out,
-        c_lowering=_format_c_lowering("({} + {})", 0, 1),
+        c_lowering=_format_c_lowering(
+            f"({out_cpp_type}({{}}) + {out_cpp_type}({{}}))",
+            0,
+            1,
+        ),
         name="basic_add",
     )
 
 def basic_sub(x: Node, y: Node, out: Node) -> Op:
-    def op(x, y):
-        return x.val - y.val
-    
+    out_cpp_type = out.node_type.to_cpp_type()
     return _binary_operator(
-        op=op,
+        op=lambda x, y: x.val - y.val,
         x=x,
         y=y,
         out=out,
-        c_lowering=_format_c_lowering("({} - {})", 0, 1),
+        c_lowering=_format_c_lowering(
+            f"({out_cpp_type}({{}}) - {out_cpp_type}({{}}))",
+            0,
+            1,
+        ),
         name="basic_sub",
     )
 
 def basic_mul(x: Node, y: Node, out: Node) -> Op:
+    out_cpp_type = out.node_type.to_cpp_type()
     return _binary_operator(
         op=lambda x, y: x.val * y.val,
         x=x,
         y=y,
         out=out,
-        c_lowering=_format_c_lowering("({} * {})", 0, 1),
+        c_lowering=_format_c_lowering(f"({out_cpp_type}({{}}) * {out_cpp_type}({{}}))", 0, 1),
         name="basic_mul",
     )
 
@@ -145,12 +154,14 @@ def basic_rshift(x: Node, amount: Node, out: Node) -> Op:
     )
 
 def basic_lshift(x: Node, amount: Node, out: Node) -> Op:
+    out_width = out.node_type.total_bits()
+    out_cpp_type = out.node_type.to_cpp_type()
     return _binary_operator(
         op=lambda x, amount: x.val << amount.val,
         x=x,
         y=amount,
         out=out,
-        c_lowering=_format_c_lowering("({1} >= 64 ? 0 : (uint_fast64_t({0}) << {1}))", 0, 1),  # avoiding undef. behavior when shifting
+        c_lowering=_format_c_lowering(f"({1} >= {out_width} ? 0 : ({out_cpp_type}({0}) << {1}))", 0, 1),  # avoiding undef. behavior when shifting
         name="basic_lshift",
     )
 
@@ -186,12 +197,13 @@ def basic_and(x: Node, y: Node, out: Node) -> Op:
 
 def basic_concat(x: Node, y: Node, out: Node) -> Op:
     shift = y.node_type.total_bits()
+    out_cpp_type = out.node_type.to_cpp_type()
     return _binary_operator(
         op=lambda x, y: (x.val << y.total_bits()) | y.val,
         x=x,
         y=y,
         out=out,
-        c_lowering=_format_c_lowering(f"((uint_fast64_t({{}}) << {shift}) | {{}})", 0, 1),  # casting to 64 because some nonsense with undefined behavior
+        c_lowering=_format_c_lowering(f"(({out_cpp_type}({{}}) << {shift}) | {{}})", 0, 1),
         name="basic_concat",
     )
 
@@ -298,7 +310,7 @@ def basic_or_reduce(x: Node, out: Node) -> Op:
         op=lambda x: 1 if x.val > 0 else 0,
         x=x,
         out=out,
-        c_lowering=_format_c_lowering("({} != 0)", 0),  # TODO: not neccessarily a boolean
+        c_lowering=_format_c_lowering("({} != 0)", 0),
         name="basic_or_reduce",
     )
 
