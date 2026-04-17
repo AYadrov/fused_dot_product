@@ -79,11 +79,16 @@ def uq_aligner(x: Node,
             shift = frac_bits - x.node_type.frac_bits
             if shift < 0:
                 raise NotImplementedError("truncation is not implemented yet")  # truncation
-            elif shift > 0:
-                return basic_lshift(x, Const(UQ.from_int(shift)), Const(UQ(0, int_bits, frac_bits)))  # frac bits extension
-            elif int_bits == x.node_type.int_bits and frac_bits == x.node_type.frac_bits:
-                return x  # no extension
-            return basic_identity(x, Const(UQ(0, int_bits, frac_bits)))  # int bits extension
+            # frac bits extension
+            if shift > 0:
+                return basic_lshift(x, Const(UQ.from_int(shift)), Const(UQ(0, int_bits, frac_bits)))
+            
+            # no extension
+            if int_bits == x.node_type.int_bits and frac_bits == x.node_type.frac_bits:
+                return x
+            
+            # int bits extension
+            return basic_identity(x, Const(UQ(0, int_bits, frac_bits)))
         return make_Tuple(align(x), align(y))
     
     return impl(x, y)

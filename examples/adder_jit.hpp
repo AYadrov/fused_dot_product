@@ -55,7 +55,7 @@ static inline uint_fast32_t uq_resize(uint_fast32_t arg_0) {  // uq_resize
     return tmp_61;
 }
 static inline uint_fast32_t uq_resize_1(uint_fast32_t arg_0) {  // uq_resize
-    const uint_fast32_t tmp_64 = uint_fast32_t(((uint_fast8_t((3) & 3) >= 27 ? 0 : (uint_fast32_t(arg_0) << uint_fast8_t((3) & 3)))) & 134217727);  // basic_lshift
+    const uint_fast32_t tmp_64 = uint_fast32_t(((uint_fast8_t((3) & 3) >= 27 ? uint_fast32_t(0) : (uint_fast32_t(arg_0) << uint_fast8_t((3) & 3)))) & 134217727);  // basic_lshift
     return tmp_64;
 }
 static inline uint_fast8_t uq_max(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_max
@@ -64,7 +64,7 @@ static inline uint_fast8_t uq_max(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // 
     // end inline primitive uq_aligner
     const uint_fast8_t tmp_73 = uint_fast8_t((tmp_72[0]) & 255);  // _basic_get_item_0
     const uint_fast8_t tmp_74 = uint_fast8_t((tmp_72[1]) & 255);  // _basic_get_item_1
-    const uint_fast8_t tmp_75 = uint_fast8_t(((tmp_73 > tmp_74 ? tmp_73 : tmp_74)) & 255);  // basic_max
+    const uint_fast8_t tmp_75 = uint_fast8_t(((tmp_73 > tmp_74 ? uint_fast8_t(tmp_73) : uint_fast8_t(tmp_74))) & 255);  // basic_max
     return tmp_75;
 }
 static inline uint_fast16_t uq_sub(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_sub
@@ -79,7 +79,7 @@ static inline uint_fast16_t uq_sub(uint_fast8_t arg_0, uint_fast8_t arg_1) {  //
     return tmp_82;
 }
 static inline uint_fast32_t uq_rshift(uint_fast32_t arg_0, uint_fast16_t arg_1) {  // uq_rshift
-    const uint_fast32_t tmp_84 = uint_fast32_t(((arg_1 >= 27 ? 0 : (arg_0 >> arg_1))) & 134217727);  // basic_rshift
+    const uint_fast32_t tmp_84 = uint_fast32_t(((arg_1 >= 27 ? uint_fast32_t(0) : (arg_0 >> arg_1))) & 134217727);  // basic_rshift
     return tmp_84;
 }
 static inline uint_fast8_t uq_is_zero(uint_fast16_t arg_0) {  // uq_is_zero
@@ -113,11 +113,11 @@ static inline uint_fast32_t uq_rshift_jam(uint_fast32_t arg_0, uint_fast16_t arg
     const uint_fast8_t tmp_88 = uq_is_zero(arg_1);  // uq_is_zero
     const uint_fast8_t tmp_94 = uq_ge(arg_1, uint_fast8_t((27) & 31));  // uq_ge
     const uint_fast16_t tmp_101 = uq_sub_1(uint_fast8_t((27) & 31), arg_1);  // uq_sub
-    const uint_fast32_t tmp_102 = uint_fast32_t(((tmp_101 >= 27 ? 0 : (uint_fast32_t(arg_0) << tmp_101))) & 134217727);  // basic_lshift
+    const uint_fast32_t tmp_102 = uint_fast32_t(((tmp_101 >= 27 ? uint_fast32_t(0) : (uint_fast32_t(arg_0) << tmp_101))) & 134217727);  // basic_lshift
     const uint_fast8_t tmp_103 = uint_fast8_t(((tmp_102 != 0)) & 1);  // basic_or_reduce
     const uint_fast8_t tmp_104 = uint_fast8_t(((arg_0 != 0)) & 1);  // basic_or_reduce
-    const uint_fast8_t tmp_105 = uint_fast8_t(((tmp_94 != 0 ? tmp_104 : tmp_103)) & 1);  // basic_mux_2_1
-    const uint_fast8_t tmp_106 = uint_fast8_t(((tmp_88 != 0 ? uint_fast8_t((0) & 1) : tmp_105)) & 1);  // basic_mux_2_1
+    const uint_fast8_t tmp_105 = uint_fast8_t(((tmp_94 != 0 ? uint_fast8_t(tmp_104) : uint_fast8_t(tmp_103))) & 1);  // basic_mux_2_1
+    const uint_fast8_t tmp_106 = uint_fast8_t(((tmp_88 != 0 ? uint_fast8_t(uint_fast8_t((0) & 1)) : uint_fast8_t(tmp_105))) & 1);  // basic_mux_2_1
     const uint_fast32_t tmp_107 = uint_fast32_t(((tmp_85 | tmp_106)) & 134217727);  // basic_or
     return tmp_107;
 }
@@ -144,649 +144,639 @@ static inline uint_fast32_t q_neg(uint_fast32_t arg_0) {  // q_neg
     const uint_fast32_t tmp_121 = uint_fast32_t(((uint_fast32_t(tmp_120) + uint_fast32_t(uint_fast8_t((1) & 1)))) & 268435455);  // basic_add
     const uint_fast32_t tmp_122 = uint_fast32_t(((arg_0 ^ arg_0)) & 268435455);  // basic_xor
     const uint_fast32_t tmp_123 = uint_fast32_t((((~tmp_122) & 268435455)) & 268435455);  // basic_invert
-    const uint_fast32_t tmp_124 = uint_fast32_t(((tmp_119 != 0 ? tmp_123 : tmp_121)) & 268435455);  // basic_mux_2_1
+    const uint_fast32_t tmp_124 = uint_fast32_t(((tmp_119 != 0 ? uint_fast32_t(tmp_123) : uint_fast32_t(tmp_121))) & 268435455);  // basic_mux_2_1
     return tmp_124;
 }
 static inline uint_fast32_t q_add_sign(uint_fast32_t arg_0, uint_fast8_t arg_1) {  // q_add_sign
     const uint_fast32_t tmp_125 = q_neg(arg_0);  // q_neg
-    const uint_fast32_t tmp_126 = uint_fast32_t(((arg_1 != 0 ? tmp_125 : arg_0)) & 268435455);  // basic_mux_2_1
+    const uint_fast32_t tmp_126 = uint_fast32_t(((arg_1 != 0 ? uint_fast32_t(tmp_125) : uint_fast32_t(arg_0))) & 268435455);  // basic_mux_2_1
     return tmp_126;
 }
 static inline uint_fast8_t q_sign_bit(uint_fast32_t arg_0) {  // q_sign_bit
-    const uint_fast8_t tmp_140 = uint_fast8_t((((arg_0 >> 27) & 1)) & 1);  // basic_select
-    return tmp_140;
+    const uint_fast8_t tmp_139 = uint_fast8_t((((arg_0 >> 27) & 1)) & 1);  // basic_select
+    return tmp_139;
 }
 static inline uint_fast32_t q_sign_extend(uint_fast32_t arg_0) {  // q_sign_extend
-    const uint_fast8_t tmp_141 = q_sign_bit(arg_0);  // q_sign_bit
-    const uint_fast8_t tmp_142 = uint_fast8_t(((uint_fast8_t((1) & 1) >= 2 ? 0 : (uint_fast8_t(tmp_141) << uint_fast8_t((1) & 1)))) & 3);  // basic_lshift
-    const uint_fast8_t tmp_143 = uint_fast8_t(((uint_fast8_t(tmp_142) - uint_fast8_t(tmp_141))) & 1);  // basic_sub
-    const uint_fast32_t tmp_144 = uint_fast32_t((0) & 536870911);  // q_alloc
-    const uint_fast32_t tmp_145 = uint_fast32_t((((uint_fast32_t(tmp_143) << 28) | arg_0)) & 536870911);  // basic_concat
-    return tmp_145;
+    const uint_fast8_t tmp_140 = q_sign_bit(arg_0);  // q_sign_bit
+    const uint_fast8_t tmp_141 = uint_fast8_t(((uint_fast8_t((1) & 1) >= 2 ? uint_fast8_t(0) : (uint_fast8_t(tmp_140) << uint_fast8_t((1) & 1)))) & 3);  // basic_lshift
+    const uint_fast8_t tmp_142 = uint_fast8_t(((uint_fast8_t(tmp_141) - uint_fast8_t(tmp_140))) & 1);  // basic_sub
+    const uint_fast32_t tmp_143 = uint_fast32_t((0) & 536870911);  // q_alloc
+    const uint_fast32_t tmp_144 = uint_fast32_t((((uint_fast32_t(tmp_142) << 28) | arg_0)) & 536870911);  // basic_concat
+    return tmp_144;
 }
 static inline uint_fast32_t q_add(uint_fast32_t arg_0, uint_fast32_t arg_1) {  // q_add
     // begin inline primitive q_aligner
-    const uint_fast32_t tmp_139 = uint_fast32_t(((uint_fast8_t((0) & 1) >= 28 ? 0 : (uint_fast32_t(arg_0) << uint_fast8_t((0) & 1)))) & 268435455);  // basic_lshift
-    const uint_fast32_t tmp_146 = q_sign_extend(tmp_139);  // q_sign_extend
-    const uint_fast32_t tmp_147 = uint_fast32_t(((uint_fast8_t((0) & 1) >= 28 ? 0 : (uint_fast32_t(arg_1) << uint_fast8_t((0) & 1)))) & 268435455);  // basic_lshift
-    const uint_fast32_t tmp_148 = q_sign_extend(tmp_147);  // q_sign_extend
-    const std::array<uint_fast64_t, 2> tmp_149 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_146), static_cast<uint_fast64_t>(tmp_148)};  // basic_tuple_maker_2
+    const uint_fast32_t tmp_145 = q_sign_extend(arg_0);  // q_sign_extend
+    const uint_fast32_t tmp_146 = q_sign_extend(arg_1);  // q_sign_extend
+    const std::array<uint_fast64_t, 2> tmp_147 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_145), static_cast<uint_fast64_t>(tmp_146)};  // basic_tuple_maker_2
     // end inline primitive q_aligner
-    const uint_fast32_t tmp_150 = uint_fast32_t((tmp_149[0]) & 536870911);  // _basic_get_item_0
-    const uint_fast32_t tmp_151 = uint_fast32_t((tmp_149[1]) & 536870911);  // _basic_get_item_1
-    const uint_fast32_t tmp_152 = uint_fast32_t(((uint_fast32_t(tmp_150) + uint_fast32_t(tmp_151))) & 536870911);  // basic_add
-    return tmp_152;
+    const uint_fast32_t tmp_148 = uint_fast32_t((tmp_147[0]) & 536870911);  // _basic_get_item_0
+    const uint_fast32_t tmp_149 = uint_fast32_t((tmp_147[1]) & 536870911);  // _basic_get_item_1
+    const uint_fast32_t tmp_150 = uint_fast32_t(((uint_fast32_t(tmp_148) + uint_fast32_t(tmp_149))) & 536870911);  // basic_add
+    return tmp_150;
 }
 static inline uint_fast8_t q_sign_bit_1(uint_fast32_t arg_0) {  // q_sign_bit
-    const uint_fast8_t tmp_154 = uint_fast8_t((((arg_0 >> 28) & 1)) & 1);  // basic_select
-    return tmp_154;
+    const uint_fast8_t tmp_152 = uint_fast8_t((((arg_0 >> 28) & 1)) & 1);  // basic_select
+    return tmp_152;
 }
 static inline uint_fast8_t uq_add_1(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_add
     // begin inline primitive uq_aligner
-    const uint_fast8_t tmp_157 = uint_fast8_t((arg_0) & 31);  // basic_identity
-    const uint_fast8_t tmp_158 = uint_fast8_t((arg_1) & 31);  // basic_identity
-    const std::array<uint_fast64_t, 2> tmp_159 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_157), static_cast<uint_fast64_t>(tmp_158)};  // basic_tuple_maker_2
+    const uint_fast8_t tmp_155 = uint_fast8_t((arg_0) & 31);  // basic_identity
+    const uint_fast8_t tmp_156 = uint_fast8_t((arg_1) & 31);  // basic_identity
+    const std::array<uint_fast64_t, 2> tmp_157 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_155), static_cast<uint_fast64_t>(tmp_156)};  // basic_tuple_maker_2
     // end inline primitive uq_aligner
-    const uint_fast8_t tmp_160 = uint_fast8_t((tmp_159[0]) & 31);  // _basic_get_item_0
-    const uint_fast8_t tmp_161 = uint_fast8_t((tmp_159[1]) & 31);  // _basic_get_item_1
-    const uint_fast8_t tmp_162 = uint_fast8_t(((uint_fast8_t(tmp_160) + uint_fast8_t(tmp_161))) & 31);  // basic_add
-    return tmp_162;
+    const uint_fast8_t tmp_158 = uint_fast8_t((tmp_157[0]) & 31);  // _basic_get_item_0
+    const uint_fast8_t tmp_159 = uint_fast8_t((tmp_157[1]) & 31);  // _basic_get_item_1
+    const uint_fast8_t tmp_160 = uint_fast8_t(((uint_fast8_t(tmp_158) + uint_fast8_t(tmp_159))) & 31);  // basic_add
+    return tmp_160;
 }
 static inline uint_fast16_t uq_to_q_1(uint_fast8_t arg_0) {  // uq_to_q
-    const uint_fast8_t tmp_163 = uq_add_1(uint_fast8_t((8) & 15), uint_fast8_t((1) & 1));  // uq_add
-    const uint_fast16_t tmp_164 = uint_fast16_t((0) & 511);  // q_alloc
-    const uint_fast16_t tmp_165 = uint_fast16_t((arg_0) & 511);  // basic_identity
-    return tmp_165;
+    const uint_fast8_t tmp_161 = uq_add_1(uint_fast8_t((8) & 15), uint_fast8_t((1) & 1));  // uq_add
+    const uint_fast16_t tmp_162 = uint_fast16_t((0) & 511);  // q_alloc
+    const uint_fast16_t tmp_163 = uint_fast16_t((arg_0) & 511);  // basic_identity
+    return tmp_163;
 }
 static inline uint_fast32_t q_neg_1(uint_fast32_t arg_0) {  // q_neg
-    const uint_fast8_t tmp_168 = uint_fast8_t(((arg_0 == 268435456)) & 1);  // _q_is_min_val
-    const uint_fast32_t tmp_169 = uint_fast32_t((((~arg_0) & 536870911)) & 536870911);  // basic_invert
-    const uint_fast32_t tmp_170 = uint_fast32_t(((uint_fast32_t(tmp_169) + uint_fast32_t(uint_fast8_t((1) & 1)))) & 536870911);  // basic_add
-    const uint_fast32_t tmp_171 = uint_fast32_t(((arg_0 ^ arg_0)) & 536870911);  // basic_xor
-    const uint_fast32_t tmp_172 = uint_fast32_t((((~tmp_171) & 536870911)) & 536870911);  // basic_invert
-    const uint_fast32_t tmp_173 = uint_fast32_t(((tmp_168 != 0 ? tmp_172 : tmp_170)) & 536870911);  // basic_mux_2_1
-    return tmp_173;
+    const uint_fast8_t tmp_166 = uint_fast8_t(((arg_0 == 268435456)) & 1);  // _q_is_min_val
+    const uint_fast32_t tmp_167 = uint_fast32_t((((~arg_0) & 536870911)) & 536870911);  // basic_invert
+    const uint_fast32_t tmp_168 = uint_fast32_t(((uint_fast32_t(tmp_167) + uint_fast32_t(uint_fast8_t((1) & 1)))) & 536870911);  // basic_add
+    const uint_fast32_t tmp_169 = uint_fast32_t(((arg_0 ^ arg_0)) & 536870911);  // basic_xor
+    const uint_fast32_t tmp_170 = uint_fast32_t((((~tmp_169) & 536870911)) & 536870911);  // basic_invert
+    const uint_fast32_t tmp_171 = uint_fast32_t(((tmp_166 != 0 ? uint_fast32_t(tmp_170) : uint_fast32_t(tmp_168))) & 536870911);  // basic_mux_2_1
+    return tmp_171;
 }
 static inline uint_fast32_t q_add_sign_1(uint_fast32_t arg_0, uint_fast8_t arg_1) {  // q_add_sign
-    const uint_fast32_t tmp_174 = q_neg_1(arg_0);  // q_neg
-    const uint_fast32_t tmp_175 = uint_fast32_t(((arg_1 != 0 ? tmp_174 : arg_0)) & 536870911);  // basic_mux_2_1
-    return tmp_175;
+    const uint_fast32_t tmp_172 = q_neg_1(arg_0);  // q_neg
+    const uint_fast32_t tmp_173 = uint_fast32_t(((arg_1 != 0 ? uint_fast32_t(tmp_172) : uint_fast32_t(arg_0))) & 536870911);  // basic_mux_2_1
+    return tmp_173;
 }
 static inline uint_fast32_t q_abs(uint_fast32_t arg_0) {  // q_abs
-    const uint_fast8_t tmp_167 = q_sign_bit_1(arg_0);  // q_sign_bit
-    const uint_fast32_t tmp_176 = q_add_sign_1(arg_0, tmp_167);  // q_add_sign
-    return tmp_176;
+    const uint_fast8_t tmp_165 = q_sign_bit_1(arg_0);  // q_sign_bit
+    const uint_fast32_t tmp_174 = q_add_sign_1(arg_0, tmp_165);  // q_add_sign
+    return tmp_174;
 }
 static inline uint_fast32_t q_to_uq(uint_fast32_t arg_0) {  // q_to_uq
-    const uint_fast32_t tmp_178 = uint_fast32_t((arg_0) & 268435455);  // basic_identity
-    return tmp_178;
+    const uint_fast32_t tmp_176 = uint_fast32_t((arg_0) & 268435455);  // basic_identity
+    return tmp_176;
 }
 static inline uint_fast8_t uq_is_zero_1(uint_fast32_t arg_0) {  // uq_is_zero
-    const uint_fast8_t tmp_193 = uint_fast8_t(((arg_0 != 0)) & 1);  // basic_or_reduce
-    const uint_fast8_t tmp_194 = uint_fast8_t((((~tmp_193) & 1)) & 1);  // basic_invert
-    return tmp_194;
+    const uint_fast8_t tmp_191 = uint_fast8_t(((arg_0 != 0)) & 1);  // basic_or_reduce
+    const uint_fast8_t tmp_192 = uint_fast8_t((((~tmp_191) & 1)) & 1);  // basic_invert
+    return tmp_192;
 }
 static inline uint_fast8_t lzc(uint_fast32_t arg_0) {  // lzc
-    const uint_fast8_t tmp_197 = uint_fast8_t((((arg_0 >> 27) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_198 = uint_fast8_t((((~tmp_197) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_199 = uint_fast8_t(((uint_fast8_t((1) & 1) & tmp_198)) & 1);  // basic_and
-    const uint_fast8_t tmp_200 = uint_fast8_t(((uint_fast8_t(uint_fast8_t((0) & 31)) + uint_fast8_t(tmp_199))) & 31);  // basic_add
-    const uint_fast8_t tmp_201 = uint_fast8_t((((arg_0 >> 26) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_202 = uint_fast8_t((((~tmp_201) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_203 = uint_fast8_t(((tmp_199 & tmp_202)) & 1);  // basic_and
-    const uint_fast8_t tmp_204 = uint_fast8_t(((uint_fast8_t(tmp_200) + uint_fast8_t(tmp_203))) & 31);  // basic_add
-    const uint_fast8_t tmp_205 = uint_fast8_t((((arg_0 >> 25) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_206 = uint_fast8_t((((~tmp_205) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_207 = uint_fast8_t(((tmp_203 & tmp_206)) & 1);  // basic_and
-    const uint_fast8_t tmp_208 = uint_fast8_t(((uint_fast8_t(tmp_204) + uint_fast8_t(tmp_207))) & 31);  // basic_add
-    const uint_fast8_t tmp_209 = uint_fast8_t((((arg_0 >> 24) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_210 = uint_fast8_t((((~tmp_209) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_211 = uint_fast8_t(((tmp_207 & tmp_210)) & 1);  // basic_and
-    const uint_fast8_t tmp_212 = uint_fast8_t(((uint_fast8_t(tmp_208) + uint_fast8_t(tmp_211))) & 31);  // basic_add
-    const uint_fast8_t tmp_213 = uint_fast8_t((((arg_0 >> 23) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_214 = uint_fast8_t((((~tmp_213) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_215 = uint_fast8_t(((tmp_211 & tmp_214)) & 1);  // basic_and
-    const uint_fast8_t tmp_216 = uint_fast8_t(((uint_fast8_t(tmp_212) + uint_fast8_t(tmp_215))) & 31);  // basic_add
-    const uint_fast8_t tmp_217 = uint_fast8_t((((arg_0 >> 22) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_218 = uint_fast8_t((((~tmp_217) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_219 = uint_fast8_t(((tmp_215 & tmp_218)) & 1);  // basic_and
-    const uint_fast8_t tmp_220 = uint_fast8_t(((uint_fast8_t(tmp_216) + uint_fast8_t(tmp_219))) & 31);  // basic_add
-    const uint_fast8_t tmp_221 = uint_fast8_t((((arg_0 >> 21) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_222 = uint_fast8_t((((~tmp_221) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_223 = uint_fast8_t(((tmp_219 & tmp_222)) & 1);  // basic_and
-    const uint_fast8_t tmp_224 = uint_fast8_t(((uint_fast8_t(tmp_220) + uint_fast8_t(tmp_223))) & 31);  // basic_add
-    const uint_fast8_t tmp_225 = uint_fast8_t((((arg_0 >> 20) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_226 = uint_fast8_t((((~tmp_225) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_227 = uint_fast8_t(((tmp_223 & tmp_226)) & 1);  // basic_and
-    const uint_fast8_t tmp_228 = uint_fast8_t(((uint_fast8_t(tmp_224) + uint_fast8_t(tmp_227))) & 31);  // basic_add
-    const uint_fast8_t tmp_229 = uint_fast8_t((((arg_0 >> 19) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_230 = uint_fast8_t((((~tmp_229) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_231 = uint_fast8_t(((tmp_227 & tmp_230)) & 1);  // basic_and
-    const uint_fast8_t tmp_232 = uint_fast8_t(((uint_fast8_t(tmp_228) + uint_fast8_t(tmp_231))) & 31);  // basic_add
-    const uint_fast8_t tmp_233 = uint_fast8_t((((arg_0 >> 18) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_234 = uint_fast8_t((((~tmp_233) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_235 = uint_fast8_t(((tmp_231 & tmp_234)) & 1);  // basic_and
-    const uint_fast8_t tmp_236 = uint_fast8_t(((uint_fast8_t(tmp_232) + uint_fast8_t(tmp_235))) & 31);  // basic_add
-    const uint_fast8_t tmp_237 = uint_fast8_t((((arg_0 >> 17) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_238 = uint_fast8_t((((~tmp_237) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_239 = uint_fast8_t(((tmp_235 & tmp_238)) & 1);  // basic_and
-    const uint_fast8_t tmp_240 = uint_fast8_t(((uint_fast8_t(tmp_236) + uint_fast8_t(tmp_239))) & 31);  // basic_add
-    const uint_fast8_t tmp_241 = uint_fast8_t((((arg_0 >> 16) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_242 = uint_fast8_t((((~tmp_241) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_243 = uint_fast8_t(((tmp_239 & tmp_242)) & 1);  // basic_and
-    const uint_fast8_t tmp_244 = uint_fast8_t(((uint_fast8_t(tmp_240) + uint_fast8_t(tmp_243))) & 31);  // basic_add
-    const uint_fast8_t tmp_245 = uint_fast8_t((((arg_0 >> 15) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_246 = uint_fast8_t((((~tmp_245) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_247 = uint_fast8_t(((tmp_243 & tmp_246)) & 1);  // basic_and
-    const uint_fast8_t tmp_248 = uint_fast8_t(((uint_fast8_t(tmp_244) + uint_fast8_t(tmp_247))) & 31);  // basic_add
-    const uint_fast8_t tmp_249 = uint_fast8_t((((arg_0 >> 14) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_250 = uint_fast8_t((((~tmp_249) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_251 = uint_fast8_t(((tmp_247 & tmp_250)) & 1);  // basic_and
-    const uint_fast8_t tmp_252 = uint_fast8_t(((uint_fast8_t(tmp_248) + uint_fast8_t(tmp_251))) & 31);  // basic_add
-    const uint_fast8_t tmp_253 = uint_fast8_t((((arg_0 >> 13) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_254 = uint_fast8_t((((~tmp_253) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_255 = uint_fast8_t(((tmp_251 & tmp_254)) & 1);  // basic_and
-    const uint_fast8_t tmp_256 = uint_fast8_t(((uint_fast8_t(tmp_252) + uint_fast8_t(tmp_255))) & 31);  // basic_add
-    const uint_fast8_t tmp_257 = uint_fast8_t((((arg_0 >> 12) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_258 = uint_fast8_t((((~tmp_257) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_259 = uint_fast8_t(((tmp_255 & tmp_258)) & 1);  // basic_and
-    const uint_fast8_t tmp_260 = uint_fast8_t(((uint_fast8_t(tmp_256) + uint_fast8_t(tmp_259))) & 31);  // basic_add
-    const uint_fast8_t tmp_261 = uint_fast8_t((((arg_0 >> 11) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_262 = uint_fast8_t((((~tmp_261) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_263 = uint_fast8_t(((tmp_259 & tmp_262)) & 1);  // basic_and
-    const uint_fast8_t tmp_264 = uint_fast8_t(((uint_fast8_t(tmp_260) + uint_fast8_t(tmp_263))) & 31);  // basic_add
-    const uint_fast8_t tmp_265 = uint_fast8_t((((arg_0 >> 10) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_266 = uint_fast8_t((((~tmp_265) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_267 = uint_fast8_t(((tmp_263 & tmp_266)) & 1);  // basic_and
-    const uint_fast8_t tmp_268 = uint_fast8_t(((uint_fast8_t(tmp_264) + uint_fast8_t(tmp_267))) & 31);  // basic_add
-    const uint_fast8_t tmp_269 = uint_fast8_t((((arg_0 >> 9) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_270 = uint_fast8_t((((~tmp_269) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_271 = uint_fast8_t(((tmp_267 & tmp_270)) & 1);  // basic_and
-    const uint_fast8_t tmp_272 = uint_fast8_t(((uint_fast8_t(tmp_268) + uint_fast8_t(tmp_271))) & 31);  // basic_add
-    const uint_fast8_t tmp_273 = uint_fast8_t((((arg_0 >> 8) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_274 = uint_fast8_t((((~tmp_273) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_275 = uint_fast8_t(((tmp_271 & tmp_274)) & 1);  // basic_and
-    const uint_fast8_t tmp_276 = uint_fast8_t(((uint_fast8_t(tmp_272) + uint_fast8_t(tmp_275))) & 31);  // basic_add
-    const uint_fast8_t tmp_277 = uint_fast8_t((((arg_0 >> 7) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_278 = uint_fast8_t((((~tmp_277) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_279 = uint_fast8_t(((tmp_275 & tmp_278)) & 1);  // basic_and
-    const uint_fast8_t tmp_280 = uint_fast8_t(((uint_fast8_t(tmp_276) + uint_fast8_t(tmp_279))) & 31);  // basic_add
-    const uint_fast8_t tmp_281 = uint_fast8_t((((arg_0 >> 6) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_282 = uint_fast8_t((((~tmp_281) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_283 = uint_fast8_t(((tmp_279 & tmp_282)) & 1);  // basic_and
-    const uint_fast8_t tmp_284 = uint_fast8_t(((uint_fast8_t(tmp_280) + uint_fast8_t(tmp_283))) & 31);  // basic_add
-    const uint_fast8_t tmp_285 = uint_fast8_t((((arg_0 >> 5) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_286 = uint_fast8_t((((~tmp_285) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_287 = uint_fast8_t(((tmp_283 & tmp_286)) & 1);  // basic_and
-    const uint_fast8_t tmp_288 = uint_fast8_t(((uint_fast8_t(tmp_284) + uint_fast8_t(tmp_287))) & 31);  // basic_add
-    const uint_fast8_t tmp_289 = uint_fast8_t((((arg_0 >> 4) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_290 = uint_fast8_t((((~tmp_289) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_291 = uint_fast8_t(((tmp_287 & tmp_290)) & 1);  // basic_and
-    const uint_fast8_t tmp_292 = uint_fast8_t(((uint_fast8_t(tmp_288) + uint_fast8_t(tmp_291))) & 31);  // basic_add
-    const uint_fast8_t tmp_293 = uint_fast8_t((((arg_0 >> 3) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_294 = uint_fast8_t((((~tmp_293) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_295 = uint_fast8_t(((tmp_291 & tmp_294)) & 1);  // basic_and
-    const uint_fast8_t tmp_296 = uint_fast8_t(((uint_fast8_t(tmp_292) + uint_fast8_t(tmp_295))) & 31);  // basic_add
-    const uint_fast8_t tmp_297 = uint_fast8_t((((arg_0 >> 2) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_298 = uint_fast8_t((((~tmp_297) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_299 = uint_fast8_t(((tmp_295 & tmp_298)) & 1);  // basic_and
-    const uint_fast8_t tmp_300 = uint_fast8_t(((uint_fast8_t(tmp_296) + uint_fast8_t(tmp_299))) & 31);  // basic_add
-    const uint_fast8_t tmp_301 = uint_fast8_t((((arg_0 >> 1) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_302 = uint_fast8_t((((~tmp_301) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_303 = uint_fast8_t(((tmp_299 & tmp_302)) & 1);  // basic_and
-    const uint_fast8_t tmp_304 = uint_fast8_t(((uint_fast8_t(tmp_300) + uint_fast8_t(tmp_303))) & 31);  // basic_add
-    const uint_fast8_t tmp_305 = uint_fast8_t((((arg_0 >> 0) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_306 = uint_fast8_t((((~tmp_305) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_307 = uint_fast8_t(((tmp_303 & tmp_306)) & 1);  // basic_and
-    const uint_fast8_t tmp_308 = uint_fast8_t(((uint_fast8_t(tmp_304) + uint_fast8_t(tmp_307))) & 31);  // basic_add
-    return tmp_308;
+    const uint_fast8_t tmp_195 = uint_fast8_t((((arg_0 >> 27) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_196 = uint_fast8_t((((~tmp_195) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_197 = uint_fast8_t(((uint_fast8_t((1) & 1) & tmp_196)) & 1);  // basic_and
+    const uint_fast8_t tmp_198 = uint_fast8_t(((uint_fast8_t(uint_fast8_t((0) & 31)) + uint_fast8_t(tmp_197))) & 31);  // basic_add
+    const uint_fast8_t tmp_199 = uint_fast8_t((((arg_0 >> 26) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_200 = uint_fast8_t((((~tmp_199) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_201 = uint_fast8_t(((tmp_197 & tmp_200)) & 1);  // basic_and
+    const uint_fast8_t tmp_202 = uint_fast8_t(((uint_fast8_t(tmp_198) + uint_fast8_t(tmp_201))) & 31);  // basic_add
+    const uint_fast8_t tmp_203 = uint_fast8_t((((arg_0 >> 25) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_204 = uint_fast8_t((((~tmp_203) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_205 = uint_fast8_t(((tmp_201 & tmp_204)) & 1);  // basic_and
+    const uint_fast8_t tmp_206 = uint_fast8_t(((uint_fast8_t(tmp_202) + uint_fast8_t(tmp_205))) & 31);  // basic_add
+    const uint_fast8_t tmp_207 = uint_fast8_t((((arg_0 >> 24) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_208 = uint_fast8_t((((~tmp_207) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_209 = uint_fast8_t(((tmp_205 & tmp_208)) & 1);  // basic_and
+    const uint_fast8_t tmp_210 = uint_fast8_t(((uint_fast8_t(tmp_206) + uint_fast8_t(tmp_209))) & 31);  // basic_add
+    const uint_fast8_t tmp_211 = uint_fast8_t((((arg_0 >> 23) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_212 = uint_fast8_t((((~tmp_211) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_213 = uint_fast8_t(((tmp_209 & tmp_212)) & 1);  // basic_and
+    const uint_fast8_t tmp_214 = uint_fast8_t(((uint_fast8_t(tmp_210) + uint_fast8_t(tmp_213))) & 31);  // basic_add
+    const uint_fast8_t tmp_215 = uint_fast8_t((((arg_0 >> 22) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_216 = uint_fast8_t((((~tmp_215) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_217 = uint_fast8_t(((tmp_213 & tmp_216)) & 1);  // basic_and
+    const uint_fast8_t tmp_218 = uint_fast8_t(((uint_fast8_t(tmp_214) + uint_fast8_t(tmp_217))) & 31);  // basic_add
+    const uint_fast8_t tmp_219 = uint_fast8_t((((arg_0 >> 21) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_220 = uint_fast8_t((((~tmp_219) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_221 = uint_fast8_t(((tmp_217 & tmp_220)) & 1);  // basic_and
+    const uint_fast8_t tmp_222 = uint_fast8_t(((uint_fast8_t(tmp_218) + uint_fast8_t(tmp_221))) & 31);  // basic_add
+    const uint_fast8_t tmp_223 = uint_fast8_t((((arg_0 >> 20) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_224 = uint_fast8_t((((~tmp_223) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_225 = uint_fast8_t(((tmp_221 & tmp_224)) & 1);  // basic_and
+    const uint_fast8_t tmp_226 = uint_fast8_t(((uint_fast8_t(tmp_222) + uint_fast8_t(tmp_225))) & 31);  // basic_add
+    const uint_fast8_t tmp_227 = uint_fast8_t((((arg_0 >> 19) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_228 = uint_fast8_t((((~tmp_227) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_229 = uint_fast8_t(((tmp_225 & tmp_228)) & 1);  // basic_and
+    const uint_fast8_t tmp_230 = uint_fast8_t(((uint_fast8_t(tmp_226) + uint_fast8_t(tmp_229))) & 31);  // basic_add
+    const uint_fast8_t tmp_231 = uint_fast8_t((((arg_0 >> 18) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_232 = uint_fast8_t((((~tmp_231) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_233 = uint_fast8_t(((tmp_229 & tmp_232)) & 1);  // basic_and
+    const uint_fast8_t tmp_234 = uint_fast8_t(((uint_fast8_t(tmp_230) + uint_fast8_t(tmp_233))) & 31);  // basic_add
+    const uint_fast8_t tmp_235 = uint_fast8_t((((arg_0 >> 17) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_236 = uint_fast8_t((((~tmp_235) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_237 = uint_fast8_t(((tmp_233 & tmp_236)) & 1);  // basic_and
+    const uint_fast8_t tmp_238 = uint_fast8_t(((uint_fast8_t(tmp_234) + uint_fast8_t(tmp_237))) & 31);  // basic_add
+    const uint_fast8_t tmp_239 = uint_fast8_t((((arg_0 >> 16) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_240 = uint_fast8_t((((~tmp_239) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_241 = uint_fast8_t(((tmp_237 & tmp_240)) & 1);  // basic_and
+    const uint_fast8_t tmp_242 = uint_fast8_t(((uint_fast8_t(tmp_238) + uint_fast8_t(tmp_241))) & 31);  // basic_add
+    const uint_fast8_t tmp_243 = uint_fast8_t((((arg_0 >> 15) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_244 = uint_fast8_t((((~tmp_243) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_245 = uint_fast8_t(((tmp_241 & tmp_244)) & 1);  // basic_and
+    const uint_fast8_t tmp_246 = uint_fast8_t(((uint_fast8_t(tmp_242) + uint_fast8_t(tmp_245))) & 31);  // basic_add
+    const uint_fast8_t tmp_247 = uint_fast8_t((((arg_0 >> 14) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_248 = uint_fast8_t((((~tmp_247) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_249 = uint_fast8_t(((tmp_245 & tmp_248)) & 1);  // basic_and
+    const uint_fast8_t tmp_250 = uint_fast8_t(((uint_fast8_t(tmp_246) + uint_fast8_t(tmp_249))) & 31);  // basic_add
+    const uint_fast8_t tmp_251 = uint_fast8_t((((arg_0 >> 13) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_252 = uint_fast8_t((((~tmp_251) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_253 = uint_fast8_t(((tmp_249 & tmp_252)) & 1);  // basic_and
+    const uint_fast8_t tmp_254 = uint_fast8_t(((uint_fast8_t(tmp_250) + uint_fast8_t(tmp_253))) & 31);  // basic_add
+    const uint_fast8_t tmp_255 = uint_fast8_t((((arg_0 >> 12) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_256 = uint_fast8_t((((~tmp_255) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_257 = uint_fast8_t(((tmp_253 & tmp_256)) & 1);  // basic_and
+    const uint_fast8_t tmp_258 = uint_fast8_t(((uint_fast8_t(tmp_254) + uint_fast8_t(tmp_257))) & 31);  // basic_add
+    const uint_fast8_t tmp_259 = uint_fast8_t((((arg_0 >> 11) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_260 = uint_fast8_t((((~tmp_259) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_261 = uint_fast8_t(((tmp_257 & tmp_260)) & 1);  // basic_and
+    const uint_fast8_t tmp_262 = uint_fast8_t(((uint_fast8_t(tmp_258) + uint_fast8_t(tmp_261))) & 31);  // basic_add
+    const uint_fast8_t tmp_263 = uint_fast8_t((((arg_0 >> 10) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_264 = uint_fast8_t((((~tmp_263) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_265 = uint_fast8_t(((tmp_261 & tmp_264)) & 1);  // basic_and
+    const uint_fast8_t tmp_266 = uint_fast8_t(((uint_fast8_t(tmp_262) + uint_fast8_t(tmp_265))) & 31);  // basic_add
+    const uint_fast8_t tmp_267 = uint_fast8_t((((arg_0 >> 9) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_268 = uint_fast8_t((((~tmp_267) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_269 = uint_fast8_t(((tmp_265 & tmp_268)) & 1);  // basic_and
+    const uint_fast8_t tmp_270 = uint_fast8_t(((uint_fast8_t(tmp_266) + uint_fast8_t(tmp_269))) & 31);  // basic_add
+    const uint_fast8_t tmp_271 = uint_fast8_t((((arg_0 >> 8) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_272 = uint_fast8_t((((~tmp_271) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_273 = uint_fast8_t(((tmp_269 & tmp_272)) & 1);  // basic_and
+    const uint_fast8_t tmp_274 = uint_fast8_t(((uint_fast8_t(tmp_270) + uint_fast8_t(tmp_273))) & 31);  // basic_add
+    const uint_fast8_t tmp_275 = uint_fast8_t((((arg_0 >> 7) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_276 = uint_fast8_t((((~tmp_275) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_277 = uint_fast8_t(((tmp_273 & tmp_276)) & 1);  // basic_and
+    const uint_fast8_t tmp_278 = uint_fast8_t(((uint_fast8_t(tmp_274) + uint_fast8_t(tmp_277))) & 31);  // basic_add
+    const uint_fast8_t tmp_279 = uint_fast8_t((((arg_0 >> 6) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_280 = uint_fast8_t((((~tmp_279) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_281 = uint_fast8_t(((tmp_277 & tmp_280)) & 1);  // basic_and
+    const uint_fast8_t tmp_282 = uint_fast8_t(((uint_fast8_t(tmp_278) + uint_fast8_t(tmp_281))) & 31);  // basic_add
+    const uint_fast8_t tmp_283 = uint_fast8_t((((arg_0 >> 5) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_284 = uint_fast8_t((((~tmp_283) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_285 = uint_fast8_t(((tmp_281 & tmp_284)) & 1);  // basic_and
+    const uint_fast8_t tmp_286 = uint_fast8_t(((uint_fast8_t(tmp_282) + uint_fast8_t(tmp_285))) & 31);  // basic_add
+    const uint_fast8_t tmp_287 = uint_fast8_t((((arg_0 >> 4) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_288 = uint_fast8_t((((~tmp_287) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_289 = uint_fast8_t(((tmp_285 & tmp_288)) & 1);  // basic_and
+    const uint_fast8_t tmp_290 = uint_fast8_t(((uint_fast8_t(tmp_286) + uint_fast8_t(tmp_289))) & 31);  // basic_add
+    const uint_fast8_t tmp_291 = uint_fast8_t((((arg_0 >> 3) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_292 = uint_fast8_t((((~tmp_291) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_293 = uint_fast8_t(((tmp_289 & tmp_292)) & 1);  // basic_and
+    const uint_fast8_t tmp_294 = uint_fast8_t(((uint_fast8_t(tmp_290) + uint_fast8_t(tmp_293))) & 31);  // basic_add
+    const uint_fast8_t tmp_295 = uint_fast8_t((((arg_0 >> 2) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_296 = uint_fast8_t((((~tmp_295) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_297 = uint_fast8_t(((tmp_293 & tmp_296)) & 1);  // basic_and
+    const uint_fast8_t tmp_298 = uint_fast8_t(((uint_fast8_t(tmp_294) + uint_fast8_t(tmp_297))) & 31);  // basic_add
+    const uint_fast8_t tmp_299 = uint_fast8_t((((arg_0 >> 1) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_300 = uint_fast8_t((((~tmp_299) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_301 = uint_fast8_t(((tmp_297 & tmp_300)) & 1);  // basic_and
+    const uint_fast8_t tmp_302 = uint_fast8_t(((uint_fast8_t(tmp_298) + uint_fast8_t(tmp_301))) & 31);  // basic_add
+    const uint_fast8_t tmp_303 = uint_fast8_t((((arg_0 >> 0) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_304 = uint_fast8_t((((~tmp_303) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_305 = uint_fast8_t(((tmp_301 & tmp_304)) & 1);  // basic_and
+    const uint_fast8_t tmp_306 = uint_fast8_t(((uint_fast8_t(tmp_302) + uint_fast8_t(tmp_305))) & 31);  // basic_add
+    return tmp_306;
 }
 static inline uint_fast8_t uq_add_2(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_add
     // begin inline primitive uq_aligner
-    const uint_fast8_t tmp_310 = uint_fast8_t((arg_0) & 15);  // basic_identity
-    const uint_fast8_t tmp_311 = uint_fast8_t((arg_1) & 15);  // basic_identity
-    const std::array<uint_fast64_t, 2> tmp_312 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_310), static_cast<uint_fast64_t>(tmp_311)};  // basic_tuple_maker_2
+    const uint_fast8_t tmp_308 = uint_fast8_t((arg_0) & 15);  // basic_identity
+    const uint_fast8_t tmp_309 = uint_fast8_t((arg_1) & 15);  // basic_identity
+    const std::array<uint_fast64_t, 2> tmp_310 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_308), static_cast<uint_fast64_t>(tmp_309)};  // basic_tuple_maker_2
     // end inline primitive uq_aligner
-    const uint_fast8_t tmp_313 = uint_fast8_t((tmp_312[0]) & 15);  // _basic_get_item_0
-    const uint_fast8_t tmp_314 = uint_fast8_t((tmp_312[1]) & 15);  // _basic_get_item_1
-    const uint_fast8_t tmp_315 = uint_fast8_t(((uint_fast8_t(tmp_313) + uint_fast8_t(tmp_314))) & 15);  // basic_add
-    return tmp_315;
+    const uint_fast8_t tmp_311 = uint_fast8_t((tmp_310[0]) & 15);  // _basic_get_item_0
+    const uint_fast8_t tmp_312 = uint_fast8_t((tmp_310[1]) & 15);  // _basic_get_item_1
+    const uint_fast8_t tmp_313 = uint_fast8_t(((uint_fast8_t(tmp_311) + uint_fast8_t(tmp_312))) & 15);  // basic_add
+    return tmp_313;
 }
 static inline uint_fast8_t uq_to_q_2(uint_fast8_t arg_0) {  // uq_to_q
-    const uint_fast8_t tmp_316 = uq_add_2(uint_fast8_t((5) & 7), uint_fast8_t((1) & 1));  // uq_add
-    const uint_fast8_t tmp_317 = uint_fast8_t((0) & 63);  // q_alloc
-    const uint_fast8_t tmp_318 = uint_fast8_t((arg_0) & 63);  // basic_identity
-    return tmp_318;
+    const uint_fast8_t tmp_314 = uq_add_2(uint_fast8_t((5) & 7), uint_fast8_t((1) & 1));  // uq_add
+    const uint_fast8_t tmp_315 = uint_fast8_t((0) & 63);  // q_alloc
+    const uint_fast8_t tmp_316 = uint_fast8_t((arg_0) & 63);  // basic_identity
+    return tmp_316;
 }
 static inline uint_fast8_t uq_add_3(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_add
     // begin inline primitive uq_aligner
-    const uint_fast8_t tmp_320 = uint_fast8_t((arg_0) & 7);  // basic_identity
-    const uint_fast8_t tmp_321 = uint_fast8_t((arg_1) & 7);  // basic_identity
-    const std::array<uint_fast64_t, 2> tmp_322 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_320), static_cast<uint_fast64_t>(tmp_321)};  // basic_tuple_maker_2
+    const uint_fast8_t tmp_318 = uint_fast8_t((arg_0) & 7);  // basic_identity
+    const uint_fast8_t tmp_319 = uint_fast8_t((arg_1) & 7);  // basic_identity
+    const std::array<uint_fast64_t, 2> tmp_320 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_318), static_cast<uint_fast64_t>(tmp_319)};  // basic_tuple_maker_2
     // end inline primitive uq_aligner
-    const uint_fast8_t tmp_323 = uint_fast8_t((tmp_322[0]) & 7);  // _basic_get_item_0
-    const uint_fast8_t tmp_324 = uint_fast8_t((tmp_322[1]) & 7);  // _basic_get_item_1
-    const uint_fast8_t tmp_325 = uint_fast8_t(((uint_fast8_t(tmp_323) + uint_fast8_t(tmp_324))) & 7);  // basic_add
-    return tmp_325;
+    const uint_fast8_t tmp_321 = uint_fast8_t((tmp_320[0]) & 7);  // _basic_get_item_0
+    const uint_fast8_t tmp_322 = uint_fast8_t((tmp_320[1]) & 7);  // _basic_get_item_1
+    const uint_fast8_t tmp_323 = uint_fast8_t(((uint_fast8_t(tmp_321) + uint_fast8_t(tmp_322))) & 7);  // basic_add
+    return tmp_323;
 }
 static inline uint_fast8_t uq_to_q_3(uint_fast8_t arg_0) {  // uq_to_q
-    const uint_fast8_t tmp_326 = uq_add_3(uint_fast8_t((2) & 3), uint_fast8_t((1) & 1));  // uq_add
-    const uint_fast8_t tmp_327 = uint_fast8_t((0) & 7);  // q_alloc
-    const uint_fast8_t tmp_328 = uint_fast8_t((arg_0) & 7);  // basic_identity
-    return tmp_328;
+    const uint_fast8_t tmp_324 = uq_add_3(uint_fast8_t((2) & 3), uint_fast8_t((1) & 1));  // uq_add
+    const uint_fast8_t tmp_325 = uint_fast8_t((0) & 7);  // q_alloc
+    const uint_fast8_t tmp_326 = uint_fast8_t((arg_0) & 7);  // basic_identity
+    return tmp_326;
 }
 static inline uint_fast8_t q_sign_bit_2(uint_fast8_t arg_0) {  // q_sign_bit
-    const uint_fast8_t tmp_331 = uint_fast8_t((((arg_0 >> 5) & 1)) & 1);  // basic_select
-    return tmp_331;
+    const uint_fast8_t tmp_328 = uint_fast8_t((((arg_0 >> 5) & 1)) & 1);  // basic_select
+    return tmp_328;
 }
 static inline uint_fast8_t q_sign_extend_1(uint_fast8_t arg_0) {  // q_sign_extend
-    const uint_fast8_t tmp_332 = q_sign_bit_2(arg_0);  // q_sign_bit
-    const uint_fast8_t tmp_333 = uint_fast8_t(((uint_fast8_t((1) & 1) >= 2 ? 0 : (uint_fast8_t(tmp_332) << uint_fast8_t((1) & 1)))) & 3);  // basic_lshift
-    const uint_fast8_t tmp_334 = uint_fast8_t(((uint_fast8_t(tmp_333) - uint_fast8_t(tmp_332))) & 1);  // basic_sub
-    const uint_fast8_t tmp_335 = uint_fast8_t((0) & 127);  // q_alloc
-    const uint_fast8_t tmp_336 = uint_fast8_t((((uint_fast8_t(tmp_334) << 6) | arg_0)) & 127);  // basic_concat
-    return tmp_336;
+    const uint_fast8_t tmp_329 = q_sign_bit_2(arg_0);  // q_sign_bit
+    const uint_fast8_t tmp_330 = uint_fast8_t(((uint_fast8_t((1) & 1) >= 2 ? uint_fast8_t(0) : (uint_fast8_t(tmp_329) << uint_fast8_t((1) & 1)))) & 3);  // basic_lshift
+    const uint_fast8_t tmp_331 = uint_fast8_t(((uint_fast8_t(tmp_330) - uint_fast8_t(tmp_329))) & 1);  // basic_sub
+    const uint_fast8_t tmp_332 = uint_fast8_t((0) & 127);  // q_alloc
+    const uint_fast8_t tmp_333 = uint_fast8_t((((uint_fast8_t(tmp_331) << 6) | arg_0)) & 127);  // basic_concat
+    return tmp_333;
 }
 static inline uint_fast8_t q_sign_bit_3(uint_fast8_t arg_0) {  // q_sign_bit
-    const uint_fast8_t tmp_339 = uint_fast8_t((((arg_0 >> 2) & 1)) & 1);  // basic_select
-    return tmp_339;
+    const uint_fast8_t tmp_335 = uint_fast8_t((((arg_0 >> 2) & 1)) & 1);  // basic_select
+    return tmp_335;
 }
 static inline uint_fast8_t q_sign_extend_2(uint_fast8_t arg_0) {  // q_sign_extend
-    const uint_fast8_t tmp_340 = q_sign_bit_3(arg_0);  // q_sign_bit
-    const uint_fast8_t tmp_341 = uint_fast8_t(((uint_fast8_t((4) & 7) >= 5 ? 0 : (uint_fast8_t(tmp_340) << uint_fast8_t((4) & 7)))) & 31);  // basic_lshift
-    const uint_fast8_t tmp_342 = uint_fast8_t(((uint_fast8_t(tmp_341) - uint_fast8_t(tmp_340))) & 15);  // basic_sub
-    const uint_fast8_t tmp_343 = uint_fast8_t((0) & 127);  // q_alloc
-    const uint_fast8_t tmp_344 = uint_fast8_t((((uint_fast8_t(tmp_342) << 3) | arg_0)) & 127);  // basic_concat
-    return tmp_344;
+    const uint_fast8_t tmp_336 = q_sign_bit_3(arg_0);  // q_sign_bit
+    const uint_fast8_t tmp_337 = uint_fast8_t(((uint_fast8_t((4) & 7) >= 5 ? uint_fast8_t(0) : (uint_fast8_t(tmp_336) << uint_fast8_t((4) & 7)))) & 31);  // basic_lshift
+    const uint_fast8_t tmp_338 = uint_fast8_t(((uint_fast8_t(tmp_337) - uint_fast8_t(tmp_336))) & 15);  // basic_sub
+    const uint_fast8_t tmp_339 = uint_fast8_t((0) & 127);  // q_alloc
+    const uint_fast8_t tmp_340 = uint_fast8_t((((uint_fast8_t(tmp_338) << 3) | arg_0)) & 127);  // basic_concat
+    return tmp_340;
 }
 static inline uint_fast8_t q_sub(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // q_sub
     // begin inline primitive q_aligner
-    const uint_fast8_t tmp_330 = uint_fast8_t(((uint_fast8_t((0) & 1) >= 6 ? 0 : (uint_fast8_t(arg_0) << uint_fast8_t((0) & 1)))) & 63);  // basic_lshift
-    const uint_fast8_t tmp_337 = q_sign_extend_1(tmp_330);  // q_sign_extend
-    const uint_fast8_t tmp_338 = uint_fast8_t(((uint_fast8_t((0) & 1) >= 3 ? 0 : (uint_fast8_t(arg_1) << uint_fast8_t((0) & 1)))) & 7);  // basic_lshift
-    const uint_fast8_t tmp_345 = q_sign_extend_2(tmp_338);  // q_sign_extend
-    const std::array<uint_fast64_t, 2> tmp_346 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_337), static_cast<uint_fast64_t>(tmp_345)};  // basic_tuple_maker_2
+    const uint_fast8_t tmp_334 = q_sign_extend_1(arg_0);  // q_sign_extend
+    const uint_fast8_t tmp_341 = q_sign_extend_2(arg_1);  // q_sign_extend
+    const std::array<uint_fast64_t, 2> tmp_342 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_334), static_cast<uint_fast64_t>(tmp_341)};  // basic_tuple_maker_2
     // end inline primitive q_aligner
-    const uint_fast8_t tmp_347 = uint_fast8_t((tmp_346[0]) & 127);  // _basic_get_item_0
-    const uint_fast8_t tmp_348 = uint_fast8_t((tmp_346[1]) & 127);  // _basic_get_item_1
-    const uint_fast8_t tmp_349 = uint_fast8_t(((uint_fast8_t(tmp_347) - uint_fast8_t(tmp_348))) & 127);  // basic_sub
-    return tmp_349;
+    const uint_fast8_t tmp_343 = uint_fast8_t((tmp_342[0]) & 127);  // _basic_get_item_0
+    const uint_fast8_t tmp_344 = uint_fast8_t((tmp_342[1]) & 127);  // _basic_get_item_1
+    const uint_fast8_t tmp_345 = uint_fast8_t(((uint_fast8_t(tmp_343) - uint_fast8_t(tmp_344))) & 127);  // basic_sub
+    return tmp_345;
 }
 static inline uint_fast8_t q_sign_bit_4(uint_fast8_t arg_0) {  // q_sign_bit
-    const uint_fast8_t tmp_352 = uint_fast8_t((((arg_0 >> 6) & 1)) & 1);  // basic_select
-    return tmp_352;
+    const uint_fast8_t tmp_347 = uint_fast8_t((((arg_0 >> 6) & 1)) & 1);  // basic_select
+    return tmp_347;
 }
 static inline uint_fast8_t q_sign_extend_3(uint_fast8_t arg_0) {  // q_sign_extend
-    const uint_fast8_t tmp_353 = q_sign_bit_4(arg_0);  // q_sign_bit
-    const uint_fast8_t tmp_354 = uint_fast8_t(((uint_fast8_t((1) & 1) >= 2 ? 0 : (uint_fast8_t(tmp_353) << uint_fast8_t((1) & 1)))) & 3);  // basic_lshift
-    const uint_fast8_t tmp_355 = uint_fast8_t(((uint_fast8_t(tmp_354) - uint_fast8_t(tmp_353))) & 1);  // basic_sub
-    const uint_fast8_t tmp_356 = uint_fast8_t((0) & 255);  // q_alloc
-    const uint_fast8_t tmp_357 = uint_fast8_t((((uint_fast8_t(tmp_355) << 7) | arg_0)) & 255);  // basic_concat
-    return tmp_357;
+    const uint_fast8_t tmp_348 = q_sign_bit_4(arg_0);  // q_sign_bit
+    const uint_fast8_t tmp_349 = uint_fast8_t(((uint_fast8_t((1) & 1) >= 2 ? uint_fast8_t(0) : (uint_fast8_t(tmp_348) << uint_fast8_t((1) & 1)))) & 3);  // basic_lshift
+    const uint_fast8_t tmp_350 = uint_fast8_t(((uint_fast8_t(tmp_349) - uint_fast8_t(tmp_348))) & 1);  // basic_sub
+    const uint_fast8_t tmp_351 = uint_fast8_t((0) & 255);  // q_alloc
+    const uint_fast8_t tmp_352 = uint_fast8_t((((uint_fast8_t(tmp_350) << 7) | arg_0)) & 255);  // basic_concat
+    return tmp_352;
 }
 static inline uint_fast8_t q_sign_bit_5(uint_fast8_t arg_0) {  // q_sign_bit
-    const uint_fast8_t tmp_360 = uint_fast8_t((((arg_0 >> 1) & 1)) & 1);  // basic_select
-    return tmp_360;
+    const uint_fast8_t tmp_354 = uint_fast8_t((((arg_0 >> 1) & 1)) & 1);  // basic_select
+    return tmp_354;
 }
 static inline uint_fast8_t q_sign_extend_4(uint_fast8_t arg_0) {  // q_sign_extend
-    const uint_fast8_t tmp_361 = q_sign_bit_5(arg_0);  // q_sign_bit
-    const uint_fast8_t tmp_362 = uint_fast8_t(((uint_fast8_t((6) & 7) >= 7 ? 0 : (uint_fast8_t(tmp_361) << uint_fast8_t((6) & 7)))) & 127);  // basic_lshift
-    const uint_fast8_t tmp_363 = uint_fast8_t(((uint_fast8_t(tmp_362) - uint_fast8_t(tmp_361))) & 63);  // basic_sub
-    const uint_fast8_t tmp_364 = uint_fast8_t((0) & 255);  // q_alloc
-    const uint_fast8_t tmp_365 = uint_fast8_t((((uint_fast8_t(tmp_363) << 2) | arg_0)) & 255);  // basic_concat
-    return tmp_365;
+    const uint_fast8_t tmp_355 = q_sign_bit_5(arg_0);  // q_sign_bit
+    const uint_fast8_t tmp_356 = uint_fast8_t(((uint_fast8_t((6) & 7) >= 7 ? uint_fast8_t(0) : (uint_fast8_t(tmp_355) << uint_fast8_t((6) & 7)))) & 127);  // basic_lshift
+    const uint_fast8_t tmp_357 = uint_fast8_t(((uint_fast8_t(tmp_356) - uint_fast8_t(tmp_355))) & 63);  // basic_sub
+    const uint_fast8_t tmp_358 = uint_fast8_t((0) & 255);  // q_alloc
+    const uint_fast8_t tmp_359 = uint_fast8_t((((uint_fast8_t(tmp_357) << 2) | arg_0)) & 255);  // basic_concat
+    return tmp_359;
 }
 static inline uint_fast8_t q_add_1(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // q_add
     // begin inline primitive q_aligner
-    const uint_fast8_t tmp_351 = uint_fast8_t(((uint_fast8_t((0) & 1) >= 7 ? 0 : (uint_fast8_t(arg_0) << uint_fast8_t((0) & 1)))) & 127);  // basic_lshift
-    const uint_fast8_t tmp_358 = q_sign_extend_3(tmp_351);  // q_sign_extend
-    const uint_fast8_t tmp_359 = uint_fast8_t(((uint_fast8_t((0) & 1) >= 2 ? 0 : (uint_fast8_t(arg_1) << uint_fast8_t((0) & 1)))) & 3);  // basic_lshift
-    const uint_fast8_t tmp_366 = q_sign_extend_4(tmp_359);  // q_sign_extend
-    const std::array<uint_fast64_t, 2> tmp_367 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_358), static_cast<uint_fast64_t>(tmp_366)};  // basic_tuple_maker_2
+    const uint_fast8_t tmp_353 = q_sign_extend_3(arg_0);  // q_sign_extend
+    const uint_fast8_t tmp_360 = q_sign_extend_4(arg_1);  // q_sign_extend
+    const std::array<uint_fast64_t, 2> tmp_361 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_353), static_cast<uint_fast64_t>(tmp_360)};  // basic_tuple_maker_2
     // end inline primitive q_aligner
-    const uint_fast8_t tmp_368 = uint_fast8_t((tmp_367[0]) & 255);  // _basic_get_item_0
-    const uint_fast8_t tmp_369 = uint_fast8_t((tmp_367[1]) & 255);  // _basic_get_item_1
-    const uint_fast8_t tmp_370 = uint_fast8_t(((uint_fast8_t(tmp_368) + uint_fast8_t(tmp_369))) & 255);  // basic_add
-    return tmp_370;
+    const uint_fast8_t tmp_362 = uint_fast8_t((tmp_361[0]) & 255);  // _basic_get_item_0
+    const uint_fast8_t tmp_363 = uint_fast8_t((tmp_361[1]) & 255);  // _basic_get_item_1
+    const uint_fast8_t tmp_364 = uint_fast8_t(((uint_fast8_t(tmp_362) + uint_fast8_t(tmp_363))) & 255);  // basic_add
+    return tmp_364;
 }
 static inline uint_fast8_t q_sign_bit_6(uint_fast8_t arg_0) {  // q_sign_bit
-    const uint_fast8_t tmp_372 = uint_fast8_t((((arg_0 >> 7) & 1)) & 1);  // basic_select
-    return tmp_372;
+    const uint_fast8_t tmp_366 = uint_fast8_t((((arg_0 >> 7) & 1)) & 1);  // basic_select
+    return tmp_366;
 }
 static inline uint_fast32_t uq_resize_2(uint_fast32_t arg_0) {  // uq_resize
-    const uint_fast32_t tmp_374 = uint_fast32_t(((uint_fast8_t((1) & 1) >= 29 ? 0 : (uint_fast32_t(arg_0) << uint_fast8_t((1) & 1)))) & 536870911);  // basic_lshift
-    return tmp_374;
+    const uint_fast32_t tmp_368 = uint_fast32_t(((uint_fast8_t((1) & 1) >= 29 ? uint_fast32_t(0) : (uint_fast32_t(arg_0) << uint_fast8_t((1) & 1)))) & 536870911);  // basic_lshift
+    return tmp_368;
 }
 static inline uint_fast8_t q_neg_2(uint_fast8_t arg_0) {  // q_neg
-    const uint_fast8_t tmp_377 = uint_fast8_t(((arg_0 == 128)) & 1);  // _q_is_min_val
-    const uint_fast8_t tmp_378 = uint_fast8_t((((~arg_0) & 255)) & 255);  // basic_invert
-    const uint_fast8_t tmp_379 = uint_fast8_t(((uint_fast8_t(tmp_378) + uint_fast8_t(uint_fast8_t((1) & 1)))) & 255);  // basic_add
-    const uint_fast8_t tmp_380 = uint_fast8_t(((arg_0 ^ arg_0)) & 255);  // basic_xor
-    const uint_fast8_t tmp_381 = uint_fast8_t((((~tmp_380) & 255)) & 255);  // basic_invert
-    const uint_fast8_t tmp_382 = uint_fast8_t(((tmp_377 != 0 ? tmp_381 : tmp_379)) & 255);  // basic_mux_2_1
-    return tmp_382;
+    const uint_fast8_t tmp_371 = uint_fast8_t(((arg_0 == 128)) & 1);  // _q_is_min_val
+    const uint_fast8_t tmp_372 = uint_fast8_t((((~arg_0) & 255)) & 255);  // basic_invert
+    const uint_fast8_t tmp_373 = uint_fast8_t(((uint_fast8_t(tmp_372) + uint_fast8_t(uint_fast8_t((1) & 1)))) & 255);  // basic_add
+    const uint_fast8_t tmp_374 = uint_fast8_t(((arg_0 ^ arg_0)) & 255);  // basic_xor
+    const uint_fast8_t tmp_375 = uint_fast8_t((((~tmp_374) & 255)) & 255);  // basic_invert
+    const uint_fast8_t tmp_376 = uint_fast8_t(((tmp_371 != 0 ? uint_fast8_t(tmp_375) : uint_fast8_t(tmp_373))) & 255);  // basic_mux_2_1
+    return tmp_376;
 }
 static inline uint_fast8_t q_add_sign_2(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // q_add_sign
-    const uint_fast8_t tmp_383 = q_neg_2(arg_0);  // q_neg
-    const uint_fast8_t tmp_384 = uint_fast8_t(((arg_1 != 0 ? tmp_383 : arg_0)) & 255);  // basic_mux_2_1
-    return tmp_384;
+    const uint_fast8_t tmp_377 = q_neg_2(arg_0);  // q_neg
+    const uint_fast8_t tmp_378 = uint_fast8_t(((arg_1 != 0 ? uint_fast8_t(tmp_377) : uint_fast8_t(arg_0))) & 255);  // basic_mux_2_1
+    return tmp_378;
 }
 static inline uint_fast8_t q_abs_1(uint_fast8_t arg_0) {  // q_abs
-    const uint_fast8_t tmp_376 = q_sign_bit_6(arg_0);  // q_sign_bit
-    const uint_fast8_t tmp_385 = q_add_sign_2(arg_0, tmp_376);  // q_add_sign
-    return tmp_385;
+    const uint_fast8_t tmp_370 = q_sign_bit_6(arg_0);  // q_sign_bit
+    const uint_fast8_t tmp_379 = q_add_sign_2(arg_0, tmp_370);  // q_add_sign
+    return tmp_379;
 }
 static inline uint_fast8_t q_to_uq_1(uint_fast8_t arg_0) {  // q_to_uq
-    const uint_fast8_t tmp_387 = uint_fast8_t((arg_0) & 127);  // basic_identity
-    return tmp_387;
+    const uint_fast8_t tmp_381 = uint_fast8_t((arg_0) & 127);  // basic_identity
+    return tmp_381;
 }
 static inline uint_fast32_t uq_lshift(uint_fast32_t arg_0, uint_fast8_t arg_1) {  // uq_lshift
-    const uint_fast32_t tmp_389 = uint_fast32_t(((arg_1 >= 29 ? 0 : (uint_fast32_t(arg_0) << arg_1))) & 536870911);  // basic_lshift
-    return tmp_389;
+    const uint_fast32_t tmp_383 = uint_fast32_t(((arg_1 >= 29 ? uint_fast32_t(0) : (uint_fast32_t(arg_0) << arg_1))) & 536870911);  // basic_lshift
+    return tmp_383;
 }
 static inline uint_fast32_t uq_rshift_1(uint_fast32_t arg_0, uint_fast8_t arg_1) {  // uq_rshift
-    const uint_fast32_t tmp_391 = uint_fast32_t(((arg_1 >= 29 ? 0 : (arg_0 >> arg_1))) & 536870911);  // basic_rshift
-    return tmp_391;
+    const uint_fast32_t tmp_385 = uint_fast32_t(((arg_1 >= 29 ? uint_fast32_t(0) : (arg_0 >> arg_1))) & 536870911);  // basic_rshift
+    return tmp_385;
 }
 static inline uint_fast8_t uq_is_zero_2(uint_fast8_t arg_0) {  // uq_is_zero
-    const uint_fast8_t tmp_393 = uint_fast8_t(((arg_0 != 0)) & 1);  // basic_or_reduce
-    const uint_fast8_t tmp_394 = uint_fast8_t((((~tmp_393) & 1)) & 1);  // basic_invert
-    return tmp_394;
+    const uint_fast8_t tmp_387 = uint_fast8_t(((arg_0 != 0)) & 1);  // basic_or_reduce
+    const uint_fast8_t tmp_388 = uint_fast8_t((((~tmp_387) & 1)) & 1);  // basic_invert
+    return tmp_388;
 }
 static inline uint_fast8_t uq_ge_1(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_ge
     // begin inline primitive uq_aligner
-    const uint_fast8_t tmp_396 = uint_fast8_t((arg_1) & 127);  // basic_identity
-    const std::array<uint_fast64_t, 2> tmp_397 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(arg_0), static_cast<uint_fast64_t>(tmp_396)};  // basic_tuple_maker_2
+    const uint_fast8_t tmp_390 = uint_fast8_t((arg_1) & 127);  // basic_identity
+    const std::array<uint_fast64_t, 2> tmp_391 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(arg_0), static_cast<uint_fast64_t>(tmp_390)};  // basic_tuple_maker_2
     // end inline primitive uq_aligner
-    const uint_fast8_t tmp_398 = uint_fast8_t((tmp_397[0]) & 127);  // _basic_get_item_0
-    const uint_fast8_t tmp_399 = uint_fast8_t((tmp_397[1]) & 127);  // _basic_get_item_1
-    const uint_fast8_t tmp_400 = uint_fast8_t(((tmp_398 >= tmp_399)) & 1);  // basic_greater_or_equal
-    return tmp_400;
+    const uint_fast8_t tmp_392 = uint_fast8_t((tmp_391[0]) & 127);  // _basic_get_item_0
+    const uint_fast8_t tmp_393 = uint_fast8_t((tmp_391[1]) & 127);  // _basic_get_item_1
+    const uint_fast8_t tmp_394 = uint_fast8_t(((tmp_392 >= tmp_393)) & 1);  // basic_greater_or_equal
+    return tmp_394;
 }
 static inline uint_fast8_t uq_sub_2(uint_fast8_t arg_0, uint_fast8_t arg_1) {  // uq_sub
     // begin inline primitive uq_aligner
-    const uint_fast8_t tmp_402 = uint_fast8_t((arg_0) & 255);  // basic_identity
-    const uint_fast8_t tmp_403 = uint_fast8_t((arg_1) & 255);  // basic_identity
-    const std::array<uint_fast64_t, 2> tmp_404 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_402), static_cast<uint_fast64_t>(tmp_403)};  // basic_tuple_maker_2
+    const uint_fast8_t tmp_396 = uint_fast8_t((arg_0) & 255);  // basic_identity
+    const uint_fast8_t tmp_397 = uint_fast8_t((arg_1) & 255);  // basic_identity
+    const std::array<uint_fast64_t, 2> tmp_398 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_396), static_cast<uint_fast64_t>(tmp_397)};  // basic_tuple_maker_2
     // end inline primitive uq_aligner
-    const uint_fast8_t tmp_405 = uint_fast8_t((tmp_404[0]) & 255);  // _basic_get_item_0
-    const uint_fast8_t tmp_406 = uint_fast8_t((tmp_404[1]) & 255);  // _basic_get_item_1
-    const uint_fast8_t tmp_407 = uint_fast8_t(((uint_fast8_t(tmp_405) - uint_fast8_t(tmp_406))) & 255);  // basic_sub
-    return tmp_407;
+    const uint_fast8_t tmp_399 = uint_fast8_t((tmp_398[0]) & 255);  // _basic_get_item_0
+    const uint_fast8_t tmp_400 = uint_fast8_t((tmp_398[1]) & 255);  // _basic_get_item_1
+    const uint_fast8_t tmp_401 = uint_fast8_t(((uint_fast8_t(tmp_399) - uint_fast8_t(tmp_400))) & 255);  // basic_sub
+    return tmp_401;
 }
 static inline uint_fast32_t uq_rshift_jam_1(uint_fast32_t arg_0, uint_fast8_t arg_1) {  // uq_rshift_jam
-    const uint_fast32_t tmp_392 = uq_rshift_1(arg_0, arg_1);  // uq_rshift
-    const uint_fast8_t tmp_395 = uq_is_zero_2(arg_1);  // uq_is_zero
-    const uint_fast8_t tmp_401 = uq_ge_1(arg_1, uint_fast8_t((29) & 31));  // uq_ge
-    const uint_fast8_t tmp_408 = uq_sub_2(uint_fast8_t((29) & 31), arg_1);  // uq_sub
-    const uint_fast32_t tmp_409 = uint_fast32_t(((tmp_408 >= 29 ? 0 : (uint_fast32_t(arg_0) << tmp_408))) & 536870911);  // basic_lshift
-    const uint_fast8_t tmp_410 = uint_fast8_t(((tmp_409 != 0)) & 1);  // basic_or_reduce
-    const uint_fast8_t tmp_411 = uint_fast8_t(((arg_0 != 0)) & 1);  // basic_or_reduce
-    const uint_fast8_t tmp_412 = uint_fast8_t(((tmp_401 != 0 ? tmp_411 : tmp_410)) & 1);  // basic_mux_2_1
-    const uint_fast8_t tmp_413 = uint_fast8_t(((tmp_395 != 0 ? uint_fast8_t((0) & 1) : tmp_412)) & 1);  // basic_mux_2_1
-    const uint_fast32_t tmp_414 = uint_fast32_t(((tmp_392 | tmp_413)) & 536870911);  // basic_or
-    return tmp_414;
+    const uint_fast32_t tmp_386 = uq_rshift_1(arg_0, arg_1);  // uq_rshift
+    const uint_fast8_t tmp_389 = uq_is_zero_2(arg_1);  // uq_is_zero
+    const uint_fast8_t tmp_395 = uq_ge_1(arg_1, uint_fast8_t((29) & 31));  // uq_ge
+    const uint_fast8_t tmp_402 = uq_sub_2(uint_fast8_t((29) & 31), arg_1);  // uq_sub
+    const uint_fast32_t tmp_403 = uint_fast32_t(((tmp_402 >= 29 ? uint_fast32_t(0) : (uint_fast32_t(arg_0) << tmp_402))) & 536870911);  // basic_lshift
+    const uint_fast8_t tmp_404 = uint_fast8_t(((tmp_403 != 0)) & 1);  // basic_or_reduce
+    const uint_fast8_t tmp_405 = uint_fast8_t(((arg_0 != 0)) & 1);  // basic_or_reduce
+    const uint_fast8_t tmp_406 = uint_fast8_t(((tmp_395 != 0 ? uint_fast8_t(tmp_405) : uint_fast8_t(tmp_404))) & 1);  // basic_mux_2_1
+    const uint_fast8_t tmp_407 = uint_fast8_t(((tmp_389 != 0 ? uint_fast8_t(uint_fast8_t((0) & 1)) : uint_fast8_t(tmp_406))) & 1);  // basic_mux_2_1
+    const uint_fast32_t tmp_408 = uint_fast32_t(((tmp_386 | tmp_407)) & 536870911);  // basic_or
+    return tmp_408;
 }
 static inline uint_fast8_t q_sign_bit_7(uint_fast16_t arg_0) {  // q_sign_bit
-    const uint_fast8_t tmp_418 = uint_fast8_t((((arg_0 >> 8) & 1)) & 1);  // basic_select
-    return tmp_418;
+    const uint_fast8_t tmp_411 = uint_fast8_t((((arg_0 >> 8) & 1)) & 1);  // basic_select
+    return tmp_411;
 }
 static inline uint_fast16_t q_sign_extend_5(uint_fast16_t arg_0) {  // q_sign_extend
-    const uint_fast8_t tmp_419 = q_sign_bit_7(arg_0);  // q_sign_bit
-    const uint_fast8_t tmp_420 = uint_fast8_t(((uint_fast8_t((1) & 1) >= 2 ? 0 : (uint_fast8_t(tmp_419) << uint_fast8_t((1) & 1)))) & 3);  // basic_lshift
-    const uint_fast8_t tmp_421 = uint_fast8_t(((uint_fast8_t(tmp_420) - uint_fast8_t(tmp_419))) & 1);  // basic_sub
-    const uint_fast16_t tmp_422 = uint_fast16_t((0) & 1023);  // q_alloc
-    const uint_fast16_t tmp_423 = uint_fast16_t((((uint_fast16_t(tmp_421) << 9) | arg_0)) & 1023);  // basic_concat
-    return tmp_423;
+    const uint_fast8_t tmp_412 = q_sign_bit_7(arg_0);  // q_sign_bit
+    const uint_fast8_t tmp_413 = uint_fast8_t(((uint_fast8_t((1) & 1) >= 2 ? uint_fast8_t(0) : (uint_fast8_t(tmp_412) << uint_fast8_t((1) & 1)))) & 3);  // basic_lshift
+    const uint_fast8_t tmp_414 = uint_fast8_t(((uint_fast8_t(tmp_413) - uint_fast8_t(tmp_412))) & 1);  // basic_sub
+    const uint_fast16_t tmp_415 = uint_fast16_t((0) & 1023);  // q_alloc
+    const uint_fast16_t tmp_416 = uint_fast16_t((((uint_fast16_t(tmp_414) << 9) | arg_0)) & 1023);  // basic_concat
+    return tmp_416;
 }
 static inline uint_fast16_t q_sign_extend_6(uint_fast8_t arg_0) {  // q_sign_extend
-    const uint_fast8_t tmp_426 = q_sign_bit_6(arg_0);  // q_sign_bit
-    const uint_fast8_t tmp_427 = uint_fast8_t(((uint_fast8_t((2) & 3) >= 3 ? 0 : (uint_fast8_t(tmp_426) << uint_fast8_t((2) & 3)))) & 7);  // basic_lshift
-    const uint_fast8_t tmp_428 = uint_fast8_t(((uint_fast8_t(tmp_427) - uint_fast8_t(tmp_426))) & 3);  // basic_sub
-    const uint_fast16_t tmp_429 = uint_fast16_t((0) & 1023);  // q_alloc
-    const uint_fast16_t tmp_430 = uint_fast16_t((((uint_fast16_t(tmp_428) << 8) | arg_0)) & 1023);  // basic_concat
-    return tmp_430;
+    const uint_fast8_t tmp_418 = q_sign_bit_6(arg_0);  // q_sign_bit
+    const uint_fast8_t tmp_419 = uint_fast8_t(((uint_fast8_t((2) & 3) >= 3 ? uint_fast8_t(0) : (uint_fast8_t(tmp_418) << uint_fast8_t((2) & 3)))) & 7);  // basic_lshift
+    const uint_fast8_t tmp_420 = uint_fast8_t(((uint_fast8_t(tmp_419) - uint_fast8_t(tmp_418))) & 3);  // basic_sub
+    const uint_fast16_t tmp_421 = uint_fast16_t((0) & 1023);  // q_alloc
+    const uint_fast16_t tmp_422 = uint_fast16_t((((uint_fast16_t(tmp_420) << 8) | arg_0)) & 1023);  // basic_concat
+    return tmp_422;
 }
 static inline uint_fast16_t q_sub_1(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // q_sub
     // begin inline primitive q_aligner
-    const uint_fast16_t tmp_417 = uint_fast16_t(((uint_fast8_t((0) & 1) >= 9 ? 0 : (uint_fast16_t(arg_0) << uint_fast8_t((0) & 1)))) & 511);  // basic_lshift
-    const uint_fast16_t tmp_424 = q_sign_extend_5(tmp_417);  // q_sign_extend
-    const uint_fast8_t tmp_425 = uint_fast8_t(((uint_fast8_t((0) & 1) >= 8 ? 0 : (uint_fast8_t(arg_1) << uint_fast8_t((0) & 1)))) & 255);  // basic_lshift
-    const uint_fast16_t tmp_431 = q_sign_extend_6(tmp_425);  // q_sign_extend
-    const std::array<uint_fast64_t, 2> tmp_432 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_424), static_cast<uint_fast64_t>(tmp_431)};  // basic_tuple_maker_2
+    const uint_fast16_t tmp_417 = q_sign_extend_5(arg_0);  // q_sign_extend
+    const uint_fast16_t tmp_423 = q_sign_extend_6(arg_1);  // q_sign_extend
+    const std::array<uint_fast64_t, 2> tmp_424 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_417), static_cast<uint_fast64_t>(tmp_423)};  // basic_tuple_maker_2
     // end inline primitive q_aligner
-    const uint_fast16_t tmp_433 = uint_fast16_t((tmp_432[0]) & 1023);  // _basic_get_item_0
-    const uint_fast16_t tmp_434 = uint_fast16_t((tmp_432[1]) & 1023);  // _basic_get_item_1
-    const uint_fast16_t tmp_435 = uint_fast16_t(((uint_fast16_t(tmp_433) - uint_fast16_t(tmp_434))) & 1023);  // basic_sub
-    return tmp_435;
+    const uint_fast16_t tmp_425 = uint_fast16_t((tmp_424[0]) & 1023);  // _basic_get_item_0
+    const uint_fast16_t tmp_426 = uint_fast16_t((tmp_424[1]) & 1023);  // _basic_get_item_1
+    const uint_fast16_t tmp_427 = uint_fast16_t(((uint_fast16_t(tmp_425) - uint_fast16_t(tmp_426))) & 1023);  // basic_sub
+    return tmp_427;
 }
 static inline uint_fast16_t q_add_2(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // q_add
     // begin inline primitive q_aligner
-    const uint_fast16_t tmp_437 = uint_fast16_t(((uint_fast8_t((0) & 1) >= 9 ? 0 : (uint_fast16_t(arg_0) << uint_fast8_t((0) & 1)))) & 511);  // basic_lshift
-    const uint_fast16_t tmp_438 = q_sign_extend_5(tmp_437);  // q_sign_extend
-    const uint_fast8_t tmp_439 = uint_fast8_t(((uint_fast8_t((0) & 1) >= 8 ? 0 : (uint_fast8_t(arg_1) << uint_fast8_t((0) & 1)))) & 255);  // basic_lshift
-    const uint_fast16_t tmp_440 = q_sign_extend_6(tmp_439);  // q_sign_extend
-    const std::array<uint_fast64_t, 2> tmp_441 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_438), static_cast<uint_fast64_t>(tmp_440)};  // basic_tuple_maker_2
+    const uint_fast16_t tmp_429 = q_sign_extend_5(arg_0);  // q_sign_extend
+    const uint_fast16_t tmp_430 = q_sign_extend_6(arg_1);  // q_sign_extend
+    const std::array<uint_fast64_t, 2> tmp_431 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_429), static_cast<uint_fast64_t>(tmp_430)};  // basic_tuple_maker_2
     // end inline primitive q_aligner
-    const uint_fast16_t tmp_442 = uint_fast16_t((tmp_441[0]) & 1023);  // _basic_get_item_0
-    const uint_fast16_t tmp_443 = uint_fast16_t((tmp_441[1]) & 1023);  // _basic_get_item_1
-    const uint_fast16_t tmp_444 = uint_fast16_t(((uint_fast16_t(tmp_442) + uint_fast16_t(tmp_443))) & 1023);  // basic_add
-    return tmp_444;
+    const uint_fast16_t tmp_432 = uint_fast16_t((tmp_431[0]) & 1023);  // _basic_get_item_0
+    const uint_fast16_t tmp_433 = uint_fast16_t((tmp_431[1]) & 1023);  // _basic_get_item_1
+    const uint_fast16_t tmp_434 = uint_fast16_t(((uint_fast16_t(tmp_432) + uint_fast16_t(tmp_433))) & 1023);  // basic_add
+    return tmp_434;
 }
 static inline uint_fast8_t q_is_zero(uint_fast16_t arg_0) {  // q_is_zero
-    const uint_fast8_t tmp_451 = uint_fast8_t(((arg_0 != 0)) & 1);  // basic_or_reduce
-    const uint_fast8_t tmp_452 = uint_fast8_t((((~tmp_451) & 1)) & 1);  // basic_invert
-    return tmp_452;
+    const uint_fast8_t tmp_441 = uint_fast8_t(((arg_0 != 0)) & 1);  // basic_or_reduce
+    const uint_fast8_t tmp_442 = uint_fast8_t((((~tmp_441) & 1)) & 1);  // basic_invert
+    return tmp_442;
 }
 static inline uint_fast8_t q_sign_bit_8(uint_fast16_t arg_0) {  // q_sign_bit
-    const uint_fast8_t tmp_454 = uint_fast8_t((((arg_0 >> 9) & 1)) & 1);  // basic_select
-    return tmp_454;
+    const uint_fast8_t tmp_444 = uint_fast8_t((((arg_0 >> 9) & 1)) & 1);  // basic_select
+    return tmp_444;
 }
 static inline uint_fast16_t q_neg_3(uint_fast16_t arg_0) {  // q_neg
-    const uint_fast8_t tmp_458 = uint_fast8_t(((arg_0 == 512)) & 1);  // _q_is_min_val
-    const uint_fast16_t tmp_459 = uint_fast16_t((((~arg_0) & 1023)) & 1023);  // basic_invert
-    const uint_fast16_t tmp_460 = uint_fast16_t(((uint_fast16_t(tmp_459) + uint_fast16_t(uint_fast8_t((1) & 1)))) & 1023);  // basic_add
-    const uint_fast16_t tmp_461 = uint_fast16_t(((arg_0 ^ arg_0)) & 1023);  // basic_xor
-    const uint_fast16_t tmp_462 = uint_fast16_t((((~tmp_461) & 1023)) & 1023);  // basic_invert
-    const uint_fast16_t tmp_463 = uint_fast16_t(((tmp_458 != 0 ? tmp_462 : tmp_460)) & 1023);  // basic_mux_2_1
-    return tmp_463;
+    const uint_fast8_t tmp_448 = uint_fast8_t(((arg_0 == 512)) & 1);  // _q_is_min_val
+    const uint_fast16_t tmp_449 = uint_fast16_t((((~arg_0) & 1023)) & 1023);  // basic_invert
+    const uint_fast16_t tmp_450 = uint_fast16_t(((uint_fast16_t(tmp_449) + uint_fast16_t(uint_fast8_t((1) & 1)))) & 1023);  // basic_add
+    const uint_fast16_t tmp_451 = uint_fast16_t(((arg_0 ^ arg_0)) & 1023);  // basic_xor
+    const uint_fast16_t tmp_452 = uint_fast16_t((((~tmp_451) & 1023)) & 1023);  // basic_invert
+    const uint_fast16_t tmp_453 = uint_fast16_t(((tmp_448 != 0 ? uint_fast16_t(tmp_452) : uint_fast16_t(tmp_450))) & 1023);  // basic_mux_2_1
+    return tmp_453;
 }
 static inline uint_fast16_t q_add_sign_3(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // q_add_sign
-    const uint_fast16_t tmp_464 = q_neg_3(arg_0);  // q_neg
-    const uint_fast16_t tmp_465 = uint_fast16_t(((arg_1 != 0 ? tmp_464 : arg_0)) & 1023);  // basic_mux_2_1
-    return tmp_465;
+    const uint_fast16_t tmp_454 = q_neg_3(arg_0);  // q_neg
+    const uint_fast16_t tmp_455 = uint_fast16_t(((arg_1 != 0 ? uint_fast16_t(tmp_454) : uint_fast16_t(arg_0))) & 1023);  // basic_mux_2_1
+    return tmp_455;
 }
 static inline uint_fast16_t q_abs_2(uint_fast16_t arg_0) {  // q_abs
-    const uint_fast8_t tmp_457 = q_sign_bit_8(arg_0);  // q_sign_bit
-    const uint_fast16_t tmp_466 = q_add_sign_3(arg_0, tmp_457);  // q_add_sign
-    return tmp_466;
+    const uint_fast8_t tmp_447 = q_sign_bit_8(arg_0);  // q_sign_bit
+    const uint_fast16_t tmp_456 = q_add_sign_3(arg_0, tmp_447);  // q_add_sign
+    return tmp_456;
 }
 static inline uint_fast16_t q_to_uq_2(uint_fast16_t arg_0) {  // q_to_uq
-    const uint_fast16_t tmp_468 = uint_fast16_t((arg_0) & 511);  // basic_identity
-    return tmp_468;
+    const uint_fast16_t tmp_458 = uint_fast16_t((arg_0) & 511);  // basic_identity
+    return tmp_458;
 }
 static inline uint_fast16_t uq_add_4(uint_fast8_t arg_0, uint_fast16_t arg_1) {  // uq_add
     // begin inline primitive uq_aligner
-    const uint_fast16_t tmp_470 = uint_fast16_t((arg_0) & 1023);  // basic_identity
-    const uint_fast16_t tmp_471 = uint_fast16_t((arg_1) & 1023);  // basic_identity
-    const std::array<uint_fast64_t, 2> tmp_472 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_470), static_cast<uint_fast64_t>(tmp_471)};  // basic_tuple_maker_2
+    const uint_fast16_t tmp_460 = uint_fast16_t((arg_0) & 1023);  // basic_identity
+    const uint_fast16_t tmp_461 = uint_fast16_t((arg_1) & 1023);  // basic_identity
+    const std::array<uint_fast64_t, 2> tmp_462 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_460), static_cast<uint_fast64_t>(tmp_461)};  // basic_tuple_maker_2
     // end inline primitive uq_aligner
-    const uint_fast16_t tmp_473 = uint_fast16_t((tmp_472[0]) & 1023);  // _basic_get_item_0
-    const uint_fast16_t tmp_474 = uint_fast16_t((tmp_472[1]) & 1023);  // _basic_get_item_1
-    const uint_fast16_t tmp_475 = uint_fast16_t(((uint_fast16_t(tmp_473) + uint_fast16_t(tmp_474))) & 1023);  // basic_add
-    return tmp_475;
+    const uint_fast16_t tmp_463 = uint_fast16_t((tmp_462[0]) & 1023);  // _basic_get_item_0
+    const uint_fast16_t tmp_464 = uint_fast16_t((tmp_462[1]) & 1023);  // _basic_get_item_1
+    const uint_fast16_t tmp_465 = uint_fast16_t(((uint_fast16_t(tmp_463) + uint_fast16_t(tmp_464))) & 1023);  // basic_add
+    return tmp_465;
 }
 static inline uint_fast64_t uq_rshift_2(uint_fast64_t arg_0, uint_fast16_t arg_1) {  // uq_rshift
-    const uint_fast64_t tmp_478 = uint_fast64_t(((arg_1 >= 38 ? 0 : (arg_0 >> arg_1))) & 274877906943);  // basic_rshift
-    return tmp_478;
+    const uint_fast64_t tmp_468 = uint_fast64_t(((arg_1 >= 38 ? uint_fast64_t(0) : (arg_0 >> arg_1))) & 274877906943);  // basic_rshift
+    return tmp_468;
 }
 static inline uint_fast8_t uq_is_zero_3(uint_fast16_t arg_0) {  // uq_is_zero
-    const uint_fast8_t tmp_480 = uint_fast8_t(((arg_0 != 0)) & 1);  // basic_or_reduce
-    const uint_fast8_t tmp_481 = uint_fast8_t((((~tmp_480) & 1)) & 1);  // basic_invert
-    return tmp_481;
+    const uint_fast8_t tmp_470 = uint_fast8_t(((arg_0 != 0)) & 1);  // basic_or_reduce
+    const uint_fast8_t tmp_471 = uint_fast8_t((((~tmp_470) & 1)) & 1);  // basic_invert
+    return tmp_471;
 }
 static inline uint_fast8_t uq_ge_2(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // uq_ge
     // begin inline primitive uq_aligner
-    const uint_fast16_t tmp_483 = uint_fast16_t((arg_1) & 1023);  // basic_identity
-    const std::array<uint_fast64_t, 2> tmp_484 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(arg_0), static_cast<uint_fast64_t>(tmp_483)};  // basic_tuple_maker_2
+    const uint_fast16_t tmp_473 = uint_fast16_t((arg_1) & 1023);  // basic_identity
+    const std::array<uint_fast64_t, 2> tmp_474 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(arg_0), static_cast<uint_fast64_t>(tmp_473)};  // basic_tuple_maker_2
     // end inline primitive uq_aligner
-    const uint_fast16_t tmp_485 = uint_fast16_t((tmp_484[0]) & 1023);  // _basic_get_item_0
-    const uint_fast16_t tmp_486 = uint_fast16_t((tmp_484[1]) & 1023);  // _basic_get_item_1
-    const uint_fast8_t tmp_487 = uint_fast8_t(((tmp_485 >= tmp_486)) & 1);  // basic_greater_or_equal
-    return tmp_487;
+    const uint_fast16_t tmp_475 = uint_fast16_t((tmp_474[0]) & 1023);  // _basic_get_item_0
+    const uint_fast16_t tmp_476 = uint_fast16_t((tmp_474[1]) & 1023);  // _basic_get_item_1
+    const uint_fast8_t tmp_477 = uint_fast8_t(((tmp_475 >= tmp_476)) & 1);  // basic_greater_or_equal
+    return tmp_477;
 }
 static inline uint_fast16_t uq_sub_3(uint_fast8_t arg_0, uint_fast16_t arg_1) {  // uq_sub
     // begin inline primitive uq_aligner
-    const uint_fast16_t tmp_489 = uint_fast16_t((arg_0) & 2047);  // basic_identity
-    const uint_fast16_t tmp_490 = uint_fast16_t((arg_1) & 2047);  // basic_identity
-    const std::array<uint_fast64_t, 2> tmp_491 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_489), static_cast<uint_fast64_t>(tmp_490)};  // basic_tuple_maker_2
+    const uint_fast16_t tmp_479 = uint_fast16_t((arg_0) & 2047);  // basic_identity
+    const uint_fast16_t tmp_480 = uint_fast16_t((arg_1) & 2047);  // basic_identity
+    const std::array<uint_fast64_t, 2> tmp_481 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_479), static_cast<uint_fast64_t>(tmp_480)};  // basic_tuple_maker_2
     // end inline primitive uq_aligner
-    const uint_fast16_t tmp_492 = uint_fast16_t((tmp_491[0]) & 2047);  // _basic_get_item_0
-    const uint_fast16_t tmp_493 = uint_fast16_t((tmp_491[1]) & 2047);  // _basic_get_item_1
-    const uint_fast16_t tmp_494 = uint_fast16_t(((uint_fast16_t(tmp_492) - uint_fast16_t(tmp_493))) & 2047);  // basic_sub
-    return tmp_494;
+    const uint_fast16_t tmp_482 = uint_fast16_t((tmp_481[0]) & 2047);  // _basic_get_item_0
+    const uint_fast16_t tmp_483 = uint_fast16_t((tmp_481[1]) & 2047);  // _basic_get_item_1
+    const uint_fast16_t tmp_484 = uint_fast16_t(((uint_fast16_t(tmp_482) - uint_fast16_t(tmp_483))) & 2047);  // basic_sub
+    return tmp_484;
 }
 static inline uint_fast64_t uq_rshift_jam_2(uint_fast64_t arg_0, uint_fast16_t arg_1) {  // uq_rshift_jam
-    const uint_fast64_t tmp_479 = uq_rshift_2(arg_0, arg_1);  // uq_rshift
-    const uint_fast8_t tmp_482 = uq_is_zero_3(arg_1);  // uq_is_zero
-    const uint_fast8_t tmp_488 = uq_ge_2(arg_1, uint_fast8_t((38) & 63));  // uq_ge
-    const uint_fast16_t tmp_495 = uq_sub_3(uint_fast8_t((38) & 63), arg_1);  // uq_sub
-    const uint_fast64_t tmp_496 = uint_fast64_t(((tmp_495 >= 38 ? 0 : (uint_fast64_t(arg_0) << tmp_495))) & 274877906943);  // basic_lshift
-    const uint_fast8_t tmp_497 = uint_fast8_t(((tmp_496 != 0)) & 1);  // basic_or_reduce
-    const uint_fast8_t tmp_498 = uint_fast8_t(((arg_0 != 0)) & 1);  // basic_or_reduce
-    const uint_fast8_t tmp_499 = uint_fast8_t(((tmp_488 != 0 ? tmp_498 : tmp_497)) & 1);  // basic_mux_2_1
-    const uint_fast8_t tmp_500 = uint_fast8_t(((tmp_482 != 0 ? uint_fast8_t((0) & 1) : tmp_499)) & 1);  // basic_mux_2_1
-    const uint_fast64_t tmp_501 = uint_fast64_t(((tmp_479 | tmp_500)) & 274877906943);  // basic_or
-    return tmp_501;
+    const uint_fast64_t tmp_469 = uq_rshift_2(arg_0, arg_1);  // uq_rshift
+    const uint_fast8_t tmp_472 = uq_is_zero_3(arg_1);  // uq_is_zero
+    const uint_fast8_t tmp_478 = uq_ge_2(arg_1, uint_fast8_t((38) & 63));  // uq_ge
+    const uint_fast16_t tmp_485 = uq_sub_3(uint_fast8_t((38) & 63), arg_1);  // uq_sub
+    const uint_fast64_t tmp_486 = uint_fast64_t(((tmp_485 >= 38 ? uint_fast64_t(0) : (uint_fast64_t(arg_0) << tmp_485))) & 274877906943);  // basic_lshift
+    const uint_fast8_t tmp_487 = uint_fast8_t(((tmp_486 != 0)) & 1);  // basic_or_reduce
+    const uint_fast8_t tmp_488 = uint_fast8_t(((arg_0 != 0)) & 1);  // basic_or_reduce
+    const uint_fast8_t tmp_489 = uint_fast8_t(((tmp_478 != 0 ? uint_fast8_t(tmp_488) : uint_fast8_t(tmp_487))) & 1);  // basic_mux_2_1
+    const uint_fast8_t tmp_490 = uint_fast8_t(((tmp_472 != 0 ? uint_fast8_t(uint_fast8_t((0) & 1)) : uint_fast8_t(tmp_489))) & 1);  // basic_mux_2_1
+    const uint_fast64_t tmp_491 = uint_fast64_t(((tmp_469 | tmp_490)) & 274877906943);  // basic_or
+    return tmp_491;
 }
 static inline uint_fast64_t drop_implicit_bit(uint_fast64_t arg_0) {  // drop_implicit_bit
-    const uint_fast64_t tmp_506 = uint_fast64_t((((arg_0 >> 0) & 137438953471)) & 137438953471);  // basic_select
-    return tmp_506;
+    const uint_fast64_t tmp_496 = uint_fast64_t((((arg_0 >> 0) & 137438953471)) & 137438953471);  // basic_select
+    return tmp_496;
 }
 static inline uint_fast32_t uq_resize_3(uint_fast64_t arg_0) {  // uq_resize
-    const uint_fast32_t tmp_510 = uint_fast32_t(((uint_fast8_t((14) & 15) >= 37 ? 0 : (arg_0 >> uint_fast8_t((14) & 15)))) & 8388607);  // basic_rshift
-    return tmp_510;
+    const uint_fast32_t tmp_500 = uint_fast32_t(((uint_fast8_t((14) & 15) >= 37 ? uint_fast64_t(0) : (arg_0 >> uint_fast8_t((14) & 15)))) & 8388607);  // basic_rshift
+    return tmp_500;
 }
 static inline uint_fast32_t uq_add_5(uint_fast32_t arg_0, uint_fast32_t arg_1) {  // uq_add
     // begin inline primitive uq_aligner
-    const uint_fast32_t tmp_521 = uint_fast32_t((arg_0) & 16777215);  // basic_identity
-    const uint_fast32_t tmp_522 = uint_fast32_t((arg_1) & 16777215);  // basic_identity
-    const std::array<uint_fast64_t, 2> tmp_523 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_521), static_cast<uint_fast64_t>(tmp_522)};  // basic_tuple_maker_2
+    const uint_fast32_t tmp_511 = uint_fast32_t((arg_0) & 16777215);  // basic_identity
+    const uint_fast32_t tmp_512 = uint_fast32_t((arg_1) & 16777215);  // basic_identity
+    const std::array<uint_fast64_t, 2> tmp_513 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_511), static_cast<uint_fast64_t>(tmp_512)};  // basic_tuple_maker_2
     // end inline primitive uq_aligner
-    const uint_fast32_t tmp_524 = uint_fast32_t((tmp_523[0]) & 16777215);  // _basic_get_item_0
-    const uint_fast32_t tmp_525 = uint_fast32_t((tmp_523[1]) & 16777215);  // _basic_get_item_1
-    const uint_fast32_t tmp_526 = uint_fast32_t(((uint_fast32_t(tmp_524) + uint_fast32_t(tmp_525))) & 16777215);  // basic_add
-    return tmp_526;
+    const uint_fast32_t tmp_514 = uint_fast32_t((tmp_513[0]) & 16777215);  // _basic_get_item_0
+    const uint_fast32_t tmp_515 = uint_fast32_t((tmp_513[1]) & 16777215);  // _basic_get_item_1
+    const uint_fast32_t tmp_516 = uint_fast32_t(((uint_fast32_t(tmp_514) + uint_fast32_t(tmp_515))) & 16777215);  // basic_add
+    return tmp_516;
 }
 static inline uint_fast16_t uq_add_6(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // uq_add
     // begin inline primitive uq_aligner
-    const uint_fast16_t tmp_533 = uint_fast16_t((arg_0) & 1023);  // basic_identity
-    const uint_fast16_t tmp_534 = uint_fast16_t((arg_1) & 1023);  // basic_identity
-    const std::array<uint_fast64_t, 2> tmp_535 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_533), static_cast<uint_fast64_t>(tmp_534)};  // basic_tuple_maker_2
+    const uint_fast16_t tmp_523 = uint_fast16_t((arg_0) & 1023);  // basic_identity
+    const uint_fast16_t tmp_524 = uint_fast16_t((arg_1) & 1023);  // basic_identity
+    const std::array<uint_fast64_t, 2> tmp_525 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_523), static_cast<uint_fast64_t>(tmp_524)};  // basic_tuple_maker_2
     // end inline primitive uq_aligner
-    const uint_fast16_t tmp_536 = uint_fast16_t((tmp_535[0]) & 1023);  // _basic_get_item_0
-    const uint_fast16_t tmp_537 = uint_fast16_t((tmp_535[1]) & 1023);  // _basic_get_item_1
-    const uint_fast16_t tmp_538 = uint_fast16_t(((uint_fast16_t(tmp_536) + uint_fast16_t(tmp_537))) & 1023);  // basic_add
-    return tmp_538;
+    const uint_fast16_t tmp_526 = uint_fast16_t((tmp_525[0]) & 1023);  // _basic_get_item_0
+    const uint_fast16_t tmp_527 = uint_fast16_t((tmp_525[1]) & 1023);  // _basic_get_item_1
+    const uint_fast16_t tmp_528 = uint_fast16_t(((uint_fast16_t(tmp_526) + uint_fast16_t(tmp_527))) & 1023);  // basic_add
+    return tmp_528;
 }
 static inline uint_fast16_t uq_min(uint_fast16_t arg_0, uint_fast8_t arg_1) {  // uq_min
     // begin inline primitive uq_aligner
-    const uint_fast16_t tmp_547 = uint_fast16_t((arg_1) & 1023);  // basic_identity
-    const std::array<uint_fast64_t, 2> tmp_548 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(arg_0), static_cast<uint_fast64_t>(tmp_547)};  // basic_tuple_maker_2
+    const uint_fast16_t tmp_537 = uint_fast16_t((arg_1) & 1023);  // basic_identity
+    const std::array<uint_fast64_t, 2> tmp_538 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(arg_0), static_cast<uint_fast64_t>(tmp_537)};  // basic_tuple_maker_2
     // end inline primitive uq_aligner
-    const uint_fast16_t tmp_549 = uint_fast16_t((tmp_548[0]) & 1023);  // _basic_get_item_0
-    const uint_fast16_t tmp_550 = uint_fast16_t((tmp_548[1]) & 1023);  // _basic_get_item_1
-    const uint_fast16_t tmp_551 = uint_fast16_t(((tmp_549 < tmp_550 ? tmp_549 : tmp_550)) & 1023);  // basic_min
-    return tmp_551;
+    const uint_fast16_t tmp_539 = uint_fast16_t((tmp_538[0]) & 1023);  // _basic_get_item_0
+    const uint_fast16_t tmp_540 = uint_fast16_t((tmp_538[1]) & 1023);  // _basic_get_item_1
+    const uint_fast16_t tmp_541 = uint_fast16_t(((tmp_539 < tmp_540 ? uint_fast16_t(tmp_539) : uint_fast16_t(tmp_540))) & 1023);  // basic_min
+    return tmp_541;
 }
 static inline uint_fast32_t fp32_pack(uint_fast8_t arg_0, uint_fast8_t arg_1, uint_fast32_t arg_2) {  // fp32_pack
-    const uint_fast32_t tmp_560 = uint_fast32_t((((arg_0 << 31) | (arg_1 << 23) | arg_2)) & 4294967295);  // float32_alloc
-    return tmp_560;
+    const uint_fast32_t tmp_550 = uint_fast32_t((((uint_fast32_t(arg_0) << 31) | (uint_fast32_t(arg_1) << 23) | uint_fast32_t(arg_2))) & 4294967295);  // float32_alloc
+    return tmp_550;
 }
 static inline uint_fast32_t fp32_encode(uint_fast8_t arg_0, uint_fast16_t arg_1, uint_fast32_t arg_2, uint_fast8_t arg_3, uint_fast8_t arg_4) {  // fp32_encode
-    const uint_fast32_t tmp_192 = uint_fast32_t(((arg_0 != 0 ? uint_fast32_t((4286578688) & 4294967295) : uint_fast32_t((2139095040) & 4294967295))) & 4294967295);  // basic_mux_2_1
-    const uint_fast8_t tmp_195 = uq_is_zero_1(arg_2);  // uq_is_zero
-    const uint_fast32_t tmp_196 = uint_fast32_t(((arg_0 != 0 ? uint_fast32_t((2147483648) & 4294967295) : uint_fast32_t((0) & 4294967295))) & 4294967295);  // basic_mux_2_1
+    const uint_fast32_t tmp_190 = uint_fast32_t(((arg_0 != 0 ? uint_fast32_t(uint_fast32_t((4286578688) & 4294967295)) : uint_fast32_t(uint_fast32_t((2139095040) & 4294967295)))) & 4294967295);  // basic_mux_2_1
+    const uint_fast8_t tmp_193 = uq_is_zero_1(arg_2);  // uq_is_zero
+    const uint_fast32_t tmp_194 = uint_fast32_t(((arg_0 != 0 ? uint_fast32_t(uint_fast32_t((2147483648) & 4294967295)) : uint_fast32_t(uint_fast32_t((0) & 4294967295)))) & 4294967295);  // basic_mux_2_1
     // begin inline primitive normalize_to_1_xxx
-    const uint_fast8_t tmp_309 = lzc(arg_2);  // lzc
-    const uint_fast8_t tmp_319 = uq_to_q_2(tmp_309);  // uq_to_q
-    const uint_fast8_t tmp_329 = uq_to_q_3(uint_fast8_t((2) & 3));  // uq_to_q
-    const uint_fast8_t tmp_350 = q_sub(tmp_319, tmp_329);  // q_sub
-    const uint_fast8_t tmp_371 = q_add_1(tmp_350, uint_fast8_t((1) & 3));  // q_add
-    const uint_fast8_t tmp_373 = q_sign_bit_6(tmp_371);  // q_sign_bit
-    const uint_fast32_t tmp_375 = uq_resize_2(arg_2);  // uq_resize
-    const uint_fast8_t tmp_386 = q_abs_1(tmp_371);  // q_abs
-    const uint_fast8_t tmp_388 = q_to_uq_1(tmp_386);  // q_to_uq
-    const uint_fast32_t tmp_390 = uq_lshift(tmp_375, tmp_388);  // uq_lshift
-    const uint_fast32_t tmp_415 = uq_rshift_jam_1(tmp_375, tmp_388);  // uq_rshift_jam
-    const uint_fast32_t tmp_416 = uint_fast32_t(((tmp_373 != 0 ? tmp_415 : tmp_390)) & 268435455);  // basic_mux_2_1
-    const uint_fast16_t tmp_436 = q_sub_1(arg_1, tmp_386);  // q_sub
-    const uint_fast16_t tmp_445 = q_add_2(arg_1, tmp_386);  // q_add
-    const uint_fast16_t tmp_446 = uint_fast16_t(((tmp_373 != 0 ? tmp_445 : tmp_436)) & 1023);  // basic_mux_2_1
-    const std::array<uint_fast64_t, 2> tmp_447 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_416), static_cast<uint_fast64_t>(tmp_446)};  // basic_tuple_maker_2
+    const uint_fast8_t tmp_307 = lzc(arg_2);  // lzc
+    const uint_fast8_t tmp_317 = uq_to_q_2(tmp_307);  // uq_to_q
+    const uint_fast8_t tmp_327 = uq_to_q_3(uint_fast8_t((2) & 3));  // uq_to_q
+    const uint_fast8_t tmp_346 = q_sub(tmp_317, tmp_327);  // q_sub
+    const uint_fast8_t tmp_365 = q_add_1(tmp_346, uint_fast8_t((1) & 3));  // q_add
+    const uint_fast8_t tmp_367 = q_sign_bit_6(tmp_365);  // q_sign_bit
+    const uint_fast32_t tmp_369 = uq_resize_2(arg_2);  // uq_resize
+    const uint_fast8_t tmp_380 = q_abs_1(tmp_365);  // q_abs
+    const uint_fast8_t tmp_382 = q_to_uq_1(tmp_380);  // q_to_uq
+    const uint_fast32_t tmp_384 = uq_lshift(tmp_369, tmp_382);  // uq_lshift
+    const uint_fast32_t tmp_409 = uq_rshift_jam_1(tmp_369, tmp_382);  // uq_rshift_jam
+    const uint_fast32_t tmp_410 = uint_fast32_t(((tmp_367 != 0 ? uint_fast32_t(tmp_409) : uint_fast32_t(tmp_384))) & 268435455);  // basic_mux_2_1
+    const uint_fast16_t tmp_428 = q_sub_1(arg_1, tmp_380);  // q_sub
+    const uint_fast16_t tmp_435 = q_add_2(arg_1, tmp_380);  // q_add
+    const uint_fast16_t tmp_436 = uint_fast16_t(((tmp_367 != 0 ? uint_fast16_t(tmp_435) : uint_fast16_t(tmp_428))) & 1023);  // basic_mux_2_1
+    const std::array<uint_fast64_t, 2> tmp_437 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_410), static_cast<uint_fast64_t>(tmp_436)};  // basic_tuple_maker_2
     // end inline primitive normalize_to_1_xxx
-    const uint_fast32_t tmp_448 = uint_fast32_t((tmp_447[0]) & 268435455);  // _basic_get_item_0
-    const uint_fast16_t tmp_449 = uint_fast16_t((tmp_447[1]) & 1023);  // _basic_get_item_1
+    const uint_fast32_t tmp_438 = uint_fast32_t((tmp_437[0]) & 268435455);  // _basic_get_item_0
+    const uint_fast16_t tmp_439 = uint_fast16_t((tmp_437[1]) & 1023);  // _basic_get_item_1
     // begin inline primitive shift_if_subnormal
-    const uint_fast64_t tmp_450 = uint_fast64_t(((uint_fast8_t((10) & 15) >= 38 ? 0 : (uint_fast64_t(tmp_448) << uint_fast8_t((10) & 15)))) & 274877906943);  // basic_lshift
-    const uint_fast8_t tmp_453 = q_is_zero(tmp_449);  // q_is_zero
-    const uint_fast8_t tmp_455 = q_sign_bit_8(tmp_449);  // q_sign_bit
-    const uint_fast8_t tmp_456 = uint_fast8_t(((tmp_453 | tmp_455)) & 1);  // basic_or
-    const uint_fast16_t tmp_467 = q_abs_2(tmp_449);  // q_abs
-    const uint_fast16_t tmp_469 = q_to_uq_2(tmp_467);  // q_to_uq
-    const uint_fast16_t tmp_476 = uq_add_4(uint_fast8_t((1) & 1), tmp_469);  // uq_add
-    const uint_fast16_t tmp_477 = uint_fast16_t(((tmp_456 != 0 ? tmp_476 : uint_fast8_t((0) & 1))) & 1023);  // basic_mux_2_1
-    const uint_fast64_t tmp_502 = uq_rshift_jam_2(tmp_450, tmp_477);  // uq_rshift_jam
-    const uint_fast16_t tmp_503 = uint_fast16_t(((tmp_456 != 0 ? uint_fast8_t((0) & 1) : tmp_469)) & 511);  // basic_mux_2_1
-    const std::array<uint_fast64_t, 2> tmp_504 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_502), static_cast<uint_fast64_t>(tmp_503)};  // basic_tuple_maker_2
+    const uint_fast64_t tmp_440 = uint_fast64_t(((uint_fast8_t((10) & 15) >= 38 ? uint_fast64_t(0) : (uint_fast64_t(tmp_438) << uint_fast8_t((10) & 15)))) & 274877906943);  // basic_lshift
+    const uint_fast8_t tmp_443 = q_is_zero(tmp_439);  // q_is_zero
+    const uint_fast8_t tmp_445 = q_sign_bit_8(tmp_439);  // q_sign_bit
+    const uint_fast8_t tmp_446 = uint_fast8_t(((tmp_443 | tmp_445)) & 1);  // basic_or
+    const uint_fast16_t tmp_457 = q_abs_2(tmp_439);  // q_abs
+    const uint_fast16_t tmp_459 = q_to_uq_2(tmp_457);  // q_to_uq
+    const uint_fast16_t tmp_466 = uq_add_4(uint_fast8_t((1) & 1), tmp_459);  // uq_add
+    const uint_fast16_t tmp_467 = uint_fast16_t(((tmp_446 != 0 ? uint_fast16_t(tmp_466) : uint_fast16_t(uint_fast8_t((0) & 1)))) & 1023);  // basic_mux_2_1
+    const uint_fast64_t tmp_492 = uq_rshift_jam_2(tmp_440, tmp_467);  // uq_rshift_jam
+    const uint_fast16_t tmp_493 = uint_fast16_t(((tmp_446 != 0 ? uint_fast16_t(uint_fast8_t((0) & 1)) : uint_fast16_t(tmp_459))) & 511);  // basic_mux_2_1
+    const std::array<uint_fast64_t, 2> tmp_494 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_492), static_cast<uint_fast64_t>(tmp_493)};  // basic_tuple_maker_2
     // end inline primitive shift_if_subnormal
-    const uint_fast64_t tmp_505 = uint_fast64_t((tmp_504[0]) & 274877906943);  // _basic_get_item_0
-    const uint_fast64_t tmp_507 = drop_implicit_bit(tmp_505);  // drop_implicit_bit
-    const uint_fast16_t tmp_508 = uint_fast16_t((tmp_504[1]) & 511);  // _basic_get_item_1
+    const uint_fast64_t tmp_495 = uint_fast64_t((tmp_494[0]) & 274877906943);  // _basic_get_item_0
+    const uint_fast64_t tmp_497 = drop_implicit_bit(tmp_495);  // drop_implicit_bit
+    const uint_fast16_t tmp_498 = uint_fast16_t((tmp_494[1]) & 511);  // _basic_get_item_1
     // begin inline primitive round_mantissa
-    const uint_fast8_t tmp_509 = uq_is_zero(tmp_508);  // uq_is_zero
+    const uint_fast8_t tmp_499 = uq_is_zero(tmp_498);  // uq_is_zero
     // begin inline primitive uq_RNE_IEEE
-    const uint_fast32_t tmp_511 = uq_resize_3(tmp_507);  // uq_resize
-    const uint_fast8_t tmp_512 = uint_fast8_t((((tmp_507 >> 13) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_513 = uint_fast8_t((((tmp_507 >> 12) & 1)) & 1);  // basic_select
-    const uint_fast16_t tmp_514 = uint_fast16_t((((tmp_507 >> 0) & 4095)) & 4095);  // basic_select
-    const uint_fast8_t tmp_515 = uint_fast8_t(((tmp_514 != 0)) & 1);  // basic_or_reduce
-    const uint_fast8_t tmp_516 = uint_fast8_t(((tmp_513 | tmp_515)) & 1);  // basic_or
-    const uint_fast8_t tmp_517 = uint_fast8_t((((tmp_507 >> 14) & 1)) & 1);  // basic_select
-    const uint_fast8_t tmp_518 = uint_fast8_t(((tmp_516 | tmp_517)) & 1);  // basic_or
-    const uint_fast8_t tmp_519 = uint_fast8_t(((tmp_512 & tmp_518)) & 1);  // basic_and
-    const uint_fast32_t tmp_520 = uint_fast32_t((tmp_519) & 8388607);  // basic_identity
-    const uint_fast32_t tmp_527 = uq_add_5(tmp_511, tmp_520);  // uq_add
-    const uint_fast8_t tmp_528 = uint_fast8_t(((tmp_511 == 8388607)) & 1);  // basic_and_reduce
-    const uint_fast8_t tmp_529 = uint_fast8_t(((tmp_528 & tmp_519)) & 1);  // basic_and
-    const uint_fast32_t tmp_530 = uint_fast32_t(((tmp_529 >= 24 ? 0 : (tmp_527 >> tmp_529))) & 8388607);  // basic_rshift
-    const std::array<uint_fast64_t, 2> tmp_531 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_530), static_cast<uint_fast64_t>(tmp_529)};  // basic_tuple_maker_2
+    const uint_fast32_t tmp_501 = uq_resize_3(tmp_497);  // uq_resize
+    const uint_fast8_t tmp_502 = uint_fast8_t((((tmp_497 >> 13) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_503 = uint_fast8_t((((tmp_497 >> 12) & 1)) & 1);  // basic_select
+    const uint_fast16_t tmp_504 = uint_fast16_t((((tmp_497 >> 0) & 4095)) & 4095);  // basic_select
+    const uint_fast8_t tmp_505 = uint_fast8_t(((tmp_504 != 0)) & 1);  // basic_or_reduce
+    const uint_fast8_t tmp_506 = uint_fast8_t(((tmp_503 | tmp_505)) & 1);  // basic_or
+    const uint_fast8_t tmp_507 = uint_fast8_t((((tmp_497 >> 14) & 1)) & 1);  // basic_select
+    const uint_fast8_t tmp_508 = uint_fast8_t(((tmp_506 | tmp_507)) & 1);  // basic_or
+    const uint_fast8_t tmp_509 = uint_fast8_t(((tmp_502 & tmp_508)) & 1);  // basic_and
+    const uint_fast32_t tmp_510 = uint_fast32_t((tmp_509) & 8388607);  // basic_identity
+    const uint_fast32_t tmp_517 = uq_add_5(tmp_501, tmp_510);  // uq_add
+    const uint_fast8_t tmp_518 = uint_fast8_t(((tmp_501 == 8388607)) & 1);  // basic_and_reduce
+    const uint_fast8_t tmp_519 = uint_fast8_t(((tmp_518 & tmp_509)) & 1);  // basic_and
+    const uint_fast32_t tmp_520 = uint_fast32_t(((tmp_519 >= 24 ? uint_fast32_t(0) : (tmp_517 >> tmp_519))) & 8388607);  // basic_rshift
+    const std::array<uint_fast64_t, 2> tmp_521 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_520), static_cast<uint_fast64_t>(tmp_519)};  // basic_tuple_maker_2
     // end inline primitive uq_RNE_IEEE
-    const uint_fast8_t tmp_532 = uint_fast8_t((tmp_531[1]) & 1);  // _basic_get_item_1
-    const uint_fast16_t tmp_539 = uq_add_6(tmp_508, tmp_532);  // uq_add
-    const uint_fast8_t tmp_540 = uint_fast8_t(((tmp_539 != 0)) & 1);  // basic_or_reduce
-    const uint_fast8_t tmp_541 = uint_fast8_t(((tmp_509 & tmp_540)) & 1);  // basic_and
-    const uint_fast32_t tmp_542 = uint_fast32_t((tmp_531[0]) & 8388607);  // _basic_get_item_0
-    const uint_fast32_t tmp_543 = uint_fast32_t(((tmp_541 != 0 ? uint_fast8_t((0) & 1) : tmp_542)) & 8388607);  // basic_mux_2_1
-    const std::array<uint_fast64_t, 2> tmp_544 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_543), static_cast<uint_fast64_t>(tmp_539)};  // basic_tuple_maker_2
+    const uint_fast8_t tmp_522 = uint_fast8_t((tmp_521[1]) & 1);  // _basic_get_item_1
+    const uint_fast16_t tmp_529 = uq_add_6(tmp_498, tmp_522);  // uq_add
+    const uint_fast8_t tmp_530 = uint_fast8_t(((tmp_529 != 0)) & 1);  // basic_or_reduce
+    const uint_fast8_t tmp_531 = uint_fast8_t(((tmp_499 & tmp_530)) & 1);  // basic_and
+    const uint_fast32_t tmp_532 = uint_fast32_t((tmp_521[0]) & 8388607);  // _basic_get_item_0
+    const uint_fast32_t tmp_533 = uint_fast32_t(((tmp_531 != 0 ? uint_fast32_t(uint_fast8_t((0) & 1)) : uint_fast32_t(tmp_532))) & 8388607);  // basic_mux_2_1
+    const std::array<uint_fast64_t, 2> tmp_534 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_533), static_cast<uint_fast64_t>(tmp_529)};  // basic_tuple_maker_2
     // end inline primitive round_mantissa
-    const uint_fast32_t tmp_545 = uint_fast32_t((tmp_544[0]) & 8388607);  // _basic_get_item_0
-    const uint_fast16_t tmp_546 = uint_fast16_t((tmp_544[1]) & 1023);  // _basic_get_item_1
+    const uint_fast32_t tmp_535 = uint_fast32_t((tmp_534[0]) & 8388607);  // _basic_get_item_0
+    const uint_fast16_t tmp_536 = uint_fast16_t((tmp_534[1]) & 1023);  // _basic_get_item_1
     // begin inline primitive fp32_encodings
-    const uint_fast16_t tmp_552 = uq_min(tmp_546, uint_fast8_t((255) & 255));  // uq_min
-    const uint_fast8_t tmp_553 = uint_fast8_t((tmp_552) & 255);  // basic_identity
-    const uint_fast8_t tmp_554 = uint_fast8_t(((tmp_553 == 255)) & 1);  // basic_and_reduce
-    const uint_fast32_t tmp_555 = uint_fast32_t(((tmp_554 != 0 ? uint_fast8_t((0) & 1) : tmp_545)) & 8388607);  // basic_mux_2_1
-    const uint_fast32_t tmp_556 = uint_fast32_t((tmp_555) & 8388607);  // basic_identity
-    const std::array<uint_fast64_t, 2> tmp_557 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_556), static_cast<uint_fast64_t>(tmp_553)};  // basic_tuple_maker_2
+    const uint_fast16_t tmp_542 = uq_min(tmp_536, uint_fast8_t((255) & 255));  // uq_min
+    const uint_fast8_t tmp_543 = uint_fast8_t((tmp_542) & 255);  // basic_identity
+    const uint_fast8_t tmp_544 = uint_fast8_t(((tmp_543 == 255)) & 1);  // basic_and_reduce
+    const uint_fast32_t tmp_545 = uint_fast32_t(((tmp_544 != 0 ? uint_fast32_t(uint_fast8_t((0) & 1)) : uint_fast32_t(tmp_535))) & 8388607);  // basic_mux_2_1
+    const uint_fast32_t tmp_546 = uint_fast32_t((tmp_545) & 8388607);  // basic_identity
+    const std::array<uint_fast64_t, 2> tmp_547 = std::array<uint_fast64_t, 2>{static_cast<uint_fast64_t>(tmp_546), static_cast<uint_fast64_t>(tmp_543)};  // basic_tuple_maker_2
     // end inline primitive fp32_encodings
-    const uint_fast8_t tmp_558 = uint_fast8_t((tmp_557[1]) & 255);  // _basic_get_item_1
-    const uint_fast32_t tmp_559 = uint_fast32_t((tmp_557[0]) & 8388607);  // _basic_get_item_0
-    const uint_fast32_t tmp_561 = fp32_pack(arg_0, tmp_558, tmp_559);  // fp32_pack
-    const uint_fast32_t tmp_562 = uint_fast32_t(((tmp_195 != 0 ? tmp_196 : tmp_561)) & 4294967295);  // basic_mux_2_1
-    const uint_fast32_t tmp_563 = uint_fast32_t(((arg_4 != 0 ? tmp_192 : tmp_562)) & 4294967295);  // basic_mux_2_1
-    const uint_fast32_t tmp_564 = uint_fast32_t(((arg_3 != 0 ? uint_fast32_t((2139095041) & 4294967295) : tmp_563)) & 4294967295);  // basic_mux_2_1
-    return tmp_564;
+    const uint_fast8_t tmp_548 = uint_fast8_t((tmp_547[1]) & 255);  // _basic_get_item_1
+    const uint_fast32_t tmp_549 = uint_fast32_t((tmp_547[0]) & 8388607);  // _basic_get_item_0
+    const uint_fast32_t tmp_551 = fp32_pack(arg_0, tmp_548, tmp_549);  // fp32_pack
+    const uint_fast32_t tmp_552 = uint_fast32_t(((tmp_193 != 0 ? uint_fast32_t(tmp_194) : uint_fast32_t(tmp_551))) & 4294967295);  // basic_mux_2_1
+    const uint_fast32_t tmp_553 = uint_fast32_t(((arg_4 != 0 ? uint_fast32_t(tmp_190) : uint_fast32_t(tmp_552))) & 4294967295);  // basic_mux_2_1
+    const uint_fast32_t tmp_554 = uint_fast32_t(((arg_3 != 0 ? uint_fast32_t(uint_fast32_t((2139095041) & 4294967295)) : uint_fast32_t(tmp_553))) & 4294967295);  // basic_mux_2_1
+    return tmp_554;
 }
 static inline uint_fast32_t FP32_IEEE_adder_impl(uint_fast32_t arg_0, uint_fast32_t arg_1) {  // FP32_IEEE_adder
     // begin inline composite fp32_classify
@@ -829,14 +819,14 @@ static inline uint_fast32_t FP32_IEEE_adder_impl(uint_fast32_t arg_0, uint_fast3
     const uint_fast32_t tmp_58 = uint_fast32_t((tmp_57) & 8388607);  // basic_identity
     const uint_fast32_t tmp_60 = add_implicit_bit(tmp_58);  // add_implicit_bit
     const uint_fast32_t tmp_62 = uq_resize(tmp_58);  // uq_resize
-    const uint_fast32_t tmp_63 = uint_fast32_t(((tmp_56 != 0 ? tmp_60 : tmp_62)) & 16777215);  // basic_mux_2_1
+    const uint_fast32_t tmp_63 = uint_fast32_t(((tmp_56 != 0 ? uint_fast32_t(tmp_60) : uint_fast32_t(tmp_62))) & 16777215);  // basic_mux_2_1
     const uint_fast32_t tmp_65 = uq_resize_1(tmp_63);  // uq_resize
     const uint_fast8_t tmp_66 = uint_fast8_t((tmp_34[1]) & 1);  // _basic_get_item_1
     const uint_fast8_t tmp_67 = uint_fast8_t((tmp_47[1]) & 255);  // _basic_get_item_1
-    const uint_fast8_t tmp_68 = uint_fast8_t(((tmp_66 != 0 ? uint_fast8_t((1) & 255) : tmp_67)) & 255);  // basic_mux_2_1
+    const uint_fast8_t tmp_68 = uint_fast8_t(((tmp_66 != 0 ? uint_fast8_t(uint_fast8_t((1) & 255)) : uint_fast8_t(tmp_67))) & 255);  // basic_mux_2_1
     const uint_fast8_t tmp_69 = uint_fast8_t((tmp_41[1]) & 1);  // _basic_get_item_1
     const uint_fast8_t tmp_70 = uint_fast8_t((tmp_52[1]) & 255);  // _basic_get_item_1
-    const uint_fast8_t tmp_71 = uint_fast8_t(((tmp_69 != 0 ? uint_fast8_t((1) & 255) : tmp_70)) & 255);  // basic_mux_2_1
+    const uint_fast8_t tmp_71 = uint_fast8_t(((tmp_69 != 0 ? uint_fast8_t(uint_fast8_t((1) & 255)) : uint_fast8_t(tmp_70))) & 255);  // basic_mux_2_1
     const uint_fast8_t tmp_76 = uq_max(tmp_68, tmp_71);  // uq_max
     const uint_fast16_t tmp_83 = uq_sub(tmp_76, tmp_68);  // uq_sub
     const uint_fast32_t tmp_108 = uq_rshift_jam(tmp_65, tmp_83);  // uq_rshift_jam
@@ -847,32 +837,32 @@ static inline uint_fast32_t FP32_IEEE_adder_impl(uint_fast32_t arg_0, uint_fast3
     const uint_fast32_t tmp_130 = uint_fast32_t((tmp_129) & 8388607);  // basic_identity
     const uint_fast32_t tmp_131 = add_implicit_bit(tmp_130);  // add_implicit_bit
     const uint_fast32_t tmp_132 = uq_resize(tmp_130);  // uq_resize
-    const uint_fast32_t tmp_133 = uint_fast32_t(((tmp_128 != 0 ? tmp_131 : tmp_132)) & 16777215);  // basic_mux_2_1
+    const uint_fast32_t tmp_133 = uint_fast32_t(((tmp_128 != 0 ? uint_fast32_t(tmp_131) : uint_fast32_t(tmp_132))) & 16777215);  // basic_mux_2_1
     const uint_fast32_t tmp_134 = uq_resize_1(tmp_133);  // uq_resize
     const uint_fast16_t tmp_135 = uq_sub(tmp_76, tmp_71);  // uq_sub
     const uint_fast32_t tmp_136 = uq_rshift_jam(tmp_134, tmp_135);  // uq_rshift_jam
     const uint_fast32_t tmp_137 = uq_to_q(tmp_136);  // uq_to_q
     const uint_fast32_t tmp_138 = q_add_sign(tmp_137, tmp_53);  // q_add_sign
-    const uint_fast32_t tmp_153 = q_add(tmp_127, tmp_138);  // q_add
-    const uint_fast8_t tmp_155 = q_sign_bit_1(tmp_153);  // q_sign_bit
-    const uint_fast8_t tmp_156 = uint_fast8_t(((tmp_55 != 0 ? uint_fast8_t((1) & 1) : tmp_155)) & 1);  // basic_mux_2_1
-    const uint_fast16_t tmp_166 = uq_to_q_1(tmp_76);  // uq_to_q
-    const uint_fast32_t tmp_177 = q_abs(tmp_153);  // q_abs
-    const uint_fast32_t tmp_179 = q_to_uq(tmp_177);  // q_to_uq
-    const uint_fast8_t tmp_180 = uint_fast8_t((tmp_34[3]) & 1);  // _basic_get_item_3
-    const uint_fast8_t tmp_181 = uint_fast8_t((tmp_41[3]) & 1);  // _basic_get_item_3
+    const uint_fast32_t tmp_151 = q_add(tmp_127, tmp_138);  // q_add
+    const uint_fast8_t tmp_153 = q_sign_bit_1(tmp_151);  // q_sign_bit
+    const uint_fast8_t tmp_154 = uint_fast8_t(((tmp_55 != 0 ? uint_fast8_t(uint_fast8_t((1) & 1)) : uint_fast8_t(tmp_153))) & 1);  // basic_mux_2_1
+    const uint_fast16_t tmp_164 = uq_to_q_1(tmp_76);  // uq_to_q
+    const uint_fast32_t tmp_175 = q_abs(tmp_151);  // q_abs
+    const uint_fast32_t tmp_177 = q_to_uq(tmp_175);  // q_to_uq
+    const uint_fast8_t tmp_178 = uint_fast8_t((tmp_34[3]) & 1);  // _basic_get_item_3
+    const uint_fast8_t tmp_179 = uint_fast8_t((tmp_41[3]) & 1);  // _basic_get_item_3
+    const uint_fast8_t tmp_180 = uint_fast8_t(((tmp_178 & tmp_179)) & 1);  // basic_and
+    const uint_fast8_t tmp_181 = uint_fast8_t(((tmp_48 ^ tmp_53)) & 1);  // basic_xor
     const uint_fast8_t tmp_182 = uint_fast8_t(((tmp_180 & tmp_181)) & 1);  // basic_and
-    const uint_fast8_t tmp_183 = uint_fast8_t(((tmp_48 ^ tmp_53)) & 1);  // basic_xor
-    const uint_fast8_t tmp_184 = uint_fast8_t(((tmp_182 & tmp_183)) & 1);  // basic_and
-    const uint_fast8_t tmp_185 = uint_fast8_t((tmp_34[4]) & 1);  // _basic_get_item_4
-    const uint_fast8_t tmp_186 = uint_fast8_t((tmp_41[4]) & 1);  // _basic_get_item_4
-    const uint_fast8_t tmp_187 = uint_fast8_t(((tmp_185 | tmp_186)) & 1);  // basic_or
-    const uint_fast8_t tmp_188 = uint_fast8_t(((tmp_184 | tmp_187)) & 1);  // basic_or
-    const uint_fast8_t tmp_189 = uint_fast8_t((((~tmp_188) & 1)) & 1);  // basic_invert
-    const uint_fast8_t tmp_190 = uint_fast8_t(((tmp_180 | tmp_181)) & 1);  // basic_or
-    const uint_fast8_t tmp_191 = uint_fast8_t(((tmp_189 & tmp_190)) & 1);  // basic_and
-    const uint_fast32_t tmp_565 = fp32_encode(tmp_156, tmp_166, tmp_179, tmp_188, tmp_191);  // fp32_encode
-    return tmp_565;
+    const uint_fast8_t tmp_183 = uint_fast8_t((tmp_34[4]) & 1);  // _basic_get_item_4
+    const uint_fast8_t tmp_184 = uint_fast8_t((tmp_41[4]) & 1);  // _basic_get_item_4
+    const uint_fast8_t tmp_185 = uint_fast8_t(((tmp_183 | tmp_184)) & 1);  // basic_or
+    const uint_fast8_t tmp_186 = uint_fast8_t(((tmp_182 | tmp_185)) & 1);  // basic_or
+    const uint_fast8_t tmp_187 = uint_fast8_t((((~tmp_186) & 1)) & 1);  // basic_invert
+    const uint_fast8_t tmp_188 = uint_fast8_t(((tmp_178 | tmp_179)) & 1);  // basic_or
+    const uint_fast8_t tmp_189 = uint_fast8_t(((tmp_187 & tmp_188)) & 1);  // basic_and
+    const uint_fast32_t tmp_555 = fp32_encode(tmp_154, tmp_164, tmp_177, tmp_186, tmp_189);  // fp32_encode
+    return tmp_555;
 }
 extern "C" inline uint_fast32_t FP32_IEEE_adder(uint_fast32_t arg_0, uint_fast32_t arg_1) {
     return FP32_IEEE_adder_impl((arg_0 & 4294967295), (arg_1 & 4294967295));
