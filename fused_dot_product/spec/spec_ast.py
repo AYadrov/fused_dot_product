@@ -56,7 +56,9 @@ class RealExpr(SpecNode):
         if modulo is not None:
             raise NotImplementedError("pow(..., modulo) is not supported for spec AST")
         if not self._is_two(self):
-            raise NotImplementedError("Only power base 2 is supported")
+            if self._is_two(other):
+                return Square(self)
+            raise NotImplementedError("Only power base 2 or exponent 2 is supported")
         return Exp2(self._coerce(other))
 
     def __ipow__(self, other: "RealExpr") -> "RealExpr":
@@ -312,6 +314,25 @@ class Exp2(RealExpr):
 
 
 @dataclass(frozen=True)
+class Square(RealExpr):
+    value: RealExpr
+
+    def to_egglog(self):
+        return Math.Square(self.value.to_egglog())
+
+    def to_z3(self, env):
+        value = self.value.to_z3(env=env)
+        return value * value
+
+    def to_dreal(self, env):
+        value = self.value.to_dreal(env=env)
+        return value * value
+
+    def __str__(self):
+        return f"({self.value} ** 2)"
+
+
+@dataclass(frozen=True)
 class Max(RealExpr):
     lhs: RealExpr
     rhs: RealExpr
@@ -533,7 +554,7 @@ class Or(BoolExpr):
     rhs: BoolExpr
     
     def to_egglog(self):
-        raise NotImplementedError()
+        return MathBool.Or(self.lhs.to_egglog(), self.rhs.to_egglog())
     
     def to_z3(self, env):
         return z3.Or(self.lhs.to_z3(env=env), self.rhs.to_z3(env=env))
@@ -551,7 +572,7 @@ class And(BoolExpr):
     rhs: BoolExpr
     
     def to_egglog(self):
-        raise NotImplementedError()
+        return MathBool.And(self.lhs.to_egglog(), self.rhs.to_egglog())
     
     def to_z3(self, env):
         return z3.And(self.lhs.to_z3(env=env), self.rhs.to_z3(env=env))
@@ -574,7 +595,7 @@ def ite(
 def children(node: SpecNode) -> tuple[SpecNode, ...]:
     if isinstance(node, (RealVar, BoolVar, RealLit, BoolLit)):
         return ()
-    if isinstance(node, (Neg, Abs, Not)):
+    if isinstance(node, (Neg, Abs, Square, Not)):
         return (node.value,)
     if isinstance(node, (Exp2)):
         return (node.exponent,)

@@ -12,7 +12,7 @@ DREAL_REPO ?= https://github.com/dreal/dreal4
 
 BAZELISK_URL := https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64
 
-.PHONY: nightly install install-prereqs _check-python unit-tests _venv _install-prereqs _python-deps _install-dreal _bazelisk clean
+.PHONY: nightly install install-prereqs _check-python unit-tests _venv _install-prereqs _python-deps _install-dreal _bazelisk clean _download_ac_int
 
 _check-python:
 	@echo "Checking Python installation"
@@ -88,9 +88,15 @@ _install-dreal: _venv
 	@$(VENV_PIP) install --upgrade "wheel<0.38"
 	@$(VENV_PIP) install --no-build-isolation dreal
 
+_download_ac_int:
+	@echo "Downloading ac_int library into infra/ac_types"
+	@if [ ! -d "infra/ac_types" ]; then \
+		git clone https://github.com/hlslibs/ac_types.git infra/ac_types; \
+	fi
+
 
 # This runs without sudo
-install: _python-deps _install-dreal
+install: _python-deps _install-dreal _download_ac_int
 
 unit-tests:
 	@echo "Running infra/unittests.py..."

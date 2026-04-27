@@ -46,6 +46,8 @@ def rewrite_rules():
         ("exp2_5", (two ** (a + b)).eq((two ** a) * (two ** b))),
         ("exp2_6", ((two ** a) * (two ** b)).eq(two ** (a + b))),
         ("exp2_7", ((two ** x) * (two ** (-x))).eq(one)),
+        ("square_1", (a ** two).eq(a * a)),
+        ("square_2", (a * a).eq(a ** two)),
         
          # Rules with negation of addition
         ("neg_1", (-(a + b)).eq((-a) + (-b))),
@@ -86,6 +88,7 @@ def constant_rules():
         rewrite(Math.Add(Math.Num(m), Math.Num(n))).to(Math.Num(m + n)),
         rewrite(Math.Neg(Math.Num(m))).to(Math.Num(-m)),
         rewrite(Math.Exp2(Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
+        rewrite(Math.Square(Math.Num(m))).to(Math.Num(m * m)),
         rewrite(Math.Mul(Math.Num(m), Math.Num(n))).to(Math.Num(m * n)),
     ]
 
@@ -94,6 +97,7 @@ def _lower_expr(node: SpecNode) -> Expr:
     from ..spec.spec_ast import (
         Abs,
         Add,
+        And,
         BoolEq,
         BoolLit,
         BoolVar,
@@ -110,8 +114,10 @@ def _lower_expr(node: SpecNode) -> Expr:
         Neg,
         Not,
         NotEq,
+        Or,
         RealLit,
         RealVar,
+        Square,
         Sub,
     )
     
@@ -131,6 +137,8 @@ def _lower_expr(node: SpecNode) -> Expr:
         return Math.Abs(_lower_expr(node.value))
     if isinstance(node, Exp2):
         return Math.Exp2(_lower_expr(node.exponent))
+    if isinstance(node, Square):
+        return Math.Square(_lower_expr(node.value))
     if isinstance(node, Max):
         return Math.Max(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, Min):
@@ -211,14 +219,18 @@ def check_rules(rules, z3_timeout_ms: int = 10000):
     return results
 
 
-def load_rules(egraph: EGraph) -> None:
-    rules_ = rewrite_rules()
+
+def load_rules(egraph: EGraph, simplify=False) -> None:
+    rewrites = rewrite_rules()
     
     # Constant rules are not checked with z3 for now
-    res = check_rules(rules_)
+    res = check_rules(rewrites)
     # pprint(res)
-    
-    rules = constant_rules() + lower_rules(rules_)
+
+    if simplify:
+        rules = lower_rules(rewrites) + constant_rules()[:2]
+    else:
+        rules = constant_rules() + lower_rules(rewrites)
     egraph.register(*rules)
 
     

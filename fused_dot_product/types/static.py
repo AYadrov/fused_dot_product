@@ -1,19 +1,38 @@
+import random
+
+
 class StaticType:
     def __init__(self):
         self.runtime_val = None
-
+    
     def copy(self) -> "StaticType":
         """Return a fresh StaticType instance with the same shape."""
         new = self._clone_impl()
         new.runtime_val = self.runtime_val
         return new
-
+    
     def _clone_impl(self) -> "StaticType":
         raise NotImplementedError
     
     def total_bits(self):
         raise NotImplementedError
-    
+
+    def to_cpp_type(self, jittable: bool = True) -> str:
+        total_bits = self.total_bits()
+        if jittable:
+            if total_bits <= 8:
+                return "uint_fast8_t"
+            elif total_bits <= 16:
+                return "uint_fast16_t"
+            elif total_bits <= 32:
+                return "uint_fast32_t"
+            elif total_bits <= 64:
+                return "uint_fast64_t"
+            else:
+                raise TypeError("Can not find an ABI-safe type with more than 64 bits in C")  # can use pointer buffers for this
+        else:
+            return f"ac_uint<{total_bits}>"
+        
     def __repr__(self):
         raise NotImplementedError
     
@@ -21,6 +40,9 @@ class StaticType:
         raise NotImplementedError
     
     def to_spec(self, name, ctx):
+        raise NotImplementedError
+
+    def random_runtime_value(self, rng: random.Random):
         raise NotImplementedError
 
 
@@ -45,6 +67,10 @@ class BoolT(StaticType):
     
     def to_spec(self, name, ctx):
         return ctx.fresh_bool(name)
+
+    def random_runtime_value(self, rng: random.Random):
+        from .runtime import Bool
+        return Bool(rng.getrandbits(1))
      
 
 class QT(StaticType):
@@ -80,6 +106,10 @@ class QT(StaticType):
     def to_spec(self, name, ctx):
         return ctx.fresh_real(name)
 
+    def random_runtime_value(self, rng: random.Random):
+        from .runtime import Q
+        return Q(rng.getrandbits(self.total_bits()), self.int_bits, self.frac_bits)
+
 
 class UQT(StaticType):
     def __init__(self, int_bits: int, frac_bits: int):
@@ -114,6 +144,10 @@ class UQT(StaticType):
     def to_spec(self, name, ctx):
         return ctx.fresh_real(name)
 
+    def random_runtime_value(self, rng: random.Random):
+        from .runtime import UQ
+        return UQ(rng.getrandbits(self.total_bits()), self.int_bits, self.frac_bits)
+
 
 class Float32T(StaticType):
     def __init__(self):
@@ -144,6 +178,10 @@ class Float32T(StaticType):
     
     def to_spec(self, name, ctx):
         return ctx.fresh_real(name)
+
+    def random_runtime_value(self, rng: random.Random):
+        from .runtime import Float32
+        return Float32(rng.getrandbits(self.total_bits()))
 
 
 class BFloat16T(StaticType):
@@ -176,6 +214,10 @@ class BFloat16T(StaticType):
     def to_spec(self, name, ctx):
         return ctx.fresh_real(name)
 
+    def random_runtime_value(self, rng: random.Random):
+        from .runtime import BFloat16
+        return BFloat16(rng.getrandbits(self.total_bits()))
+
 class TupleT(StaticType):
     def __init__(self, *args: StaticType):
         super().__init__()
@@ -207,6 +249,13 @@ class TupleT(StaticType):
     
     def to_spec(self, name, ctx):
         return tuple(x.to_spec(name=f"{name}_{i}", ctx=ctx) for i, x in enumerate(self.args))
+
+    def to_cpp_type(self, jittable: bool = True) -> str:
+        return f"std::array<uint_fast64_t, {len(self.args)}>" if jittable else f"std::tuple<{', '.join(arg.to_cpp_type(jittable=jittable) for arg in self.args)}>"
+
+    def random_runtime_value(self, rng: random.Random):
+        from .runtime import Tuple
+        return Tuple(*[arg.random_runtime_value(rng) for arg in self.args])
 
 
 __all__ = [

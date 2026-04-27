@@ -51,6 +51,10 @@ class Math(Expr):
     @method(egg_fn="Exp2")
     @classmethod
     def Exp2(cls, exponent: Math) -> Math: ...
+
+    @method(egg_fn="Square")
+    @classmethod
+    def Square(cls, value: Math) -> Math: ...
     
     @method(egg_fn="Neg")
     @classmethod
@@ -95,4 +99,3 @@ class Math(Expr):
     @method(egg_fn="If")
     @classmethod
     def If(cls, cnd: MathBool, tru: Math, fls: Math) -> Math: ...
-

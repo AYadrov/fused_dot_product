@@ -93,8 +93,8 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     ############# MANTISSAS ############
     
     # Step 1. Convert mantissas to UQ1.7
-    M_a = [add_implicit_bit(M_a[i]) for i in range(N)]
-    M_b = [add_implicit_bit(M_b[i]) for i in range(N)]
+    M_a = [add_implicit_bit(integer_to_fraction(M_a[i])) for i in range(N)]
+    M_b = [add_implicit_bit(integer_to_fraction(M_b[i])) for i in range(N)]
     
     # Step 2. Multiply mantissas into UQ2.14
     M_p = [uq_mul(M_a[i], M_b[i]) for i in range(N)]
@@ -144,9 +144,13 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
     E_m = uq_to_q(E_m)
     
     E_m = q_sub(E_m, bf16_bias)
-    
-    root = encode_Float32(M_sum, E_m)
-    return root
+
+    sign_bit = q_sign_bit(M_sum)
+    M_sum_uq = q_to_uq(q_abs(M_sum))
+
+    encode_nan = Const(UQ(0, 1, 0))
+    encode_inf = Const(UQ(0, 1, 0))
+    return fp32_encode(sign_bit, E_m, M_sum_uq, encode_nan, encode_inf)
 
 
 if __name__ == '__main__':
@@ -172,3 +176,5 @@ if __name__ == '__main__':
     design.print_tree(depth=1)
     report = design.check_spec()
     pprint(report)
+    with open("examples/optimized.hpp", "w") as file:
+        file.write(design.to_cpp())

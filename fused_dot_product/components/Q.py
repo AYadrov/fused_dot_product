@@ -22,6 +22,7 @@ def _q_is_min_val(x: Node) -> Op:
     return Op(
         impl=impl,
         sign=sign,
+        c_lowering=lambda lowered_args, jittable: f"({lowered_args[0]} == {1 << (x.node_type.total_bits() - 1)})",
         args=[x],
         name="_q_is_min_val")
         
@@ -41,6 +42,7 @@ def q_alloc(int_bits: Node, frac_bits: Node) -> Op:
     return Op(
         sign=sign,
         impl=impl,
+        c_lowering=lambda lowered_args, jittable: "0",
         args=[int_bits, frac_bits],
         name="q_alloc")
 
@@ -136,16 +138,19 @@ def q_aligner(x: Node,
             shift = frac_bits - x.node_type.frac_bits
             if shift < 0:
                 raise NotImplementedError("truncation is not implemented yet")
-            x = basic_lshift(
-                x,
-                Const(UQ.from_int(shift)), 
-                Const(Q(0, x.node_type.int_bits, frac_bits)))
+            if shift > 0:
+                x = basic_lshift(
+                    x,
+                    Const(UQ.from_int(shift)), 
+                    Const(Q(0, x.node_type.int_bits, frac_bits)))
             
             # Step 2. Align integer bits
             shift = int_bits - x.node_type.int_bits
             if shift < 0:
                 raise NotImplementedError("truncation is not implemented yet")
-            return q_sign_extend(x, shift)
+            if shift > 0:
+                return q_sign_extend(x, shift)
+            return x
 
         return make_Tuple(align(x), align(y))
 
@@ -240,6 +245,22 @@ def q_sub(x: Node, y: Node) -> Node:
     )
     root = basic_sub(x_adj, y_adj, x_adj.copy())
     return root
+
+
+@Primitive(name="q_mul", spec=lambda x, y, ctx: x * y)
+def q_mul(x: Node, y: Node) -> Node:
+    # Sign-extend both operands to the full product width so raw bitvector
+    # multiplication matches signed two's-complement multiplication.
+    x_adj = q_sign_extend(x, y.node_type.total_bits())
+    y_adj = q_sign_extend(y, x.node_type.total_bits())
+    out = Const(
+        Q(
+            0,
+            x.node_type.int_bits + y.node_type.int_bits,
+            x.node_type.frac_bits + y.node_type.frac_bits,
+        )
+    )
+    return basic_mul(x=x_adj, y=y_adj, out=out)
 
 
 @Primitive(name="q_lshift", spec=lambda x, n, ctx: x * (ctx.real_val(2) ** n))
