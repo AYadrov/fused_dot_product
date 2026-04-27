@@ -8,3 +8,4 @@ reports/
 report.json
 .venv/*
 ac_types/
+*.hpp

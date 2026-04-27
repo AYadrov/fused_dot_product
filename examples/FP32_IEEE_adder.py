@@ -10,11 +10,8 @@ import numpy as np
 # TODO: NaN payload
 @Composite(name="FP32_IEEE_adder", spec=lambda x, y, ctx: x + y)
 def FP32_IEEE_adder(x: Node, y: Node) -> Node:
-    x_norm, x_sub, x_zero, x_inf, x_nan = fp32_classify(x)
-    y_norm, y_sub, y_zero, y_inf, y_nan = fp32_classify(y)
-    
-    x_s, x_e, x_m = fp32_unpack(x)
-    y_s, y_e, y_m = fp32_unpack(y)
+    x_s, x_e, x_m, x_norm, x_sub, x_zero, x_inf, x_nan = fp32_decode(x)
+    y_s, y_e, y_m, y_norm, y_sub, y_zero, y_inf, y_nan = fp32_decode(y)
     
     # Nan encoding
     infs_diff_signs = bit_and(bit_and(x_inf, y_inf), bit_xor(x_s, y_s))
