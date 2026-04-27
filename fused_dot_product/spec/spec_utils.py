@@ -30,6 +30,7 @@ from .spec_ast import (
     RealExpr,
     RealLit,
     RealVar,
+    Square,
 )
 
 _MATH_BOOL_METHODS = {"Eq", "NotEq", "Lt", "Le", "Gt", "Ge"}
@@ -110,6 +111,9 @@ def from_egglog(egg_node: Expr) -> RealExpr | BoolExpr:
         if method_name == "Exp2":
             expect(args, 1, "Math.Exp2")
             return Exp2(parse_math(args[0]))
+        if method_name == "Square":
+            expect(args, 1, "Math.Square")
+            return Square(parse_math(args[0]))
         if method_name == "Neg":
             expect(args, 1, "Math.Neg")
             return Neg(parse_math(args[0]))

@@ -68,6 +68,7 @@
 | `q_signs_xor` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Bool<1>` | Sign mismatch (xor of sign bits). |
 | `q_add` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Q<max(I1,I2)+1, max(F1,F2)>` | Signed addition with alignment. |
 | `q_sub` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Q<max(I1,I2)+1, max(F1,F2)>` | Signed subtraction with alignment. |
+| `q_mul` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Q<I1+I2, F1+F2>` | Signed multiply (full precision). |
 | `q_less` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Bool<1>` | Signed less-than. |
 | `q_less_or_equal` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Bool<1>` | Signed less-or-equal. |
 | `q_greater` | Primitive | `Q<I1,F1> -> Q<I2,F2> -> Bool<1>` | Signed greater-than. |
