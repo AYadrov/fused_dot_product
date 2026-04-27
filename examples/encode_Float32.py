@@ -272,10 +272,10 @@ def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node) -
         m_rounded_uq, e_rounded_uq = round_mantissa(shifted_m_uq, shifted_e_uq)
         
         final_m_uq, final_e_uq = fp32_encodings(m_rounded_uq, e_rounded_uq)
-
+        
         # Priority (lowest to highest): normal/subnormal -> zero -> inf -> nan 
         packed_fp32 = fp32_pack(s_uq, final_e_uq, final_m_uq)
-
+        
         result = if_then_else(
             encode_zero,
             if_then_else(s_uq, Const(Float32.nZero()), Const(Float32.Zero())),
@@ -294,9 +294,12 @@ def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node) -
 
 if __name__ == '__main__':
     from pprint import pprint
-    m = -4.02923583984375
-    e = -25.0
-    design = encode_Float32(Const(Q.from_float(m, 5, 28)), Const(Q.from_float(e, 11, 0)))
+    m = Const(UQ.from_float(4.02923583984375, 5, 28)) 
+    e = Const(Q.from_float(-25.0, 11, 0))
+    s = Const(UQ(1, 1, 0))
+    encode_nan = Const(UQ(0, 1, 0))
+    encode_inf = Const(UQ(0, 1, 0))
+    design = fp32_encode(s, e, m, encode_nan, encode_inf)
     design.print_tree(depth=1)
     pprint(design.check_spec(egglog_iters=6))
     print(design.evaluate())

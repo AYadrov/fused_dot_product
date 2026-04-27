@@ -228,6 +228,24 @@ class UQ(RuntimeType):
     @staticmethod
     def from_int(x: int):
         return UQ(x, max(1, x.bit_length()), 0)
+
+    @staticmethod
+    def from_float(x: float, target_int: int, target_frac: int):
+        W = target_int + target_frac
+        scale = 1 << target_frac
+
+        # Float -> bits
+        q = int(round(x * scale))
+
+        # Unsigned fixed-point clamps to the representable non-negative range.
+        min_q = 0
+        max_q = (1 << W) - 1
+        if q < min_q:
+            q = min_q
+        elif q > max_q:
+            q = max_q
+
+        return UQ(q, target_int, target_frac)
     
     def __eq__(self, other):
         return (
