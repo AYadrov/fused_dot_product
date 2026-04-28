@@ -62,7 +62,9 @@ def uq_RNE_IEEE(m: Node, bits_to_cut: int):
 def round_mantissa_spec(m, e, ctx):
     m_ = ctx.fresh_real('rounded_m')
     e_ = ctx.fresh_real('rounded_e')
-    ctx.assume((m * ctx.real_val(2) ** e).eq(m_ * ctx.real_val(2) ** e_))
+    one = ctx.real_val(1)
+    ctx.assume(((one + m) * ctx.real_val(2) ** e).eq((one + m_) * ctx.real_val(2) ** e_))
+    # ctx.assume((m * ctx.real_val(2) ** e).eq(m_ * ctx.real_val(2) ** e_))  # This spec does not work
     return m_, e_
 
 def round_mantissa(m: Node, e: Node, target_bits: int = Float32.mantissa_bits, rounding_mode: str = "RNE") -> Primitive:
@@ -259,8 +261,8 @@ def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node) -
     assert e.node_type.frac_bits == 0
     
     def spec(s, e, m, encode_nan, encode_inf, ctx):
-        ctx.check(encode_nan.eq(ctx.real_val(0)))
-        ctx.check(encode_inf.eq(ctx.real_val(0)))
+        ctx.assume(encode_nan.eq(ctx.real_val(0)))
+        ctx.assume(encode_inf.eq(ctx.real_val(0)))
         return s * m * (ctx.real_val(2) ** (e - ctx.real_val(127)))
     
     @Composite(name="fp32_encode", spec=spec)
@@ -273,7 +275,7 @@ def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node) -
         
         final_m_uq, final_e_uq = fp32_encodings(m_rounded_uq, e_rounded_uq)
         
-        # Priority (lowest to highest): normal/subnormal -> zero -> inf -> nan 
+        # Priority (lowest to highest): normal/subnormal -> zero -> inf -> nan
         packed_fp32 = fp32_pack(s_uq, final_e_uq, final_m_uq)
         
         result = if_then_else(

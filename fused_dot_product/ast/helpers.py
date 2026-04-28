@@ -1,5 +1,6 @@
 from ..types.runtime import RuntimeType, Tuple
 from ..types.static import StaticType, TupleT
+from ..spec import BoolExpr, If, RealExpr
 from .node import Node
 from .nodes import Op, Primitive
 
@@ -34,8 +35,17 @@ def Tuple_get_item(x: Node, idx: int) -> Primitive:
     
     return impl(x)
 
-@Primitive(name="if_then_else", spec=lambda sel, in1, in0, ctx: (ctx.real_val(1) - sel) * in0 + sel * in1, c_inline=True)
+def if_then_else_spec(sel, in1, in0, ctx):
+    if isinstance(sel, BoolExpr):
+        assert isinstance(in1, RealExpr)
+        assert isinstance(in0, RealExpr)
+        return If(sel, in1, in0)
+    if isinstance(sel, RealExpr):
+        return (ctx.real_val(1) - sel) * in0 + sel * in1
+    raise TypeError()
+
+@Primitive(name="if_then_else", spec=if_then_else_spec, c_inline=True)
 def if_then_else(sel: Node, in1: Node, in0: Node) -> Node:
     from ..components.basics import basic_mux_2_1
     assert in1.node_type == in0.node_type, "Non-deterministic type"
-    return basic_mux_2_1(sel=sel, in0=in0, in1=in1, out=in1.copy())
+    return basic_mux_2_1(sel=sel, in0=in0, in1=in1, out=in0.copy())

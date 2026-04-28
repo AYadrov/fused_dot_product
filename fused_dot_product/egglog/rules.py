@@ -6,20 +6,21 @@ from egglog import *
 from .datatypes import Math, MathBool
 
 def rewrite_rules():
-    from ..spec.spec_ast import RealLit, RealVar, BoolLit, BoolVar
+    from ..spec.spec_ast import RealLit, RealVar, BoolLit, BoolVar, If
     
     a = RealVar("a")
     b = RealVar("b")
     c = RealVar("c")
     x = RealVar("x")
     
-    bool_var = BoolVar("a")
+    bool_var = BoolVar("p")
     
     zero = RealLit(0)
     one = RealLit(1)
     two = RealLit(2)
     
     true = BoolLit(True)
+    false = BoolLit(False)
     
     return [
         # Associativity
@@ -76,20 +77,32 @@ def rewrite_rules():
         ("const_7", (zero * x).eq(zero)),
         ("const_8", (x + zero).eq(x)),
         ("const_9", (zero + x).eq(x)),
+        ("const_10", (- zero).eq(zero)),
+        ("const_11", zero.eq(-zero)),
         
         # Equality
         ("eq_1", (a.eq(a)).eq(true)),
         ("eq_2", (bool_var.eq(bool_var)).eq(true)),
+        
+        # If statements
+        ("if_1", If(true, a, b).eq(a)),
+        ("if_2", If(false, a, b).eq(b)),
+        ("if_3", If(bool_var, a, a).eq(a)),
     ]
+
 
 def constant_rules():
     m, n = vars_("m n", BigRat)
+    cond = var("cond", MathBool)
+    tru = var("tru", Math)
+    fls = var("fls", Math)
     return [
+        rewrite(Math.Num(m)).to(Math.Neg(Math.Num(-m))),
         rewrite(Math.Add(Math.Num(m), Math.Num(n))).to(Math.Num(m + n)),
         rewrite(Math.Neg(Math.Num(m))).to(Math.Num(-m)),
-        rewrite(Math.Exp2(Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
         rewrite(Math.Square(Math.Num(m))).to(Math.Num(m * m)),
         rewrite(Math.Mul(Math.Num(m), Math.Num(n))).to(Math.Num(m * n)),
+        rewrite(Math.Exp2(Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
     ]
 
 
@@ -228,7 +241,7 @@ def load_rules(egraph: EGraph, simplify=False) -> None:
     # pprint(res)
 
     if simplify:
-        rules = lower_rules(rewrites) + constant_rules()[:2]
+        rules = lower_rules(rewrites) + constant_rules()[:-1]
     else:
         rules = constant_rules() + lower_rules(rewrites)
     egraph.register(*rules)
