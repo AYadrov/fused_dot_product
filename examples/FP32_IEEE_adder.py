@@ -65,9 +65,11 @@ def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     m_sum = q_add(x_m_signed, y_m_signed)
     
     sign_bit = q_sign_bit(m_sum)
+    inf_sign_bit = if_then_else(x_inf, x_s, y_s)
     
     # Signed zero case
     sign_bit = if_then_else(both_negative_zeros, Const(UQ(1, 1, 0)), sign_bit)
+    sign_bit = if_then_else(encode_inf, inf_sign_bit, sign_bit)
     
     return fp32_encode(
         sign_bit,               # sign: UQ
