@@ -178,11 +178,6 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Node:
     return make_Tuple(norm_m_uq, norm_e_q)
 
 
-def drop_implicit_bit_spec(x, ctx):
-    dropped_bit = ctx.fresh_real('dropped_bit_m')
-    ctx.assume((x - ctx.real_val(1)).eq(dropped_bit))
-    return dropped_bit
-
 # Expects UQ<1, ...> as an input, returns UQ<0, ...>
 @Primitive(name="drop_implicit_bit", spec=lambda x, ctx: x - ctx.real_val(1))
 def drop_implicit_bit(x: Node):

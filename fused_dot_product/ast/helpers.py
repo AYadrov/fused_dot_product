@@ -36,9 +36,10 @@ def Tuple_get_item(x: Node, idx: int) -> Primitive:
     return impl(x)
 
 def if_then_else_spec(sel, in1, in0, ctx):
+    assert isinstance(in1, RealExpr)
+    assert isinstance(in0, RealExpr)
+    
     if isinstance(sel, BoolExpr):
-        assert isinstance(in1, RealExpr)
-        assert isinstance(in0, RealExpr)
         return If(sel, in1, in0)
     if isinstance(sel, RealExpr):
         return (ctx.real_val(1) - sel) * in0 + sel * in1

@@ -227,7 +227,7 @@ def check_rules(rules, z3_timeout_ms: int = 10000):
             "z3_equal": equivalent_z3,
             "z3_status": report_z3['status'],
             "dreal_equal": equivalent_dreal,
-            "dreal_status": report_dreal['status']
+            "dreal_status": report_dreal['status'],
         }
     return results
 

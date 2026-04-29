@@ -133,7 +133,7 @@ def egglog_preprocess_ctx(ctx: "SpecContext", iterations=3):
         if simplified == ctx.false():
             equivalent = False
         elif simplified != ctx.true():
-            # preprocessed_assumes.append(assume)  # TODO: what we should do here?
+            # preprocessed_assumes.append(assume)  # TODO: not fully sound, for full soundness we don't want to simplify assumes
             preprocessed_assumes.append(simplified)
 
     preprocessed_ctx = ctx.copy(

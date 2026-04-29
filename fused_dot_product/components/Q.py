@@ -249,10 +249,20 @@ def q_sub(x: Node, y: Node) -> Node:
 
 @Primitive(name="q_mul", spec=lambda x, y, ctx: x * y)
 def q_mul(x: Node, y: Node) -> Node:
-    # Sign-extend both operands to the full product width so raw bitvector
+    # Widen each operand to the full product width so raw bitvector
     # multiplication matches signed two's-complement multiplication.
-    x_adj = q_sign_extend(x, y.node_type.total_bits())
-    y_adj = q_sign_extend(y, x.node_type.total_bits())
+    x_adj, _ = q_aligner(
+        x=x,
+        y=x,
+        int_aggr=lambda lhs, rhs: max(lhs, rhs) + y.node_type.total_bits(),
+        frac_aggr=max,
+    )
+    y_adj, _ = q_aligner(
+        x=y,
+        y=y,
+        int_aggr=lambda lhs, rhs: max(lhs, rhs) + x.node_type.total_bits(),
+        frac_aggr=max,
+    )
     out = Const(
         Q(
             0,
