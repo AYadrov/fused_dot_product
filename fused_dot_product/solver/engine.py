@@ -42,12 +42,12 @@ def check_equivalence(
     
     original_ctx = ctx.copy()
     proof_trace: list[dict[str, Any]] = []
-
+    
     preprocessed_equivalence, preprocessed_ctx, preprocess_report = egglog_preprocess_ctx(original_ctx, iterations=3)
     proof_trace.append(preprocess_report)
     if preprocessed_equivalence:
         return True, proof_trace
-
+    
     egglog_equivalence, egglog_report = egglog_check_ctx(preprocessed_ctx, iterations=egglog_iters)
     proof_trace.append(egglog_report)
     if egglog_equivalence:
@@ -57,7 +57,7 @@ def check_equivalence(
     proof_trace.append(simplified_report)
     if simplified_equivalence:
         return True, proof_trace  # never should be the case
-    
+
     z3_equivalence, z3_report = z3_check_eq(simplified_ctx, timeout_ms=z3_timeout_ms)
     proof_trace.append(z3_report)
     if z3_equivalence:

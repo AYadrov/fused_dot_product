@@ -174,7 +174,7 @@ if __name__ == '__main__':
     design = Optimized(*a, *b)
     print(design)
     design.print_tree(depth=1)
-    report = design.check_spec()
+    report = design.check_spec(egglog_iters=5)
     pprint(report)
     with open("examples/optimized.hpp", "w") as file:
         file.write(design.to_cpp())

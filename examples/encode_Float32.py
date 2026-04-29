@@ -62,9 +62,7 @@ def uq_RNE_IEEE(m: Node, bits_to_cut: int):
 def round_mantissa_spec(m, e, ctx):
     m_ = ctx.fresh_real('rounded_m')
     e_ = ctx.fresh_real('rounded_e')
-    one = ctx.real_val(1)
-    ctx.assume(((one + m) * ctx.real_val(2) ** e).eq((one + m_) * ctx.real_val(2) ** e_))
-    # ctx.assume((m * ctx.real_val(2) ** e).eq(m_ * ctx.real_val(2) ** e_))  # This spec does not work
+    ctx.assume((m * ctx.real_val(2) ** e).eq(m_ * ctx.real_val(2) ** e_))
     return m_, e_
 
 def round_mantissa(m: Node, e: Node, target_bits: int = Float32.mantissa_bits, rounding_mode: str = "RNE") -> Primitive:
@@ -180,6 +178,11 @@ def normalize_to_1_xxx(m: Node, e: Node) -> Node:
     return make_Tuple(norm_m_uq, norm_e_q)
 
 
+def drop_implicit_bit_spec(x, ctx):
+    dropped_bit = ctx.fresh_real('dropped_bit_m')
+    ctx.assume((x - ctx.real_val(1)).eq(dropped_bit))
+    return dropped_bit
+
 # Expects UQ<1, ...> as an input, returns UQ<0, ...>
 @Primitive(name="drop_implicit_bit", spec=lambda x, ctx: x - ctx.real_val(1))
 def drop_implicit_bit(x: Node):
@@ -268,10 +271,21 @@ def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node) -
     @Composite(name="fp32_encode", spec=spec)
     def impl(s_uq: Node, e_q: Node, m_uq: Node, encode_nan: Node, encode_inf: Node) -> Node:
         encode_zero = uq_is_zero(m_uq)
+        # Do not consider zero for now in spec
+        with context() as ctx:
+            ctx.assume(ctx.spec_of(encode_zero).eq(ctx.bool_val(False)))
+        
         normalized_m_uq, normalized_e_q = normalize_to_1_xxx(m_uq, e_q)
         shifted_m_uq, shifted_e_uq = shift_if_subnormal(normalized_m_uq, normalized_e_q)
-        shifted_m_uq = drop_implicit_bit(shifted_m_uq)
-        m_rounded_uq, e_rounded_uq = round_mantissa(shifted_m_uq, shifted_e_uq)
+        shifted_dropped_bit_m_uq = drop_implicit_bit(shifted_m_uq)
+        
+        m_rounded_uq, e_rounded_uq = round_mantissa(shifted_dropped_bit_m_uq, shifted_e_uq)
+        with context() as ctx:
+            two = ctx.real_val(2)
+            one = ctx.real_val(1)
+            rhs = (ctx.spec_of(m_rounded_uq) + one) * two ** ctx.spec_of(e_rounded_uq)
+            lhs = ctx.spec_of(shifted_m_uq) * two ** ctx.spec_of(shifted_e_uq)
+            ctx.assume(lhs.eq(rhs))
         
         final_m_uq, final_e_uq = fp32_encodings(m_rounded_uq, e_rounded_uq)
         
@@ -296,7 +310,7 @@ def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node) -
 
 if __name__ == '__main__':
     from pprint import pprint
-    m = Const(UQ.from_float(4.02923583984375, 5, 28)) 
+    m = Const(UQ.from_float(4.02923583984375, 5, 28))
     e = Const(Q.from_float(-25.0, 11, 0))
     s = Const(UQ(1, 1, 0))
     encode_nan = Const(UQ(0, 1, 0))

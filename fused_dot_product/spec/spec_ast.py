@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from typing import Any
 
 from ..egglog import *
@@ -18,6 +18,9 @@ class SpecNode:
 
     def to_dreal(self):
         raise NotImplementedError
+
+    def identical(self, other: object) -> bool:
+        return identical_nodes(self, other)
 
 
 class RealExpr(SpecNode):
@@ -631,3 +634,26 @@ def variables(node: SpecNode) -> set[RealVar | BoolVar]:
     for child in children(node):
         vars_.update(variables(child))
     return vars_
+
+
+def _identical_values(lhs: object, rhs: object) -> bool:
+    if isinstance(lhs, SpecNode):
+        return isinstance(rhs, SpecNode) and identical_nodes(lhs, rhs)
+    if isinstance(lhs, tuple):
+        return (
+            isinstance(rhs, tuple)
+            and len(lhs) == len(rhs)
+            and all(_identical_values(l_item, r_item) for l_item, r_item in zip(lhs, rhs))
+        )
+    return lhs == rhs
+
+
+def identical_nodes(lhs: SpecNode, rhs: object) -> bool:
+    if type(lhs) is not type(rhs):
+        return False
+    if not is_dataclass(lhs):
+        raise TypeError(f"Unsupported node type: {type(lhs).__name__}")
+    return all(
+        _identical_values(getattr(lhs, field.name), getattr(rhs, field.name))
+        for field in fields(lhs)
+    )
