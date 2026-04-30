@@ -147,6 +147,12 @@ class _CppEmitter:
         if node in ctx.memo:
             return ctx.memo[node]
 
+        runtime_val = getattr(node.node_type, "runtime_val", None)
+        if runtime_val is not None:
+            lowered = self._lower_const(runtime_val)
+            ctx.memo[node] = lowered
+            return lowered
+
         if isinstance(node, Const):
             lowered = self._lower_const(node.val)
             ctx.memo[node] = lowered

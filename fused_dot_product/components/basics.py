@@ -12,11 +12,11 @@ def _format_c_lowering(template: str, *args_ids: list[int]):
         return template.format(*[args[idx] for idx in args_ids])
     return lower
 
-def _cpp_cast(type_: StaticType, expr: str, *, jittable: bool) -> str:
+def _cpp_cast(type_: StaticType, expr: str, jittable: bool) -> str:
     return f"{type_.to_cpp_type(jittable=jittable)}({expr})"
 
 
-def _cpp_zero(type_: StaticType, *, jittable: bool) -> str:
+def _cpp_zero(type_: StaticType, jittable: bool) -> str:
     return _cpp_cast(type_, "0", jittable=jittable)
 
 
