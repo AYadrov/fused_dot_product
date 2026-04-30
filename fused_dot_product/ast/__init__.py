@@ -1,4 +1,4 @@
-from .helpers import Copy
+from .helpers import Copy, if_then_else
 from .node import Node
 from .nodes import Composite, Const, Op, Primitive, Var
 from .proofs import context
@@ -11,5 +11,6 @@ __all__ = [
     "Const",
     "Var",
     "Copy",
+    "if_then_else",
     "context"
 ]

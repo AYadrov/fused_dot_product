@@ -7,3 +7,5 @@ reports/
 .ipynb_checkpoints/
 report.json
 .venv/*
+ac_types/
+*.hpp

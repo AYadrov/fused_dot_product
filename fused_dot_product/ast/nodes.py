@@ -1,4 +1,5 @@
 import typing as tp
+import random
 
 from ..types.runtime import RuntimeType
 from ..types.static import StaticType
@@ -9,10 +10,23 @@ from ..solver import check_equivalence
 from ..spec import SpecContext
 
 
-def Composite(name: str, spec: tp.Callable[..., tp.Any]):
+CLowering = tp.Callable[[list[str], bool], str]
+
+
+def Composite(
+    name: str,
+    spec: tp.Callable[..., tp.Any],
+    c_inline: bool = False,
+):
     def wrapper1(impl: tp.Callable[..., Node]):
         def wrapper2(*args):
-            return composite(spec=spec, impl=impl, args=args, name=name)
+            return composite(
+                spec=spec,
+                impl=impl,
+                args=args,
+                name=name,
+                c_inline=c_inline,
+            )
         return wrapper2
     return wrapper1
 
@@ -23,7 +37,9 @@ class composite(Node):
         impl: tp.Callable[..., Node],
         args: list[Node],
         name: str,
+        c_inline: bool = False,
     ):
+        self.c_inline = c_inline
         self.ctx = SpecContext(name)
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         
@@ -35,8 +51,7 @@ class composite(Node):
         
         def impl_(*args):
             for var, arg in zip(self.inner_args, args):
-                if isinstance(var, Var):
-                    var.load_val(arg)
+                var.load_val(arg)
             return self.inner_tree.evaluate()
         
         # Signature is obtained from the inner tree
@@ -56,7 +71,6 @@ class composite(Node):
             args=args,
             name=name,
         )
-    
     
     def check_spec(self, z3_timeout_ms: int = 5000, egglog_iters=6):
         ctx = self.ctx.copy()
@@ -117,10 +131,20 @@ class composite(Node):
         return f"[Composite] {self.name}: {' -> '.join([str(x) for x in self.args_types])} -> {self.node_type}"
 
 
-def Primitive(name: str, spec: tp.Callable[..., tp.Any]):
+def Primitive(
+    name: str,
+    spec: tp.Callable[..., tp.Any],
+    c_inline: bool = False,
+):
     def wrapper1(impl: tp.Callable[..., Node]):
         def wrapper2(*args):
-            return primitive(spec=spec, impl=impl, args=args, name=name)
+            return primitive(
+                spec=spec,
+                impl=impl,
+                args=args,
+                name=name,
+                c_inline=c_inline,
+            )
         return wrapper2
     return wrapper1
 
@@ -131,7 +155,9 @@ class primitive(Node):
         impl: tp.Callable[..., Node],
         args: list[Node],
         name: str,
+        c_inline: bool = False,
     ):
+        self.c_inline = c_inline
         # Args will preserve runtime values of arguments
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         
@@ -186,7 +212,9 @@ class Op(Node):
         sign: tp.Callable[..., StaticType],
         args: list[Node],
         name: str,
+        c_lowering: tp.Optional[CLowering],
     ):
+        self.c_lowering = c_lowering
         super().__init__(
             spec=None,
             impl=impl,
@@ -263,7 +291,12 @@ class Var(Node):
             args=[],
             name=name,
         )
-    
+
+    def load_rand(self, rng: tp.Optional[random.Random] = None):
+        if rng is None:
+            rng = random.Random()
+        self.load_val(self.sign().random_runtime_value(rng))
+        
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.node_type}: {self.name} [Var]")

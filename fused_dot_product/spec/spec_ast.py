@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from typing import Any
 
 from ..egglog import *
@@ -18,6 +18,9 @@ class SpecNode:
 
     def to_dreal(self):
         raise NotImplementedError
+
+    def identical(self, other: object) -> bool:
+        return identical_nodes(self, other)
 
 
 class RealExpr(SpecNode):
@@ -56,7 +59,9 @@ class RealExpr(SpecNode):
         if modulo is not None:
             raise NotImplementedError("pow(..., modulo) is not supported for spec AST")
         if not self._is_two(self):
-            raise NotImplementedError("Only power base 2 is supported")
+            if self._is_two(other):
+                return Square(self)
+            raise NotImplementedError("Only power base 2 or exponent 2 is supported")
         return Exp2(self._coerce(other))
 
     def __ipow__(self, other: "RealExpr") -> "RealExpr":
@@ -312,6 +317,25 @@ class Exp2(RealExpr):
 
 
 @dataclass(frozen=True)
+class Square(RealExpr):
+    value: RealExpr
+
+    def to_egglog(self):
+        return Math.Square(self.value.to_egglog())
+
+    def to_z3(self, env):
+        value = self.value.to_z3(env=env)
+        return value * value
+
+    def to_dreal(self, env):
+        value = self.value.to_dreal(env=env)
+        return value * value
+
+    def __str__(self):
+        return f"({self.value} ** 2)"
+
+
+@dataclass(frozen=True)
 class Max(RealExpr):
     lhs: RealExpr
     rhs: RealExpr
@@ -533,7 +557,7 @@ class Or(BoolExpr):
     rhs: BoolExpr
     
     def to_egglog(self):
-        raise NotImplementedError()
+        return MathBool.Or(self.lhs.to_egglog(), self.rhs.to_egglog())
     
     def to_z3(self, env):
         return z3.Or(self.lhs.to_z3(env=env), self.rhs.to_z3(env=env))
@@ -551,7 +575,7 @@ class And(BoolExpr):
     rhs: BoolExpr
     
     def to_egglog(self):
-        raise NotImplementedError()
+        return MathBool.And(self.lhs.to_egglog(), self.rhs.to_egglog())
     
     def to_z3(self, env):
         return z3.And(self.lhs.to_z3(env=env), self.rhs.to_z3(env=env))
@@ -574,7 +598,7 @@ def ite(
 def children(node: SpecNode) -> tuple[SpecNode, ...]:
     if isinstance(node, (RealVar, BoolVar, RealLit, BoolLit)):
         return ()
-    if isinstance(node, (Neg, Abs, Not)):
+    if isinstance(node, (Neg, Abs, Square, Not)):
         return (node.value,)
     if isinstance(node, (Exp2)):
         return (node.exponent,)
@@ -610,3 +634,26 @@ def variables(node: SpecNode) -> set[RealVar | BoolVar]:
     for child in children(node):
         vars_.update(variables(child))
     return vars_
+
+
+def _identical_values(lhs: object, rhs: object) -> bool:
+    if isinstance(lhs, SpecNode):
+        return isinstance(rhs, SpecNode) and identical_nodes(lhs, rhs)
+    if isinstance(lhs, tuple):
+        return (
+            isinstance(rhs, tuple)
+            and len(lhs) == len(rhs)
+            and all(_identical_values(l_item, r_item) for l_item, r_item in zip(lhs, rhs))
+        )
+    return lhs == rhs
+
+
+def identical_nodes(lhs: SpecNode, rhs: object) -> bool:
+    if type(lhs) is not type(rhs):
+        return False
+    if not is_dataclass(lhs):
+        raise TypeError(f"Unsupported node type: {type(lhs).__name__}")
+    return all(
+        _identical_values(getattr(lhs, field.name), getattr(rhs, field.name))
+        for field in fields(lhs)
+    )

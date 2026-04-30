@@ -6,20 +6,21 @@ from egglog import *
 from .datatypes import Math, MathBool
 
 def rewrite_rules():
-    from ..spec.spec_ast import RealLit, RealVar, BoolLit, BoolVar
+    from ..spec.spec_ast import RealLit, RealVar, BoolLit, BoolVar, If
     
     a = RealVar("a")
     b = RealVar("b")
     c = RealVar("c")
     x = RealVar("x")
     
-    bool_var = BoolVar("a")
+    bool_var = BoolVar("p")
     
     zero = RealLit(0)
     one = RealLit(1)
     two = RealLit(2)
     
     true = BoolLit(True)
+    false = BoolLit(False)
     
     return [
         # Associativity
@@ -46,6 +47,8 @@ def rewrite_rules():
         ("exp2_5", (two ** (a + b)).eq((two ** a) * (two ** b))),
         ("exp2_6", ((two ** a) * (two ** b)).eq(two ** (a + b))),
         ("exp2_7", ((two ** x) * (two ** (-x))).eq(one)),
+        ("square_1", (a ** two).eq(a * a)),
+        ("square_2", (a * a).eq(a ** two)),
         
          # Rules with negation of addition
         ("neg_1", (-(a + b)).eq((-a) + (-b))),
@@ -74,19 +77,32 @@ def rewrite_rules():
         ("const_7", (zero * x).eq(zero)),
         ("const_8", (x + zero).eq(x)),
         ("const_9", (zero + x).eq(x)),
+        ("const_10", (- zero).eq(zero)),
+        ("const_11", zero.eq(-zero)),
         
         # Equality
         ("eq_1", (a.eq(a)).eq(true)),
         ("eq_2", (bool_var.eq(bool_var)).eq(true)),
+        
+        # If statements
+        ("if_1", If(true, a, b).eq(a)),
+        ("if_2", If(false, a, b).eq(b)),
+        ("if_3", If(bool_var, a, a).eq(a)),
     ]
+
 
 def constant_rules():
     m, n = vars_("m n", BigRat)
+    cond = var("cond", MathBool)
+    tru = var("tru", Math)
+    fls = var("fls", Math)
     return [
+        rewrite(Math.Num(m)).to(Math.Neg(Math.Num(-m))),
         rewrite(Math.Add(Math.Num(m), Math.Num(n))).to(Math.Num(m + n)),
         rewrite(Math.Neg(Math.Num(m))).to(Math.Num(-m)),
-        rewrite(Math.Exp2(Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
+        rewrite(Math.Square(Math.Num(m))).to(Math.Num(m * m)),
         rewrite(Math.Mul(Math.Num(m), Math.Num(n))).to(Math.Num(m * n)),
+        rewrite(Math.Exp2(Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
     ]
 
 
@@ -94,6 +110,7 @@ def _lower_expr(node: SpecNode) -> Expr:
     from ..spec.spec_ast import (
         Abs,
         Add,
+        And,
         BoolEq,
         BoolLit,
         BoolVar,
@@ -110,8 +127,10 @@ def _lower_expr(node: SpecNode) -> Expr:
         Neg,
         Not,
         NotEq,
+        Or,
         RealLit,
         RealVar,
+        Square,
         Sub,
     )
     
@@ -131,6 +150,8 @@ def _lower_expr(node: SpecNode) -> Expr:
         return Math.Abs(_lower_expr(node.value))
     if isinstance(node, Exp2):
         return Math.Exp2(_lower_expr(node.exponent))
+    if isinstance(node, Square):
+        return Math.Square(_lower_expr(node.value))
     if isinstance(node, Max):
         return Math.Max(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, Min):
@@ -206,19 +227,23 @@ def check_rules(rules, z3_timeout_ms: int = 10000):
             "z3_equal": equivalent_z3,
             "z3_status": report_z3['status'],
             "dreal_equal": equivalent_dreal,
-            "dreal_status": report_dreal['status']
+            "dreal_status": report_dreal['status'],
         }
     return results
 
 
-def load_rules(egraph: EGraph) -> None:
-    rules_ = rewrite_rules()
+
+def load_rules(egraph: EGraph, simplify=False) -> None:
+    rewrites = rewrite_rules()
     
     # Constant rules are not checked with z3 for now
-    res = check_rules(rules_)
+    res = check_rules(rewrites)
     # pprint(res)
-    
-    rules = constant_rules() + lower_rules(rules_)
+
+    if simplify:
+        rules = lower_rules(rewrites) + constant_rules()[:-1]
+    else:
+        rules = constant_rules() + lower_rules(rewrites)
     egraph.register(*rules)
 
     

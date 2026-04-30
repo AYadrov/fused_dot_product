@@ -52,6 +52,8 @@ def float_to_bits32(f):
 
 def ulp_distance(x, y):
     if isinstance(x, float) and isinstance(y, float):
+        if math.isnan(x) and math.isnan(y):
+            return 0
         if math.isnan(x) or math.isnan(y):
             return float('nan')
         if math.isinf(x) or math.isinf(y):

@@ -13,9 +13,14 @@ from fused_dot_product.egglog.rules import check_rules, rewrite_rules
 from examples.optimized import Optimized
 from examples.conventional import Conventional
 from examples.CSA import CSA_tree4
+from examples.FP32_IEEE_adder import FP32_IEEE_adder
+from examples.max_exponent import OPTIMIZED_MAX_EXP4
+
+from infra.compile_cpp import jit_compile, nonjit_compile
 
 DEFAULT_SEED = 0
 DEFAULT_N_POINTS = 1000
+
 
 def dot_product_spec(a_0, a_1, a_2, a_3, b_0, b_1, b_2, b_3):
         res = 0.0
@@ -77,7 +82,7 @@ class TestFusedDotProduct(unittest.TestCase):
     N_POINTS = DEFAULT_N_POINTS
     SPEC_REPORT = None
     IMPL_REPORT = None
-
+    
     def test_rules_with_z3(self):
         rules = rewrite_rules()
         results = check_rules(rules, z3_timeout_ms=10000)
@@ -89,14 +94,10 @@ class TestFusedDotProduct(unittest.TestCase):
         print("\nRunning test_run_spec_verification_and_timing:")
         print("\tConstructing CSA_tree4, Conventional, and Optimized composites.")
         print("\tRunning run_spec() for each design and reporting verification runtime.\n")
-        
-        csa_args = [
-            Var(name="csa_0", sign=QT(3, 4)),
-            Var(name="csa_1", sign=QT(8, 3)),
-            Var(name="csa_2", sign=QT(5, 0)),
-            Var(name="csa_3", sign=QT(1, 5)),
-        ]
-        csa_tree4 = CSA_tree4(*csa_args)
+
+        rnd = random.Random(self.SEED)
+        args = [Var(f"arg_{i}", sign=QT(rnd.randint(1, 20), rnd.randint(1, 20))) for i in range(4)]
+        csa_tree4 = CSA_tree4(*args)
         
         a = [
             Var(name="a_0", sign=BFloat16T()),
@@ -207,6 +208,209 @@ class TestFusedDotProduct(unittest.TestCase):
 
         pprint(TestFusedDotProduct.IMPL_REPORT)
 
+    def test_cpp_lowering_performance(self):
+        x = Var(name="x", sign=Float32T())
+        y = Var(name="y", sign=Float32T())
+        design = FP32_IEEE_adder(x, y)
+        
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
+        
+        try:
+            jit_runtime = 0.0
+            no_jit_runtime = 0.0
+            reference_runtime = 0.0
+                
+            rnd = random.Random(self.SEED)
+            for _ in range(self.N_POINTS):
+                x_bits = rnd.getrandbits(32)
+                y_bits = rnd.getrandbits(32)
+                x_fp = float(np.float32(Float32(x_bits).to_val()))
+                y_fp = float(np.float32(Float32(y_bits).to_val()))
+
+                t0 = time.perf_counter()
+                jit_bits = fn_jit(x_bits, y_bits)
+                jit_runtime += time.perf_counter() - t0
+                jit_fp32 = float(np.float32(Float32(jit_bits).to_val()))
+
+                t0 = time.perf_counter()
+                no_jit_bits = fn_no_jit(x_bits, y_bits)
+                no_jit_runtime += time.perf_counter() - t0
+                no_jit_fp32 = float(np.float32(Float32(no_jit_bits).to_val()))
+                
+                t0 = time.perf_counter()
+                reference_fp64 = x_fp + y_fp
+                reference_runtime += time.perf_counter() - t0
+                reference_fp32 = float(np.float32(reference_fp64))
+
+                with self.subTest(lhs=x_fp, rhs=y_fp):
+                    self.assertEqual(ulp_distance(reference_fp32, jit_fp32), 0, msg=f"{reference_fp32} != {jit_fp32}")
+                    self.assertEqual(ulp_distance(jit_fp32, no_jit_fp32), 0, msg=f"{jit_fp32} != {no_jit_fp32}")
+
+            print(
+                "cpp_lowering_performance_s:",
+                {
+                    "jit_total": jit_runtime,
+                    "no_jit_total": no_jit_runtime,
+                    "reference_total": reference_runtime,
+                    "jit_per_point": jit_runtime / self.N_POINTS,
+                    "no_jit_per_point": no_jit_runtime / self.N_POINTS,
+                    "reference_per_point": reference_runtime / self.N_POINTS,
+                },
+            )
+        finally:
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
+        
+    def test_cpp_lowering_via_jit_adder(self):
+        x = Var(name="x", sign=Float32T())
+        y = Var(name="y", sign=Float32T())
+    
+        design = FP32_IEEE_adder(x, y)
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
+
+        try:
+            rnd = random.Random(self.SEED)
+            for _ in range(self.N_POINTS):
+                x.load_rand(rnd)
+                y.load_rand(rnd)
+                with self.subTest(lhs=x.val, rhs=y.val):
+                    expected = design.evaluate().val
+                    self.assertEqual(fn_jit(x.val.val, y.val.val), expected)
+                    self.assertEqual(fn_no_jit(x.val.val, y.val.val), expected)
+        finally:
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
+
+    def test_cpp_lowering_via_jit_conventional(self):
+        a = [
+            Var(name="a_0", sign=BFloat16T()),
+            Var(name="a_1", sign=BFloat16T()),
+            Var(name="a_2", sign=BFloat16T()),
+            Var(name="a_3", sign=BFloat16T()),
+        ]
+        
+        b = [
+            Var(name="b_0", sign=BFloat16T()),
+            Var(name="b_1", sign=BFloat16T()),
+            Var(name="b_2", sign=BFloat16T()),
+            Var(name="b_3", sign=BFloat16T()),
+        ]
+        
+        design = Conventional(*a, *b)
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
+
+        try:
+            random_gen, exp_shuffle = BFloat16.random_generator(seed=self.SEED)
+            for _ in range(self.N_POINTS):
+                exp_shuffle()
+                args = []
+                for i in range(4):
+                    val = random_gen()
+                    a[i].load_val(val)
+                    args.append(val.val)
+                for i in range(4):
+                    val = random_gen()
+                    b[i].load_val(val)
+                    args.append(val.val)
+                    
+                with self.subTest(a=a, b=b):
+                    expected = design.evaluate().val
+                    self.assertEqual(fn_jit(*args), expected)
+                    self.assertEqual(fn_no_jit(*args), expected)
+        finally:
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
+
+            
+    def test_cpp_lowering_via_jit_csa(self):
+        rnd = random.Random(self.SEED)
+        args = [Var(f"arg_{i}", sign=QT(rnd.randint(1, 20), rnd.randint(1, 20))) for i in range(4)]
+        
+        design = CSA_tree4(*args)
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
+        try:
+            for _ in range(self.N_POINTS):
+                call_args = []
+                for arg in args:
+                    arg.load_rand(rnd)
+                    call_args.append(arg.val.val)
+                    
+                with self.subTest(args=call_args):
+                    expected = design.evaluate().val
+                    self.assertEqual(fn_jit(*call_args), expected)
+                    self.assertEqual(fn_no_jit(*call_args), expected)
+        finally:
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
+
+
+    def test_cpp_lowering_via_jit_optimized(self):
+        a = [
+            Var(name="a_0", sign=BFloat16T()),
+            Var(name="a_1", sign=BFloat16T()),
+            Var(name="a_2", sign=BFloat16T()),
+            Var(name="a_3", sign=BFloat16T()),
+        ]
+        
+        b = [
+            Var(name="b_0", sign=BFloat16T()),
+            Var(name="b_1", sign=BFloat16T()),
+            Var(name="b_2", sign=BFloat16T()),
+            Var(name="b_3", sign=BFloat16T()),
+        ]
+        
+        design = Optimized(*a, *b)
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
+
+        try:
+            random_gen, exp_shuffle = BFloat16.random_generator(seed=self.SEED)
+            for _ in range(self.N_POINTS):
+                exp_shuffle()
+                args = []
+                for i in range(4):
+                    val = random_gen()
+                    a[i].load_val(val)
+                    args.append(val.val)
+                for i in range(4):
+                    val = random_gen()
+                    b[i].load_val(val)
+                    args.append(val.val)
+                    
+                with self.subTest(a=a, b=b):
+                    expected = design.evaluate().val
+                    self.assertEqual(fn_jit(*args), expected)
+                    self.assertEqual(fn_no_jit(*args), expected)
+        finally:
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
+
+    def test_cpp_lowering_via_jit_max_exponent(self):
+        rnd = random.Random(self.SEED)
+        args = [Var(f"arg_{i}", sign=UQT(rnd.randint(1, 10), 0)) for i in range(4)]
+        
+        design = OPTIMIZED_MAX_EXP4(*args)
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
+        try:
+            for _ in range(self.N_POINTS):
+                call_args = []
+                for arg in args:
+                    arg.load_rand(rnd)
+                    call_args.append(arg.val.val)
+                    
+                with self.subTest(args=call_args):
+                    expected = design.evaluate().val
+                    self.assertEqual(fn_jit(*call_args), expected)
+                    self.assertEqual(fn_no_jit(*call_args), expected)
+        finally:
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
+
 
 def build_unittest_report(seed: int, spec_report: dict, impl_report: dict):
     return {
@@ -231,6 +435,7 @@ if __name__ == "__main__":
 
     TestFusedDotProduct.SEED = args.seed
     TestFusedDotProduct.N_POINTS = args.num_points
+    TestFusedDotProduct.rnd = random.Random(args.seed)
     
     program = unittest.main(argv=[__file__, *unittest_args], exit=False)
     
