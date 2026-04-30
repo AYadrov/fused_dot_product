@@ -20,6 +20,10 @@ def _cpp_zero(type_: StaticType, jittable: bool) -> str:
     return _cpp_cast(type_, "0", jittable=jittable)
 
 
+def _mask_literal(bits: int) -> str:
+    return str((1 << bits) - 1)
+
+
 def _impl_constructor(op):
     # To be called with op's arguments and output
     def impl(*args: RuntimeType) -> RuntimeType:
@@ -99,10 +103,7 @@ def basic_add(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=lambda lowered_args, jittable: (
-            f"({out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[0]}) + "
-            f"{out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[1]}))"
-        ),
+        c_lowering=lambda lowered_args, jittable: f"({lowered_args[0]} + {lowered_args[1]})",
         name="basic_add",
     )
 
@@ -112,10 +113,7 @@ def basic_sub(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=lambda lowered_args, jittable: (
-            f"({out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[0]}) - "
-            f"{out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[1]}))"
-        ),
+        c_lowering=lambda lowered_args, jittable: f"({lowered_args[0]} - {lowered_args[1]})",
         name="basic_sub",
     )
 
@@ -125,10 +123,7 @@ def basic_mul(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=lambda lowered_args, jittable: (
-            f"({out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[0]}) * "
-            f"{out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[1]}))"
-        ),
+        c_lowering=lambda lowered_args, jittable: f"({lowered_args[0]} * {lowered_args[1]})",
         name="basic_mul",
     )
 
@@ -297,12 +292,13 @@ def basic_not_equal(x: Node, y: Node, out: Node) -> Op:
 def basic_select(x: Node, start: int, end: int, out: Node) -> Op:
     if start < end or end < 0:
         raise ValueError(f"Bad indexing: start={start}, end={end}")
+    select_mask = _mask_literal(start - end + 1)
     node = _unary_operator(
         op=lambda x: mask(x.val >> end, start - end + 1),
         x=x,
         out=out,
         c_lowering=_format_c_lowering(
-            f"(({{}} >> {end}) & {(1 << (start - end + 1)) - 1})",
+            f"(({{}} >> {end}) & {select_mask})",
             0,
         ),
         name="basic_select",
@@ -311,11 +307,12 @@ def basic_select(x: Node, start: int, end: int, out: Node) -> Op:
 
 # TODO: Truncation is possible if out is too small
 def basic_invert(x: Node, out: Node) -> Op:
+    invert_mask = _mask_literal(x.node_type.total_bits())
     return _unary_operator(
         op=lambda x: ((1 << x.total_bits()) - 1) - x.val,
         x=x,
         out=out,
-        c_lowering=_format_c_lowering(f"((~{{}}) & {(1 << x.node_type.total_bits()) - 1})", 0),
+        c_lowering=_format_c_lowering(f"((~{{}}) & {invert_mask})", 0),
         name="basic_invert",
     )
 
@@ -339,10 +336,11 @@ def basic_or_reduce(x: Node, out: Node) -> Op:
     )
 
 def basic_and_reduce(x: Node, out: Node) -> Op:
+    all_ones = _mask_literal(x.node_type.total_bits())
     return _unary_operator(
         op=lambda x: 1 if x.val == ((1 << x.total_bits()) - 1) else 0,
         x=x,
         out=out,
-        c_lowering=_format_c_lowering(f"({{}} == {(1 << x.node_type.total_bits()) - 1})", 0),
+        c_lowering=_format_c_lowering(f"({{}} == {all_ones})", 0),
         name="basic_and_reduce",
     )
