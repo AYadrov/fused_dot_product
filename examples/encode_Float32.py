@@ -8,8 +8,13 @@ from .common import *
 def uq_RNE_IEEE(m: Node, bits_to_cut: int):
     assert bits_to_cut >= 0, "Cannot cut negative number of bits"
     assert bits_to_cut < m.node_type.total_bits(), "Cannot cut all the bits of a fixed point"
+
+    def spec(x, ctx):
+        increment = ctx.fresh_var("increment")
+        ctx.assume(increment.eq(ctx.real_val(0)))
+        return tuple([x, increment])
     
-    @Primitive(name="uq_RNE_IEEE", spec=lambda x, ctx: tuple([x, ctx.real_val(0)]))
+    @Primitive(name="uq_RNE_IEEE", spec=spec)
     def impl(m: Node) -> Node:
         m_frac_bits = m.node_type.frac_bits
         m_int_bits = m.node_type.int_bits

@@ -18,6 +18,7 @@ class CppLoweringError(RuntimeError):
 class _CppValue:
     expr: str
     cpp_type: str
+    tuple_items: tuple["_CppValue", ...] | None = None
 
 
 # Helper object for lowering one function at a time
@@ -233,7 +234,14 @@ class _CppEmitter:
     
     def _lower_const(self, value: RuntimeType) -> _CppValue:
         cpp_type = self._render_type(value.static_type())
-        return _CppValue(expr=self._const_expr(value), cpp_type=cpp_type)
+        tuple_items = None
+        if isinstance(value, Tuple):
+            tuple_items = tuple(self._lower_const(arg) for arg in value.args)
+        return _CppValue(
+            expr=self._const_expr(value),
+            cpp_type=cpp_type,
+            tuple_items=tuple_items,
+        )
 
     def _const_expr(self, value: RuntimeType) -> str:
         if isinstance(value, Tuple):
@@ -259,9 +267,25 @@ class _CppEmitter:
     ) -> _CppValue:
         if node.c_lowering is None:
             raise CppLoweringError(f"Unsupported op lowering for {node.name}")
-        
-        lowered_args = [self._lower(arg, env, ctx).expr for arg in node.args]
-        expr = self._cast(node.node_type, node.c_lowering(lowered_args, self.jittable))
+
+        lowered_args = [self._lower(arg, env, ctx) for arg in node.args]
+
+        if node.name.startswith("_basic_get_item_"):
+            source = lowered_args[0]
+            if source.tuple_items is not None:
+                idx = int(node.name.rsplit("_", 1)[1])
+                return source.tuple_items[idx]
+
+        lowered_arg_exprs = [arg.expr for arg in lowered_args]
+        expr = self._cast(node.node_type, node.c_lowering(lowered_arg_exprs, self.jittable))
+
+        if node.name.startswith("basic_tuple_maker_"):
+            return _CppValue(
+                expr=expr,
+                cpp_type=self._render_type(node.node_type),
+                tuple_items=tuple(lowered_args),
+            )
+
         return self._emit_temp(node.node_type, expr, node.name, ctx)
     
     def _signature(self, name: str, args: list[Var], return_type: StaticType) -> str:
