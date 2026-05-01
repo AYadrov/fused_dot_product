@@ -2,6 +2,7 @@ from ..types import *
 from ..ast import *
 from ..utils import make_fixed_arguments
 
+
 def basic_tuple_maker(*args) -> Op:
     def sign(*args: StaticType) -> TupleT:
         return TupleT(*args)
