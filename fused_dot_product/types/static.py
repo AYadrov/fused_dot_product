@@ -21,13 +21,13 @@ class StaticType:
         total_bits = self.total_bits()
         if jittable:
             if total_bits <= 8:
-                return "uint_fast8_t"
+                return "uint8_t"
             elif total_bits <= 16:
-                return "uint_fast16_t"
+                return "uint16_t"
             elif total_bits <= 32:
-                return "uint_fast32_t"
+                return "uint32_t"
             elif total_bits <= 64:
-                return "uint_fast64_t"
+                return "uint64_t"
             else:
                 raise TypeError("Can not find an ABI-safe type with more than 64 bits in C")  # can use pointer buffers for this
         else:

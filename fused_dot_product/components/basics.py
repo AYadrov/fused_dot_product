@@ -293,7 +293,7 @@ def basic_select(x: Node, start: int, end: int, out: Node) -> Op:
     if start < end or end < 0:
         raise ValueError(f"Bad indexing: start={start}, end={end}")
     select_mask = _mask_literal(start - end + 1)
-    node = _unary_operator(
+    return _unary_operator(
         op=lambda x: mask(x.val >> end, start - end + 1),
         x=x,
         out=out,
@@ -303,7 +303,6 @@ def basic_select(x: Node, start: int, end: int, out: Node) -> Op:
         ),
         name="basic_select",
     )
-    return node
 
 # TODO: Truncation is possible if out is too small
 def basic_invert(x: Node, out: Node) -> Op:
@@ -312,7 +311,9 @@ def basic_invert(x: Node, out: Node) -> Op:
         op=lambda x: ((1 << x.total_bits()) - 1) - x.val,
         x=x,
         out=out,
-        c_lowering=_format_c_lowering(f"((~{{}}) & {invert_mask})", 0),
+        c_lowering=lambda lowered_args, jittable: (
+            f"((~{lowered_args[0]}) & {invert_mask})" if jittable is True else f"(~{lowered_args[0]})"
+        ),
         name="basic_invert",
     )
 

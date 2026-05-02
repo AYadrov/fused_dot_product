@@ -17,6 +17,7 @@ def Composite(
     name: str,
     spec: tp.Callable[..., tp.Any],
     c_inline: bool = False,
+    c_lowering: tp.Optional[CLowering] = None,
 ):
     def wrapper1(impl: tp.Callable[..., Node]):
         def wrapper2(*args):
@@ -26,6 +27,7 @@ def Composite(
                 args=args,
                 name=name,
                 c_inline=c_inline,
+                c_lowering=c_lowering,
             )
         return wrapper2
     return wrapper1
@@ -38,8 +40,10 @@ class composite(Node):
         args: list[Node],
         name: str,
         c_inline: bool = False,
+        c_lowering: tp.Optional[CLowering] = None,
     ):
         self.c_inline = c_inline
+        self.c_lowering = c_lowering
         self.ctx = SpecContext(name)
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         
@@ -135,6 +139,7 @@ def Primitive(
     name: str,
     spec: tp.Callable[..., tp.Any],
     c_inline: bool = False,
+    c_lowering: tp.Optional[CLowering] = None,
 ):
     def wrapper1(impl: tp.Callable[..., Node]):
         def wrapper2(*args):
@@ -144,6 +149,7 @@ def Primitive(
                 args=args,
                 name=name,
                 c_inline=c_inline,
+                c_lowering=c_lowering,
             )
         return wrapper2
     return wrapper1
@@ -156,8 +162,10 @@ class primitive(Node):
         args: list[Node],
         name: str,
         c_inline: bool = False,
+        c_lowering: tp.Optional[CLowering] = None,
     ):
         self.c_inline = c_inline
+        self.c_lowering = c_lowering
         # Args will preserve runtime values of arguments
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         

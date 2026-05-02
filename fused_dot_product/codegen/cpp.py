@@ -96,6 +96,7 @@ class _CppEmitter:
             env=env,
             body_root=root.inner_tree,
             original_name=root.name,
+            direct_cpp_lowering=root.c_lowering,
         )
         self._functions.append(rendered)
         return function_name
@@ -108,9 +109,19 @@ class _CppEmitter:
         env: dict[Node, _CppValue],
         body_root: Node,
         original_name: str,
+        direct_cpp_lowering: CLowering | None = None,
     ) -> str:
         ctx = _FunctionContext()
-        result = self._lower(body_root, env, ctx)
+        if direct_cpp_lowering is not None:
+            if isinstance(return_type, TupleT):
+                raise CppLoweringError("Custom C++ lowering does not support tuple outputs")
+            expr = self._cast(
+                return_type,
+                direct_cpp_lowering([env[arg].expr for arg in args], self.jittable),
+            )
+            result = _CppValue(expr=expr, cpp_type=self._render_type(return_type))
+        else:
+            result = self._lower(body_root, env, ctx)
         
         params_sig = ", ".join(
             f"{self._render_type(arg.node_type)} {arg.name}" for arg in args
@@ -164,23 +175,28 @@ class _CppEmitter:
             return lowered
 
         if isinstance(node, (primitive, composite)):
+            lowered_args = [self._lower(arg, env, ctx) for arg in node.args]
             if self._should_inline(node):  # Inlining functions into current call
-                # Lowering args
-                lowered_args = [self._lower(arg, env, ctx) for arg in node.args]
-                inline_env = dict(env)
-                inline_env.update(dict(zip(node.inner_args, lowered_args)))
+                if node.c_lowering is not None:
+                    lowered = _CppValue(
+                        expr=self._cast(
+                            node.node_type,
+                            node.c_lowering([arg.expr for arg in lowered_args], self.jittable),
+                        ),
+                        cpp_type=self._render_type(node.node_type),
+                    )
+                else:
+                    inline_env = dict(env)
+                    inline_env.update(dict(zip(node.inner_args, lowered_args)))
 
-                # Lowering body
-                if not node.c_inline:
-                    ctx.statements.append(f"// begin inline {type(node).__name__} {node.name}")
-                lowered = self._lower(node.inner_tree, inline_env, ctx)
-                if not node.c_inline:
-                    ctx.statements.append(f"// end inline {type(node).__name__} {node.name}")
-                    
+                    if not node.c_inline:
+                        ctx.statements.append(f"// begin inline {type(node).__name__} {node.name}")
+                    lowered = self._lower(node.inner_tree, inline_env, ctx)
+                    if not node.c_inline:
+                        ctx.statements.append(f"// end inline {type(node).__name__} {node.name}")
                 ctx.memo[node] = lowered
                 return lowered
             else:  # Create a separate function for the node
-                lowered_args = [self._lower(arg, env, ctx) for arg in node.args]
                 helper_name = self._function_cache.get(self._fingerprint(node))
                 if helper_name is None:
                     helper_name = self._make_name(node.name)
@@ -217,12 +233,21 @@ class _CppEmitter:
                 tuple(self._fingerprint(arg) for arg in node.args),
             )
         elif isinstance(node, (primitive, composite)):
+            direct_cpp_lowering = None
+            if node.c_lowering is not None:
+                if isinstance(node.node_type, TupleT):
+                    raise CppLoweringError("Custom C++ lowering does not support tuple outputs")
+                direct_cpp_lowering = node.c_lowering(
+                    [f"${idx}" for idx in range(len(node.args))],
+                    self.jittable,
+                )
             result = (
                 type(node).__name__,
                 node.name,
                 repr(node.node_type),
                 tuple(repr(arg.node_type) for arg in node.inner_args),
-                self._fingerprint(node.inner_tree),
+                direct_cpp_lowering,
+                self._fingerprint(node.inner_tree) if direct_cpp_lowering is None else None,
             )
         else:
             raise CppLoweringError(f"Unsupported node type: {type(node).__name__}")
