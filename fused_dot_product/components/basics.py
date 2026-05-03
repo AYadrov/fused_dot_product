@@ -311,9 +311,7 @@ def basic_invert(x: Node, out: Node) -> Op:
         op=lambda x: ((1 << x.total_bits()) - 1) - x.val,
         x=x,
         out=out,
-        c_lowering=lambda lowered_args, jittable: (
-            f"((~{lowered_args[0]}) & {invert_mask})" if jittable is True else f"(~{lowered_args[0]})"
-        ),
+        c_lowering=lambda lowered_args, jittable: f"((~{lowered_args[0]}) & {invert_mask})",
         name="basic_invert",
     )
 
