@@ -48,6 +48,7 @@ class Node:
         self.sign = sign
         self.args = args
         self.name = name
+        self._fingerprint_cache: dict[bool, tp.Any] = {}
         
         # Defines node_type at initialization - some parts rely on this
         self._static_typecheck()
@@ -149,6 +150,20 @@ class Node:
             raise TypeError(output_msg)
 
     ################ PUBLIC API ##################
+
+    def _fingerprint(self, jittable: bool = False):
+        raise NotImplementedError
+
+    def _cached_fingerprint(
+        self,
+        jittable: bool = False,
+        build: tp.Callable[[], tp.Any] | None = None,
+    ):
+        if jittable in self._fingerprint_cache:
+            return self._fingerprint_cache[jittable]
+        fingerprint = build()
+        self._fingerprint_cache[jittable] = fingerprint
+        return fingerprint
 
     def to_cpp(self, name=None, jittable: bool = True):
         from ..codegen import lower_to_cpp

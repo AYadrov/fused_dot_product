@@ -26,16 +26,12 @@ class _FunctionContext:
     statements: list[str] = field(default_factory=list)
 
 
-_Fingerprint = tuple[tp.Any, ...]
-
-
 class _CppEmitter:
     def __init__(self, jittable: bool = True) -> None:
         self.jittable = jittable
         self._reserved_names = {}
-        self._function_cache: dict[_Fingerprint, str] = {}
+        self._function_cache: dict[tp.Any, str] = {}
         self._functions: list[str] = []
-        self._fingerprint_cache: dict[Node, _Fingerprint] = {}
 
     def emit_cpp(self, root: Node, function_name: str) -> str:
         if isinstance(root.node_type, TupleT):
@@ -76,7 +72,7 @@ class _CppEmitter:
     def emit_function(self, root: Node, function_name: str) -> str:
         assert isinstance(root, (composite, primitive)), "Can lower only Primitive/Composite"
 
-        cache_key = self._fingerprint(root)
+        cache_key = root._fingerprint(self.jittable)
         if cache_key in self._function_cache:
             return self._function_cache[cache_key]
         self._function_cache[cache_key] = function_name
@@ -185,7 +181,7 @@ class _CppEmitter:
                 ctx.memo[node] = lowered
                 return lowered
             else:  # Create a separate function for the node
-                helper_name = self._function_cache.get(self._fingerprint(node))
+                helper_name = self._function_cache.get(node._fingerprint(self.jittable))
                 if helper_name is None:
                     helper_name = self._make_name(node.name)
                     self.emit_function(
@@ -198,52 +194,6 @@ class _CppEmitter:
                 return lowered
 
         raise CppLoweringError(f"Unsupported node type: {type(node).__name__}")
-
-    # Caching for not lowering the same function twice
-    def _fingerprint(self, node: Node) -> _Fingerprint:
-        if node in self._fingerprint_cache:
-            return self._fingerprint_cache[node]
-        
-        if isinstance(node, Var):
-            result = ("Var", node.name, repr(node.node_type))
-        elif isinstance(node, Const):
-            result = ("Const", self._value_key(node.val))
-        elif isinstance(node, Op):
-            lowering_fingerprint = node.c_lowering(
-                [f"${idx}" for idx in range(len(node.args))],
-                self.jittable,
-            )
-            result = (
-                "Op",
-                node.name,
-                repr(node.node_type),
-                lowering_fingerprint,
-                tuple(self._fingerprint(arg) for arg in node.args),
-            )
-        elif isinstance(node, (primitive, composite)):
-            direct_cpp_lowering = self._direct_cpp_fingerprint(node)
-            result = (
-                type(node).__name__,
-                node.name,
-                repr(node.node_type),
-                tuple(repr(arg.node_type) for arg in node.inner_args),
-                direct_cpp_lowering,
-                self._fingerprint(node.inner_tree) if direct_cpp_lowering is None else None,
-            )
-        else:
-            raise CppLoweringError(f"Unsupported node type: {type(node).__name__}")
-        
-        self._fingerprint_cache[node] = result
-        return result
-
-    def _value_key(self, value: RuntimeType) -> tp.Any:
-        if isinstance(value, Tuple):
-            return (
-                type(value).__name__,
-                tuple(self._value_key(arg) for arg in value.args),
-            )
-        return (type(value).__name__, tuple(sorted(vars(value).items())))
-    
     def _lower_const(self, value: RuntimeType) -> _CppValue:
         tuple_items = None
         if isinstance(value, Tuple):
@@ -340,16 +290,6 @@ class _CppEmitter:
             raise CppLoweringError("Custom C++ lowering does not support tuple outputs")
         expr = self._cast(return_type, c_lowering(arg_exprs, self.jittable))
         return _CppValue(expr=expr)
-
-    def _direct_cpp_fingerprint(self, node: primitive | composite) -> str | None:
-        if node.c_lowering is None:
-            return None
-        if isinstance(node.node_type, TupleT):
-            raise CppLoweringError("Custom C++ lowering does not support tuple outputs")
-        return node.c_lowering(
-            [f"${idx}" for idx in range(len(node.args))],
-            self.jittable,
-        )
     
     def _cast(self, type_: StaticType, expr: str) -> str:
         if isinstance(type_, TupleT):

@@ -45,6 +45,33 @@ class StaticType:
     def random_runtime_value(self, rng: random.Random):
         raise NotImplementedError
 
+    def _fingerprint(self):
+        fields = tuple(
+            sorted(
+                (name, self._fingerprint_value(value))
+                for name, value in vars(self).items()
+                if name != "runtime_val"
+            )
+        )
+        runtime_val = None if self.runtime_val is None else self.runtime_val._fingerprint()
+        return (type(self).__name__, fields, runtime_val)
+
+    def _fingerprint_value(self, value):
+        if isinstance(value, StaticType):
+            return value._fingerprint()
+        if isinstance(value, tuple):
+            return tuple(self._fingerprint_value(item) for item in value)
+        if isinstance(value, list):
+            return tuple(self._fingerprint_value(item) for item in value)
+        if isinstance(value, dict):
+            return tuple(
+                sorted(
+                    (self._fingerprint_value(key), self._fingerprint_value(val))
+                    for key, val in value.items()
+                )
+            )
+        return value
+
 
 class BoolT(StaticType):
     def __init__(self):
@@ -251,7 +278,7 @@ class TupleT(StaticType):
         return tuple(x.to_spec(name=f"{name}_{i}", ctx=ctx) for i, x in enumerate(self.args))
 
     def to_cpp_type(self, jittable: bool = True) -> str:
-        return f"std::array<uint_fast64_t, {len(self.args)}>" if jittable else f"std::tuple<{', '.join(arg.to_cpp_type(jittable=jittable) for arg in self.args)}>"
+        return f"std::array<uint64_t, {len(self.args)}>" if jittable else f"std::tuple<{', '.join(arg.to_cpp_type(jittable=jittable) for arg in self.args)}>"
 
     def random_runtime_value(self, rng: random.Random):
         from .runtime import Tuple
