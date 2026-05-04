@@ -83,42 +83,34 @@ class _CppEmitter:
         }
 
         rendered = self._render_function(
+            root=root,
             name=function_name,
-            args=root.inner_args,
-            return_type=root.node_type,
             env=env,
-            body_root=root.inner_tree,
-            original_name=root.name,
-            direct_cpp_lowering=root.c_lowering,
         )
         self._functions.append(rendered)
         return function_name
 
     def _render_function(
         self,
+        root: composite | primitive,
         name: str,
-        args: list[Var],
-        return_type: StaticType,
         env: dict[Node, _CppValue],
-        body_root: Node,
-        original_name: str,
-        direct_cpp_lowering: CLowering | None = None,
     ) -> str:
         ctx = _FunctionContext()
-        if direct_cpp_lowering is not None:
+        if root.c_lowering is not None:
             result = self._lower_direct_cpp(
-                return_type,
-                direct_cpp_lowering,
-                [env[arg].expr for arg in args],
+                root.node_type,
+                root.c_lowering,
+                [env[arg].expr for arg in root.inner_args],
             )
         else:
-            result = self._lower(body_root, env, ctx)
+            result = self._lower(root.inner_tree, env, ctx)
 
-        signature = f"static inline {self._signature(name, args, return_type)}"
+        signature = f"static inline {self._signature(name, root.inner_args, root.node_type)}"
 
         body = [*ctx.statements, f"return {result.expr};"]
         indented_body = "\n".join(f"    {line}" for line in body)
-        return "\n".join([signature + f" {{  // {original_name}", indented_body, "}"])
+        return "\n".join([signature + f" {{  // {root.name}", indented_body, "}"])
 
     def _should_inline(self, node: Node) -> bool:
         return isinstance(node, (primitive, composite)) and (
