@@ -8,7 +8,7 @@ class StaticType:
     def copy(self) -> "StaticType":
         """Return a fresh StaticType instance with the same shape."""
         new = self._clone_impl()
-        new.runtime_val = self.runtime_val
+        new.runtime_val = None if self.runtime_val is None else self.runtime_val.copy()
         return new
     
     def _clone_impl(self) -> "StaticType":
@@ -21,13 +21,13 @@ class StaticType:
         total_bits = self.total_bits()
         if jittable:
             if total_bits <= 8:
-                return "uint_fast8_t"
+                return "uint8_t"
             elif total_bits <= 16:
-                return "uint_fast16_t"
+                return "uint16_t"
             elif total_bits <= 32:
-                return "uint_fast32_t"
+                return "uint32_t"
             elif total_bits <= 64:
-                return "uint_fast64_t"
+                return "uint64_t"
             else:
                 raise TypeError("Can not find an ABI-safe type with more than 64 bits in C")  # can use pointer buffers for this
         else:
@@ -44,6 +44,18 @@ class StaticType:
 
     def random_runtime_value(self, rng: random.Random):
         raise NotImplementedError
+
+    def _fingerprint(self):
+        from .utils import _fingerprint_value
+        fields = tuple(
+            sorted(
+                (name, _fingerprint_value(value))
+                for name, value in vars(self).items()
+                if name != "runtime_val"
+            )
+        )
+        runtime_val = None if self.runtime_val is None else self.runtime_val._fingerprint()
+        return (type(self).__name__, fields, runtime_val)
 
 
 class BoolT(StaticType):
@@ -251,19 +263,8 @@ class TupleT(StaticType):
         return tuple(x.to_spec(name=f"{name}_{i}", ctx=ctx) for i, x in enumerate(self.args))
 
     def to_cpp_type(self, jittable: bool = True) -> str:
-        return f"std::array<uint_fast64_t, {len(self.args)}>" if jittable else f"std::tuple<{', '.join(arg.to_cpp_type(jittable=jittable) for arg in self.args)}>"
+        return f"std::array<uint64_t, {len(self.args)}>" if jittable else f"std::tuple<{', '.join(arg.to_cpp_type(jittable=jittable) for arg in self.args)}>"
 
     def random_runtime_value(self, rng: random.Random):
         from .runtime import Tuple
         return Tuple(*[arg.random_runtime_value(rng) for arg in self.args])
-
-
-__all__ = [
-    "StaticType",
-    "BoolT",
-    "QT",
-    "UQT",
-    "Float32T",
-    "BFloat16T",
-    "TupleT",
-]

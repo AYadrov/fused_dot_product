@@ -162,7 +162,7 @@ def q_sign_bit_spec(x, ctx):
     ctx.assume(x.eq(sign_ * abs(x)))
     return sign_
 
-@Primitive(name="q_sign_bit", spec=q_sign_bit_spec)
+@Primitive(name="q_sign_bit", spec=q_sign_bit_spec, c_inline=True)
 def q_sign_bit(x: Node) -> Node:
     start = x.node_type.int_bits + x.node_type.frac_bits - 1
     return basic_select(
@@ -263,7 +263,7 @@ def q_lshift(x: Node, n: Node) -> Node:
 
 
 # Assumes that x is positive
-@Primitive(name="q_to_uq", spec=lambda x, ctx: x)
+@Primitive(name="q_to_uq", spec=lambda x, ctx: x, c_inline=True)
 def q_to_uq(x: Node) -> Node:
     int_bits = x.node_type.int_bits - 1
     frac_bits = x.node_type.frac_bits

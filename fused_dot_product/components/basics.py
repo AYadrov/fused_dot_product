@@ -12,12 +12,16 @@ def _format_c_lowering(template: str, *args_ids: list[int]):
         return template.format(*[args[idx] for idx in args_ids])
     return lower
 
-def _cpp_cast(type_: StaticType, expr: str, *, jittable: bool) -> str:
+def _cpp_cast(type_: StaticType, expr: str, jittable: bool) -> str:
     return f"{type_.to_cpp_type(jittable=jittable)}({expr})"
 
 
-def _cpp_zero(type_: StaticType, *, jittable: bool) -> str:
+def _cpp_zero(type_: StaticType, jittable: bool) -> str:
     return _cpp_cast(type_, "0", jittable=jittable)
+
+
+def _mask_literal(bits: int) -> str:
+    return str((1 << bits) - 1)
 
 
 def _impl_constructor(op):
@@ -28,8 +32,7 @@ def _impl_constructor(op):
         # TODO: check for truncation
         val = mask(val, out.total_bits())
         # TODO: add a check whether val is in ranges
-        out.val = val
-        return out
+        return out.copy(val=val)
     return impl
 
 def _sign_constructor() -> StaticType:
@@ -99,10 +102,7 @@ def basic_add(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=lambda lowered_args, jittable: (
-            f"({out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[0]}) + "
-            f"{out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[1]}))"
-        ),
+        c_lowering=lambda lowered_args, jittable: f"({lowered_args[0]} + {lowered_args[1]})",
         name="basic_add",
     )
 
@@ -112,10 +112,7 @@ def basic_sub(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=lambda lowered_args, jittable: (
-            f"({out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[0]}) - "
-            f"{out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[1]}))"
-        ),
+        c_lowering=lambda lowered_args, jittable: f"({lowered_args[0]} - {lowered_args[1]})",
         name="basic_sub",
     )
 
@@ -125,10 +122,7 @@ def basic_mul(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=lambda lowered_args, jittable: (
-            f"({out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[0]}) * "
-            f"{out.node_type.to_cpp_type(jittable=jittable)}({lowered_args[1]}))"
-        ),
+        c_lowering=lambda lowered_args, jittable: f"({lowered_args[0]} * {lowered_args[1]})",
         name="basic_mul",
     )
 
@@ -297,25 +291,26 @@ def basic_not_equal(x: Node, y: Node, out: Node) -> Op:
 def basic_select(x: Node, start: int, end: int, out: Node) -> Op:
     if start < end or end < 0:
         raise ValueError(f"Bad indexing: start={start}, end={end}")
-    node = _unary_operator(
+    select_mask = _mask_literal(start - end + 1)
+    return _unary_operator(
         op=lambda x: mask(x.val >> end, start - end + 1),
         x=x,
         out=out,
         c_lowering=_format_c_lowering(
-            f"(({{}} >> {end}) & {(1 << (start - end + 1)) - 1})",
+            f"(({{}} >> {end}) & {select_mask})",
             0,
         ),
         name="basic_select",
     )
-    return node
 
 # TODO: Truncation is possible if out is too small
 def basic_invert(x: Node, out: Node) -> Op:
+    invert_mask = _mask_literal(x.node_type.total_bits())
     return _unary_operator(
         op=lambda x: ((1 << x.total_bits()) - 1) - x.val,
         x=x,
         out=out,
-        c_lowering=_format_c_lowering(f"((~{{}}) & {(1 << x.node_type.total_bits()) - 1})", 0),
+        c_lowering=lambda lowered_args, jittable: f"((~{lowered_args[0]}) & {invert_mask})",
         name="basic_invert",
     )
 
@@ -339,10 +334,11 @@ def basic_or_reduce(x: Node, out: Node) -> Op:
     )
 
 def basic_and_reduce(x: Node, out: Node) -> Op:
+    all_ones = _mask_literal(x.node_type.total_bits())
     return _unary_operator(
         op=lambda x: 1 if x.val == ((1 << x.total_bits()) - 1) else 0,
         x=x,
         out=out,
-        c_lowering=_format_c_lowering(f"({{}} == {(1 << x.node_type.total_bits()) - 1})", 0),
+        c_lowering=_format_c_lowering(f"({{}} == {all_ones})", 0),
         name="basic_and_reduce",
     )

@@ -8,8 +8,13 @@ from .common import *
 def uq_RNE_IEEE(m: Node, bits_to_cut: int):
     assert bits_to_cut >= 0, "Cannot cut negative number of bits"
     assert bits_to_cut < m.node_type.total_bits(), "Cannot cut all the bits of a fixed point"
+
+    def spec(x, ctx):
+        increment = ctx.fresh_real("increment")
+        ctx.assume(increment.eq(ctx.real_val(0)))
+        return tuple([x, increment])
     
-    @Primitive(name="uq_RNE_IEEE", spec=lambda x, ctx: tuple([x, ctx.real_val(0)]))
+    @Primitive(name="uq_RNE_IEEE", spec=spec)
     def impl(m: Node) -> Node:
         m_frac_bits = m.node_type.frac_bits
         m_int_bits = m.node_type.int_bits
@@ -107,25 +112,41 @@ def round_mantissa(m: Node, e: Node, target_bits: int = Float32.mantissa_bits, r
     return impl(m, e)
 
 
-def lzc_spec(x, ctx):
-    raise NotImplementedError
-
-@Primitive(name="lzc", spec=lzc_spec)
 def lzc(x: Node) -> Node:
     width = x.node_type.int_bits + x.node_type.frac_bits
     frac_bits = x.node_type.frac_bits
     count_bits = max(1, math.ceil(math.log2(width + 1)))
-    
-    count = Const(UQ(0, count_bits, 0))
-    still_zero = Const(UQ(1, 1, 0))
-    for pos in range(width - 1, -1, -1):
-        bit = uq_select(x, pos, pos)
-        is_zero = basic_invert(x=bit, out=bit.copy())
-        still_zero = basic_and(x=still_zero, y=is_zero, out=still_zero.copy())
-        # Keep the accumulator width stable by zero-extending the predicate.
-        count = basic_add(x=count, y=still_zero, out=count.copy())
-    return count
 
+    def lzc_spec(x, ctx):
+        raise NotImplementedError
+
+    def lzc_lowering(lowered_args, jittable):
+        arg = lowered_args[0]
+        if width <= 32:
+            return (
+                f"(({arg}) == 0 ? {width} : "
+                f"(__builtin_clz(static_cast<uint32_t>({arg})) - {32 - width}))"
+            )
+        if width <= 64:
+            return (
+                f"(({arg}) == 0 ? {width} : "
+                f"(__builtin_clzll(static_cast<uint64_t>({arg})) - {64 - width}))"
+            )
+        raise TypeError("uq_lzc only supports widths up to 64 bits in jittable C++")
+
+    @Primitive(name="lzc", spec=lzc_spec, c_inline=True, c_lowering=lzc_lowering)
+    def impl(x):
+        count = Const(UQ(0, count_bits, 0))
+        still_zero = Const(UQ(1, 1, 0))
+        for pos in range(width - 1, -1, -1):
+            bit = uq_select(x, pos, pos)
+            is_zero = basic_invert(x=bit, out=bit.copy())
+            still_zero = basic_and(x=still_zero, y=is_zero, out=still_zero.copy())
+            # Keep the accumulator width stable by zero-extending the predicate.
+            count = basic_add(x=count, y=still_zero, out=count.copy())
+        return count
+
+    return impl(x)
 
 def normalize_to_1_xxx_spec(m, e, ctx):
     m_ = ctx.fresh_real('normalized_m')

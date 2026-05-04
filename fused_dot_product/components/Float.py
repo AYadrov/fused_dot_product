@@ -15,7 +15,7 @@ def _fp32_mantissa(x: Node) -> Op:
     return Op(
             impl=impl,
             sign=sign,
-            c_lowering=lambda lowered_args, jittable: f"({lowered_args[0]} & ((1 << 23) - 1))",
+            c_lowering=lambda lowered_args, jittable: f"({lowered_args[0]} & 8388607)",
             args=[x],
             name="_fp32_mantissa")
 
@@ -29,7 +29,7 @@ def _fp32_exponent(x: Node) -> Op:
     return Op(
             impl=impl,
             sign=sign,
-            c_lowering=lambda lowered_args, jittable: f"(({lowered_args[0]} >> 23) & ((1 << 8) - 1))",
+            c_lowering=lambda lowered_args, jittable: f"(({lowered_args[0]} >> 23) & 255)",
             args=[x],
             name="_fp32_exponent")
 
@@ -47,72 +47,7 @@ def _fp32_sign(x: Node) -> Op:
             args=[x],
             name="_fp32_sign")
 
-@Primitive(name="_fp32_is_normal", spec=lambda x, ctx: ctx.real_val(1))
-def _fp32_is_normal(x: Node) -> Node:
-    exponent = _fp32_exponent(x)
-    exponent_is_nonzero = _is_nonzero_bits(exponent)
-    exponent_is_not_all_ones = basic_invert(
-        basic_and_reduce(exponent, out=Const(UQ(0, 1, 0))),
-        out=Const(UQ(0, 1, 0)),
-    )
-    return basic_and(
-        x=exponent_is_nonzero,
-        y=exponent_is_not_all_ones,
-        out=Const(UQ(0, 1, 0)),
-    )
-
-# For spec, we assume that we can not have subnormal. So, this pass should not exist in spec
-@Primitive(name="_fp32_is_subnormal", spec=lambda x, ctx: ctx.real_val(0))
-def _fp32_is_subnormal(x: Node) -> Node:
-    exponent_is_all_zeros = _is_zero_bits(_fp32_exponent(x))
-    mantissa_is_nonzero = _is_nonzero_bits(_fp32_mantissa(x))
-    return basic_and(
-        x=exponent_is_all_zeros,
-        y=mantissa_is_nonzero,
-        out=Const(UQ(0, 1, 0)),
-    )
-
-# For spec, we assume that we can not have subnormal. So, this pass should not exist in spec
-@Primitive(name="_fp32_is_zero", spec=lambda x, ctx: ctx.real_val(0))
-def _fp32_is_zero(x: Node) -> Node:
-    exponent_is_all_zeros = _is_zero_bits(_fp32_exponent(x))
-    mantissa_is_zero = _is_zero_bits(_fp32_mantissa(x))
-    return basic_and(
-        x=exponent_is_all_zeros,
-        y=mantissa_is_zero,
-        out=Const(UQ(0, 1, 0)),
-    )
-
-# For spec, we assume that we can not have nan. So, this pass should not exist in spec
-@Primitive(name="_fp32_is_nan", spec=lambda x, ctx: ctx.real_val(0))
-def _fp32_is_nan(x: Node) -> Node:
-    exponent_is_all_ones = basic_and_reduce(_fp32_exponent(x), out=Const(UQ(0, 1, 0)))
-    mantissa_is_nonzero =_is_nonzero_bits(_fp32_mantissa(x))
-    return basic_and(
-        x=exponent_is_all_ones,
-        y=mantissa_is_nonzero,
-        out=Const(UQ(0, 1, 0)),
-    )
-
-# For spec, we assume that we can not have inf. So, this path should not exist in spec
-@Primitive(name="_fp32_is_inf", spec=lambda x, ctx: ctx.real_val(0))
-def _fp32_is_inf(x: Node) -> Node:
-    exponent_is_all_ones = basic_and_reduce(_fp32_exponent(x), out=Const(UQ(0, 1, 0)))
-    mantissa_is_zero = _is_zero_bits(_fp32_mantissa(x))
-    return basic_and(
-        x=exponent_is_all_ones,
-        y=mantissa_is_zero,
-        out=Const(UQ(0, 1, 0)),
-    )
-
-def _is_nonzero_bits(x: Node) -> Node:
-    return basic_or_reduce(x, out=Const(UQ(0, 1, 0)))
-
-def _is_zero_bits(x: Node) -> Node:
-    return basic_invert(_is_nonzero_bits(x), out=Const(UQ(0, 1, 0)),
-    )
-
-def _float32_alloc(sign_bit: Node,
+def _fp32_alloc(sign_bit: Node,
                   exponent: Node,
                   mantissa: Node) -> Op:
     def sign(sign_bit: StaticType, exponent: StaticType, mantissa: StaticType) -> Float32T:
@@ -130,7 +65,7 @@ def _float32_alloc(sign_bit: Node,
             f"{Float32T().to_cpp_type(jittable=jittable)}({lowered_args[2]}))"
         ),
         args=[sign_bit, exponent, mantissa],
-        name="float32_alloc")
+        name="_fp32_alloc")
 
 ############## Public API ##############
 
@@ -142,7 +77,7 @@ def fp32_pack_spec(s, e, m, ctx):
 
 @Primitive(name="fp32_pack", spec=fp32_pack_spec)
 def fp32_pack(sign: Node, exponent: Node, mantissa: Node) -> Node:
-    return _float32_alloc(sign, exponent, mantissa)
+    return _fp32_alloc(sign, exponent, mantissa)
 
 def fp32_decode_spec(x, ctx):
     sign = ctx.fresh_real("sign")
@@ -168,19 +103,27 @@ def fp32_decode_spec(x, ctx):
         ctx.real_val(0),
         ctx.real_val(0),
         ctx.real_val(0),
-        ctx.real_val(0)
+        ctx.real_val(0),
     )
 
 
 @Primitive(name="fp32_decode", spec=fp32_decode_spec)
 def fp32_decode(x: Node) -> Node:
-    return make_Tuple(
-        _fp32_sign(x),
-        _fp32_exponent(x),
-        _fp32_mantissa(x),
-        _fp32_is_normal(x),
-        _fp32_is_subnormal(x),
-        _fp32_is_zero(x),
-        _fp32_is_inf(x),
-        _fp32_is_nan(x),
-    )
+    sign = _fp32_sign(x)
+    exponent = _fp32_exponent(x)
+    mantissa = _fp32_mantissa(x)
+    
+    mantissa_is_nonzero = basic_or_reduce(mantissa, out=Const(UQ(0, 1, 0)))
+    mantissa_is_zero = basic_invert(mantissa_is_nonzero, out=Const(UQ(0, 1, 0)))
+    
+    exponent_is_all_ones = basic_and_reduce(exponent, out=Const(UQ(0, 1, 0)))
+    exponent_is_not_all_ones = basic_invert(exponent_is_all_ones, out=Const(UQ(0, 1, 0)))
+    exponent_is_nonzero = basic_or_reduce(exponent, out=Const(UQ(0, 1, 0)))
+    exponent_is_zero = basic_invert(exponent_is_nonzero, out=Const(UQ(0, 1, 0)))
+
+    is_normal = basic_and(exponent_is_nonzero, exponent_is_not_all_ones, Const(UQ(0, 1, 0)),)
+    is_subnormal = basic_and(exponent_is_zero, mantissa_is_nonzero, Const(UQ(0, 1, 0)))
+    is_zero = basic_and(exponent_is_zero, mantissa_is_zero, Const(UQ(0, 1, 0)))
+    is_inf = basic_and(exponent_is_all_ones, mantissa_is_zero, Const(UQ(0, 1, 0)))
+    is_nan = basic_and(exponent_is_all_ones, mantissa_is_nonzero, Const(UQ(0, 1, 0)))
+    return make_Tuple(sign, exponent, mantissa, is_normal, is_subnormal, is_zero, is_inf, is_nan)

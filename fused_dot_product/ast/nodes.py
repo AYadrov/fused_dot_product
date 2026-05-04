@@ -17,6 +17,7 @@ def Composite(
     name: str,
     spec: tp.Callable[..., tp.Any],
     c_inline: bool = False,
+    c_lowering: tp.Optional[CLowering] = None,
 ):
     def wrapper1(impl: tp.Callable[..., Node]):
         def wrapper2(*args):
@@ -26,6 +27,7 @@ def Composite(
                 args=args,
                 name=name,
                 c_inline=c_inline,
+                c_lowering=c_lowering,
             )
         return wrapper2
     return wrapper1
@@ -38,8 +40,10 @@ class composite(Node):
         args: list[Node],
         name: str,
         c_inline: bool = False,
+        c_lowering: tp.Optional[CLowering] = None,
     ):
         self.c_inline = c_inline
+        self.c_lowering = c_lowering
         self.ctx = SpecContext(name)
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         
@@ -130,11 +134,31 @@ class composite(Node):
     def __str__(self):
         return f"[Composite] {self.name}: {' -> '.join([str(x) for x in self.args_types])} -> {self.node_type}"
 
+    def _fingerprint(self, jittable: bool = False):
+        def build():
+            direct_cpp_lowering = None
+            if self.c_lowering is not None:
+                direct_cpp_lowering = self.c_lowering(
+                    [f"${idx}" for idx in range(len(self.args))],
+                    jittable,
+                )
+            return (
+                type(self).__name__,
+                self.name,
+                self.node_type._fingerprint(),
+                tuple(arg.node_type._fingerprint() for arg in self.inner_args),
+                direct_cpp_lowering,
+                self.inner_tree._fingerprint(jittable) if direct_cpp_lowering is None else None,
+            )
+
+        return self._cached_fingerprint(jittable, build)
+
 
 def Primitive(
     name: str,
     spec: tp.Callable[..., tp.Any],
     c_inline: bool = False,
+    c_lowering: tp.Optional[CLowering] = None,
 ):
     def wrapper1(impl: tp.Callable[..., Node]):
         def wrapper2(*args):
@@ -144,6 +168,7 @@ def Primitive(
                 args=args,
                 name=name,
                 c_inline=c_inline,
+                c_lowering=c_lowering,
             )
         return wrapper2
     return wrapper1
@@ -156,8 +181,10 @@ class primitive(Node):
         args: list[Node],
         name: str,
         c_inline: bool = False,
+        c_lowering: tp.Optional[CLowering] = None,
     ):
         self.c_inline = c_inline
+        self.c_lowering = c_lowering
         # Args will preserve runtime values of arguments
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         
@@ -204,6 +231,25 @@ class primitive(Node):
     def __str__(self):
         return f"[Primitive] {self.name}: {' -> '.join([str(x) for x in self.args_types])} -> {self.node_type}"
 
+    def _fingerprint(self, jittable: bool = False):
+        def build():
+            direct_cpp_lowering = None
+            if self.c_lowering is not None:
+                direct_cpp_lowering = self.c_lowering(
+                    [f"${idx}" for idx in range(len(self.args))],
+                    jittable,
+                )
+            return (
+                type(self).__name__,
+                self.name,
+                self.node_type._fingerprint(),
+                tuple(arg.node_type._fingerprint() for arg in self.inner_args),
+                direct_cpp_lowering,
+                self.inner_tree._fingerprint(jittable) if direct_cpp_lowering is None else None,
+            )
+
+        return self._cached_fingerprint(jittable, build)
+
 
 class Op(Node):
     def __init__(
@@ -234,6 +280,24 @@ class Op(Node):
     def __str__(self):
         return f"{self.node_type}: {self.name} [Op]"
 
+    def _fingerprint(self, jittable: bool = False):
+        def build():
+            lowering_fingerprint = None
+            if self.c_lowering is not None:
+                lowering_fingerprint = self.c_lowering(
+                    [f"${idx}" for idx in range(len(self.args))],
+                    jittable,
+                )
+            return (
+                "Op",
+                self.name,
+                self.node_type._fingerprint(),
+                lowering_fingerprint,
+                tuple(arg._fingerprint(jittable) for arg in self.args),
+            )
+
+        return self._cached_fingerprint(jittable, build)
+
 
 class Const(Node):
     def __init__(
@@ -259,7 +323,7 @@ class Const(Node):
             name=str(self.val.to_val()),
         )
         
-        self.node_type.runtime_val = self.val  # Constant folding
+        self.node_type.runtime_val = self.val.copy()  # Constant folding
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
@@ -267,6 +331,12 @@ class Const(Node):
     
     def __str__(self):
         return f"{self.node_type}: {self.name if self.name else str(self.val)} [Const]"
+
+    def _fingerprint(self, jittable: bool = False):
+        return self._cached_fingerprint(
+            jittable,
+            lambda: ("Const", self.val._fingerprint()),
+        )
 
 
 class Var(Node):
@@ -310,4 +380,10 @@ class Var(Node):
     
     def __str__(self):
         return f"{self.node_type}: {self.name} [Var]"
+
+    def _fingerprint(self, jittable: bool = False):
+        return self._cached_fingerprint(
+            jittable,
+            lambda: ("Var", self.name, self.node_type._fingerprint()),
+        )
     

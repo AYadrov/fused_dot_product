@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from collections import OrderedDict
 from dataclasses import dataclass, field
 import typing as tp
 
 from ..ast.node import Node
-from ..ast.nodes import Const, Op, Var, composite, primitive
-from ..types.runtime import BFloat16, Bool, Float32, Q, RuntimeType, Tuple, UQ
+from ..ast.nodes import CLowering, Const, Op, Var, composite, primitive
+from ..types.runtime import RuntimeType, Tuple
 from ..types.static import StaticType, TupleT
 
 
@@ -17,7 +16,7 @@ class CppLoweringError(RuntimeError):
 @dataclass(frozen=True)
 class _CppValue:
     expr: str
-    cpp_type: str
+    tuple_items: tuple["_CppValue", ...] | None = None
 
 
 # Helper object for lowering one function at a time
@@ -27,16 +26,12 @@ class _FunctionContext:
     statements: list[str] = field(default_factory=list)
 
 
-_Fingerprint = tuple[tp.Any, ...]
-
-
 class _CppEmitter:
     def __init__(self, jittable: bool = True) -> None:
         self.jittable = jittable
         self._reserved_names = {}
-        self._function_cache: dict[_Fingerprint, str] = {}
+        self._function_cache: dict[tp.Any, str] = {}
         self._functions: list[str] = []
-        self._fingerprint_cache: dict[Node, _Fingerprint] = {}
 
     def emit_cpp(self, root: Node, function_name: str) -> str:
         if isinstance(root.node_type, TupleT):
@@ -77,55 +72,49 @@ class _CppEmitter:
     def emit_function(self, root: Node, function_name: str) -> str:
         assert isinstance(root, (composite, primitive)), "Can lower only Primitive/Composite"
 
-        cache_key = self._fingerprint(root)
+        cache_key = root._fingerprint(self.jittable)
         if cache_key in self._function_cache:
             return self._function_cache[cache_key]
         self._function_cache[cache_key] = function_name
-        
-        args = self._collect_vars(root)
+
         env = {
-            arg: _CppValue(expr=arg.name, cpp_type=self._render_type(arg.node_type))
+            arg: _CppValue(expr=arg.name)
             for arg in root.inner_args
         }
-        
+
         rendered = self._render_function(
+            root=root,
             name=function_name,
-            args=root.inner_args,
-            return_type=root.node_type,
             env=env,
-            body_root=root.inner_tree,
-            original_name=root.name,
         )
         self._functions.append(rendered)
         return function_name
-    
+
     def _render_function(
         self,
+        root: composite | primitive,
         name: str,
-        args: list[Var],
-        return_type: StaticType,
         env: dict[Node, _CppValue],
-        body_root: Node,
-        original_name: str,
     ) -> str:
         ctx = _FunctionContext()
-        result = self._lower(body_root, env, ctx)
-        
-        params_sig = ", ".join(
-            f"{self._render_type(arg.node_type)} {arg.name}" for arg in args
-        )
-        signature = f"static inline {self._render_type(return_type)} {name}({params_sig})"
-        
+        if root.c_lowering is not None:
+            result = self._lower_direct_cpp(
+                root.node_type,
+                root.c_lowering,
+                [env[arg].expr for arg in root.inner_args],
+            )
+        else:
+            result = self._lower(root.inner_tree, env, ctx)
+
+        signature = f"static inline {self._signature(name, root.inner_args, root.node_type)}"
+
         body = [*ctx.statements, f"return {result.expr};"]
         indented_body = "\n".join(f"    {line}" for line in body)
-        return "\n".join([signature + f" {{  // {original_name}", indented_body, "}"])
-    
-    def _collect_vars(self, root: Node) -> list[Var]:
-        return root.inner_args
+        return "\n".join([signature + f" {{  // {root.name}", indented_body, "}"])
 
     def _should_inline(self, node: Node) -> bool:
         return isinstance(node, (primitive, composite)) and (
-            bool(getattr(node, "c_inline", False))
+            node.c_inline
             or isinstance(node.node_type, TupleT)  # FOR NOW. SOME TROUBLES WIT JIT AND ARRAYS - JUST INLINE EVERY TUPLE
         )
 
@@ -146,6 +135,12 @@ class _CppEmitter:
         if node in ctx.memo:
             return ctx.memo[node]
 
+        runtime_val = node.node_type.runtime_val
+        if runtime_val is not None:
+            lowered = self._lower_const(runtime_val)
+            ctx.memo[node] = lowered
+            return lowered
+
         if isinstance(node, Const):
             lowered = self._lower_const(node.val)
             ctx.memo[node] = lowered
@@ -157,24 +152,28 @@ class _CppEmitter:
             return lowered
 
         if isinstance(node, (primitive, composite)):
+            lowered_args = [self._lower(arg, env, ctx) for arg in node.args]
             if self._should_inline(node):  # Inlining functions into current call
-                # Lowering args
-                lowered_args = [self._lower(arg, env, ctx) for arg in node.args]
-                inline_env = dict(env)
-                inline_env.update(dict(zip(node.inner_args, lowered_args)))
-
-                # Lowering body
                 if not node.c_inline:
                     ctx.statements.append(f"// begin inline {type(node).__name__} {node.name}")
-                lowered = self._lower(node.inner_tree, inline_env, ctx)
+                    
+                if node.c_lowering is not None:
+                    lowered = self._lower_direct_cpp(
+                        node.node_type,
+                        node.c_lowering,
+                        [arg.expr for arg in lowered_args],
+                    )
+                else:
+                    inline_env = dict(env)
+                    inline_env.update(dict(zip(node.inner_args, lowered_args)))
+                    lowered = self._lower(node.inner_tree, inline_env, ctx)
+
                 if not node.c_inline:
                     ctx.statements.append(f"// end inline {type(node).__name__} {node.name}")
-                    
                 ctx.memo[node] = lowered
                 return lowered
             else:  # Create a separate function for the node
-                lowered_args = [self._lower(arg, env, ctx) for arg in node.args]
-                helper_name = self._function_cache.get(self._fingerprint(node))
+                helper_name = self._function_cache.get(node._fingerprint(self.jittable))
                 if helper_name is None:
                     helper_name = self._make_name(node.name)
                     self.emit_function(
@@ -187,53 +186,14 @@ class _CppEmitter:
                 return lowered
 
         raise CppLoweringError(f"Unsupported node type: {type(node).__name__}")
-
-    # Caching for not lowering the same function twice
-    def _fingerprint(self, node: Node) -> _Fingerprint:
-        if node in self._fingerprint_cache:
-            return self._fingerprint_cache[node]
-        
-        if isinstance(node, Var):
-            result = ("Var", node.name, repr(node.node_type))
-        elif isinstance(node, Const):
-            result = ("Const", self._value_key(node.val))
-        elif isinstance(node, Op):
-            lowering_fingerprint = node.c_lowering(
-                [f"${idx}" for idx in range(len(node.args))],
-                self.jittable,
-            )
-            result = (
-                "Op",
-                node.name,
-                repr(node.node_type),
-                lowering_fingerprint,
-                tuple(self._fingerprint(arg) for arg in node.args),
-            )
-        elif isinstance(node, (primitive, composite)):
-            result = (
-                type(node).__name__,
-                node.name,
-                repr(node.node_type),
-                tuple(repr(arg.node_type) for arg in node.inner_args),
-                self._fingerprint(node.inner_tree),
-            )
-        else:
-            raise CppLoweringError(f"Unsupported node type: {type(node).__name__}")
-
-        self._fingerprint_cache[node] = result
-        return result
-
-    def _value_key(self, value: RuntimeType) -> tp.Any:
-        if isinstance(value, Tuple):
-            return (
-                type(value).__name__,
-                tuple(self._value_key(arg) for arg in value.args),
-            )
-        return (type(value).__name__, tuple(sorted(vars(value).items())))
-    
     def _lower_const(self, value: RuntimeType) -> _CppValue:
-        cpp_type = self._render_type(value.static_type())
-        return _CppValue(expr=self._const_expr(value), cpp_type=cpp_type)
+        tuple_items = None
+        if isinstance(value, Tuple):
+            tuple_items = tuple(self._lower_const(arg) for arg in value.args)
+        return _CppValue(
+            expr=self._const_expr(value),
+            tuple_items=tuple_items,
+        )
 
     def _const_expr(self, value: RuntimeType) -> str:
         if isinstance(value, Tuple):
@@ -248,8 +208,7 @@ class _CppEmitter:
                     + "}"
                 )
             return f"std::make_tuple({', '.join(arg.expr for arg in args)})"
-        else:
-            return self._cast(value.static_type(), str(value.val))
+        return self._cast(value.static_type(), str(value.val))
     
     def _lower_op(
         self,
@@ -259,9 +218,26 @@ class _CppEmitter:
     ) -> _CppValue:
         if node.c_lowering is None:
             raise CppLoweringError(f"Unsupported op lowering for {node.name}")
-        
-        lowered_args = [self._lower(arg, env, ctx).expr for arg in node.args]
-        expr = self._cast(node.node_type, node.c_lowering(lowered_args, self.jittable))
+
+        lowered_args = [self._lower(arg, env, ctx) for arg in node.args]
+
+        # Skipping tuple creation
+        if node.name.startswith("_basic_get_item_"):
+            source = lowered_args[0]
+            if source.tuple_items is not None:
+                idx = int(node.name.rsplit("_", 1)[1])
+                return source.tuple_items[idx]
+
+        lowered_arg_exprs = [arg.expr for arg in lowered_args]
+        expr = self._cast(node.node_type, node.c_lowering(lowered_arg_exprs, self.jittable))
+
+        # Skipping tuple creation
+        if node.name.startswith("basic_tuple_maker_"):
+            return _CppValue(
+                expr=expr,
+                tuple_items=tuple(lowered_args),
+            )
+
         return self._emit_temp(node.node_type, expr, node.name, ctx)
     
     def _signature(self, name: str, args: list[Var], return_type: StaticType) -> str:
@@ -295,6 +271,17 @@ class _CppEmitter:
         if isinstance(type_, TupleT) and any(isinstance(arg, TupleT) for arg in type_.args):
             raise CppLoweringError("Nested tuples are not supported in C++ lowering")
         return type_.to_cpp_type(jittable=self.jittable)
+
+    def _lower_direct_cpp(
+        self,
+        return_type: StaticType,
+        c_lowering: CLowering,
+        arg_exprs: list[str],
+    ) -> _CppValue:
+        if isinstance(return_type, TupleT):
+            raise CppLoweringError("Custom C++ lowering does not support tuple outputs")
+        expr = self._cast(return_type, c_lowering(arg_exprs, self.jittable))
+        return _CppValue(expr=expr)
     
     def _cast(self, type_: StaticType, expr: str) -> str:
         if isinstance(type_, TupleT):
@@ -324,7 +311,7 @@ class _CppEmitter:
         temp_name = self._make_name("tmp")
         cpp_type = self._render_type(type_)
         ctx.statements.append(f"const {cpp_type} {temp_name} = {expr};  // {name}")
-        return _CppValue(expr=temp_name, cpp_type=cpp_type)
+        return _CppValue(expr=temp_name)
     
     def _make_name(self, base: str) -> str:
         safe_base = self._sanitize_identifier(base)

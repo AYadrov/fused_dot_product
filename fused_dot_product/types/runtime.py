@@ -30,6 +30,18 @@ class RuntimeType:
     def __eq__(self, other):
         raise NotImplementedError
 
+    def _fingerprint(self):
+        from .utils import _fingerprint_value
+        return (
+            type(self).__name__,
+            tuple(
+                sorted(
+                    (name, _fingerprint_value(value))
+                    for name, value in vars(self).items()
+                )
+            ),
+        )
+
 
 # TODO: Tuple should have a default self.val field
 class Tuple(RuntimeType):
@@ -57,8 +69,23 @@ class Tuple(RuntimeType):
     def total_bits(self):
         return sum([x.total_bits() for x in self.args])
     
-    def copy(self):
-        return Tuple(*[x.copy() for x in self.args])
+    def copy(self, val=None):
+        if val is None:
+            return Tuple(*[x.copy() for x in self.args])
+        
+        if isinstance(val, tuple) and all(isinstance(x, RuntimeType) for x in val):
+            assert len(val) == len(self.args), "Tuple lengths do not match"
+            assert all(
+                x.static_type() == y.static_type()
+                for x, y in zip(val, self.args)
+            ), "Tuple's internal types do not match"
+            return Tuple(*[x.copy() for x in val])
+
+        expected_types = tuple(x.static_type() for x in self.args)
+        raise ValueError(
+            f"Wrong val passed, expected tuple with length {len(self.args)} "
+            f"and types {expected_types}"
+        )
     
     def __eq__(self, other):
         return (
@@ -361,8 +388,10 @@ class Float32(RuntimeType):
             )
         return cls.from_fields(0, cls.nan_code, payload)
     
-    def copy(self):
-        return Float32(self.val)
+    def copy(self, val=None):
+        if val is None:
+            val = self.val
+        return Float32(val)
     
     def total_bits(self):
         return 32
@@ -463,8 +492,10 @@ class BFloat16(RuntimeType):
         
         return gen, gen_shared_exp
     
-    def copy(self):
-        return BFloat16(self.val)
+    def copy(self, val=None):
+        if val is None:
+            val = self.val
+        return BFloat16(val)
     
     def total_bits(self):
         return 16
@@ -474,14 +505,3 @@ class BFloat16(RuntimeType):
             isinstance(other, BFloat16)
             and self.val == other.val
         )
-
-
-__all__ = [
-    "RuntimeType",
-    "Tuple",
-    "Bool",
-    "Q",
-    "UQ",
-    "Float32",
-    "BFloat16",
-]
