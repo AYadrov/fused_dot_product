@@ -36,7 +36,7 @@ class RuntimeType:
             type(self).__name__,
             tuple(
                 sorted(
-                    (name, self._fingerprint_value(value))
+                    (name, _fingerprint_value(value))
                     for name, value in vars(self).items()
                 )
             ),
@@ -72,9 +72,20 @@ class Tuple(RuntimeType):
     def copy(self, val=None):
         if val is None:
             return Tuple(*[x.copy() for x in self.args])
-        if isinstance(val, Tuple):
-            return Tuple(*[x.copy() for x in val.args])
-        return Tuple(*[x.copy() for x in val])
+        
+        if isinstance(val, tuple) and all(isinstance(x, RuntimeType) for x in val):
+            assert len(val) == len(self.args), "Tuple lengths do not match"
+            assert all(
+                x.static_type() == y.static_type()
+                for x, y in zip(val, self.args)
+            ), "Tuple's internal types do not match"
+            return Tuple(*[x.copy() for x in val])
+
+        expected_types = tuple(x.static_type() for x in self.args)
+        raise ValueError(
+            f"Wrong val passed, expected tuple with length {len(self.args)} "
+            f"and types {expected_types}"
+        )
     
     def __eq__(self, other):
         return (

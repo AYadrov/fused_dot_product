@@ -49,7 +49,7 @@ class StaticType:
         from .utils import _fingerprint_value
         fields = tuple(
             sorted(
-                (name, self._fingerprint_value(value))
+                (name, _fingerprint_value(value))
                 for name, value in vars(self).items()
                 if name != "runtime_val"
             )

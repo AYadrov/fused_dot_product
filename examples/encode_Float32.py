@@ -10,7 +10,7 @@ def uq_RNE_IEEE(m: Node, bits_to_cut: int):
     assert bits_to_cut < m.node_type.total_bits(), "Cannot cut all the bits of a fixed point"
 
     def spec(x, ctx):
-        increment = ctx.fresh_var("increment")
+        increment = ctx.fresh_real("increment")
         ctx.assume(increment.eq(ctx.real_val(0)))
         return tuple([x, increment])
     
