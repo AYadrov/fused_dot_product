@@ -46,6 +46,7 @@ class StaticType:
         raise NotImplementedError
 
     def _fingerprint(self):
+        from .utils import _fingerprint_value
         fields = tuple(
             sorted(
                 (name, self._fingerprint_value(value))
@@ -55,22 +56,6 @@ class StaticType:
         )
         runtime_val = None if self.runtime_val is None else self.runtime_val._fingerprint()
         return (type(self).__name__, fields, runtime_val)
-
-    def _fingerprint_value(self, value):
-        if isinstance(value, StaticType):
-            return value._fingerprint()
-        if isinstance(value, tuple):
-            return tuple(self._fingerprint_value(item) for item in value)
-        if isinstance(value, list):
-            return tuple(self._fingerprint_value(item) for item in value)
-        if isinstance(value, dict):
-            return tuple(
-                sorted(
-                    (self._fingerprint_value(key), self._fingerprint_value(val))
-                    for key, val in value.items()
-                )
-            )
-        return value
 
 
 class BoolT(StaticType):
@@ -283,14 +268,3 @@ class TupleT(StaticType):
     def random_runtime_value(self, rng: random.Random):
         from .runtime import Tuple
         return Tuple(*[arg.random_runtime_value(rng) for arg in self.args])
-
-
-__all__ = [
-    "StaticType",
-    "BoolT",
-    "QT",
-    "UQT",
-    "Float32T",
-    "BFloat16T",
-    "TupleT",
-]

@@ -31,6 +31,7 @@ class RuntimeType:
         raise NotImplementedError
 
     def _fingerprint(self):
+        from .utils import _fingerprint_value
         return (
             type(self).__name__,
             tuple(
@@ -40,22 +41,6 @@ class RuntimeType:
                 )
             ),
         )
-
-    def _fingerprint_value(self, value):
-        if isinstance(value, RuntimeType):
-            return value._fingerprint()
-        if isinstance(value, tuple):
-            return tuple(self._fingerprint_value(item) for item in value)
-        if isinstance(value, list):
-            return tuple(self._fingerprint_value(item) for item in value)
-        if isinstance(value, dict):
-            return tuple(
-                sorted(
-                    (self._fingerprint_value(key), self._fingerprint_value(val))
-                    for key, val in value.items()
-                )
-            )
-        return value
 
 
 # TODO: Tuple should have a default self.val field
@@ -509,14 +494,3 @@ class BFloat16(RuntimeType):
             isinstance(other, BFloat16)
             and self.val == other.val
         )
-
-
-__all__ = [
-    "RuntimeType",
-    "Tuple",
-    "Bool",
-    "Q",
-    "UQ",
-    "Float32",
-    "BFloat16",
-]
