@@ -323,7 +323,7 @@ class Const(Node):
             name=str(self.val.to_val()),
         )
         
-        self.node_type.runtime_val = self.val  # Constant folding
+        self.node_type.runtime_val = self.val.copy()  # Constant folding
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "

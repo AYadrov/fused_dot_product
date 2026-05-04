@@ -32,8 +32,7 @@ def _impl_constructor(op):
         # TODO: check for truncation
         val = mask(val, out.total_bits())
         # TODO: add a check whether val is in ranges
-        out.val = val
-        return out
+        return out.copy(val=val)
     return impl
 
 def _sign_constructor() -> StaticType:

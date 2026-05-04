@@ -84,8 +84,12 @@ class Tuple(RuntimeType):
     def total_bits(self):
         return sum([x.total_bits() for x in self.args])
     
-    def copy(self):
-        return Tuple(*[x.copy() for x in self.args])
+    def copy(self, val=None):
+        if val is None:
+            return Tuple(*[x.copy() for x in self.args])
+        if isinstance(val, Tuple):
+            return Tuple(*[x.copy() for x in val.args])
+        return Tuple(*[x.copy() for x in val])
     
     def __eq__(self, other):
         return (
@@ -388,8 +392,10 @@ class Float32(RuntimeType):
             )
         return cls.from_fields(0, cls.nan_code, payload)
     
-    def copy(self):
-        return Float32(self.val)
+    def copy(self, val=None):
+        if val is None:
+            val = self.val
+        return Float32(val)
     
     def total_bits(self):
         return 32
@@ -490,8 +496,10 @@ class BFloat16(RuntimeType):
         
         return gen, gen_shared_exp
     
-    def copy(self):
-        return BFloat16(self.val)
+    def copy(self, val=None):
+        if val is None:
+            val = self.val
+        return BFloat16(val)
     
     def total_bits(self):
         return 16
