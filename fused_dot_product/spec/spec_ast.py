@@ -54,7 +54,7 @@ class RealExpr(SpecNode):
             return value.value == 2 or value.value == 2.0
         else:
             return False
-
+    
     @staticmethod
     def _is_minus_one(value: "RealExpr") -> bool:
         if isinstance(value, RealLit):
@@ -63,7 +63,15 @@ class RealExpr(SpecNode):
             return value.value.value == 1 or value.value.value == 1.0
         else:
             return False
-
+    
+    @classmethod
+    def _is_supported_pow(cls, base: "RealExpr", exponent: "RealExpr") -> bool:
+        return (
+            cls._is_minus_one(base)
+            or cls._is_two(base)
+            or cls._is_two(exponent)
+        )
+    
     def __pow__(self, other: "RealExpr", modulo=None) -> "RealExpr":
         if modulo is not None:
             raise NotImplementedError("pow(..., modulo) is not supported for spec AST")
@@ -71,9 +79,9 @@ class RealExpr(SpecNode):
         if self._is_minus_one(self):
             return Pow(RealLit(-1), exponent)
         if self._is_two(self):
-            return Exp2(exponent)
+            return Pow(RealLit(2), exponent)
         if self._is_two(other):
-            return Square(self)
+            return Pow(self, RealLit(2))
         raise NotImplementedError("Only power base -1, power base 2, or exponent 2 is supported")
 
     def __ipow__(self, other: "RealExpr") -> "RealExpr":
@@ -312,23 +320,6 @@ class Abs(RealExpr):
 
 
 @dataclass(frozen=True)
-class Exp2(RealExpr):
-    exponent: RealExpr
-    
-    def to_egglog(self):
-        return Math.Exp2(self.exponent.to_egglog())
-    
-    def to_z3(self, env):
-        return z3.RealVal(str(2)) ** self.exponent.to_z3(env=env)
-
-    def to_dreal(self, env):
-        return dreal.Expression(2) ** self.exponent.to_dreal(env=env)
-
-    def __str__(self):
-        return f"(2 ** {self.exponent})"
-
-
-@dataclass(frozen=True)
 class Pow(RealExpr):
     base: RealExpr
     exponent: RealExpr
@@ -344,25 +335,6 @@ class Pow(RealExpr):
 
     def __str__(self):
         return f"({self.base} ** {self.exponent})"
-
-
-@dataclass(frozen=True)
-class Square(RealExpr):
-    value: RealExpr
-
-    def to_egglog(self):
-        return Math.Square(self.value.to_egglog())
-
-    def to_z3(self, env):
-        value = self.value.to_z3(env=env)
-        return value * value
-
-    def to_dreal(self, env):
-        value = self.value.to_dreal(env=env)
-        return value * value
-
-    def __str__(self):
-        return f"({self.value} ** 2)"
 
 
 @dataclass(frozen=True)
@@ -628,10 +600,8 @@ def ite(
 def children(node: SpecNode) -> tuple[SpecNode, ...]:
     if isinstance(node, (RealVar, BoolVar, RealLit, BoolLit)):
         return ()
-    if isinstance(node, (Neg, Abs, Square, Not)):
+    if isinstance(node, (Neg, Abs, Not)):
         return (node.value,)
-    if isinstance(node, Exp2):
-        return (node.exponent,)
     if isinstance(node, Pow):
         return (node.base, node.exponent)
     if isinstance(node, If):

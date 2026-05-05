@@ -39,7 +39,7 @@ def rewrite_rules():
         ("dist_3", (a * (b + c)).eq((a * b) + (a * c))),
         ("dist_4", (a * (b + c)).eq((b * a) + (c * a))),
         
-        # Rules with exp2
+        # Rules with Pow(2, x)
         ("exp2_1", (two ** zero).eq(one)),
         ("exp2_2", one.eq(two ** zero)),
         ("exp2_3", (two ** one).eq(two)),
@@ -56,7 +56,7 @@ def rewrite_rules():
         # ("pow_5", (minus_one ** a * minus_one ** b).eq(minus_one ** (a + b))),  # Unsound
         
         
-        # Square rules
+        # Rules with Pow(x, 2)
         ("square_1", (a ** two).eq(a * a)),
         ("square_2", (a * a).eq(a ** two)),
         
@@ -110,13 +110,10 @@ def constant_rules():
         rewrite(Math.Num(m)).to(Math.Neg(Math.Num(-m))),
         rewrite(Math.Add(Math.Num(m), Math.Num(n))).to(Math.Num(m + n)),
         rewrite(Math.Neg(Math.Num(m))).to(Math.Num(-m)),
-        rewrite(Math.Square(Math.Num(m))).to(Math.Num(m * m)),
         rewrite(Math.Mul(Math.Num(m), Math.Num(n))).to(Math.Num(m * n)),
-        rewrite(Math.Pow(Math.Num(BigRat(-1, 1)), Math.Num(m))).to(
-            Math.Num(BigRat(-1, 1) ** m),
-            eq(m.denom).to(1),
-        ),
-        rewrite(Math.Exp2(Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
+        rewrite(Math.Pow(Math.Num(m), Math.Num(BigRat(2, 1)))).to(Math.Num(m * m)),
+        rewrite(Math.Pow(Math.Num(BigRat(-1, 1)), Math.Num(m))).to(Math.Num(BigRat(-1, 1) ** m), eq(m.denom).to(1)),
+        rewrite(Math.Pow(Math.Num(BigRat(2, 1)), Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
     ]
 
 
@@ -130,7 +127,6 @@ def _lower_expr(node: SpecNode) -> Expr:
         BoolLit,
         BoolVar,
         Eq,
-        Exp2,
         Ge,
         Gt,
         If,
@@ -146,7 +142,6 @@ def _lower_expr(node: SpecNode) -> Expr:
         Pow,
         RealLit,
         RealVar,
-        Square,
         Sub,
     )
     
@@ -164,12 +159,8 @@ def _lower_expr(node: SpecNode) -> Expr:
         return Math.Neg(_lower_expr(node.value))
     if isinstance(node, Abs):
         return Math.Abs(_lower_expr(node.value))
-    if isinstance(node, Exp2):
-        return Math.Exp2(_lower_expr(node.exponent))
     if isinstance(node, Pow):
         return Math.Pow(_lower_expr(node.base), _lower_expr(node.exponent))
-    if isinstance(node, Square):
-        return Math.Square(_lower_expr(node.value))
     if isinstance(node, Max):
         return Math.Max(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, Min):

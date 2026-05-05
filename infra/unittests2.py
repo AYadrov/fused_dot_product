@@ -181,21 +181,44 @@ class TestPowSpecOp(unittest.TestCase):
             Pow(RealLit(-1), RealLit(3)),
         )
 
+    def test_pow_python_sugar_keeps_supported_base2_and_square_forms(self):
+        self.assertEqual(
+            RealLit(2) ** RealLit(3),
+            Pow(RealLit(2), RealLit(3)),
+        )
+        self.assertEqual(
+            RealLit(3) ** RealLit(2),
+            Pow(RealLit(3), RealLit(2)),
+        )
+
     def test_pow_round_trips_from_egglog(self):
-        expr = Pow(RealLit(-1), RealLit(2))
-        self.assertEqual(from_egglog(expr.to_egglog()), expr)
+        exprs = [
+            Pow(RealLit(-1), RealLit(2)),
+            Pow(RealLit(2), RealLit(3)),
+            Pow(RealLit(3), RealLit(2)),
+        ]
+
+        for expr in exprs:
+            with self.subTest(expr=str(expr)):
+                self.assertEqual(from_egglog(expr.to_egglog()), expr)
 
     def test_pow_constant_folds_in_egglog(self):
-        expr = Pow(RealLit(-1), RealLit(3))
-        egraph = EGraph()
-        load_rules(egraph)
-        lowered = expr.to_egglog()
+        cases = [
+            (Pow(RealLit(-1), RealLit(3)), RealLit(-1)),
+            (Pow(RealLit(2), RealLit(3)), RealLit(8)),
+            (Pow(RealLit(3), RealLit(2)), RealLit(9)),
+        ]
 
-        egraph.register(lowered)
-        egraph.run(1)
+        for expr, expected in cases:
+            with self.subTest(expr=str(expr)):
+                egraph = EGraph()
+                load_rules(egraph)
+                lowered = expr.to_egglog()
 
-        self.assertEqual(from_egglog(egraph.extract(lowered)), RealLit(-1))
+                egraph.register(lowered)
+                egraph.run(1)
 
+                self.assertEqual(from_egglog(egraph.extract(lowered)), expected)
 
 class TestSignSpecs(unittest.TestCase):
     def test_q_signs_xor_spec_matches_constant_sign_combinations(self):
