@@ -49,10 +49,8 @@ def _normalize_schedule(
 ) -> list[dict[str, Any]]:
     normalized = []
     for step in schedule:
-        if isinstance(step, str):
-            step = {"tool": step}
-        elif not isinstance(step, dict):
-            raise TypeError("Each schedule step must be a dict or a string alias")
+        if not isinstance(step, dict):
+            raise TypeError("Each schedule step must be a dict")
 
         if "tool" not in step:
             raise ValueError("Each schedule step must define a 'tool'")
@@ -101,14 +99,14 @@ def check_equivalence(
 ):
     _enqueue_equivalence(query1, query2, ctx=ctx)
 
-    current_ctx = ctx.copy()
+    ctx_trace: list[SpecContext] = [ctx.copy()]
     proof_trace: list[dict[str, Any]] = []
 
     for step in _normalize_schedule(schedule=schedule):
-        equivalent, new_ctx, report = _run_tool(current_ctx, step)
+        equivalent, new_ctx, report = _run_tool(ctx_trace[-1], step)
         proof_trace.append(report)
+        ctx_trace.append(new_ctx)
         if equivalent:
             return True, proof_trace
-        current_ctx = new_ctx
 
     return False, proof_trace

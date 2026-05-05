@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from fused_dot_product import (
     BFloat16,
@@ -15,6 +16,8 @@ from fused_dot_product import (
     if_then_else,
     make_Tuple,
 )
+from fused_dot_product import SpecContext
+from fused_dot_product.solver import engine as solver_engine
 
 
 class TestConstantFolding(unittest.TestCase):
