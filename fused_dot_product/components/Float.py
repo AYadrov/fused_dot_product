@@ -71,9 +71,10 @@ def _fp32_alloc(sign_bit: Node,
 
 # Does not track nan/infs/subnormals yet
 def fp32_pack_spec(s, e, m, ctx):
+    ctx.assume(s.eq(ctx.real_val(1)).or_(s.eq(ctx.real_val(0))))
     mantissa = ctx.real_val(1) + m * ctx.real_val(2) ** (-ctx.real_val(Float32.mantissa_bits))
     exponent = e - ctx.real_val(Float32.exponent_bias)
-    return s * mantissa * ctx.real_val(2) ** exponent 
+    return ctx.real_val(-1) ** s * mantissa * ctx.real_val(2) ** exponent 
 
 @Primitive(name="fp32_pack", spec=fp32_pack_spec)
 def fp32_pack(sign: Node, exponent: Node, mantissa: Node) -> Node:
@@ -86,13 +87,16 @@ def fp32_decode_spec(x, ctx):
 
     two = ctx.real_val(2)
     one = ctx.real_val(1)
+    minus_one = ctx.real_val(-1)
     m_bits = ctx.real_val(Float32.mantissa_bits)
     e_bits = ctx.real_val(Float32.exponent_bias)
 
     mantissa_ = one + mantissa * two ** (-m_bits)
     exponent_ = exponent - e_bits
-    ctx.assume(x.eq(sign * (mantissa_ * (two ** exponent_))))
-    ctx.assume(sign.eq(ctx.real_val(1)).or_(sign.eq(ctx.real_val(-1))))
+    sign_ = minus_one ** sign
+    ctx.assume(x.eq(sign_ * (mantissa_ * (two ** exponent_))))
+    ctx.assume(sign.eq(ctx.real_val(1)).or_(sign.eq(ctx.real_val(0))))
+    ctx.assume(sign_.eq(ctx.real_val(1)).or_(sign_.eq(ctx.real_val(-1))))
     ctx.assume((exponent >= ctx.real_val(0)).and_(exponent < ctx.real_val(1 << Float32.exponent_bits)))
     ctx.assume((mantissa >= ctx.real_val(0)).and_(mantissa < ctx.real_val(1 << Float32.mantissa_bits)))
     return (

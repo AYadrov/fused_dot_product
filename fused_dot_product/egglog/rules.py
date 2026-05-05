@@ -6,7 +6,7 @@ from egglog import *
 from .datatypes import Math, MathBool
 
 def rewrite_rules():
-    from ..spec.spec_ast import RealLit, RealVar, BoolLit, BoolVar, If
+    from ..spec.spec_ast import RealLit, RealVar, BoolLit, BoolVar, If, Pow
     
     a = RealVar("a")
     b = RealVar("b")
@@ -17,6 +17,7 @@ def rewrite_rules():
     
     zero = RealLit(0)
     one = RealLit(1)
+    minus_one = RealLit(-1)
     two = RealLit(2)
     
     true = BoolLit(True)
@@ -41,12 +42,21 @@ def rewrite_rules():
         # Rules with exp2
         ("exp2_1", (two ** zero).eq(one)),
         ("exp2_2", one.eq(two ** zero)),
-        
         ("exp2_3", (two ** one).eq(two)),
         ("exp2_4", two.eq(two ** one)),
         ("exp2_5", (two ** (a + b)).eq((two ** a) * (two ** b))),
         ("exp2_6", ((two ** a) * (two ** b)).eq(two ** (a + b))),
         ("exp2_7", ((two ** x) * (two ** (-x))).eq(one)),
+
+        # Rules with (-1) ** x
+        ("pow_1", (minus_one ** zero).eq(one)),
+        ("pow_2", one.eq(minus_one ** zero)),
+        ("pow_3", (minus_one ** one).eq(minus_one)),
+        ("pow_4", minus_one.eq(minus_one ** one)),
+        # ("pow_5", (minus_one ** a * minus_one ** b).eq(minus_one ** (a + b))),  # Unsound
+        
+        
+        # Square rules
         ("square_1", (a ** two).eq(a * a)),
         ("square_2", (a * a).eq(a ** two)),
         
@@ -102,10 +112,15 @@ def constant_rules():
         rewrite(Math.Neg(Math.Num(m))).to(Math.Num(-m)),
         rewrite(Math.Square(Math.Num(m))).to(Math.Num(m * m)),
         rewrite(Math.Mul(Math.Num(m), Math.Num(n))).to(Math.Num(m * n)),
+        rewrite(Math.Pow(Math.Num(BigRat(-1, 1)), Math.Num(m))).to(
+            Math.Num(BigRat(-1, 1) ** m),
+            eq(m.denom).to(1),
+        ),
         rewrite(Math.Exp2(Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
     ]
 
 
+# This lowering is particularly for rules, because we need to walk expressions and replace Var with var(name, Math) - rewrite syntax
 def _lower_expr(node: SpecNode) -> Expr:
     from ..spec.spec_ast import (
         Abs,
@@ -128,6 +143,7 @@ def _lower_expr(node: SpecNode) -> Expr:
         Not,
         NotEq,
         Or,
+        Pow,
         RealLit,
         RealVar,
         Square,
@@ -150,6 +166,8 @@ def _lower_expr(node: SpecNode) -> Expr:
         return Math.Abs(_lower_expr(node.value))
     if isinstance(node, Exp2):
         return Math.Exp2(_lower_expr(node.exponent))
+    if isinstance(node, Pow):
+        return Math.Pow(_lower_expr(node.base), _lower_expr(node.exponent))
     if isinstance(node, Square):
         return Math.Square(_lower_expr(node.value))
     if isinstance(node, Max):

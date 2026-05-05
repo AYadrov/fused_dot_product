@@ -1,11 +1,16 @@
 import unittest
 from unittest.mock import patch
 
+from egglog import EGraph
+
 from fused_dot_product import (
     BFloat16,
     Bool,
     Const,
     Float32,
+    Pow,
+    Q,
+    RealLit,
     Tuple,
     UQ,
     UQT,
@@ -15,9 +20,12 @@ from fused_dot_product import (
     basic_sub,
     if_then_else,
     make_Tuple,
+    q_signs_xor,
 )
 from fused_dot_product import SpecContext
+from fused_dot_product.egglog.rules import load_rules
 from fused_dot_product.solver import engine as solver_engine
+from fused_dot_product.spec.spec_utils import from_egglog
 
 
 class TestConstantFolding(unittest.TestCase):
@@ -164,6 +172,60 @@ class TestFingerprint(unittest.TestCase):
 
         after = node._fingerprint()
         self.assertEqual(before, after)
+
+
+class TestPowSpecOp(unittest.TestCase):
+    def test_pow_python_sugar_uses_negative_one_base(self):
+        self.assertEqual(
+            RealLit(-1) ** RealLit(3),
+            Pow(RealLit(-1), RealLit(3)),
+        )
+
+    def test_pow_round_trips_from_egglog(self):
+        expr = Pow(RealLit(-1), RealLit(2))
+        self.assertEqual(from_egglog(expr.to_egglog()), expr)
+
+    def test_pow_constant_folds_in_egglog(self):
+        expr = Pow(RealLit(-1), RealLit(3))
+        egraph = EGraph()
+        load_rules(egraph)
+        lowered = expr.to_egglog()
+
+        egraph.register(lowered)
+        egraph.run(1)
+
+        self.assertEqual(from_egglog(egraph.extract(lowered)), RealLit(-1))
+
+
+class TestSignSpecs(unittest.TestCase):
+    def test_q_signs_xor_spec_matches_constant_sign_combinations(self):
+        cases = [
+            (-1, -1, 0),
+            (-1, 1, 1),
+            (1, -1, 1),
+            (1, 1, 0),
+        ]
+
+        for lhs, rhs, expected in cases:
+            with self.subTest(lhs=lhs, rhs=rhs):
+                node = q_signs_xor(Const(Q.from_int(lhs)), Const(Q.from_int(rhs)))
+                self.assertEqual(node.evaluate().val, expected)
+
+                ctx = SpecContext("q_signs_xor")
+                spec = ctx.spec_of(node)
+
+                self.assertEqual(str(spec), "real(xored_signs_2)")
+                self.assertEqual(
+                    [str(assume) for assume in ctx.assumes],
+                    [
+                        "((real(x_sign_0) == 1) or (real(x_sign_0) == 0))",
+                        "((real(y_sign_1) == 1) or (real(y_sign_1) == 0))",
+                        "((real(xored_signs_2) == 1) or (real(xored_signs_2) == 0))",
+                        f"({float(lhs)} == ((-1 ** real(x_sign_0)) * abs({float(lhs)})))",
+                        f"({float(rhs)} == ((-1 ** real(y_sign_1)) * abs({float(rhs)})))",
+                        "((-1 ** real(xored_signs_2)) == ((-1 ** real(x_sign_0)) * (-1 ** real(y_sign_1))))",
+                    ],
+                )
 
 
 if __name__ == "__main__":

@@ -55,14 +55,26 @@ class RealExpr(SpecNode):
         else:
             return False
 
+    @staticmethod
+    def _is_minus_one(value: "RealExpr") -> bool:
+        if isinstance(value, RealLit):
+            return value.value == -1 or value.value == -1.0
+        if isinstance(value, Neg) and isinstance(value.value, RealLit):
+            return value.value.value == 1 or value.value.value == 1.0
+        else:
+            return False
+
     def __pow__(self, other: "RealExpr", modulo=None) -> "RealExpr":
         if modulo is not None:
             raise NotImplementedError("pow(..., modulo) is not supported for spec AST")
-        if not self._is_two(self):
-            if self._is_two(other):
-                return Square(self)
-            raise NotImplementedError("Only power base 2 or exponent 2 is supported")
-        return Exp2(self._coerce(other))
+        exponent = self._coerce(other)
+        if self._is_minus_one(self):
+            return Pow(RealLit(-1), exponent)
+        if self._is_two(self):
+            return Exp2(exponent)
+        if self._is_two(other):
+            return Square(self)
+        raise NotImplementedError("Only power base -1, power base 2, or exponent 2 is supported")
 
     def __ipow__(self, other: "RealExpr") -> "RealExpr":
         return self ** other
@@ -314,6 +326,24 @@ class Exp2(RealExpr):
 
     def __str__(self):
         return f"(2 ** {self.exponent})"
+
+
+@dataclass(frozen=True)
+class Pow(RealExpr):
+    base: RealExpr
+    exponent: RealExpr
+
+    def to_egglog(self):
+        return Math.Pow(self.base.to_egglog(), self.exponent.to_egglog())
+
+    def to_z3(self, env):
+        return self.base.to_z3(env=env) ** self.exponent.to_z3(env=env)
+
+    def to_dreal(self, env):
+        return self.base.to_dreal(env=env) ** self.exponent.to_dreal(env=env)
+
+    def __str__(self):
+        return f"({self.base} ** {self.exponent})"
 
 
 @dataclass(frozen=True)
@@ -600,8 +630,10 @@ def children(node: SpecNode) -> tuple[SpecNode, ...]:
         return ()
     if isinstance(node, (Neg, Abs, Square, Not)):
         return (node.value,)
-    if isinstance(node, (Exp2)):
+    if isinstance(node, Exp2):
         return (node.exponent,)
+    if isinstance(node, Pow):
+        return (node.base, node.exponent)
     if isinstance(node, If):
         return (node.cond, node.on_true, node.on_false)
     if isinstance(

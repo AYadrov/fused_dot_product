@@ -44,7 +44,13 @@ def integer_to_fraction(x: Node) -> Primitive:
 
     return impl(x)
 
-@Primitive(name="sign_xor", spec=lambda x, y, ctx: x * y, c_inline=True)
+def sign_xor_spec(x, y, ctx):
+    res = ctx.fresh_real('xored_signs')
+    minus_one = ctx.real_val(-1)
+    ctx.assume((minus_one ** res).eq((minus_one ** x) * (minus_one ** y)))
+    return res
+
+@Primitive(name="sign_xor", spec=sign_xor_spec, c_inline=True)
 def sign_xor(x: Node, y: Node) -> Node:
     return basic_xor(x=x, y=y, out=Const(UQ(0, 1, 0)))
 

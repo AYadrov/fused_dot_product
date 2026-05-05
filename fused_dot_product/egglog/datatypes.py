@@ -52,6 +52,10 @@ class Math(Expr):
     @classmethod
     def Exp2(cls, exponent: Math) -> Math: ...
 
+    @method(egg_fn="Pow")
+    @classmethod
+    def Pow(cls, base: Math, exponent: Math) -> Math: ...
+
     @method(egg_fn="Square")
     @classmethod
     def Square(cls, value: Math) -> Math: ...
