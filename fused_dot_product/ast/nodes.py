@@ -77,6 +77,13 @@ class composite(Node):
         )
     
     def check_spec(self, schedule: list[str | dict[str, tp.Any]] | None = None):
+        if schedule is None:
+            schedule = [
+                {"tool": "egglog-preprocess", "iterations": DEFAULT_PREPROCESS_ITERS},
+                {"tool": "egglog-rewrite", "iterations": DEFAULT_REWRITE_ITERS},
+                {"tool": "z3", "timeout_ms": DEFAULT_Z3_TIMEOUT},
+                {"tool": "dreal", "precision": DEFAULT_DREAL_PRECISION},
+            ]
         ctx = self.ctx.copy()
         spec_inner = ctx.spec_of(self.inner_tree)
         inputs = [ctx.spec_of(arg) for arg in self.inner_args]

@@ -221,8 +221,8 @@ def check_rules(rules, z3_timeout_ms: int = 10000):
         lhs, rhs = children(rule)
         ctx = SpecContext(name)
         ctx.check(lhs.eq(rhs))
-        equivalent_z3, report_z3 = z3_check_eq(ctx, timeout_ms=z3_timeout_ms)
-        equivalent_dreal, report_dreal = dreal_check_eq(ctx, precision=0.001)
+        equivalent_z3, _, report_z3 = z3_check_eq(ctx, timeout_ms=z3_timeout_ms)
+        equivalent_dreal, _, report_dreal = dreal_check_eq(ctx, precision=0.001)
         results[name] = {
             "z3_equal": equivalent_z3,
             "z3_status": report_z3['status'],

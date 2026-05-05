@@ -333,5 +333,5 @@ if __name__ == '__main__':
     encode_inf = Const(UQ(0, 1, 0))
     design = fp32_encode(s, e, m, encode_nan, encode_inf)
     design.print_tree(depth=1)
-    pprint(design.check_spec(egglog_iters=6))
+    pprint(design.check_spec())
     print(design.evaluate())

@@ -13,7 +13,7 @@ DEFAULT_Z3_TIMEOUT = 10000
 DEFAULT_DREAL_PRECISION = 0.001
 
 
-TOOL_ALIASES = {
+TOOL_FNS = {
     "egglog-preprocess": egglog_preprocess,
     "egglog-rewrite": egglog_rewrite,
     "z3": z3_check_eq,
@@ -45,19 +45,13 @@ def _enqueue_equivalence(
 
 
 def _normalize_schedule(
-    schedule: list[str | dict[str, Any]] | None,
+    schedule: list[str | dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    if schedule is None:
-        return [
-            {"tool": "egglog-preprocess", "iters": DEFAULT_PREPROCESS_ITERS},
-            {"tool": "egglog-rewrite", "iters": DEFAULT_REWRITE_ITERS},
-            {"tool": "z3", "timeout_ms": DEFAULT_Z3_TIMEOUT},
-            {"tool": "dreal", "precision": DEFAULT_DREAL_PRECISION},
-        ]
-
     normalized = []
     for step in schedule:
-        if not isinstance(step, dict):
+        if isinstance(step, str):
+            step = {"tool": step}
+        elif not isinstance(step, dict):
             raise TypeError("Each schedule step must be a dict or a string alias")
 
         if "tool" not in step:
@@ -67,26 +61,26 @@ def _normalize_schedule(
         if not isinstance(tool, str):
             raise TypeError("Schedule step 'tool' must be a string")
 
-        if TOOL_ALIASES.get(tool) is None:
+        if TOOL_FNS.get(tool) is None:
             raise ValueError(
-                f"Unknown schedule tool {step['tool']}. Supported aliases: {list(TOOL_ALIASES)}"
+                f"Unknown schedule tool {step['tool']}. Supported aliases: {list(TOOL_FNS.keys())}"
             )
 
         if tool == "egglog-preprocess":
             normalized.append(
-                {"tool": canonical_tool, "iters": int(step.get("iters", DEFAULT_PREPROCESS_ITERS))}
+                {"tool": tool, "iterations": int(step.get("iterations", DEFAULT_PREPROCESS_ITERS))}
             )
         elif tool == "egglog-rewrite":
             normalized.append(
-                {"tool": canonical_tool, "iters": int(step.get("iters", DEFAULT_REWRITE_ITERS))}
+                {"tool": tool, "iterations": int(step.get("iterations", DEFAULT_REWRITE_ITERS))}
             )
         elif tool == "z3":
             normalized.append(
-                {"tool": canonical_tool, "timeout_ms": int(step.get("timeout_ms", DEFAULT_Z3_TIMEOUT))}
+                {"tool": tool, "timeout_ms": int(step.get("timeout_ms", DEFAULT_Z3_TIMEOUT))}
             )
         elif tool == "dreal":
             normalized.append(
-                {"tool": canonical_tool, "precision": float(step.get("precision", DEFAULT_DREAL_PRECISION))}
+                {"tool": tool, "precision": float(step.get("precision", DEFAULT_DREAL_PRECISION))}
             )
 
     return normalized
@@ -94,7 +88,7 @@ def _normalize_schedule(
 
 def _run_tool(ctx: SpecContext, step: dict[str, Any]):
     tool = step["tool"]
-    tool_fn = TOOL_ALIASES[tool]
+    tool_fn = TOOL_FNS[tool]
     kwargs = {key: value for key, value in step.items() if key != "tool"}
     return tool_fn(ctx, **kwargs)
 
