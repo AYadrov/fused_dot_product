@@ -3,8 +3,22 @@ from __future__ import annotations
 from typing import Any
 
 from ..spec import SpecContext, SpecNode
-from ..egglog import egglog_check_ctx, egglog_preprocess_ctx, egglog_simplify_ctx
+from ..egglog import egglog_rewrite, egglog_preprocess
 from ..smt import z3_check_eq, dreal_check_eq
+
+
+DEFAULT_REWRITE_ITERS = 6
+DEFAULT_PREPROCESS_ITERS = 3
+DEFAULT_Z3_TIMEOUT = 10000
+DEFAULT_DREAL_PRECISION = 0.001
+
+
+TOOL_ALIASES = {
+    "egglog-preprocess": egglog_preprocess,
+    "egglog-rewrite": egglog_rewrite,
+    "z3": z3_check_eq,
+    "dreal": dreal_check_eq,
+}
 
 
 # Unrolls tuples
@@ -30,40 +44,77 @@ def _enqueue_equivalence(
     ctx.check(lhs.eq(rhs))
 
 
+def _normalize_schedule(
+    schedule: list[str | dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    if schedule is None:
+        return [
+            {"tool": "egglog-preprocess", "iters": DEFAULT_PREPROCESS_ITERS},
+            {"tool": "egglog-rewrite", "iters": DEFAULT_REWRITE_ITERS},
+            {"tool": "z3", "timeout_ms": DEFAULT_Z3_TIMEOUT},
+            {"tool": "dreal", "precision": DEFAULT_DREAL_PRECISION},
+        ]
+
+    normalized = []
+    for step in schedule:
+        if not isinstance(step, dict):
+            raise TypeError("Each schedule step must be a dict or a string alias")
+
+        if "tool" not in step:
+            raise ValueError("Each schedule step must define a 'tool'")
+
+        tool = step["tool"]
+        if not isinstance(tool, str):
+            raise TypeError("Schedule step 'tool' must be a string")
+
+        if TOOL_ALIASES.get(tool) is None:
+            raise ValueError(
+                f"Unknown schedule tool {step['tool']}. Supported aliases: {list(TOOL_ALIASES)}"
+            )
+
+        if tool == "egglog-preprocess":
+            normalized.append(
+                {"tool": canonical_tool, "iters": int(step.get("iters", DEFAULT_PREPROCESS_ITERS))}
+            )
+        elif tool == "egglog-rewrite":
+            normalized.append(
+                {"tool": canonical_tool, "iters": int(step.get("iters", DEFAULT_REWRITE_ITERS))}
+            )
+        elif tool == "z3":
+            normalized.append(
+                {"tool": canonical_tool, "timeout_ms": int(step.get("timeout_ms", DEFAULT_Z3_TIMEOUT))}
+            )
+        elif tool == "dreal":
+            normalized.append(
+                {"tool": canonical_tool, "precision": float(step.get("precision", DEFAULT_DREAL_PRECISION))}
+            )
+
+    return normalized
+
+
+def _run_tool(ctx: SpecContext, step: dict[str, Any]):
+    tool = step["tool"]
+    tool_fn = TOOL_ALIASES[tool]
+    kwargs = {key: value for key, value in step.items() if key != "tool"}
+    return tool_fn(ctx, **kwargs)
+
+
 def check_equivalence(
     query1: SpecNode | tuple,
     query2: SpecNode | tuple,
     ctx: SpecContext,
-    egglog_iters: int = 6,
-    z3_timeout_ms: int = 10000,
-    dreal_precision: float = 0.001,
+    schedule: list[str | dict[str, Any]] | None = None,
 ):
     _enqueue_equivalence(query1, query2, ctx=ctx)
-    
-    original_ctx = ctx.copy()
+
+    current_ctx = ctx.copy()
     proof_trace: list[dict[str, Any]] = []
-    
-    preprocessed_equivalence, preprocessed_ctx, preprocess_report = egglog_preprocess_ctx(original_ctx, iterations=3)
-    proof_trace.append(preprocess_report)
-    if preprocessed_equivalence:
-        return True, proof_trace
-    
-    egglog_equivalence, egglog_report = egglog_check_ctx(preprocessed_ctx, iterations=egglog_iters)
-    proof_trace.append(egglog_report)
-    if egglog_equivalence:
-        return True, proof_trace
 
-    simplified_equivalence, simplified_ctx, simplified_report = egglog_simplify_ctx(preprocessed_ctx, egglog_report["egraph"])
-    proof_trace.append(simplified_report)
-    if simplified_equivalence:
-        return True, proof_trace  # never should be the case
+    for step in _normalize_schedule(schedule=schedule):
+        equivalent, new_ctx, report = _run_tool(current_ctx, step)
+        proof_trace.append(report)
+        if equivalent:
+            return True, proof_trace
+        current_ctx = new_ctx
 
-    z3_equivalence, z3_report = z3_check_eq(simplified_ctx, timeout_ms=z3_timeout_ms)
-    proof_trace.append(z3_report)
-    if z3_equivalence:
-        return True, proof_trace
-
-    dreal_equivalence, dreal_report = dreal_check_eq(simplified_ctx, precision=dreal_precision)
-    proof_trace.append(dreal_report)
-
-    return dreal_equivalence, proof_trace
+    return False, proof_trace

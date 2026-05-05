@@ -5,7 +5,7 @@ from time import perf_counter
 import dreal
 
 
-def dreal_check_eq(ctx: "SpecContext", precision: float = 0.001):
+def dreal_check_eq(ctx: "SpecContext", precision: float):
     program = ctx.to_dreal()
     
     run_started_at = perf_counter()
@@ -26,4 +26,4 @@ def dreal_check_eq(ctx: "SpecContext", precision: float = 0.001):
     if result is not None:
         report["supplementary_info"] = str(result)
       
-    return equivalent, report
+    return equivalent, ctx.copy(), report

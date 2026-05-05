@@ -4,14 +4,17 @@ from egglog import *
 
 from .rules import load_rules
 
+####################### PRIVATE ############################
 
-def create_egraph(simplify=False) -> EGraph:
+
+def _create_egraph(simplify=False) -> EGraph:
     egraph = EGraph()
     load_rules(egraph, simplify=simplify)
     return egraph
 
-def egglog_check_ctx(ctx: "SpecContext", iterations=6, simplify=False):
-    egraph = create_egraph(simplify=simplify)
+
+def _egglog_check_ctx(ctx: "SpecContext", iterations=6, simplify=False):
+    egraph = _create_egraph(simplify=simplify)
     
     to_check = ctx.to_egglog(egraph)
     
@@ -48,7 +51,7 @@ def egglog_check_ctx(ctx: "SpecContext", iterations=6, simplify=False):
     return equivalent, report
 
 
-def simplify_expr(expr: "SpecNode", egraph: EGraph):
+def _simplify_expr(expr: "SpecNode", egraph: EGraph):
     from ..spec.spec_utils import from_egglog
     return from_egglog(egraph.extract(expr.to_egglog()))
 
@@ -60,7 +63,8 @@ def _merge_rule_application_counts(*counts_dicts: dict[str, int]) -> dict[str, i
             merged[rule] = merged.get(rule, 0) + int(count)
     return merged
 
-def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
+
+def _egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
     from ..spec.spec_ast import Eq, BoolEq
     
     def simplify_check(check: BoolEq | Eq):
@@ -69,7 +73,7 @@ def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
         check_passed = egraph.check_bool(eq(lhs).to(rhs))
         if check_passed:
             return None
-        return simplify_expr(check, egraph)
+        return _simplify_expr(check, egraph)
     
     simplified_checks = []
     discharged_checks = []
@@ -103,16 +107,44 @@ def egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
     return equivalent, simplified_ctx, report
 
 
+####################### PUBLIC #############################
+
+
+def egglog_rewrite(ctx: "SpecContext", iterations: int):
+    equivalent, egglog_report = _egglog_check_ctx(
+        ctx=ctx,
+        iterations=iterations,
+        simplify=False,
+    )
+    equivalent, simplified_ctx, simplify_report = _egglog_simplify_ctx(
+        ctx=ctx,
+        egraph=egglog_report["egraph"],
+    )
+
+    report = {
+        "tool": "egglog_rewrite",
+        "name": ctx.name,
+        "equivalent": equivalent,
+        "runtime_s": egglog_report["runtime_s"] + simplify_report["runtime_s"],
+        "rule_application_counts": egglog_report["rule_application_counts"],
+        "iterations_used": egglog_report["iterations_used"],
+        "discharged_checks": simplify_report["discharged_checks"],
+        "checks_before": simplify_report["checks_before"],
+        "checks_after": simplify_report["checks_after"],
+    }
+    return equivalent, simplified_ctx, report
+
+
 # TODO: MAYBE WE SHOULD NOT SIMPLIFY ASSUMES
-def egglog_preprocess_ctx(ctx: "SpecContext", iterations=3):
+def egglog_preprocess(ctx: "SpecContext", iterations: int):
     from ..spec.spec_ast import Eq, BoolEq
 
     # Preprocess checks
-    equivalent, egglog_report = egglog_check_ctx(ctx=ctx, iterations=iterations, simplify=True)
-    equivalent, simplified_ctx, simplify_report = egglog_simplify_ctx(ctx=ctx, egraph=egglog_report["egraph"])
+    equivalent, egglog_report = _egglog_check_ctx(ctx=ctx, iterations=iterations, simplify=True)
+    equivalent, simplified_ctx, simplify_report = _egglog_simplify_ctx(ctx=ctx, egraph=egglog_report["egraph"])
 
     # Preprocess assumes
-    egraph = create_egraph(simplify=True)
+    egraph = _create_egraph(simplify=True)
     preprocessed_assumes = []
     preprocessed_checks = simplified_ctx.checks
     
@@ -129,11 +161,11 @@ def egglog_preprocess_ctx(ctx: "SpecContext", iterations=3):
     }
 
     for assume in simplified_ctx.assumes:
-        simplified = simplify_expr(assume, egraph)
+        simplified = _simplify_expr(assume, egraph)
         if simplified == ctx.false():
             equivalent = False
         elif simplified != ctx.true():
-            # preprocessed_assumes.append(assume)  # TODO: not fully sound, for full soundness we don't want to simplify assumes
+            # zpreprocessed_assumes.append(assume)  # TODO: not fully sound, for full soundness we don't want to simplify assumes
             preprocessed_assumes.append(simplified)
 
     preprocessed_ctx = ctx.copy(

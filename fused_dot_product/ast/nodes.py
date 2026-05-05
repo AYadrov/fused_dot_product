@@ -76,10 +76,9 @@ class composite(Node):
             name=name,
         )
     
-    def check_spec(self, z3_timeout_ms: int = 5000, egglog_iters=6):
+    def check_spec(self, schedule: list[str | dict[str, tp.Any]] | None = None):
         ctx = self.ctx.copy()
         spec_inner = ctx.spec_of(self.inner_tree)
-        
         inputs = [ctx.spec_of(arg) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, ctx=ctx)
         
@@ -87,9 +86,7 @@ class composite(Node):
             spec_inner,
             spec_outer,
             ctx=ctx,
-            egglog_iters=egglog_iters,
-            z3_timeout_ms=z3_timeout_ms,
-            dreal_precision=0.001,
+            schedule=schedule,
         )
         return proof_trace
 
