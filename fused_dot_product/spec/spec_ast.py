@@ -48,41 +48,10 @@ class RealExpr(SpecNode):
     def __imul__(self, other: "RealExpr") -> "RealExpr":
         return self * other
     
-    @staticmethod
-    def _is_two(value: "RealExpr") -> bool:
-        if isinstance(value, RealLit):
-            return value.value == 2 or value.value == 2.0
-        else:
-            return False
-    
-    @staticmethod
-    def _is_minus_one(value: "RealExpr") -> bool:
-        if isinstance(value, RealLit):
-            return value.value == -1 or value.value == -1.0
-        if isinstance(value, Neg) and isinstance(value.value, RealLit):
-            return value.value.value == 1 or value.value.value == 1.0
-        else:
-            return False
-    
-    @classmethod
-    def _is_supported_pow(cls, base: "RealExpr", exponent: "RealExpr") -> bool:
-        return (
-            cls._is_minus_one(base)
-            or cls._is_two(base)
-            or cls._is_two(exponent)
-        )
-    
     def __pow__(self, other: "RealExpr", modulo=None) -> "RealExpr":
         if modulo is not None:
             raise NotImplementedError("pow(..., modulo) is not supported for spec AST")
-        exponent = self._coerce(other)
-        if self._is_minus_one(self):
-            return Pow(RealLit(-1), exponent)
-        if self._is_two(self):
-            return Pow(RealLit(2), exponent)
-        if self._is_two(other):
-            return Pow(self, RealLit(2))
-        raise NotImplementedError("Only power base -1, power base 2, or exponent 2 is supported")
+        return Pow(self, self._coerce(other))
 
     def __ipow__(self, other: "RealExpr") -> "RealExpr":
         return self ** other

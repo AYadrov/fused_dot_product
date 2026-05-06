@@ -38,23 +38,21 @@ def rewrite_rules():
         ("dist_2", ((b * a) + (c * a)).eq(a * (b + c))),
         ("dist_3", (a * (b + c)).eq((a * b) + (a * c))),
         ("dist_4", (a * (b + c)).eq((b * a) + (c * a))),
-        
+
+        # General pow rules
+        ("pow_1", (a ** zero).eq(one)),
+        ("pow_2", (a ** one).eq(a)),
+
         # Rules with Pow(2, x)
-        ("exp2_1", (two ** zero).eq(one)),
         ("exp2_2", one.eq(two ** zero)),
-        ("exp2_3", (two ** one).eq(two)),
         ("exp2_4", two.eq(two ** one)),
-        ("exp2_5", (two ** (a + b)).eq((two ** a) * (two ** b))),
+        ("exp2_5", (two ** (a + b)).eq((two ** a) * (two ** b))),  # Sound, but different bases may not be supported
         ("exp2_6", ((two ** a) * (two ** b)).eq(two ** (a + b))),
-        ("exp2_7", ((two ** x) * (two ** (-x))).eq(one)),
+        ("exp2_7", ((two ** x) * (two ** (-x))).eq(one)),          # Sound for non-negative base
 
         # Rules with (-1) ** x
-        ("pow_1", (minus_one ** zero).eq(one)),
-        ("pow_2", one.eq(minus_one ** zero)),
-        ("pow_3", (minus_one ** one).eq(minus_one)),
-        ("pow_4", minus_one.eq(minus_one ** one)),
-        # ("pow_5", (minus_one ** a * minus_one ** b).eq(minus_one ** (a + b))),  # Unsound
-        
+        ("pow_neg_1", one.eq(minus_one ** zero)),
+        ("pow_neg_2", minus_one.eq(minus_one ** one)),
         
         # Rules with Pow(x, 2)
         ("square_1", (a ** two).eq(a * a)),
