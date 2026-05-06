@@ -95,7 +95,7 @@ def check_equivalence(
     query1: SpecNode | tuple,
     query2: SpecNode | tuple,
     ctx: SpecContext,
-    schedule: list[str | dict[str, Any]] | None = None,
+    schedule: list[str | dict[str, Any]],
 ):
     _enqueue_equivalence(query1, query2, ctx=ctx)
 

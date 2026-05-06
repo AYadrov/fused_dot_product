@@ -48,6 +48,7 @@ def sign_xor_spec(x, y, ctx):
     res = ctx.fresh_real('xored_signs')
     minus_one = ctx.real_val(-1)
     ctx.assume((minus_one ** res).eq((minus_one ** x) * (minus_one ** y)))
+    ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
     return res
 
 @Primitive(name="sign_xor", spec=sign_xor_spec, c_inline=True)
