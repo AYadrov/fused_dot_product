@@ -4,9 +4,9 @@ import random
 from ..types.runtime import RuntimeType
 from ..types.static import StaticType
 from ..utils import make_fixed_arguments
+from ..solver.engine import check_equivalence
 from .node import Node
 from .proofs import SpecRecorder, record_specs
-from ..solver import check_equivalence
 from ..spec import SpecContext
 
 
