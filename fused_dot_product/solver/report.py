@@ -56,6 +56,8 @@ def build_proof_report(
     report = ProofReport(
         tool=tool,
         name=old_ctx.name if name is None else name,
+        old_ctx=old_ctx,
+        new_ctx=new_ctx,
         equivalent=(checks_after == 0) if equivalent is None else equivalent,
         runtime_s=float(runtime_s),
         assumes_before=assumes_before,

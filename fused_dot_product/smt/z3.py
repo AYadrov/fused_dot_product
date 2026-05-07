@@ -58,4 +58,4 @@ def z3_check_eq(ctx: "SpecContext", timeout_ms: int):
     if result == z3.unsat:
         report["supplementary_info"] = solver.proof()
     
-    return equivalent, new_ctx, report
+    return report

@@ -25,7 +25,7 @@ TOOL_FNS = {
 def _enqueue_equivalence(
     lhs: SpecNode | tuple,
     rhs: SpecNode | tuple,
-    ctx: SpecContext
+    ctx: SpecContext,
 ):
     lhs_is_tuple = isinstance(lhs, tuple)
     rhs_is_tuple = isinstance(rhs, tuple)
@@ -99,14 +99,14 @@ def check_equivalence(
 ):
     _enqueue_equivalence(query1, query2, ctx=ctx)
 
-    ctx_trace: list[SpecContext] = [ctx.copy()]
     proof_trace: list[dict[str, Any]] = []
+    current_ctx = ctx.copy()
 
     for step in _normalize_schedule(schedule=schedule):
-        equivalent, new_ctx, report = _run_tool(ctx_trace[-1], step)
+        report = _run_tool(current_ctx, step)
         proof_trace.append(report)
-        ctx_trace.append(new_ctx)
-        if equivalent:
+        current_ctx = report["new_ctx"]
+        if report["equivalent"]:
             return True, proof_trace
 
     return False, proof_trace

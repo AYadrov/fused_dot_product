@@ -103,7 +103,7 @@ def egglog_rewrite(ctx: "SpecContext", iterations: int):
         iterations_used=iterations_used,
         egraph=egraph,
     )
-    return equivalent, simplified_ctx, report
+    return report
 
 
 # TODO: MAYBE WE SHOULD NOT SIMPLIFY ASSUMES
@@ -161,4 +161,4 @@ def egglog_preprocess(ctx: "SpecContext", iterations: int):
         iterations_used=check_iterations_used + iterations,
         egraph=egraph,
     )
-    return equivalent, preprocessed_ctx, report
+    return report
