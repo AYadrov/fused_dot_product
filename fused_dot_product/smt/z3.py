@@ -4,6 +4,8 @@ from time import perf_counter
 
 import z3
 
+from ..solver.report import build_proof_report
+
 ####################### PRIVATE ############################
 
 def _stats_to_dict(stats: z3.Statistics) -> dict[str, int | float]:
@@ -36,16 +38,18 @@ def z3_check_eq(ctx: "SpecContext", timeout_ms: int):
     
     #stats = _stats_to_dict(solver.statistics())
     equivalent = (result == z3.unsat)
-    report = {
-        "tool": "z3",
-        "name": ctx.name,
-        "equivalent": equivalent,
-        "runtime_s": runtime_s,
-        "status": str(result),
-        "timeout_ms": timeout_ms,
-        #"stats": stats,
-        #"smt_query": solver.to_smt2(),
-    }
+    new_ctx = ctx.copy()
+    report = build_proof_report(
+        ctx,
+        new_ctx,
+        tool="z3",
+        runtime_s=runtime_s,
+        equivalent=equivalent,
+        status=str(result),
+        timeout_ms=timeout_ms,
+        #stats=stats,
+        #smt_query=solver.to_smt2(),
+    )
     
     if result == z3.sat:
         report["supplementary_info"] = solver.model()
@@ -54,4 +58,4 @@ def z3_check_eq(ctx: "SpecContext", timeout_ms: int):
     if result == z3.unsat:
         report["supplementary_info"] = solver.proof()
     
-    return equivalent, ctx.copy(), report
+    return equivalent, new_ctx, report

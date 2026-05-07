@@ -4,6 +4,8 @@ from time import perf_counter
 
 import dreal
 
+from ..solver.report import build_proof_report
+
 
 def dreal_check_eq(ctx: "SpecContext", precision: float):
     program = ctx.to_dreal()
@@ -14,16 +16,18 @@ def dreal_check_eq(ctx: "SpecContext", precision: float):
     
     equivalent = result is None
     status = "unsat" if equivalent else "delta-sat"
-    report = {
-        "tool": "dreal",
-        "name": ctx.name,
-        "equivalent": equivalent,
-        "runtime_s": runtime_s,
-        "status": status,
-        "precision": precision,
-    }
+    new_ctx = ctx.copy()
+    report = build_proof_report(
+        ctx,
+        new_ctx,
+        tool="dreal",
+        runtime_s=runtime_s,
+        equivalent=equivalent,
+        status=status,
+        precision=precision,
+    )
     
     if result is not None:
         report["supplementary_info"] = str(result)
       
-    return equivalent, ctx.copy(), report
+    return equivalent, new_ctx, report
