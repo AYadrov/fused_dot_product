@@ -6,6 +6,7 @@ from egglog import EGraph
 
 from fused_dot_product import (
     BFloat16,
+    BFloat16T,
     Bool,
     BoolLit,
     Const,
@@ -34,6 +35,8 @@ from fused_dot_product.solver import engine as solver_engine
 from fused_dot_product.solver.report import build_proof_report
 from fused_dot_product.spec.spec_utils import from_egglog
 from examples.FP32_IEEE_adder import FP32_IEEE_adder
+from examples.conventional import Conventional
+from examples.optimized import Optimized
 
 
 class TestConstantFolding(unittest.TestCase):
@@ -111,10 +114,10 @@ class TestConstantFolding(unittest.TestCase):
         self.assertEqual(node.evaluate().val, 7)
         self.assertIsNone(node.node_type.runtime_val)
 
-    def test_uq_rshift_jam_uses_shifted_bit_mask_zero_check(self):
+    def test_uq_rshift_jam_sets_sticky_when_shifted_out_bits_are_nonzero(self):
         cases = [
-            (8, 1, 5),
-            (9, 1, 4),
+            (8, 1, 4),
+            (9, 1, 5),
         ]
 
         for x_val, amount_val, expected in cases:
@@ -124,6 +127,22 @@ class TestConstantFolding(unittest.TestCase):
                     Const(UQ.from_int(amount_val)),
                 )
                 self.assert_folded_value(folded, UQ, expected)
+
+    def test_conventional_and_optimized_match_on_cancellation_regression(self):
+        vals = [43160, 10458, 11062, 10989, 10589, 10469, 11020, 11013]
+        a = [Var(name=f"a_{i}", sign=BFloat16T()) for i in range(4)]
+        b = [Var(name=f"b_{i}", sign=BFloat16T()) for i in range(4)]
+
+        for i, bits in enumerate(vals[:4]):
+            a[i].load_val(BFloat16(bits))
+        for i, bits in enumerate(vals[4:]):
+            b[i].load_val(BFloat16(bits))
+
+        conventional = Conventional(*a, *b).evaluate()
+        optimized = Optimized(*a, *b).evaluate()
+
+        self.assertEqual(conventional.val, 388040612)
+        self.assertEqual(conventional, optimized)
 
 
 class TestFingerprint(unittest.TestCase):

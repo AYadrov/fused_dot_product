@@ -248,14 +248,7 @@ def uq_rshift_jam(x: Node, amount: Node) -> Node:
         out=x.copy(),
     )
     sticky_masked_bits = basic_and(x, shifted_bit_mask, out=x.copy())
-    sticky_bit = uq_is_zero(sticky_masked_bits)
-    sticky_bit = basic_mux_2_1(
-        sel=uq_is_zero(amount),
-        in0=sticky_bit,
-        in1=Const(UQ(0, 1, 0)),
-        out=Const(UQ(0, 1, 0)),
-    )
-    
+    sticky_bit = basic_or_reduce(sticky_masked_bits, Const(UQ(0, 1, 0)))
     return basic_or(uq_rshift(x, amount), sticky_bit, x.copy())
 
 
