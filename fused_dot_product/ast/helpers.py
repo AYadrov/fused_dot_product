@@ -42,7 +42,7 @@ def if_then_else_spec(sel, in1, in0, ctx):
     if isinstance(sel, BoolExpr):
         return If(sel, in1, in0)
     if isinstance(sel, RealExpr):
-        return (ctx.real_val(1) - sel) * in0 + sel * in1
+        return If(sel.ne(ctx.real_val(0)), in1, in0)
     raise TypeError()
 
 @Primitive(name="if_then_else", spec=if_then_else_spec, c_inline=True)

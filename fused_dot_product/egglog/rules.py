@@ -5,8 +5,9 @@ from egglog import *
 
 from .datatypes import Math, MathBool
 
+
 def rewrite_rules():
-    from ..spec.spec_ast import RealLit, RealVar, BoolLit, BoolVar, If
+    from ..spec.spec_ast import RealLit, RealVar, BoolLit, BoolVar, If, Pow
     
     a = RealVar("a")
     b = RealVar("b")
@@ -17,6 +18,7 @@ def rewrite_rules():
     
     zero = RealLit(0)
     one = RealLit(1)
+    minus_one = RealLit(-1)
     two = RealLit(2)
     
     true = BoolLit(True)
@@ -38,15 +40,22 @@ def rewrite_rules():
         ("dist_3", (a * (b + c)).eq((a * b) + (a * c))),
         ("dist_4", (a * (b + c)).eq((b * a) + (c * a))),
         
-        # Rules with exp2
-        ("exp2_1", (two ** zero).eq(one)),
-        ("exp2_2", one.eq(two ** zero)),
+        # General pow rules
+        ("pow_1", (a ** zero).eq(one)),
+        ("pow_2", (a ** one).eq(a)),
         
-        ("exp2_3", (two ** one).eq(two)),
+        # Rules with Pow(2, x)
+        ("exp2_2", one.eq(two ** zero)),
         ("exp2_4", two.eq(two ** one)),
-        ("exp2_5", (two ** (a + b)).eq((two ** a) * (two ** b))),
+        ("exp2_5", (two ** (a + b)).eq((two ** a) * (two ** b))),  # Sound, but different bases may not be supported
         ("exp2_6", ((two ** a) * (two ** b)).eq(two ** (a + b))),
-        ("exp2_7", ((two ** x) * (two ** (-x))).eq(one)),
+        ("exp2_7", ((two ** x) * (two ** (-x))).eq(one)),          # Sound for non-negative base
+        
+        # Rules with (-1) ** x
+        ("pow_neg_1", one.eq(minus_one ** zero)),
+        ("pow_neg_2", minus_one.eq(minus_one ** one)),
+        
+        # Rules with Pow(x, 2)
         ("square_1", (a ** two).eq(a * a)),
         ("square_2", (a * a).eq(a ** two)),
         
@@ -97,15 +106,24 @@ def constant_rules():
     tru = var("tru", Math)
     fls = var("fls", Math)
     return [
+        # boolean
+        rewrite(Math.Eq(Math.Num(m), Math.Num(n))).to(MathBool.True_(), eq(m).to(n)),
+        rewrite(Math.Eq(Math.Num(m), Math.Num(n))).to(MathBool.False_(), ne(m).to(n)),
+        rewrite(Math.NotEq(Math.Num(m), Math.Num(n))).to(MathBool.True_(), ne(m).to(n)),
+        rewrite(Math.NotEq(Math.Num(m), Math.Num(n))).to(MathBool.False_(), eq(m).to(n)),
+        # arithmetic
         rewrite(Math.Num(m)).to(Math.Neg(Math.Num(-m))),
         rewrite(Math.Add(Math.Num(m), Math.Num(n))).to(Math.Num(m + n)),
         rewrite(Math.Neg(Math.Num(m))).to(Math.Num(-m)),
-        rewrite(Math.Square(Math.Num(m))).to(Math.Num(m * m)),
         rewrite(Math.Mul(Math.Num(m), Math.Num(n))).to(Math.Num(m * n)),
-        rewrite(Math.Exp2(Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
+        rewrite(Math.Pow(Math.Num(m), Math.Num(BigRat(2, 1)))).to(Math.Num(m * m)),
+        rewrite(Math.Pow(Math.Num(BigRat(-1, 1)), Math.Num(m))).to(Math.Num(BigRat(-1, 1) ** m), eq(m.denom).to(1)),
+        # Keep this last: simplify mode intentionally drops the final constant rule.
+        rewrite(Math.Pow(Math.Num(BigRat(2, 1)), Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
     ]
 
 
+# This lowering is particularly for rules, because we need to walk expressions and replace Var with var(name, Math) - rewrite syntax
 def _lower_expr(node: SpecNode) -> Expr:
     from ..spec.spec_ast import (
         Abs,
@@ -115,7 +133,6 @@ def _lower_expr(node: SpecNode) -> Expr:
         BoolLit,
         BoolVar,
         Eq,
-        Exp2,
         Ge,
         Gt,
         If,
@@ -128,9 +145,9 @@ def _lower_expr(node: SpecNode) -> Expr:
         Not,
         NotEq,
         Or,
+        Pow,
         RealLit,
         RealVar,
-        Square,
         Sub,
     )
     
@@ -148,10 +165,8 @@ def _lower_expr(node: SpecNode) -> Expr:
         return Math.Neg(_lower_expr(node.value))
     if isinstance(node, Abs):
         return Math.Abs(_lower_expr(node.value))
-    if isinstance(node, Exp2):
-        return Math.Exp2(_lower_expr(node.exponent))
-    if isinstance(node, Square):
-        return Math.Square(_lower_expr(node.value))
+    if isinstance(node, Pow):
+        return Math.Pow(_lower_expr(node.base), _lower_expr(node.exponent))
     if isinstance(node, Max):
         return Math.Max(_lower_expr(node.lhs), _lower_expr(node.rhs))
     if isinstance(node, Min):
@@ -221,29 +236,24 @@ def check_rules(rules, z3_timeout_ms: int = 10000):
         lhs, rhs = children(rule)
         ctx = SpecContext(name)
         ctx.check(lhs.eq(rhs))
-        equivalent_z3, report_z3 = z3_check_eq(ctx, timeout_ms=z3_timeout_ms)
-        equivalent_dreal, report_dreal = dreal_check_eq(ctx, precision=0.001)
+        report_z3 = z3_check_eq(ctx, timeout_ms=z3_timeout_ms)
+        report_dreal = dreal_check_eq(ctx, precision=0.001)
         results[name] = {
-            "z3_equal": equivalent_z3,
+            "z3_equal": report_z3["equivalent"],
             "z3_status": report_z3['status'],
-            "dreal_equal": equivalent_dreal,
+            "dreal_equal": report_dreal["equivalent"],
             "dreal_status": report_dreal['status'],
         }
     return results
 
 
-
 def load_rules(egraph: EGraph, simplify=False) -> None:
     rewrites = rewrite_rules()
     
-    # Constant rules are not checked with z3 for now
     res = check_rules(rewrites)
-    # pprint(res)
-
+    
     if simplify:
         rules = lower_rules(rewrites) + constant_rules()[:-1]
     else:
         rules = constant_rules() + lower_rules(rewrites)
     egraph.register(*rules)
-
-    

@@ -47,7 +47,21 @@ def q_alloc(int_bits: Node, frac_bits: Node) -> Op:
         name="q_alloc")
 
 
-@Primitive(name="q_signs_xor", spec=lambda x, y, ctx: x * y)
+def q_signs_xor_spec(x, y, ctx):
+    x_sign = ctx.fresh_real("x_sign")
+    y_sign = ctx.fresh_real("y_sign")
+    res = ctx.fresh_real("xored_signs")
+    minus_one = ctx.real_val(-1)
+
+    ctx.assume(x_sign.eq(ctx.real_val(1)).or_(x_sign.eq(ctx.real_val(0))))
+    ctx.assume(y_sign.eq(ctx.real_val(1)).or_(y_sign.eq(ctx.real_val(0))))
+    ctx.assume(res.eq(ctx.real_val(1)).or_(res.eq(ctx.real_val(0))))
+    ctx.assume(x.eq((minus_one ** x_sign) * abs(x)))
+    ctx.assume(y.eq((minus_one ** y_sign) * abs(y)))
+    ctx.assume((minus_one ** res).eq((minus_one ** x_sign) * (minus_one ** y_sign)))
+    return res
+
+@Primitive(name="q_signs_xor", spec=q_signs_xor_spec)
 def q_signs_xor(x: Node, y: Node) -> Node:
     return basic_xor(
         q_sign_bit(x),
@@ -158,9 +172,10 @@ def q_aligner(x: Node,
 
 
 def q_sign_bit_spec(x, ctx):
-    sign_ = ctx.fresh_real("sign")
-    ctx.assume(x.eq(sign_ * abs(x)))
-    return sign_
+    sign = ctx.fresh_real("sign")
+    ctx.assume(sign.eq(ctx.real_val(0)).or_(sign.eq(ctx.real_val(1))))
+    ctx.assume(x.eq(ctx.real_val(-1) ** sign * abs(x)))
+    return sign
 
 @Primitive(name="q_sign_bit", spec=q_sign_bit_spec, c_inline=True)
 def q_sign_bit(x: Node) -> Node:
@@ -275,7 +290,10 @@ def q_rshift(x: Node, n: Node) -> Node:
     return basic_rshift(x=x, amount=n, out=x.copy())
 
 
-@Primitive(name="q_add_sign", spec=lambda x, s, ctx: x * s)
+def q_add_sign_spec(x, s, ctx):
+    return ctx.real_val(-1) ** s * x
+
+@Primitive(name="q_add_sign", spec=q_add_sign_spec)
 def q_add_sign(x: Node, s: Node) -> Node:
     return basic_mux_2_1(
         sel=s,

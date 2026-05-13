@@ -86,7 +86,7 @@ if __name__ == '__main__':
         Var(name="a", sign=Float32T()),
         Var(name="b", sign=Float32T()),
     )
-    pprint(adder.check_spec(egglog_iters=6))
+    pprint(adder.check_spec())
     with open("examples/adder_jit.hpp", "w") as file:
         file.write(adder.to_cpp(jittable=True))
 

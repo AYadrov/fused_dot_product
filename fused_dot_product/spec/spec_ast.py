@@ -48,21 +48,10 @@ class RealExpr(SpecNode):
     def __imul__(self, other: "RealExpr") -> "RealExpr":
         return self * other
     
-    @staticmethod
-    def _is_two(value: "RealExpr") -> bool:
-        if isinstance(value, RealLit):
-            return value.value == 2 or value.value == 2.0
-        else:
-            return False
-
     def __pow__(self, other: "RealExpr", modulo=None) -> "RealExpr":
         if modulo is not None:
             raise NotImplementedError("pow(..., modulo) is not supported for spec AST")
-        if not self._is_two(self):
-            if self._is_two(other):
-                return Square(self)
-            raise NotImplementedError("Only power base 2 or exponent 2 is supported")
-        return Exp2(self._coerce(other))
+        return Pow(self, self._coerce(other))
 
     def __ipow__(self, other: "RealExpr") -> "RealExpr":
         return self ** other
@@ -300,39 +289,40 @@ class Abs(RealExpr):
 
 
 @dataclass(frozen=True)
-class Exp2(RealExpr):
+class Pow(RealExpr):
+    base: RealExpr
     exponent: RealExpr
-    
-    def to_egglog(self):
-        return Math.Exp2(self.exponent.to_egglog())
-    
-    def to_z3(self, env):
-        return z3.RealVal(str(2)) ** self.exponent.to_z3(env=env)
-
-    def to_dreal(self, env):
-        return dreal.Expression(2) ** self.exponent.to_dreal(env=env)
-
-    def __str__(self):
-        return f"(2 ** {self.exponent})"
-
-
-@dataclass(frozen=True)
-class Square(RealExpr):
-    value: RealExpr
 
     def to_egglog(self):
-        return Math.Square(self.value.to_egglog())
+        return Math.Pow(self.base.to_egglog(), self.exponent.to_egglog())
+
+    def _is_minus_one_base(self) -> bool:
+        return isinstance(self.base, RealLit) and self.base.value == -1
 
     def to_z3(self, env):
-        value = self.value.to_z3(env=env)
-        return value * value
+        if self._is_minus_one_base():
+            exponent = self.exponent.to_z3(env=env)
+            return z3.If(
+                exponent == z3.RealVal("0"),
+                z3.RealVal("1"),
+                z3.RealVal("-1"),
+            )
+        return self.base.to_z3(env=env) ** self.exponent.to_z3(env=env)
 
+
+    # Negative base power for intervals work pretty bad
     def to_dreal(self, env):
-        value = self.value.to_dreal(env=env)
-        return value * value
+        if self._is_minus_one_base():
+            exponent = self.exponent.to_dreal(env=env)
+            return dreal.if_then_else(
+                exponent == dreal.Expression(0),
+                dreal.Expression(1),
+                dreal.Expression(-1),
+            )
+        return self.base.to_dreal(env=env) ** self.exponent.to_dreal(env=env)
 
     def __str__(self):
-        return f"({self.value} ** 2)"
+        return f"({self.base} ** {self.exponent})"
 
 
 @dataclass(frozen=True)
@@ -598,10 +588,10 @@ def ite(
 def children(node: SpecNode) -> tuple[SpecNode, ...]:
     if isinstance(node, (RealVar, BoolVar, RealLit, BoolLit)):
         return ()
-    if isinstance(node, (Neg, Abs, Square, Not)):
+    if isinstance(node, (Neg, Abs, Not)):
         return (node.value,)
-    if isinstance(node, (Exp2)):
-        return (node.exponent,)
+    if isinstance(node, Pow):
+        return (node.base, node.exponent)
     if isinstance(node, If):
         return (node.cond, node.on_true, node.on_false)
     if isinstance(

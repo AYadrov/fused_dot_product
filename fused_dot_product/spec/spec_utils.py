@@ -14,7 +14,6 @@ from .spec_ast import (
     BoolLit,
     BoolVar,
     Eq,
-    Exp2,
     Ge,
     Gt,
     If,
@@ -27,10 +26,10 @@ from .spec_ast import (
     Not,
     NotEq,
     Or,
+    Pow,
     RealExpr,
     RealLit,
     RealVar,
-    Square,
 )
 
 _MATH_BOOL_METHODS = {"Eq", "NotEq", "Lt", "Le", "Gt", "Ge"}
@@ -104,28 +103,25 @@ def from_egglog(egg_node: Expr) -> RealExpr | BoolExpr:
             return RealLit(parse_bigrat(args[0]))
         if method_name == "Add":
             expect(args, 2, "Math.Add")
-            return Add(parse_math(args[0]), parse_math(args[1]))
+            return parse_math(args[0]) + parse_math(args[1])
         if method_name == "Mul":
             expect(args, 2, "Math.Mul")
-            return Mul(parse_math(args[0]), parse_math(args[1]))
-        if method_name == "Exp2":
-            expect(args, 1, "Math.Exp2")
-            return Exp2(parse_math(args[0]))
-        if method_name == "Square":
-            expect(args, 1, "Math.Square")
-            return Square(parse_math(args[0]))
+            return parse_math(args[0]) * parse_math(args[1])
+        if method_name == "Pow":
+            expect(args, 2, "Math.Pow")
+            return parse_math(args[0]) ** parse_math(args[1])
         if method_name == "Neg":
             expect(args, 1, "Math.Neg")
-            return Neg(parse_math(args[0]))
+            return (- parse_math(args[0]))
         if method_name == "Abs":
             expect(args, 1, "Math.Abs")
-            return Abs(parse_math(args[0]))
+            return abs(parse_math(args[0]))
         if method_name == "Max":
             expect(args, 2, "Math.Max")
-            return Max(parse_math(args[0]), parse_math(args[1]))
+            return parse_math(args[0]).max(parse_math(args[1]))
         if method_name == "Min":
             expect(args, 2, "Math.Min")
-            return Min(parse_math(args[0]), parse_math(args[1]))
+            return parse_math(args[0]).min(parse_math(args[1]))
         if method_name == "If":
             expect(args, 3, "Math.If")
             return If(parse_bool(args[0]), parse_math(args[1]), parse_math(args[2]))

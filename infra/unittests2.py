@@ -1,10 +1,21 @@
 import unittest
+from unittest.mock import patch
+
+import dreal
+from egglog import EGraph
 
 from fused_dot_product import (
     BFloat16,
+    BFloat16T,
     Bool,
+    BoolLit,
     Const,
     Float32,
+    Float32T,
+    Pow,
+    Q,
+    RealLit,
+    RealVar,
     Tuple,
     UQ,
     UQT,
@@ -14,7 +25,18 @@ from fused_dot_product import (
     basic_sub,
     if_then_else,
     make_Tuple,
+    q_signs_xor,
+    uq_rshift_jam,
 )
+from fused_dot_product import SpecContext
+from fused_dot_product.egglog.rules import load_rules
+from fused_dot_product.smt import z3_check_eq
+from fused_dot_product.solver import engine as solver_engine
+from fused_dot_product.solver.report import build_proof_report
+from fused_dot_product.spec.spec_utils import from_egglog
+from examples.FP32_IEEE_adder import FP32_IEEE_adder
+from examples.conventional import Conventional
+from examples.optimized import Optimized
 
 
 class TestConstantFolding(unittest.TestCase):
@@ -92,6 +114,36 @@ class TestConstantFolding(unittest.TestCase):
         self.assertEqual(node.evaluate().val, 7)
         self.assertIsNone(node.node_type.runtime_val)
 
+    def test_uq_rshift_jam_sets_sticky_when_shifted_out_bits_are_nonzero(self):
+        cases = [
+            (8, 1, 4),
+            (9, 1, 5),
+        ]
+
+        for x_val, amount_val, expected in cases:
+            with self.subTest(x=x_val, amount=amount_val):
+                folded = uq_rshift_jam(
+                    Const(UQ(x_val, 4, 0)),
+                    Const(UQ.from_int(amount_val)),
+                )
+                self.assert_folded_value(folded, UQ, expected)
+
+    def test_conventional_and_optimized_match_on_cancellation_regression(self):
+        vals = [43160, 10458, 11062, 10989, 10589, 10469, 11020, 11013]
+        a = [Var(name=f"a_{i}", sign=BFloat16T()) for i in range(4)]
+        b = [Var(name=f"b_{i}", sign=BFloat16T()) for i in range(4)]
+
+        for i, bits in enumerate(vals[:4]):
+            a[i].load_val(BFloat16(bits))
+        for i, bits in enumerate(vals[4:]):
+            b[i].load_val(BFloat16(bits))
+
+        conventional = Conventional(*a, *b).evaluate()
+        optimized = Optimized(*a, *b).evaluate()
+
+        self.assertEqual(conventional.val, 388040612)
+        self.assertEqual(conventional, optimized)
+
 
 class TestFingerprint(unittest.TestCase):
     def test_runtime_type_fingerprint_depends_on_structure_and_value(self):
@@ -161,6 +213,176 @@ class TestFingerprint(unittest.TestCase):
 
         after = node._fingerprint()
         self.assertEqual(before, after)
+
+
+class TestPowSpecOp(unittest.TestCase):
+    def test_pow_python_sugar_uses_negative_one_base(self):
+        self.assertEqual(
+            RealLit(-1) ** RealLit(3),
+            Pow(RealLit(-1), RealLit(3)),
+        )
+
+    def test_pow_python_sugar_keeps_supported_base2_and_square_forms(self):
+        self.assertEqual(
+            RealLit(2) ** RealLit(3),
+            Pow(RealLit(2), RealLit(3)),
+        )
+        self.assertEqual(
+            RealLit(3) ** RealLit(2),
+            Pow(RealLit(3), RealLit(2)),
+        )
+
+    def test_pow_round_trips_from_egglog(self):
+        exprs = [
+            Pow(RealLit(-1), RealLit(2)),
+            Pow(RealLit(2), RealLit(3)),
+            Pow(RealLit(3), RealLit(2)),
+        ]
+
+        for expr in exprs:
+            with self.subTest(expr=str(expr)):
+                self.assertEqual(from_egglog(expr.to_egglog()), expr)
+
+    def test_pow_constant_folds_in_egglog(self):
+        cases = [
+            (Pow(RealLit(-1), RealLit(3)), RealLit(-1)),
+            (Pow(RealLit(2), RealLit(3)), RealLit(8)),
+            (Pow(RealLit(3), RealLit(2)), RealLit(9)),
+        ]
+
+        for expr, expected in cases:
+            with self.subTest(expr=str(expr)):
+                egraph = EGraph()
+                load_rules(egraph)
+                lowered = expr.to_egglog()
+
+                egraph.register(lowered)
+                egraph.run(1)
+
+                self.assertEqual(from_egglog(egraph.extract(lowered)), expected)
+
+    def test_minus_one_symbolic_power_is_solver_friendly_for_dreal(self):
+        ctx = SpecContext("minus-one-dreal")
+        s = RealVar("s")
+        x = RealVar("x")
+        ctx.assume(s.eq(RealLit(0)).or_(s.eq(RealLit(1))))
+        ctx.assume(x.eq((RealLit(-1) ** s) * abs(x)))
+
+        env = {}
+        result = dreal.CheckSatisfiability(
+            dreal.And(*[assume.to_dreal(env) for assume in ctx.assumes]),
+            0.001,
+        )
+
+        self.assertIsNotNone(result)
+
+    def test_numeric_equality_constant_folds_in_egglog(self):
+        cases = [
+            (RealLit(3).eq(RealLit(3)), BoolLit(True)),
+            (RealLit(3).ne(RealLit(4)), BoolLit(True)),
+        ]
+
+        for expr, expected in cases:
+            with self.subTest(expr=str(expr)):
+                egraph = EGraph()
+                load_rules(egraph)
+                lowered = expr.to_egglog()
+
+                egraph.register(lowered)
+                egraph.run(1)
+
+                self.assertEqual(from_egglog(egraph.extract(lowered)), expected)
+
+    def test_numeric_equality_constant_folds_in_simplify_mode(self):
+        cases = [
+            (RealLit(5).eq(RealLit(5)), BoolLit(True)),
+            (RealLit(5).ne(RealLit(6)), BoolLit(True)),
+        ]
+
+        for expr, expected in cases:
+            with self.subTest(expr=str(expr)):
+                egraph = EGraph()
+                load_rules(egraph, simplify=True)
+                lowered = expr.to_egglog()
+
+                egraph.register(lowered)
+                egraph.run(1)
+
+                self.assertEqual(from_egglog(egraph.extract(lowered)), expected)
+
+
+class TestSolverApis(unittest.TestCase):
+    def test_check_equivalence_returns_flat_proof_trace(self):
+        ctx = SpecContext("flat-trace")
+        report1 = build_proof_report(ctx, ctx.copy(), tool="branch-a", runtime_s=0.0, equivalent=False)
+        report2 = build_proof_report(ctx, ctx.copy(), tool="branch-b", runtime_s=0.0, equivalent=True)
+
+        with patch.dict(solver_engine.TOOL_FNS, {"z3": lambda _ctx, timeout_ms: [report1, report2]}):
+            equivalent, proof_trace = solver_engine.check_equivalence(
+                RealLit(1),
+                RealLit(1),
+                ctx=ctx,
+                schedule=[{"tool": "z3", "timeout_ms": 1}],
+            )
+
+        self.assertTrue(equivalent)
+        self.assertIsInstance(proof_trace, list)
+        self.assertEqual(len(proof_trace), 1)
+        self.assertIsInstance(proof_trace[0], dict)
+        self.assertEqual(proof_trace[0]["tool"], "branch-b")
+
+    def test_z3_check_eq_returns_single_report(self):
+        ctx = SpecContext("z3-api")
+        ctx.check(RealLit(1).eq(RealLit(1)))
+
+        report = z3_check_eq(ctx, timeout_ms=1000)
+
+        self.assertIsInstance(report, dict)
+        self.assertEqual(report["tool"], "z3")
+        self.assertTrue(report["equivalent"])
+
+    def test_fp32_adder_wrong_high_level_spec_is_not_proved_by_dreal(self):
+        adder = FP32_IEEE_adder(
+            Var(name="a", sign=Float32T()),
+            Var(name="b", sign=Float32T()),
+        )
+
+        trace = adder.check_spec(schedule=[{"tool": "dreal", "precision": 0.001}])
+
+        self.assertEqual(len(trace), 1)
+        self.assertEqual(trace[0]["tool"], "dreal")
+        self.assertFalse(trace[0]["equivalent"])
+
+
+class TestSignSpecs(unittest.TestCase):
+    def test_q_signs_xor_spec_matches_constant_sign_combinations(self):
+        cases = [
+            (-1, -1, 0),
+            (-1, 1, 1),
+            (1, -1, 1),
+            (1, 1, 0),
+        ]
+
+        for lhs, rhs, expected in cases:
+            with self.subTest(lhs=lhs, rhs=rhs):
+                node = q_signs_xor(Const(Q.from_int(lhs)), Const(Q.from_int(rhs)))
+                self.assertEqual(node.evaluate().val, expected)
+
+                ctx = SpecContext("q_signs_xor")
+                spec = ctx.spec_of(node)
+
+                self.assertEqual(str(spec), "real(xored_signs_2)")
+                self.assertEqual(
+                    [str(assume) for assume in ctx.assumes],
+                    [
+                        "((real(x_sign_0) == 1) or (real(x_sign_0) == 0))",
+                        "((real(y_sign_1) == 1) or (real(y_sign_1) == 0))",
+                        "((real(xored_signs_2) == 1) or (real(xored_signs_2) == 0))",
+                        f"({float(lhs)} == ((-1 ** real(x_sign_0)) * abs({float(lhs)})))",
+                        f"({float(rhs)} == ((-1 ** real(y_sign_1)) * abs({float(rhs)})))",
+                        "((-1 ** real(xored_signs_2)) == ((-1 ** real(x_sign_0)) * (-1 ** real(y_sign_1))))",
+                    ],
+                )
 
 
 if __name__ == "__main__":

@@ -154,8 +154,10 @@ class UQT(StaticType):
         return UQT(self.int_bits, self.frac_bits)
     
     def to_spec(self, name, ctx):
-        return ctx.fresh_real(name)
-
+        variable = ctx.fresh_real(name)
+        ctx.assume(variable.eq(abs(variable)))
+        return variable
+    
     def random_runtime_value(self, rng: random.Random):
         from .runtime import UQ
         return UQ(rng.getrandbits(self.total_bits()), self.int_bits, self.frac_bits)
