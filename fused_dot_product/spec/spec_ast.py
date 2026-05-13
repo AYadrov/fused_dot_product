@@ -296,10 +296,29 @@ class Pow(RealExpr):
     def to_egglog(self):
         return Math.Pow(self.base.to_egglog(), self.exponent.to_egglog())
 
+    def _is_minus_one_base(self) -> bool:
+        return isinstance(self.base, RealLit) and self.base.value == -1
+
     def to_z3(self, env):
+        if self._is_minus_one_base():
+            exponent = self.exponent.to_z3(env=env)
+            return z3.If(
+                exponent == z3.RealVal("0"),
+                z3.RealVal("1"),
+                z3.RealVal("-1"),
+            )
         return self.base.to_z3(env=env) ** self.exponent.to_z3(env=env)
 
+
+    # Negative base power for intervals work pretty bad
     def to_dreal(self, env):
+        if self._is_minus_one_base():
+            exponent = self.exponent.to_dreal(env=env)
+            return dreal.if_then_else(
+                exponent == dreal.Expression(0),
+                dreal.Expression(1),
+                dreal.Expression(-1),
+            )
         return self.base.to_dreal(env=env) ** self.exponent.to_dreal(env=env)
 
     def __str__(self):

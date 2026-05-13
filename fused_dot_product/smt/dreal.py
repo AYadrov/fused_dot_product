@@ -9,7 +9,7 @@ from ..solver.report import build_proof_report
 
 def dreal_check_eq(ctx: "SpecContext", precision: float):
     program = ctx.to_dreal()
-    
+
     run_started_at = perf_counter()
     result = dreal.CheckSatisfiability(program, precision)
     runtime_s = perf_counter() - run_started_at
