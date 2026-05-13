@@ -79,10 +79,8 @@ class composite(Node):
     def check_spec(self, schedule: list[str | dict[str, tp.Any]] | None = None):
         if schedule is None:
             schedule = [
-                {"tool": "dreal", "precision": 0.001},
-                {"tool": "egglog-preprocess", "iterations": 3, "scheduler": {"match_limit": 200_000, "ban_length": 1}},
-                {"tool": "dreal", "precision": 0.001},
-                {"tool": "egglog-rewrite", "iterations": 6, "scheduler": {"match_limit": 200_000, "ban_length": 1}},
+                {"tool": "egglog-preprocess", "iterations": 3, "scheduler": {"match_limit": 500_000, "ban_length": 1}},
+                {"tool": "egglog-rewrite", "iterations": 6, "scheduler": {"match_limit": 500_000, "ban_length": 1}},
                 {"tool": "z3", "timeout_ms": 10000},
                 {"tool": "dreal", "precision": 0.001},
             ]
