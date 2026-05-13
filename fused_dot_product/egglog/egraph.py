@@ -26,7 +26,6 @@ def _make_run_schedule(scheduler: dict[str, int | None] | None):
 
 
 def _egglog_check_ctx(ctx: "SpecContext", iterations=6, simplify=False, scheduler=None):
-    print("egglog_check_ctx")
     egraph = _create_egraph(simplify=simplify)
     
     to_check = ctx.to_egglog(egraph)
@@ -119,7 +118,7 @@ def egglog_rewrite(ctx: "SpecContext", iterations: int, scheduler=None):
         egraph=egraph,
         egraph_size=sum(sz for _, sz in egraph.all_function_sizes()),
     )
-    return [report]
+    return report
 
 
 # TODO: MAYBE WE SHOULD NOT SIMPLIFY ASSUMES
@@ -148,7 +147,7 @@ def egglog_preprocess(ctx: "SpecContext", iterations: int, scheduler=None):
     )
 
     if equivalent:
-        return [simplified_checks_report]
+        return simplified_checks_report
 
     # Preprocess assumes
     egraph = _create_egraph(simplify=True)
