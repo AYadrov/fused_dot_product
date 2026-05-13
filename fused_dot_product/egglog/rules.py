@@ -5,6 +5,7 @@ from egglog import *
 
 from .datatypes import Math, MathBool
 
+
 def rewrite_rules():
     from ..spec.spec_ast import RealLit, RealVar, BoolLit, BoolVar, If, Pow
     
@@ -38,18 +39,18 @@ def rewrite_rules():
         ("dist_2", ((b * a) + (c * a)).eq(a * (b + c))),
         ("dist_3", (a * (b + c)).eq((a * b) + (a * c))),
         ("dist_4", (a * (b + c)).eq((b * a) + (c * a))),
-
+        
         # General pow rules
         ("pow_1", (a ** zero).eq(one)),
         ("pow_2", (a ** one).eq(a)),
-
+        
         # Rules with Pow(2, x)
         ("exp2_2", one.eq(two ** zero)),
         ("exp2_4", two.eq(two ** one)),
         ("exp2_5", (two ** (a + b)).eq((two ** a) * (two ** b))),  # Sound, but different bases may not be supported
         ("exp2_6", ((two ** a) * (two ** b)).eq(two ** (a + b))),
         ("exp2_7", ((two ** x) * (two ** (-x))).eq(one)),          # Sound for non-negative base
-
+        
         # Rules with (-1) ** x
         ("pow_neg_1", one.eq(minus_one ** zero)),
         ("pow_neg_2", minus_one.eq(minus_one ** one)),
@@ -105,12 +106,19 @@ def constant_rules():
     tru = var("tru", Math)
     fls = var("fls", Math)
     return [
+        # boolean
+        rewrite(Math.Eq(Math.Num(m), Math.Num(n))).to(MathBool.True_(), eq(m).to(n)),
+        rewrite(Math.Eq(Math.Num(m), Math.Num(n))).to(MathBool.False_(), ne(m).to(n)),
+        rewrite(Math.NotEq(Math.Num(m), Math.Num(n))).to(MathBool.True_(), ne(m).to(n)),
+        rewrite(Math.NotEq(Math.Num(m), Math.Num(n))).to(MathBool.False_(), eq(m).to(n)),
+        # arithmetic
         rewrite(Math.Num(m)).to(Math.Neg(Math.Num(-m))),
         rewrite(Math.Add(Math.Num(m), Math.Num(n))).to(Math.Num(m + n)),
         rewrite(Math.Neg(Math.Num(m))).to(Math.Num(-m)),
         rewrite(Math.Mul(Math.Num(m), Math.Num(n))).to(Math.Num(m * n)),
         rewrite(Math.Pow(Math.Num(m), Math.Num(BigRat(2, 1)))).to(Math.Num(m * m)),
         rewrite(Math.Pow(Math.Num(BigRat(-1, 1)), Math.Num(m))).to(Math.Num(BigRat(-1, 1) ** m), eq(m.denom).to(1)),
+        # Keep this last: simplify mode intentionally drops the final constant rule.
         rewrite(Math.Pow(Math.Num(BigRat(2, 1)), Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
     ]
 
@@ -229,7 +237,7 @@ def check_rules(rules, z3_timeout_ms: int = 10000):
         ctx = SpecContext(name)
         ctx.check(lhs.eq(rhs))
         report_z3 = z3_check_eq(ctx, timeout_ms=z3_timeout_ms)
-        report_dreal = dreal_check_eq(ctx, precision=0.001)
+        report_dreal = dreal_check_eq(ctx, precision=0.001)[0]
         results[name] = {
             "z3_equal": report_z3["equivalent"],
             "z3_status": report_z3['status'],
@@ -239,18 +247,13 @@ def check_rules(rules, z3_timeout_ms: int = 10000):
     return results
 
 
-
 def load_rules(egraph: EGraph, simplify=False) -> None:
     rewrites = rewrite_rules()
     
-    # Constant rules are not checked with z3 for now
     res = check_rules(rewrites)
-    # pprint(res)
-
+    
     if simplify:
         rules = lower_rules(rewrites) + constant_rules()[:-1]
     else:
         rules = constant_rules() + lower_rules(rewrites)
     egraph.register(*rules)
-
-    

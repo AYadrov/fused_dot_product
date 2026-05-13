@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..spec import SpecContext, SpecNode
+from .report import ProofReport
 from ..egglog import egglog_rewrite, egglog_preprocess
 from ..smt import z3_check_eq, dreal_check_eq
 
@@ -11,6 +12,8 @@ DEFAULT_REWRITE_ITERS = 6
 DEFAULT_PREPROCESS_ITERS = 3
 DEFAULT_Z3_TIMEOUT = 10000
 DEFAULT_DREAL_PRECISION = 0.001
+DEFAULT_EGGLOG_MATCH_LIMIT = 100000
+DEFAULT_EGGLOG_BAN_LENGTH = 1
 
 
 TOOL_FNS = {
@@ -19,6 +22,27 @@ TOOL_FNS = {
     "z3": z3_check_eq,
     "dreal": dreal_check_eq,
 }
+
+
+def _normalize_egglog_scheduler(step: dict[str, Any]) -> dict[str, int | None]:
+    scheduler = step.get("scheduler")
+    if scheduler is None:
+        return None
+    if not isinstance(scheduler, dict):
+        raise TypeError("Schedule step 'scheduler' must be a dict")
+
+    match_limit = scheduler.get("match_limit", DEFAULT_EGGLOG_MATCH_LIMIT)
+    ban_length = scheduler.get("ban_length", DEFAULT_EGGLOG_BAN_LENGTH)
+
+    if match_limit is not None:
+        match_limit = int(match_limit)
+    if ban_length is not None:
+        ban_length = int(ban_length)
+
+    return {
+        "match_limit": match_limit,
+        "ban_length": ban_length,
+    }
 
 
 # Unrolls tuples
@@ -66,11 +90,19 @@ def _normalize_schedule(
 
         if tool == "egglog-preprocess":
             normalized.append(
-                {"tool": tool, "iterations": int(step.get("iterations", DEFAULT_PREPROCESS_ITERS))}
+                {
+                    "tool": tool,
+                    "iterations": int(step.get("iterations", DEFAULT_PREPROCESS_ITERS)),
+                    "scheduler": _normalize_egglog_scheduler(step),
+                }
             )
         elif tool == "egglog-rewrite":
             normalized.append(
-                {"tool": tool, "iterations": int(step.get("iterations", DEFAULT_REWRITE_ITERS))}
+                {
+                    "tool": tool,
+                    "iterations": int(step.get("iterations", DEFAULT_REWRITE_ITERS)),
+                    "scheduler": _normalize_egglog_scheduler(step),
+                }
             )
         elif tool == "z3":
             normalized.append(
@@ -88,7 +120,27 @@ def _run_tool(ctx: SpecContext, step: dict[str, Any]):
     tool = step["tool"]
     tool_fn = TOOL_FNS[tool]
     kwargs = {key: value for key, value in step.items() if key != "tool"}
-    return tool_fn(ctx, **kwargs)
+    return _normalize_tool_reports(tool_fn(ctx, **kwargs))
+
+
+def _normalize_tool_reports(
+    tool_result: ProofReport | list[ProofReport],
+) -> list[ProofReport]:
+    if isinstance(tool_result, dict):
+        reports = [tool_result]
+    elif isinstance(tool_result, list):
+        reports = tool_result
+    else:
+        raise TypeError(
+            "Each tool must return a ProofReport or a list of ProofReports"
+        )
+
+    for report in reports:
+        if "new_ctx" not in report:
+            raise KeyError("Each tool report must include 'new_ctx'")
+        if "equivalent" not in report:
+            raise KeyError("Each tool report must include 'equivalent'")
+    return reports
 
 
 def check_equivalence(
@@ -99,14 +151,26 @@ def check_equivalence(
 ):
     _enqueue_equivalence(query1, query2, ctx=ctx)
 
-    proof_trace: list[dict[str, Any]] = []
-    current_ctx = ctx.copy()
+    current_tracks: list[list[ProofReport]] = [[]]
+    current_ctxs = [ctx.copy()]
 
-    for step in _normalize_schedule(schedule=schedule):
-        report = _run_tool(current_ctx, step)
-        proof_trace.append(report)
-        current_ctx = report["new_ctx"]
-        if report["equivalent"]:
-            return True, proof_trace
+    normalized_schedule = _normalize_schedule(schedule=schedule)
+    for step in normalized_schedule:
+        next_tracks: list[list[ProofReport]] = []
+        next_ctxs: list[SpecContext] = []
 
-    return False, proof_trace
+        for current_ctx, current_track in zip(current_ctxs, current_tracks):
+            reports = _run_tool(current_ctx, step)
+            for report in reports:
+                next_track = current_track + [report]
+                if report["equivalent"]:
+                    return True, next_track
+                next_tracks.append(next_track)
+                next_ctxs.append(report["new_ctx"])
+
+        current_tracks = next_tracks
+        current_ctxs = next_ctxs
+
+    if not current_tracks:
+        return False, []
+    return False, current_tracks[0]

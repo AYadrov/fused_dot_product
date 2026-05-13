@@ -30,4 +30,4 @@ def dreal_check_eq(ctx: "SpecContext", precision: float):
     if result is not None:
         report["supplementary_info"] = str(result)
       
-    return report
+    return [report]

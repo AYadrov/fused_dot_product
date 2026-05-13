@@ -6,6 +6,7 @@ from egglog import EGraph
 from fused_dot_product import (
     BFloat16,
     Bool,
+    BoolLit,
     Const,
     Float32,
     Pow,
@@ -21,10 +22,13 @@ from fused_dot_product import (
     if_then_else,
     make_Tuple,
     q_signs_xor,
+    uq_rshift_jam,
 )
 from fused_dot_product import SpecContext
 from fused_dot_product.egglog.rules import load_rules
+from fused_dot_product.smt import z3_check_eq
 from fused_dot_product.solver import engine as solver_engine
+from fused_dot_product.solver.report import build_proof_report
 from fused_dot_product.spec.spec_utils import from_egglog
 
 
@@ -102,6 +106,20 @@ class TestConstantFolding(unittest.TestCase):
         x.load_val(UQ(6, 3, 0))
         self.assertEqual(node.evaluate().val, 7)
         self.assertIsNone(node.node_type.runtime_val)
+
+    def test_uq_rshift_jam_uses_shifted_bit_mask_zero_check(self):
+        cases = [
+            (8, 1, 5),
+            (9, 1, 4),
+        ]
+
+        for x_val, amount_val, expected in cases:
+            with self.subTest(x=x_val, amount=amount_val):
+                folded = uq_rshift_jam(
+                    Const(UQ(x_val, 4, 0)),
+                    Const(UQ.from_int(amount_val)),
+                )
+                self.assert_folded_value(folded, UQ, expected)
 
 
 class TestFingerprint(unittest.TestCase):
@@ -219,6 +237,72 @@ class TestPowSpecOp(unittest.TestCase):
                 egraph.run(1)
 
                 self.assertEqual(from_egglog(egraph.extract(lowered)), expected)
+
+    def test_numeric_equality_constant_folds_in_egglog(self):
+        cases = [
+            (RealLit(3).eq(RealLit(3)), BoolLit(True)),
+            (RealLit(3).ne(RealLit(4)), BoolLit(True)),
+        ]
+
+        for expr, expected in cases:
+            with self.subTest(expr=str(expr)):
+                egraph = EGraph()
+                load_rules(egraph)
+                lowered = expr.to_egglog()
+
+                egraph.register(lowered)
+                egraph.run(1)
+
+                self.assertEqual(from_egglog(egraph.extract(lowered)), expected)
+
+    def test_numeric_equality_constant_folds_in_simplify_mode(self):
+        cases = [
+            (RealLit(5).eq(RealLit(5)), BoolLit(True)),
+            (RealLit(5).ne(RealLit(6)), BoolLit(True)),
+        ]
+
+        for expr, expected in cases:
+            with self.subTest(expr=str(expr)):
+                egraph = EGraph()
+                load_rules(egraph, simplify=True)
+                lowered = expr.to_egglog()
+
+                egraph.register(lowered)
+                egraph.run(1)
+
+                self.assertEqual(from_egglog(egraph.extract(lowered)), expected)
+
+
+class TestSolverApis(unittest.TestCase):
+    def test_check_equivalence_returns_flat_proof_trace(self):
+        ctx = SpecContext("flat-trace")
+        report1 = build_proof_report(ctx, ctx.copy(), tool="branch-a", runtime_s=0.0, equivalent=False)
+        report2 = build_proof_report(ctx, ctx.copy(), tool="branch-b", runtime_s=0.0, equivalent=True)
+
+        with patch.dict(solver_engine.TOOL_FNS, {"z3": lambda _ctx, timeout_ms: [report1, report2]}):
+            equivalent, proof_trace = solver_engine.check_equivalence(
+                RealLit(1),
+                RealLit(1),
+                ctx=ctx,
+                schedule=[{"tool": "z3", "timeout_ms": 1}],
+            )
+
+        self.assertTrue(equivalent)
+        self.assertIsInstance(proof_trace, list)
+        self.assertEqual(len(proof_trace), 1)
+        self.assertIsInstance(proof_trace[0], dict)
+        self.assertEqual(proof_trace[0]["tool"], "branch-b")
+
+    def test_z3_check_eq_returns_single_report(self):
+        ctx = SpecContext("z3-api")
+        ctx.check(RealLit(1).eq(RealLit(1)))
+
+        report = z3_check_eq(ctx, timeout_ms=1000)
+
+        self.assertIsInstance(report, dict)
+        self.assertEqual(report["tool"], "z3")
+        self.assertTrue(report["equivalent"])
+
 
 class TestSignSpecs(unittest.TestCase):
     def test_q_signs_xor_spec_matches_constant_sign_combinations(self):

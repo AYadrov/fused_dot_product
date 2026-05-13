@@ -174,14 +174,7 @@ if __name__ == '__main__':
     design = Optimized(*a, *b)
     print(design)
     design.print_tree(depth=1)
-    report = design.check_spec(
-        schedule = [
-            # {"tool": "z3", "timeout_ms": 10000},
-            {"tool": "egglog-preprocess", "iterations": 3},
-            # {"tool": "z3", "timeout_ms": 10000},
-            {"tool": "egglog-rewrite", "iterations": 6},
-            {"tool": "z3", "timeout_ms": 10000},
-            ])
+    report = design.check_spec()
     pprint(report)
     with open("examples/optimized.hpp", "w") as file:
         file.write(design.to_cpp())
