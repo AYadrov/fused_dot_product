@@ -47,7 +47,6 @@ def uq_RNE_IEEE(m: Node, bits_to_cut: int):
         increment = basic_and(guard_bit, tail, out=Const(UQ(0, 1, 0)))
         
         m_truncated = uq_resize(m, target_int_bits, target_frac_bits)
-        increment_to_add = basic_identity(increment, Const(UQ(0, target_int_bits, target_frac_bits)))
 
         # Overflow will happen?
         overflow_bit = basic_and(
@@ -55,11 +54,8 @@ def uq_RNE_IEEE(m: Node, bits_to_cut: int):
             increment,
             Const(UQ(0, 1, 0)),
         )
-        m_incremented = uq_add(m_truncated, increment_to_add)
-
-        # Address potential overflow
-        m_resized = basic_rshift(m_incremented, overflow_bit, Const(UQ(0, target_int_bits, target_frac_bits)))
-        return make_Tuple(m_resized, overflow_bit)
+        m_incremented = basic_add(m_truncated, increment, Const(UQ(0, target_int_bits, target_frac_bits)))
+        return make_Tuple(m_incremented, overflow_bit)
         
     return impl(m)
 
@@ -89,7 +85,7 @@ def round_mantissa(m: Node, e: Node, target_bits: int = Float32.mantissa_bits, r
             m_rounded, overflow_bit = uq_RNE_IEEE(m_prerounded, bits_to_cut=bits_to_cut)
         else:
             raise NotImplementedError()
-        
+
         e_incremented = uq_add(e_prerounded, overflow_bit)
 
         ####################################################
