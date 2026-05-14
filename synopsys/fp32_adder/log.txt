@@ -1,0 +1,67 @@
+u1407244@lab1-1 ~/fp32_adder]$ bash run_vcs_cpp_vs_cpp.sh
+Using setup-synopsys from S22
+Assuming your OS is amd64
+You are now set up to run the synopsys tools.
+
+Working directory is /home/u1407244/fp32_adder
+
+Note-[VIRSIM_GONE] Virsim not supported
+  Virsim is no longer supported as warned in earlier VCS releases.
+  DVE has replaced Virsim as the default Debug GUI since VCS 2006.06 release.
+  The Virsim vcs switches -RI, -RIG, and -RPP are also no longer supported.
+  Please invoke DVE as follows:
+  	Interactive Mode compile time:  >vcs <other options> -R -gui
+  	Interactive Mode run time:  >simv <other optoins> -gui
+  	Post Process Mode >dve &
+  Contact Synopsys VCS Support for more details: vcs_support@synopsys.com .
+
+                         Chronologic VCS (TM)
+       Version S-2021.09-SP1_Full64 -- Thu May 14 14:14:41 2026
+
+                    Copyright (c) 1991 - 2021 Synopsys, Inc.
+   This software and the associated documentation are proprietary to Synopsys,
+ Inc. This software may only be used in accordance with the terms and conditions
+ of a written license agreement with Synopsys, Inc. All other use, reproduction,
+   or distribution of this software is strictly prohibited.  Licensed Products
+     communicate with Synopsys servers for the purpose of providing software
+    updates, detecting software piracy and verifying that customers are using
+    Licensed Products in conformity with the applicable License Key for such
+  Licensed Products. Synopsys will use information gathered in connection with
+    this process to deliver software updates and pursue software pirates and
+                                   infringers.
+
+ Inclusivity & Diversity - Visit SolvNetPlus to read the "Synopsys Statement on
+            Inclusivity and Diversity" (Refer to article 000036315 at
+                        https://solvnetplus.synopsys.com)
+
+Parsing design file 'fp32_adder_dut_pkg.sv'
+Parsing design file 'fp32_adder_ref_pkg.sv'
+Parsing design file 'fp32_adder_cpp_vs_cpp_tb.sv'
+Top Level Modules:
+       fp32_adder_cpp_vs_cpp_tb
+No TimeScale specified
+Starting vcs inline pass...
+
+3 modules and 0 UDP read.
+recompiling module fp32_adder_cpp_vs_cpp_tb
+	However, due to incremental compilation, only 1 module needs to be compiled. 
+rm -f _cuarc*.so _csrc*.so pre_vcsobj_*.so share_vcsobj_*.so
+g++ -w  -pipe -fPIC -O -I/uusoc/facility/cad_common/Synopsys/VCS-S22/include    -c ../fp32_adder_dut_dpi.cpp
+g++ -w  -pipe -fPIC -O -I/uusoc/facility/cad_common/Synopsys/VCS-S22/include    -c ../fp32_adder_ref_dpi.cpp
+ld -shared  -Bsymbolic --no-relax  -o .//../simv_cpp_vs_cpp.daidir//_cuarc0.so objs/amcQw_d.o 
+rm -f _cuarc0.so
+if [ -x ../simv_cpp_vs_cpp ]; then chmod a-x ../simv_cpp_vs_cpp; fi
+g++  -o ../simv_cpp_vs_cpp      -rdynamic  -Wl,-rpath='$ORIGIN'/simv_cpp_vs_cpp.daidir -Wl,-rpath=./simv_cpp_vs_cpp.daidir -Wl,-rpath=/uusoc/facility/cad_common/Synopsys/VCS-S22/linux64/lib -L/uusoc/facility/cad_common/Synopsys/VCS-S22/linux64/lib  -Wl,-rpath-link=./  /usr/lib64/libnuma.so.1 fp32_adder_dut_dpi.o fp32_adder_ref_dpi.o    _605550_archive_1.so _prev_archive_1.so _cuarc0.so  SIM_l.o      rmapats_mop.o rmapats.o rmar.o rmar_nd.o  rmar_llvm_0_1.o rmar_llvm_0_0.o           -lvirsim -lerrorinf -lsnpsmalloc -lvfs    -lvcsnew -lsimprofile -luclinative /uusoc/facility/cad_common/Synopsys/VCS-S22/linux64/lib/vcs_tls.o   -Wl,-whole-archive  -lvcsucli    -Wl,-no-whole-archive      ./../simv_cpp_vs_cpp.daidir/vc_hdrs.o    /uusoc/facility/cad_common/Synopsys/VCS-S22/linux64/lib/vcs_save_restore_new.o -ldl  -lc -lm -lpthread -ldl 
+../simv_cpp_vs_cpp up to date
+CPU time: .225 seconds to compile + .238 seconds to elab + .217 seconds to link
+Chronologic VCS simulator copyright 1991-2021
+Contains Synopsys proprietary information.
+Compiler version S-2021.09-SP1_Full64; Runtime version S-2021.09-SP1_Full64;  May 14 14:14 2026
+FP32 C++ DUT vs C++ REF passed.
+$finish called from file "fp32_adder_cpp_vs_cpp_tb.sv", line 36.
+$finish at simulation time           4294967300
+           V C S   S i m u l a t i o n   R e p o r t 
+Time: 4294967300
+CPU Time:   1690.640 seconds;       Data structure size:   0.0Mb
+Thu May 14 14:51:50 2026
+
