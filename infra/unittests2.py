@@ -4,39 +4,18 @@ from unittest.mock import patch
 import dreal
 from egglog import EGraph
 
-from fused_dot_product import (
-    BFloat16,
-    BFloat16T,
-    Bool,
-    BoolLit,
-    Const,
-    Float32,
-    Float32T,
-    Pow,
-    Q,
-    RealLit,
-    RealVar,
-    Tuple,
-    UQ,
-    UQT,
-    Var,
-    basic_add,
-    basic_less,
-    basic_sub,
-    if_then_else,
-    make_Tuple,
-    q_signs_xor,
-    uq_rshift_jam,
-)
-from fused_dot_product import SpecContext
+from fused_dot_product import *
 from fused_dot_product.egglog.rules import load_rules
 from fused_dot_product.smt import z3_check_eq
 from fused_dot_product.solver import engine as solver_engine
 from fused_dot_product.solver.report import build_proof_report
 from fused_dot_product.spec.spec_utils import from_egglog
 from examples.FP32_IEEE_adder import FP32_IEEE_adder
+from examples.FP32_IEEE_mult import FP32_IEEE_mult
 from examples.conventional import Conventional
 from examples.optimized import Optimized
+
+from infra.compile_cpp import jit_compile, nonjit_compile
 
 
 class TestConstantFolding(unittest.TestCase):
@@ -48,6 +27,82 @@ class TestConstantFolding(unittest.TestCase):
         evaluated = node.evaluate()
         self.assertIsInstance(evaluated, runtime_type)
         self.assertEqual(evaluated.val, expected_val)
+        
+    def test_cpp_lowering_widening_add_sub(self):
+        add_x = Var(name="add_x", sign=UQT(32, 0))
+        add_y = Var(name="add_y", sign=UQT(32, 0))
+        add_design = uq_add(add_x, add_y)
+
+        sub_x = Var(name="sub_x", sign=UQT(32, 0))
+        sub_y = Var(name="sub_y", sign=UQT(32, 0))
+        sub_design = uq_sub(sub_x, sub_y)
+
+        add_tempdir_jit, add_fn_jit = jit_compile(add_design)
+        add_tempdir_no_jit, add_fn_no_jit = nonjit_compile(add_design)
+        sub_tempdir_jit, sub_fn_jit = jit_compile(sub_design)
+        sub_tempdir_no_jit, sub_fn_no_jit = nonjit_compile(sub_design)
+
+        add_cases = [
+            (0xFFFF_FFFF, 0x0000_0001, 0x1_0000_0000),
+            (0x8000_0000, 0x8000_0000, 0x1_0000_0000),
+        ]
+        sub_cases = [
+            (0x0000_0000, 0x0000_0001, 0x1_FFFF_FFFF),
+            (0x8000_0000, 0x0000_0001, 0x07FFF_FFFF),
+        ]
+
+        try:
+            for lhs_bits, rhs_bits, expected in add_cases:
+                add_x.load_val(UQ(lhs_bits, 32, 0))
+                add_y.load_val(UQ(rhs_bits, 32, 0))
+                with self.subTest(op="uq_add", lhs=hex(lhs_bits), rhs=hex(rhs_bits)):
+                    self.assertEqual(add_design.evaluate().val, expected)
+                    self.assertEqual(add_fn_jit(lhs_bits, rhs_bits), expected)
+                    self.assertEqual(add_fn_no_jit(lhs_bits, rhs_bits), expected)
+
+            for lhs_bits, rhs_bits, expected in sub_cases:
+                sub_x.load_val(UQ(lhs_bits, 32, 0))
+                sub_y.load_val(UQ(rhs_bits, 32, 0))
+                with self.subTest(op="uq_sub", lhs=hex(lhs_bits), rhs=hex(rhs_bits)):
+                    self.assertEqual(sub_design.evaluate().val, expected)
+                    self.assertEqual(sub_fn_jit(lhs_bits, rhs_bits), expected)
+                    self.assertEqual(sub_fn_no_jit(lhs_bits, rhs_bits), expected)
+        finally:
+            add_tempdir_jit.cleanup()
+            add_tempdir_no_jit.cleanup()
+            sub_tempdir_jit.cleanup()
+            sub_tempdir_no_jit.cleanup()
+
+
+    def test_fp32_multiplier_special_cases(self):
+        x = Var(name="x", sign=Float32T())
+        y = Var(name="y", sign=Float32T())
+        design = FP32_IEEE_mult(x, y)
+
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
+
+        cases = [
+            (Float32.Inf().val, Float32.Zero().val, Float32.NaN().val),
+            (Float32.nInf().val, Float32.Zero().val, Float32.NaN().val),
+            (Float32.Inf().val, Float32.from_fields(0, 128, 0).val, Float32.Inf().val),
+            (Float32.nInf().val, Float32.from_fields(0, 128, 0).val, Float32.nInf().val),
+            (Float32.nZero().val, Float32.from_fields(0, 128, 1 << 22).val, Float32.nZero().val),
+            (Float32.nZero().val, Float32.from_fields(1, 128, 1 << 22).val, Float32.Zero().val),
+            (Float32.NaN().val, Float32.from_fields(0, 128, 0).val, Float32.NaN().val),
+        ]
+
+        try:
+            for lhs_bits, rhs_bits, expected_bits in cases:
+                x.load_val(Float32(lhs_bits))
+                y.load_val(Float32(rhs_bits))
+                with self.subTest(lhs=hex(lhs_bits), rhs=hex(rhs_bits)):
+                    self.assertEqual(design.evaluate().val, expected_bits)
+                    self.assertEqual(fn_jit(lhs_bits, rhs_bits), expected_bits)
+                    self.assertEqual(fn_no_jit(lhs_bits, rhs_bits), expected_bits)
+        finally:
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
 
     def test_basic_add_folds_for_float_bit_types(self):
         cases = [
