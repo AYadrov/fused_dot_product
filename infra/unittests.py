@@ -14,6 +14,7 @@ from examples.optimized import Optimized
 from examples.conventional import Conventional
 from examples.CSA import CSA_tree4
 from examples.FP32_IEEE_adder import FP32_IEEE_adder
+from examples.FP32_IEEE_mult import FP32_IEEE_mult
 from examples.max_exponent import OPTIMIZED_MAX_EXP4
 
 from infra.compile_cpp import jit_compile, nonjit_compile
@@ -133,22 +134,6 @@ class TestFusedDotProduct(unittest.TestCase):
         conventional_runtime_s = 0.0
         optimized_runtime_s = 0.0
         
-        print("\nRunning test_designs_difference_with_fp_spec:")
-        print("\tFuzzing conventional and optimized fused dot-product designs to detect deviations from the floating-point spec.")
-        print(f"\tUsing random seed: {SEED}") 
-        print("\tFloating-point spec (applies to both designs):")
-        print("\t\tdef spec(BF16 a_0, BF16 a_1, BF16 a_2, BF16 a_3,\n\t\t\t BF16 b_0, BF16 b_1, BF16 b_2, BF16 b_3) -> FP64:")
-        print("\t\t\tFP64 out  = FP64(a_0) * FP64(b_0)")
-        print("\t\t\tFP64 out += FP64(a_1) * FP64(b_1)")
-        print("\t\t\tFP64 out += FP64(a_2) * FP64(b_2)")
-        print("\t\t\tFP64 out += FP64(a_3) * FP64(b_3)")
-        print("\t\t\tFP64 out  = FP64(FP32(out))  // truncate to FP32, then cast back to FP64 (casting is exact)")
-        print("\t\t\treturn out")
-        print("\n\t\tNotes: Inputs (a_0...3, b_0...3) are generated in BF16 (8 exponent bits, 7 mantissa bits, 1 sign bit)")
-        print("\t\t       and then cast to double precision; casting to FP64 is exact.")
-        print("\t\t       The reference spec is evaluated in double precision because Python only supports this FP representation.")
-        print("\t\t       A deviation is any FP64 ULP difference between the two designs.\n")
-        
         # Compile designs
         a = [
             Var(name="a_0", sign=BFloat16T()),
@@ -173,7 +158,6 @@ class TestFusedDotProduct(unittest.TestCase):
             TOTAL_POINTS += N_POINTS
             
             random_gen, exp_reshuffle = BFloat16.random_generator(seed=SEED, shared_exponent_bits=shared_bits)
-            print(f"\tRunning {N_POINTS} random points with {shared_bits} shared leading exponent bits for each generated input.")
             
             for _ in range(N_POINTS):
                 exp_reshuffle()
@@ -208,7 +192,62 @@ class TestFusedDotProduct(unittest.TestCase):
 
         pprint(TestFusedDotProduct.IMPL_REPORT)
 
-    def test_cpp_lowering_performance(self):
+    def test_cpp_lowering_performance_multiplier(self):
+        x = Var(name="x", sign=Float32T())
+        y = Var(name="y", sign=Float32T())
+        design = FP32_IEEE_mult(x, y)
+        
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
+        
+        try:
+            jit_runtime = 0.0
+            no_jit_runtime = 0.0
+            reference_runtime = 0.0
+            
+            rnd = random.Random(self.SEED)
+            for _ in range(self.N_POINTS):
+                x_bits = rnd.getrandbits(32)
+                y_bits = rnd.getrandbits(32)
+                x_fp = float(np.float32(Float32(x_bits).to_val()))
+                y_fp = float(np.float32(Float32(y_bits).to_val()))
+                
+                t0 = time.perf_counter()
+                jit_bits = fn_jit(x_bits, y_bits)
+                jit_runtime += time.perf_counter() - t0
+                jit_fp32 = float(np.float32(Float32(jit_bits).to_val()))
+                
+                t0 = time.perf_counter()
+                no_jit_bits = fn_no_jit(x_bits, y_bits)
+                no_jit_runtime += time.perf_counter() - t0
+                no_jit_fp32 = float(np.float32(Float32(no_jit_bits).to_val()))
+                
+                t0 = time.perf_counter()
+                reference_fp64 = x_fp * y_fp
+                reference_runtime += time.perf_counter() - t0
+                reference_fp32 = float(np.float32(reference_fp64))
+                
+                with self.subTest(lhs=x_fp, rhs=y_fp):
+                    self.assertEqual(ulp_distance(reference_fp32, jit_fp32), 0, msg=f"{reference_fp32} != {jit_fp32}")
+                    self.assertEqual(ulp_distance(jit_fp32, no_jit_fp32), 0, msg=f"{jit_fp32} != {no_jit_fp32}")
+                
+            print(
+                "cpp_lowering_performance_mult:",
+                {
+                    "jit_total": jit_runtime,
+                    "no_jit_total": no_jit_runtime,
+                    "reference_total": reference_runtime,
+                    "jit_per_point": jit_runtime / self.N_POINTS,
+                    "no_jit_per_point": no_jit_runtime / self.N_POINTS,
+                    "reference_per_point": reference_runtime / self.N_POINTS,
+                },
+            )
+        finally:
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
+
+
+    def test_cpp_lowering_performance_adder(self):
         x = Var(name="x", sign=Float32T())
         y = Var(name="y", sign=Float32T())
         design = FP32_IEEE_adder(x, y)
@@ -220,19 +259,19 @@ class TestFusedDotProduct(unittest.TestCase):
             jit_runtime = 0.0
             no_jit_runtime = 0.0
             reference_runtime = 0.0
-                
+            
             rnd = random.Random(self.SEED)
             for _ in range(self.N_POINTS):
                 x_bits = rnd.getrandbits(32)
                 y_bits = rnd.getrandbits(32)
                 x_fp = float(np.float32(Float32(x_bits).to_val()))
                 y_fp = float(np.float32(Float32(y_bits).to_val()))
-
+                
                 t0 = time.perf_counter()
                 jit_bits = fn_jit(x_bits, y_bits)
                 jit_runtime += time.perf_counter() - t0
                 jit_fp32 = float(np.float32(Float32(jit_bits).to_val()))
-
+                
                 t0 = time.perf_counter()
                 no_jit_bits = fn_no_jit(x_bits, y_bits)
                 no_jit_runtime += time.perf_counter() - t0
@@ -242,13 +281,13 @@ class TestFusedDotProduct(unittest.TestCase):
                 reference_fp64 = x_fp + y_fp
                 reference_runtime += time.perf_counter() - t0
                 reference_fp32 = float(np.float32(reference_fp64))
-
+                
                 with self.subTest(lhs=x_fp, rhs=y_fp):
                     self.assertEqual(ulp_distance(reference_fp32, jit_fp32), 0, msg=f"{reference_fp32} != {jit_fp32}")
                     self.assertEqual(ulp_distance(jit_fp32, no_jit_fp32), 0, msg=f"{jit_fp32} != {no_jit_fp32}")
-
+                
             print(
-                "cpp_lowering_performance_s:",
+                "cpp_lowering_performance_adder:",
                 {
                     "jit_total": jit_runtime,
                     "no_jit_total": no_jit_runtime,

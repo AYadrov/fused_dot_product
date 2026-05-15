@@ -102,7 +102,10 @@ def basic_add(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=lambda lowered_args, jittable: f"({lowered_args[0]} + {lowered_args[1]})",
+        c_lowering=lambda lowered_args, jittable: (
+            f"({_cpp_cast(out.node_type, lowered_args[0], jittable=jittable)} + "
+            f"{_cpp_cast(out.node_type, lowered_args[1], jittable=jittable)})"
+        ),
         name="basic_add",
     )
 
@@ -112,7 +115,10 @@ def basic_sub(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=lambda lowered_args, jittable: f"({lowered_args[0]} - {lowered_args[1]})",
+        c_lowering=lambda lowered_args, jittable: (
+            f"({_cpp_cast(out.node_type, lowered_args[0], jittable=jittable)} - "
+            f"{_cpp_cast(out.node_type, lowered_args[1], jittable=jittable)})"
+        ),
         name="basic_sub",
     )
 
@@ -122,7 +128,10 @@ def basic_mul(x: Node, y: Node, out: Node) -> Op:
         x=x,
         y=y,
         out=out,
-        c_lowering=lambda lowered_args, jittable: f"({lowered_args[0]} * {lowered_args[1]})",
+        c_lowering=lambda lowered_args, jittable: (
+            f"({_cpp_cast(out.node_type, lowered_args[0], jittable=jittable)} * "
+            f"{_cpp_cast(out.node_type, lowered_args[1], jittable=jittable)})"
+        ),
         name="basic_mul",
     )
 
