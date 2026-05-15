@@ -44,16 +44,6 @@ def integer_to_fraction(x: Node) -> Primitive:
 
     return impl(x)
 
-def sign_xor_spec(x, y, ctx):
-    res = ctx.fresh_real('xored_signs')
-    minus_one = ctx.real_val(-1)
-    ctx.assume((minus_one ** res).eq((minus_one ** x) * (minus_one ** y)))
-    ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
-    return res
-
-@Primitive(name="sign_xor", spec=sign_xor_spec, c_inline=True)
-def sign_xor(x: Node, y: Node) -> Node:
-    return basic_xor(x=x, y=y, out=Const(UQ(0, 1, 0)))
 
 @Primitive(name="bit_and", spec=lambda x, y, ctx: x * y, c_inline=True)
 def bit_and(x: Node, y: Node) -> Node:
@@ -61,7 +51,14 @@ def bit_and(x: Node, y: Node) -> Node:
     assert y.node_type.total_bits() == 1, f"bit_and expects single bit as an input, given: {y.node_type.total_bits()}"
     return basic_and(x, y, Const(UQ(0, 1, 0)))
 
-@Primitive(name="bit_xor", spec=lambda x, y, ctx: x.max(y) - x*y, c_inline=True)
+def xor_spec(x, y, ctx):
+    res = ctx.fresh_real('xored_signs')
+    minus_one = ctx.real_val(-1)
+    ctx.assume((minus_one ** res).eq((minus_one ** x) * (minus_one ** y)))
+    ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
+    return res
+
+@Primitive(name="bit_xor", spec=xor_spec, c_inline=True)
 def bit_xor(x: Node, y: Node) -> Node:
     assert x.node_type.total_bits() == 1, f"bit_xor expects single bit as an input, given: {x.node_type.total_bits()}"
     assert y.node_type.total_bits() == 1, f"bit_xor expects single bit as an input, given: {y.node_type.total_bits()}"

@@ -127,7 +127,7 @@ def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,
             ctx.check(lhs.eq(rhs))
     
     # Step 5. Adjust signs using xor operation
-    S_p = [sign_xor(S_a[i], S_b[i]) for i in range(N)]
+    S_p = [bit_xor(S_a[i], S_b[i]) for i in range(N)]
     
     M_p = [uq_to_q(M_p[i]) for i in range(N)]
     
