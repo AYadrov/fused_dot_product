@@ -379,7 +379,9 @@ class Float32(RuntimeType):
         return cls.from_fields(0, cls.zero_code, 0)
     
     @classmethod
-    def NaN(cls, payload: int = 1):
+    def NaN(cls, payload: int | None = None):
+        if payload is None:
+            payload = 1 << (cls.mantissa_bits - 1)
         if not isinstance(payload, int):
             raise TypeError(f"Float32 NaN payload must be int, got {type(payload).__name__}")
         if not (1 <= payload < (1 << cls.mantissa_bits)):
