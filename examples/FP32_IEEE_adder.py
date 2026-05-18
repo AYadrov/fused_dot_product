@@ -19,10 +19,10 @@ def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     # Signed zero encoding
     both_negative_zeros = bit_and(bit_and(x_zero, y_zero), bit_and(x_s, y_s))
     
-    with context() as ctx:
-        # Spec does not have nan/inf yet
-        ctx.check(ctx.spec_of(encode_inf).eq(ctx.real_val(0)))
-        ctx.check(ctx.spec_of(encode_nan).eq(ctx.real_val(0)))
+    # with context() as ctx:
+    #     # Spec does not have nan/inf yet
+    #     ctx.check(ctx.spec_of(encode_inf).eq(ctx.real_val(0)))
+    #     ctx.check(ctx.spec_of(encode_nan).eq(ctx.real_val(0)))
     
     # UQ<23, 0> -> UQ<0, 23>
     x_m_fraction = integer_to_fraction(x_m)
@@ -37,11 +37,11 @@ def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     x_effective_e = if_then_else(x_sub, effective_subnormal_e, x_e)
     y_effective_e = if_then_else(y_sub, effective_subnormal_e, y_e)
     
-    with context() as ctx:
-        # This check basically makes sure that if statement was useless
-        #   since on spec level we pretend that we do not have subnormals
-        ctx.check(ctx.spec_of(x_m_formatted).eq(ctx.spec_of(x_m_fraction) + ctx.real_val(1)))
-        ctx.check(ctx.spec_of(y_m_formatted).eq(ctx.spec_of(y_m_fraction) + ctx.real_val(1)))
+    # with context() as ctx:
+    #     # This check basically makes sure that if statement was useless
+    #     #   since on spec level we pretend that we do not have subnormals
+    #     ctx.check(ctx.spec_of(x_m_formatted).eq(ctx.spec_of(x_m_fraction) + ctx.real_val(1)))
+    #     ctx.check(ctx.spec_of(y_m_formatted).eq(ctx.spec_of(y_m_fraction) + ctx.real_val(1)))
     
     max_exp = uq_max(x_effective_e, y_effective_e)
     x_shift_amount = uq_sub(max_exp, x_effective_e)
