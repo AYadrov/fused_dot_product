@@ -186,13 +186,18 @@ class Float32T(StaticType):
             and self.mantissa_bits == other.mantissa_bits
             and self.exponent_bits == other.exponent_bits
         )
-
+    
     def _clone_impl(self) -> "Float32T":
         return Float32T()
     
     def to_spec(self, name, ctx):
-        return ctx.fresh_real(name)
-
+        value = ctx.fresh_real(f"{name}_value")
+        is_inf = ctx.fresh_real(f"{name}_is_inf")
+        is_nan = ctx.fresh_real(f"{name}_is_nan")
+        ctx.assume(is_inf.eq(ctx.real_val(0)))
+        ctx.assume(is_nan.eq(ctx.real_val(0)))
+        return (value, is_inf, is_nan)
+    
     def random_runtime_value(self, rng: random.Random):
         from .runtime import Float32
         return Float32(rng.getrandbits(self.total_bits()))

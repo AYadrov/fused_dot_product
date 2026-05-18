@@ -3,7 +3,7 @@ from .common import *
 from .encode_Float32 import *
 
 # TODO: NaN payload
-@Composite(name="FP32_IEEE_adder", spec=lambda x, y, ctx: x + y)
+@Composite(name="FP32_IEEE_adder", spec=lambda x, y, ctx: (x[0] + y[0], ctx.real_val(0), ctx.real_val(0)))
 def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     x_s, x_e, x_m, x_norm, x_sub, x_zero, x_inf, x_nan = fp32_decode(x)
     y_s, y_e, y_m, y_norm, y_sub, y_zero, y_inf, y_nan = fp32_decode(y)
@@ -73,6 +73,6 @@ if __name__ == '__main__':
     pprint(adder.check_spec())
     with open("examples/adder_jit.hpp", "w") as file:
         file.write(adder.to_cpp(jittable=True))
-
+    
     with open("examples/adder_no_jit.hpp", "w") as file:
         file.write(adder.to_cpp(jittable=False))
