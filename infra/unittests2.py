@@ -27,6 +27,10 @@ class TestConstantFolding(unittest.TestCase):
         evaluated = node.evaluate()
         self.assertIsInstance(evaluated, runtime_type)
         self.assertEqual(evaluated.val, expected_val)
+
+    def test_float32_nan_default_is_quiet(self):
+        self.assertEqual(Float32.NaN().val, 0x7FC00000)
+        self.assertEqual(Float32.NaN(1).val, 0x7F800001)
         
     def test_cpp_lowering_widening_add_sub(self):
         add_x = Var(name="add_x", sign=UQT(32, 0))
