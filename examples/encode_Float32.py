@@ -279,7 +279,7 @@ def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node) -
         ctx.assume(encode_nan.eq(ctx.real_val(0)))
         ctx.assume(encode_inf.eq(ctx.real_val(0)))
         value = (ctx.real_val(-1) ** s) * m * (ctx.real_val(2) ** (e - ctx.real_val(127)))
-        return (value, encode_inf, encode_nan)
+        return (value, ctx.real_val(1), ctx.real_val(0), ctx.real_val(0), encode_inf, encode_nan)
     
     @Composite(name="fp32_encode", spec=spec)
     def impl(s_uq: Node, e_q: Node, m_uq: Node, encode_nan: Node, encode_inf: Node) -> Node:

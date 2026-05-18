@@ -77,14 +77,14 @@ def fp32_pack_spec(s, e, m, ctx):
     mantissa = ctx.real_val(1) + m * ctx.real_val(2) ** (-ctx.real_val(Float32.mantissa_bits))
     exponent = e - ctx.real_val(Float32.exponent_bias)
     value = ctx.real_val(-1) ** s * mantissa * ctx.real_val(2) ** exponent
-    return (value, ctx.real_val(0), ctx.real_val(0))
+    return (value, ctx.real_val(1), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0))
 
 @Primitive(name="fp32_pack", spec=fp32_pack_spec)
 def fp32_pack(sign: Node, exponent: Node, mantissa: Node) -> Node:
     return _fp32_alloc(sign, exponent, mantissa)
 
 def fp32_decode_spec(x, ctx):
-    value, is_inf, is_nan = x
+    value, x_norm, x_sub, x_zero, x_inf, x_nan = x
     sign = ctx.fresh_real("sign")
     mantissa = ctx.fresh_real("mantissa")
     exponent = ctx.fresh_real("exponent")
@@ -109,11 +109,11 @@ def fp32_decode_spec(x, ctx):
         sign,
         exponent,
         mantissa,
-        ctx.real_val(1),
-        ctx.real_val(0),
-        ctx.real_val(0),
-        is_inf,
-        is_nan,
+        x_norm,
+        x_sub,
+        x_zero,
+        x_inf,
+        x_nan,
     )
 
 

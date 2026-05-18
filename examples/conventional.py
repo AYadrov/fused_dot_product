@@ -7,7 +7,7 @@ Wf = 30
 
 def conventional_spec(a0, a1, a2, a3,
                       b0, b1, b2, b3, ctx):
-    return (a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3, ctx.real_val(0), ctx.real_val(0))
+    return (a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3, ctx.real_val(1), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0))
 
 @Composite(name="Conventional", spec=conventional_spec)
 def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
