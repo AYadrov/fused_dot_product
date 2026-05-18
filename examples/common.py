@@ -44,15 +44,20 @@ def integer_to_fraction(x: Node) -> Primitive:
 
     return impl(x)
 
+def and_spec(x, y, ctx):
+    res = ctx.fresh_real('and_res')
+    ctx.assume(res.eq(x * y))
+    ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
+    return res
 
-@Primitive(name="bit_and", spec=lambda x, y, ctx: x * y, c_inline=True)
+@Primitive(name="bit_and", spec=and_spec, c_inline=True)
 def bit_and(x: Node, y: Node) -> Node:
     assert x.node_type.total_bits() == 1, f"bit_and expects single bit as an input, given: {x.node_type.total_bits()}"
     assert y.node_type.total_bits() == 1, f"bit_and expects single bit as an input, given: {y.node_type.total_bits()}"
     return basic_and(x, y, Const(UQ(0, 1, 0)))
 
 def xor_spec(x, y, ctx):
-    res = ctx.fresh_real('xored_signs')
+    res = ctx.fresh_real('xor_res')
     minus_one = ctx.real_val(-1)
     ctx.assume((minus_one ** res).eq((minus_one ** x) * (minus_one ** y)))
     ctx.assume(res.eq(x.max(y) - x*y))
@@ -65,13 +70,25 @@ def bit_xor(x: Node, y: Node) -> Node:
     assert y.node_type.total_bits() == 1, f"bit_xor expects single bit as an input, given: {y.node_type.total_bits()}"
     return basic_xor(x, y, Const(UQ(0, 1, 0)))
 
-@Primitive(name="bit_or", spec=lambda x, y, ctx: x + y - x * y, c_inline=True)
+def or_spec(x, y, ctx):
+    res = ctx.fresh_real('or_res')
+    ctx.assume(res.eq(x + y - x * y))
+    ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
+    return res
+
+@Primitive(name="bit_or", spec=or_spec, c_inline=True)
 def bit_or(x: Node, y: Node) -> Node:
     assert x.node_type.total_bits() == 1, f"bit_or expects single bit as an input, given: {x.node_type.total_bits()}"
     assert y.node_type.total_bits() == 1, f"bit_or expects single bit as an input, given: {y.node_type.total_bits()}"
     return basic_or(x, y, Const(UQ(0, 1, 0)))
 
-@Primitive(name="bit_neg", spec=lambda x, ctx: ctx.real_val(1) - x, c_inline=True)
+def neg_spec(x, ctx):
+    res = ctx.fresh_real('neg_res')
+    ctx.assume(res.eq(ctx.real_val(1) - x))
+    ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
+    return res
+
+@Primitive(name="bit_neg", spec=neg_spec, c_inline=True)
 def bit_neg(x: Node) -> Node:
     assert x.node_type.total_bits() == 1, f"bit_neg expects single bit as an input, given: {x.node_type.total_bits()}"
     return basic_invert(x, Const(UQ(0, 1, 0)))

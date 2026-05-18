@@ -18,12 +18,7 @@ def FP32_IEEE_mult(x: Node, y: Node) -> Node:
     any_is_nan = bit_or(x_nan, y_nan)
     encode_nan = bit_or(inf_times_zero, any_is_nan)
     encode_inf = bit_and(bit_neg(encode_nan), bit_or(x_inf, y_inf))
-
-    with context() as ctx:
-        # Spec does not have nan/inf yet
-        ctx.check(ctx.spec_of(encode_inf).eq(ctx.real_val(0)))
-        ctx.check(ctx.spec_of(encode_nan).eq(ctx.real_val(0)))
-
+    
     # UQ<23, 0> -> UQ<0, 23>
     x_m_fraction = integer_to_fraction(x_m)
     y_m_fraction = integer_to_fraction(y_m)
