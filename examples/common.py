@@ -47,6 +47,7 @@ def integer_to_fraction(x: Node) -> Primitive:
 def and_spec(x, y, ctx):
     res = ctx.fresh_real('and_res')
     ctx.assume(res.eq(x * y))
+    ctx.assume(res.eq(x.min(y)))
     ctx.assume(res.eq(If(x.eq(ctx.real_val(1)).and_(y.eq(ctx.real_val(1))), ctx.real_val(1), ctx.real_val(0))))
     ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
     return res
@@ -61,7 +62,9 @@ def xor_spec(x, y, ctx):
     res = ctx.fresh_real('xor_res')
     minus_one = ctx.real_val(-1)
     ctx.assume((minus_one ** res).eq((minus_one ** x) * (minus_one ** y)))
-    ctx.assume(res.eq(x.max(y) - x*y))
+    ctx.assume(res.eq(If(x.ne(y), ctx.real_val(1), ctx.real_val(0))))
+    ctx.assume(res.eq(x.max(y) - x * y))
+    ctx.assume(res.eq(x + y - ctx.real_val(2) * x * y))
     ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
     return res
 
@@ -74,6 +77,7 @@ def bit_xor(x: Node, y: Node) -> Node:
 def or_spec(x, y, ctx):
     res = ctx.fresh_real('or_res')
     ctx.assume(res.eq(x + y - x * y))
+    ctx.assume(res.eq(x.max(y)))
     ctx.assume(res.eq(If(x.eq(ctx.real_val(1)).or_(y.eq(ctx.real_val(1))), ctx.real_val(1), ctx.real_val(0))))
     ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
     return res
