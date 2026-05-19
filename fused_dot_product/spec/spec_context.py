@@ -10,7 +10,6 @@ import z3
 import warnings
 
 
-
 class SpecContext:
     """Builder API for creating spec programs over the spec AST."""
     

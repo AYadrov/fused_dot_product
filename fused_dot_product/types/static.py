@@ -16,7 +16,7 @@ class StaticType:
     
     def total_bits(self):
         raise NotImplementedError
-
+    
     def to_cpp_type(self, jittable: bool = True) -> str:
         total_bits = self.total_bits()
         if jittable:
@@ -32,7 +32,7 @@ class StaticType:
                 raise TypeError("Can not find an ABI-safe type with more than 64 bits in C")  # can use pointer buffers for this
         else:
             return f"ac_uint<{total_bits}>"
-        
+    
     def __repr__(self):
         raise NotImplementedError
     
@@ -41,10 +41,10 @@ class StaticType:
     
     def to_spec(self, name, ctx):
         raise NotImplementedError
-
+    
     def random_runtime_value(self, rng: random.Random):
         raise NotImplementedError
-
+    
     def _fingerprint(self):
         from .utils import _fingerprint_value
         fields = tuple(
@@ -73,17 +73,17 @@ class BoolT(StaticType):
     
     def __eq__(self, other):
         return isinstance(other, BoolT)
-        
+    
     def _clone_impl(self) -> "QT":
         return BoolT()
     
     def to_spec(self, name, ctx):
         return ctx.fresh_bool(name)
-
+    
     def random_runtime_value(self, rng: random.Random):
         from .runtime import Bool
         return Bool(rng.getrandbits(1))
-     
+
 
 class QT(StaticType):
     def __init__(self, int_bits: int, frac_bits: int):
@@ -111,13 +111,13 @@ class QT(StaticType):
             and self.int_bits == other.int_bits
             and self.frac_bits == other.frac_bits
         )
-
+    
     def _clone_impl(self) -> "QT":
         return QT(self.int_bits, self.frac_bits)
     
     def to_spec(self, name, ctx):
         return ctx.fresh_real(name)
-
+    
     def random_runtime_value(self, rng: random.Random):
         from .runtime import Q
         return Q(rng.getrandbits(self.total_bits()), self.int_bits, self.frac_bits)
@@ -149,7 +149,7 @@ class UQT(StaticType):
             and self.int_bits == other.int_bits
             and self.frac_bits == other.frac_bits
         )
-
+    
     def _clone_impl(self) -> "UQT":
         return UQT(self.int_bits, self.frac_bits)
     
@@ -199,11 +199,14 @@ class Float32T(StaticType):
         is_inf = ctx.fresh_real(f"{name}_is_inf")
         is_nan = ctx.fresh_real(f"{name}_is_nan")
         
+        #ctx.assume(is_norm.eq(ctx.real_val(1)).or_(is_norm.eq(ctx.real_val(0))))
+        #ctx.assume(is_sub.eq(ctx.real_val(1)).or_(is_sub.eq(ctx.real_val(0))))
         ctx.assume(is_norm.eq(ctx.real_val(1)))
         ctx.assume(is_sub.eq(ctx.real_val(0)))
         ctx.assume(is_zero.eq(ctx.real_val(0)))
         ctx.assume(is_inf.eq(ctx.real_val(0)))
         ctx.assume(is_nan.eq(ctx.real_val(0)))
+        ctx.assume((is_norm + is_sub + is_zero + is_inf + is_nan).eq(ctx.real_val(1)))
         
         return (value, is_norm, is_sub, is_zero, is_inf, is_nan)
      
@@ -235,16 +238,17 @@ class BFloat16T(StaticType):
             and self.mantissa_bits == other.mantissa_bits
             and self.exponent_bits == other.exponent_bits
         )
-
+    
     def _clone_impl(self) -> "BFloat16T":
         return BFloat16T()
     
     def to_spec(self, name, ctx):
         return ctx.fresh_real(name)
-
+    
     def random_runtime_value(self, rng: random.Random):
         from .runtime import BFloat16
         return BFloat16(rng.getrandbits(self.total_bits()))
+
 
 class TupleT(StaticType):
     def __init__(self, *args: StaticType):
@@ -271,16 +275,16 @@ class TupleT(StaticType):
             and len(self.args) == len(other.args)
             and all([arg1 == arg2 for arg1, arg2 in zip(self.args, other.args)])
         )
-
+    
     def _clone_impl(self) -> "TupleT":
         return TupleT(*[arg.copy() for arg in self.args])
     
     def to_spec(self, name, ctx):
         return tuple(x.to_spec(name=f"{name}_{i}", ctx=ctx) for i, x in enumerate(self.args))
-
+    
     def to_cpp_type(self, jittable: bool = True) -> str:
         return f"std::array<uint64_t, {len(self.args)}>" if jittable else f"std::tuple<{', '.join(arg.to_cpp_type(jittable=jittable) for arg in self.args)}>"
-
+    
     def random_runtime_value(self, rng: random.Random):
         from .runtime import Tuple
         return Tuple(*[arg.random_runtime_value(rng) for arg in self.args])

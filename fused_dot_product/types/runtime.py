@@ -353,7 +353,6 @@ class Float32(RuntimeType):
             exp_val = self.exponent - self.exponent_bias
             return float((-1) ** self.sign * frac * (2 ** exp_val))
     
-    # TODO: that's SUPER sketchy
     def to_spec(self, ctx):
         if self.exponent == self.inf_code and self.mantissa == 0:
             return (
