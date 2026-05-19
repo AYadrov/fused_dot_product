@@ -45,12 +45,12 @@ def _normalize_egglog_scheduler(step: dict[str, Any]) -> dict[str, int | None]:
     }
 
 
-# Unrolls tuples
+# Unrolls tuples into separate contexts.
 def _enqueue_equivalence(
     lhs: SpecNode | tuple,
     rhs: SpecNode | tuple,
     ctx: SpecContext,
-):
+) -> list[SpecContext]:
     lhs_is_tuple = isinstance(lhs, tuple)
     rhs_is_tuple = isinstance(rhs, tuple)
     if lhs_is_tuple or rhs_is_tuple:
@@ -62,10 +62,14 @@ def _enqueue_equivalence(
             raise TypeError(
                 f"Spec tuple arity mismatch: {len(lhs)} != {len(rhs)}"
             )
+        queued_ctxs: list[SpecContext] = []
         for lhs_item, rhs_item in zip(lhs, rhs):
-            _enqueue_equivalence(lhs_item, rhs_item, ctx=ctx)
-        return
-    ctx.check(lhs.eq(rhs))
+            queued_ctxs.extend(_enqueue_equivalence(lhs_item, rhs_item, ctx=ctx))
+        return queued_ctxs
+
+    next_ctx = ctx.copy()
+    next_ctx.check(lhs.eq(rhs))
+    return [next_ctx]
 
 
 def _normalize_schedule(
@@ -143,18 +147,13 @@ def _normalize_tool_reports(
     return reports
 
 
-def check_equivalence(
-    query1: SpecNode | tuple,
-    query2: SpecNode | tuple,
+def _check_equivalence_problem(
     ctx: SpecContext,
-    schedule: list[str | dict[str, Any]],
-):
-    _enqueue_equivalence(query1, query2, ctx=ctx)
-
+    normalized_schedule: list[dict[str, Any]],
+) -> tuple[bool, list[ProofReport]]:
     current_tracks: list[list[ProofReport]] = [[]]
-    current_ctxs = [ctx.copy()]
+    current_ctxs = [ctx]
 
-    normalized_schedule = _normalize_schedule(schedule=schedule)
     for step in normalized_schedule:
         next_tracks: list[list[ProofReport]] = []
         next_ctxs: list[SpecContext] = []
@@ -174,3 +173,25 @@ def check_equivalence(
     if not current_tracks:
         return False, []
     return False, current_tracks[0]
+
+
+def check_equivalence(
+    query1: SpecNode | tuple,
+    query2: SpecNode | tuple,
+    ctx: SpecContext,
+    schedule: list[str | dict[str, Any]],
+):
+    normalized_schedule = _normalize_schedule(schedule=schedule)
+    problem_ctxs = _enqueue_equivalence(query1, query2, ctx=ctx)
+
+    full_trace: list[ProofReport] = []
+    for problem_ctx in problem_ctxs:
+        equivalent, proof_trace = _check_equivalence_problem(
+            ctx=problem_ctx,
+            normalized_schedule=normalized_schedule,
+        )
+        full_trace.extend(proof_trace)
+        if not equivalent:
+            return False, full_trace
+
+    return True, full_trace

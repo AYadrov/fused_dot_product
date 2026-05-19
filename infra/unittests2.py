@@ -390,6 +390,78 @@ class TestSolverApis(unittest.TestCase):
         self.assertIsInstance(proof_trace[0], dict)
         self.assertEqual(proof_trace[0]["tool"], "branch-b")
 
+    def test_check_equivalence_splits_tuple_queries_into_independent_contexts(self):
+        base_ctx = SpecContext("tuple-split")
+        base_ctx.assume(RealLit(5).eq(RealLit(5)))
+        seen_checks: list[list[str]] = []
+
+        def fake_z3(ctx, timeout_ms):
+            seen_checks.append([str(check) for check in ctx.checks])
+            return build_proof_report(
+                ctx,
+                ctx.copy(),
+                tool="z3",
+                runtime_s=0.0,
+                equivalent=True,
+                timeout_ms=timeout_ms,
+            )
+
+        with patch.dict(solver_engine.TOOL_FNS, {"z3": fake_z3}):
+            equivalent, proof_trace = solver_engine.check_equivalence(
+                (RealLit(1), RealLit(2)),
+                (RealLit(1), RealLit(2)),
+                ctx=base_ctx,
+                schedule=[{"tool": "z3", "timeout_ms": 1}],
+            )
+
+        self.assertTrue(equivalent)
+        self.assertEqual(
+            seen_checks,
+            [
+                ["(1 == 1)"],
+                ["(2 == 2)"],
+            ],
+        )
+        self.assertEqual(len(proof_trace), 2)
+        self.assertTrue(all(report["equivalent"] for report in proof_trace))
+        self.assertEqual(base_ctx.checks, [])
+
+    def test_check_equivalence_stops_at_first_failing_split_problem(self):
+        seen_checks: list[list[str]] = []
+
+        def fake_z3(ctx, timeout_ms):
+            check_strs = [str(check) for check in ctx.checks]
+            seen_checks.append(check_strs)
+            equivalent = check_strs == ["(1 == 1)"]
+            return build_proof_report(
+                ctx,
+                ctx.copy(),
+                tool="z3",
+                runtime_s=0.0,
+                equivalent=equivalent,
+                timeout_ms=timeout_ms,
+            )
+
+        with patch.dict(solver_engine.TOOL_FNS, {"z3": fake_z3}):
+            equivalent, proof_trace = solver_engine.check_equivalence(
+                (RealLit(1), RealLit(2), RealLit(3)),
+                (RealLit(1), RealLit(4), RealLit(3)),
+                ctx=SpecContext("tuple-stop"),
+                schedule=[{"tool": "z3", "timeout_ms": 1}],
+            )
+
+        self.assertFalse(equivalent)
+        self.assertEqual(
+            seen_checks,
+            [
+                ["(1 == 1)"],
+                ["(2 == 4)"],
+            ],
+        )
+        self.assertEqual(len(proof_trace), 2)
+        self.assertTrue(proof_trace[0]["equivalent"])
+        self.assertFalse(proof_trace[1]["equivalent"])
+
     def test_z3_check_eq_returns_single_report(self):
         ctx = SpecContext("z3-api")
         ctx.check(RealLit(1).eq(RealLit(1)))
