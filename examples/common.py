@@ -47,6 +47,7 @@ def integer_to_fraction(x: Node) -> Primitive:
 def and_spec(x, y, ctx):
     res = ctx.fresh_real('and_res')
     ctx.assume(res.eq(x * y))
+    ctx.assume(res.eq(If(x.eq(ctx.real_val(1)).and_(y.eq(ctx.real_val(1))), ctx.real_val(1), ctx.real_val(0))))
     ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
     return res
 
@@ -73,6 +74,7 @@ def bit_xor(x: Node, y: Node) -> Node:
 def or_spec(x, y, ctx):
     res = ctx.fresh_real('or_res')
     ctx.assume(res.eq(x + y - x * y))
+    ctx.assume(res.eq(If(x.eq(ctx.real_val(1)).or_(y.eq(ctx.real_val(1))), ctx.real_val(1), ctx.real_val(0))))
     ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
     return res
 
@@ -85,6 +87,7 @@ def bit_or(x: Node, y: Node) -> Node:
 def neg_spec(x, ctx):
     res = ctx.fresh_real('neg_res')
     ctx.assume(res.eq(ctx.real_val(1) - x))
+    ctx.assume(res.eq(If(~x.eq(ctx.real_val(1)), ctx.real_val(1), ctx.real_val(0))))
     ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
     return res
 
