@@ -15,6 +15,8 @@ def rewrite_rules():
     x = RealVar("x")
     
     bool_var = BoolVar("p")
+    bool_var_q = BoolVar("q")
+    bool_var_r = BoolVar("r")
     
     zero = RealLit(0)
     one = RealLit(1)
@@ -92,6 +94,60 @@ def rewrite_rules():
         # Equality
         ("eq_1", (a.eq(a)).eq(true)),
         ("eq_2", (bool_var.eq(bool_var)).eq(true)),
+
+        # Boolean simplification
+        # Constants
+        ("bool_not_1", (~true).eq(false)),
+        ("bool_not_2", (~false).eq(true)),
+        ("bool_and_1", (bool_var.and_(true)).eq(bool_var)),
+        ("bool_and_2", (true.and_(bool_var)).eq(bool_var)),
+        ("bool_and_3", (bool_var.and_(false)).eq(false)),
+        ("bool_and_4", (false.and_(bool_var)).eq(false)),
+        
+        ("bool_not_3", (~~bool_var).eq(bool_var)),
+        ("bool_and_5", (bool_var.and_(bool_var)).eq(bool_var)),
+        ("bool_and_6", (bool_var.and_(~bool_var)).eq(false)),
+        ("bool_and_7", ((~bool_var).and_(bool_var)).eq(false)),
+        
+        ("bool_and_8", (bool_var.and_(bool_var_q)).eq(bool_var_q.and_(bool_var))),
+        ("bool_and_9", (bool_var.and_(bool_var_q.and_(bool_var_r))).eq((bool_var.and_(bool_var_q)).and_(bool_var_r))),
+        ("bool_and_10", ((bool_var.and_(bool_var_q)).and_(bool_var_r)).eq(bool_var.and_(bool_var_q.and_(bool_var_r)))),
+        
+        ("bool_or_1", (bool_var.or_(false)).eq(bool_var)),
+        ("bool_or_2", (false.or_(bool_var)).eq(bool_var)),
+        ("bool_or_3", (bool_var.or_(true)).eq(true)),
+        ("bool_or_4", (true.or_(bool_var)).eq(true)),
+        
+        ("bool_or_5", (bool_var.or_(bool_var)).eq(bool_var)),
+        ("bool_or_6", (bool_var.or_(~bool_var)).eq(true)),
+        ("bool_or_7", ((~bool_var).or_(bool_var)).eq(true)),
+        
+        ("bool_or_8", (bool_var.or_(bool_var_q)).eq(bool_var_q.or_(bool_var))),
+        ("bool_or_9", (bool_var.or_(bool_var_q.or_(bool_var_r))).eq((bool_var.or_(bool_var_q)).or_(bool_var_r))),
+        ("bool_or_10", ((bool_var.or_(bool_var_q)).or_(bool_var_r)).eq(bool_var.or_(bool_var_q.or_(bool_var_r)))),
+        
+        ("bool_eq_1", (bool_var.eq(true)).eq(bool_var)),
+        ("bool_eq_2", (true.eq(bool_var)).eq(bool_var)),
+        ("bool_eq_3", (bool_var.eq(false)).eq(~bool_var)),
+        ("bool_eq_4", (false.eq(bool_var)).eq(~bool_var)),
+        ("bool_eq_5", ((~bool_var).eq(true)).eq(~bool_var)),
+        ("bool_eq_6", ((~bool_var).eq(false)).eq(bool_var)),
+        ("bool_eq_15", (~(bool_var.eq(bool_var_q))).eq((bool_var.and_(~bool_var_q)).or_((~bool_var).and_(bool_var_q)))),
+        
+        ("bool_demorgan_1", (~(bool_var.and_(bool_var_q))).eq((~bool_var).or_(~bool_var_q))),
+        ("bool_demorgan_2", ((~bool_var).or_(~bool_var_q)).eq(~(bool_var.and_(bool_var_q)))),
+        ("bool_demorgan_3", (~(bool_var.or_(bool_var_q))).eq((~bool_var).and_(~bool_var_q))),
+        ("bool_demorgan_4", ((~bool_var).and_(~bool_var_q)).eq(~(bool_var.or_(bool_var_q)))),
+        
+        ("bool_absorb_1", (bool_var.or_(bool_var.and_(bool_var_q))).eq(bool_var)),
+        ("bool_absorb_2", (bool_var.and_(bool_var.or_(bool_var_q))).eq(bool_var)),
+        
+        ("bool_imp_1", ((~bool_var).or_(bool_var_q)).eq((bool_var.and_(~bool_var_q)).eq(false))),
+        ("bool_imp_2", ((bool_var.and_(~bool_var_q)).eq(false)).eq((~bool_var).or_(bool_var_q))),
+        ("bool_imp_3", (bool_var.and_((~bool_var).or_(bool_var_q))).eq(bool_var.and_(bool_var_q))),
+        ("bool_imp_4", (((~bool_var).or_(bool_var_q)).and_(bool_var)).eq(bool_var.and_(bool_var_q))),
+        ("bool_case_1", ((bool_var.or_(bool_var_q)).and_(~bool_var)).eq(bool_var_q.and_(~bool_var))),
+        ("bool_case_2", ((bool_var.or_(bool_var_q)).and_(~bool_var_q)).eq(bool_var.and_(~bool_var_q))),
         
         # If statements
         ("if_1", If(true, a, b).eq(a)),

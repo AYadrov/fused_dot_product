@@ -62,7 +62,9 @@ class SpecContext:
                     union(assume.lhs.to_egglog()).with_(assume.rhs.to_egglog())
                 )
             else:
-                warnings.warn(f"Skipped assume for egglog: {str(assume)}")
+                egraph.register(
+                    union(assume.to_egglog()).with_(MathBool.True_())
+                )
         
         to_check = []
         for check in self.checks:
