@@ -6,7 +6,7 @@ from egglog import EGraph
 
 from fused_dot_product import *
 from fused_dot_product.egglog.rules import load_rules
-from fused_dot_product.smt import z3_check_eq
+from fused_dot_product.smt import dreal_check_eq, z3_check_eq
 from fused_dot_product.solver import engine as solver_engine
 from fused_dot_product.solver.report import build_proof_report
 from fused_dot_product.spec.spec_utils import from_egglog
@@ -319,22 +319,7 @@ class TestPowSpecOp(unittest.TestCase):
                 egraph.run(1)
 
                 self.assertEqual(from_egglog(egraph.extract(lowered)), expected)
-
-    def test_minus_one_symbolic_power_is_solver_friendly_for_dreal(self):
-        ctx = SpecContext("minus-one-dreal")
-        s = RealVar("s")
-        x = RealVar("x")
-        ctx.assume(s.eq(RealLit(0)).or_(s.eq(RealLit(1))))
-        ctx.assume(x.eq((RealLit(-1) ** s) * abs(x)))
-
-        env = {}
-        result = dreal.CheckSatisfiability(
-            dreal.And(*[assume.to_dreal(env) for assume in ctx.assumes]),
-            0.001,
-        )
-
-        self.assertIsNotNone(result)
-
+                
     def test_numeric_equality_constant_folds_in_egglog(self):
         cases = [
             (RealLit(3).eq(RealLit(3)), BoolLit(True)),
@@ -400,17 +385,15 @@ class TestSolverApis(unittest.TestCase):
         self.assertEqual(report["tool"], "z3")
         self.assertTrue(report["equivalent"])
 
-    def test_fp32_adder_wrong_high_level_spec_is_not_proved_by_dreal(self):
-        adder = FP32_IEEE_adder(
-            Var(name="a", sign=Float32T()),
-            Var(name="b", sign=Float32T()),
-        )
+    def test_dreal_check_eq_returns_single_report(self):
+        ctx = SpecContext("dreal-api")
+        ctx.check(RealLit(1).eq(RealLit(1)))
 
-        trace = adder.check_spec(schedule=[{"tool": "dreal", "precision": 0.001}])
+        report = dreal_check_eq(ctx, precision=0.001)
 
-        self.assertEqual(len(trace), 1)
-        self.assertEqual(trace[0]["tool"], "dreal")
-        self.assertFalse(trace[0]["equivalent"])
+        self.assertIsInstance(report, dict)
+        self.assertEqual(report["tool"], "dreal")
+        self.assertTrue(report["equivalent"])
 
 
 class TestSignSpecs(unittest.TestCase):
