@@ -355,6 +355,97 @@ class TestPowSpecOp(unittest.TestCase):
                 self.assertEqual(from_egglog(egraph.extract(lowered)), expected)
 
 
+class TestSpecContextLearning(unittest.TestCase):
+    def test_learned_literals_reads_real_var_equalities(self):
+        ctx = SpecContext("learn-real")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(x.eq(ctx.real_val(1)))
+        ctx.assume(ctx.real_val(2).eq(y))
+
+        self.assertEqual(
+            ctx.learned_literals(),
+            {
+                x: RealLit(1),
+                y: RealLit(2),
+            },
+        )
+
+    def test_learned_literals_reads_foldable_real_equalities(self):
+        ctx = SpecContext("learn-real-foldable")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(x.eq(ctx.real_val(2) + ctx.real_val(3)))
+        ctx.assume((ctx.real_val(10) - ctx.real_val(4)).eq(y))
+
+        self.assertEqual(
+            ctx.learned_literals(),
+            {
+                x: RealLit(5),
+                y: RealLit(6),
+            },
+        )
+
+    def test_learned_literals_reads_bool_var_equalities(self):
+        ctx = SpecContext("learn-bool")
+        p = ctx.bool("p")
+        q = ctx.bool("q")
+
+        ctx.assume(p.eq(ctx.true()))
+        ctx.assume(ctx.false().eq(q))
+
+        self.assertEqual(
+            ctx.learned_literals(),
+            {
+                p: BoolLit(True),
+                q: BoolLit(False),
+            },
+        )
+
+    def test_learned_literals_reads_foldable_bool_equalities(self):
+        ctx = SpecContext("learn-bool-foldable")
+        p = ctx.bool("p")
+        q = ctx.bool("q")
+
+        ctx.assume(p.eq(ctx.real_val(2).eq(ctx.real_val(2))))
+        ctx.assume((ctx.real_val(2).eq(ctx.real_val(3))).eq(q))
+
+        self.assertEqual(
+            ctx.learned_literals(),
+            {
+                p: BoolLit(True),
+                q: BoolLit(False),
+            },
+        )
+
+    def test_learned_literals_ignores_non_literal_equalities(self):
+        ctx = SpecContext("learn-ignore")
+        x = ctx.real("x")
+        y = ctx.real("y")
+        p = ctx.bool("p")
+        q = ctx.bool("q")
+
+        ctx.assume(x.eq(y))
+        ctx.assume(p.eq(q))
+
+        self.assertEqual(ctx.learned_literals(), {})
+
+    def test_learned_literals_raises_on_conflicting_bindings(self):
+        ctx = SpecContext("learn-conflict")
+        x = ctx.real("x")
+        p = ctx.bool("p")
+
+        ctx.assume(x.eq(ctx.real_val(0)))
+        ctx.assume(x.eq(ctx.real_val(1)))
+        ctx.assume(p.eq(ctx.true()))
+        ctx.assume(p.eq(ctx.false()))
+
+        with self.assertRaises(ValueError):
+            ctx.learned_literals()
+
+
 class TestSolverApis(unittest.TestCase):
     def test_check_equivalence_returns_flat_proof_trace(self):
         ctx = SpecContext("flat-trace")

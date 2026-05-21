@@ -93,6 +93,40 @@ class SpecContext:
             return tuple(self._fold_spec(item) for item in spec)
         return spec
 
+    def learned_literals(self) -> dict[RealVar | BoolVar, RealLit | BoolLit]:
+        candidates: dict[RealVar | BoolVar, RealLit | BoolLit] = {}
+
+        def record(
+            var: RealVar | BoolVar,
+            lit: RealLit | BoolLit,
+        ) -> None:
+            existing = candidates.get(var)
+            if existing is None:
+                candidates[var] = lit
+                return
+            if not identical_nodes(existing, lit):
+                raise ValueError(
+                    f"Conflicting learned literals for {var}: {existing} vs {lit}"
+                )
+
+        for assume in self.assumes:
+            if isinstance(assume, Eq):
+                rhs_folded = assume.rhs.constant_fold()
+                lhs_folded = assume.lhs.constant_fold()
+                if isinstance(lhs_folded, RealVar) and isinstance(rhs_folded, RealLit):
+                    record(lhs_folded, rhs_folded)
+                elif isinstance(rhs_folded, RealVar) and isinstance(lhs_folded, RealLit):
+                    record(rhs_folded, lhs_folded)
+            elif isinstance(assume, BoolEq):
+                rhs_folded = assume.rhs.constant_fold()
+                lhs_folded = assume.lhs.constant_fold()
+                if isinstance(lhs_folded, BoolVar) and isinstance(rhs_folded, BoolLit):
+                    record(lhs_folded, rhs_folded)
+                elif isinstance(rhs_folded, BoolVar) and isinstance(lhs_folded, BoolLit):
+                    record(rhs_folded, lhs_folded)
+
+        return candidates
+
     def spec_of(self, node: Node):
         return node._evaluate_spec(ctx=self, cache=self.spec_cache)
         # spec = node._evaluate_spec(ctx=self, cache=self.spec_cache)
