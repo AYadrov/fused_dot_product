@@ -26,6 +26,7 @@ class SpecContext:
                 f"SpecContext.assume expects BoolExpr, got {type(condition).__name__}"
             )
         self.assumes.append(condition)
+        # self.assumes.append(condition.constant_fold())
     
     def check(self, condition: BoolExpr) -> None:
         if not isinstance(condition, BoolExpr):
@@ -33,6 +34,7 @@ class SpecContext:
                 f"SpecContext.check expects BoolExpr, got {type(condition).__name__}"
             )
         self.checks.append(condition)
+        # self.checks.append(condition.constant_fold())
 
     def _context_not_empty(self):
         if len(self.checks) == 0:
@@ -68,20 +70,35 @@ class SpecContext:
         
         to_check = []
         for check in self.checks:
-            if not isinstance(check, Eq) and not isinstance(check, BoolEq):
+            if isinstance(check, Eq) or isinstance(check, BoolEq):
+                lhs = check.lhs.to_egglog()
+                rhs = check.rhs.to_egglog()
+                egraph.register(lhs)
+                egraph.register(rhs)
+                to_check.append(eq(lhs).to(rhs))
+            elif isinstance(check, BoolExpr):
+                expr = check.to_egglog()
+                egraph.register(expr)
+                to_check.append(eq(expr).to(MathBool.True_()))
+            else:
                 raise NotImplementedError(
-                    f"Only Eq and BoolEq checks are supported, got {type(check).__name__}"
+                    f"Only BoolExpr checks are supported, got {type(check).__name__}"
                 )
-            lhs = check.lhs.to_egglog()
-            rhs = check.rhs.to_egglog()
-            egraph.register(lhs)
-            egraph.register(rhs)
-            to_check.append(eq(lhs).to(rhs))
-            
         return to_check
     
+    def _fold_spec(self, spec):
+        if isinstance(spec, SpecNode):
+            return spec.constant_fold()
+        if isinstance(spec, tuple):
+            return tuple(self._fold_spec(item) for item in spec)
+        return spec
+
     def spec_of(self, node: Node):
         return node._evaluate_spec(ctx=self, cache=self.spec_cache)
+        # spec = node._evaluate_spec(ctx=self, cache=self.spec_cache)
+        # folded = self._fold_spec(spec)
+        # self.spec_cache[node] = folded
+        # return folded
     
     def real_val(self, value: int | float):
         return RealLit(value=value)

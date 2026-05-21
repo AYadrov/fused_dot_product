@@ -22,6 +22,12 @@ class SpecNode:
     def identical(self, other: object) -> bool:
         return identical_nodes(self, other)
 
+    def constant_fold(self) -> "SpecNode":
+        return constant_fold(self)
+
+    def fold(self):
+        raise NotImplementedError
+
 
 class RealExpr(SpecNode):
     @staticmethod
@@ -89,8 +95,6 @@ class RealExpr(SpecNode):
     def min(self, other: "RealExpr") -> "RealExpr":
         return Min(self, self._coerce(other))
 
-
-
 class BoolExpr(SpecNode):
     @staticmethod
     def _coerce(value):
@@ -115,7 +119,6 @@ class BoolExpr(SpecNode):
 
     def and_(self, other: "BoolExpr") -> "BoolExpr":
         return And(self, self._coerce(other))
-
 
 @dataclass(frozen=True)
 class RealVar(RealExpr):
@@ -158,7 +161,6 @@ class BoolVar(BoolExpr):
         if key not in env:
             env[key] = dreal.Variable(self.name, dreal.Variable.Bool)
         return env[key]
-
 
     def __str__(self):
         return f"bool({self.name})"
@@ -210,10 +212,13 @@ class Add(RealExpr):
     
     def to_z3(self, env):
         return self.lhs.to_z3(env=env) + self.rhs.to_z3(env=env)
-
+    
     def to_dreal(self, env):
         return self.lhs.to_dreal(env=env) + self.rhs.to_dreal(env=env)
-
+    
+    def fold(self):
+        return lambda lhs, rhs: lhs + rhs
+    
     def __str__(self):
         return f"({self.lhs} + {self.rhs})"
 
@@ -231,6 +236,9 @@ class Sub(RealExpr):
 
     def to_dreal(self, env):
         return self.lhs.to_dreal(env=env) - self.rhs.to_dreal(env=env)
+
+    def fold(self):
+        return lambda lhs, rhs: lhs - rhs
 
     def __str__(self):
         return f"({self.lhs} - {self.rhs})"
@@ -250,6 +258,9 @@ class Mul(RealExpr):
     def to_dreal(self, env):
         return self.lhs.to_dreal(env=env) * self.rhs.to_dreal(env=env)
 
+    def fold(self):
+        return lambda lhs, rhs: lhs * rhs
+
     def __str__(self):
         return f"({self.lhs} * {self.rhs})"
 
@@ -266,6 +277,9 @@ class Neg(RealExpr):
 
     def to_dreal(self, env):
         return -self.value.to_dreal(env=env)
+
+    def fold(self):
+        return lambda value: -value
 
     def __str__(self):
         return f"(-{self.value})"
@@ -284,6 +298,9 @@ class Abs(RealExpr):
     def to_dreal(self, env):
         return abs(self.value.to_dreal(env=env))
 
+    def fold(self):
+        return lambda value: abs(value)
+
     def __str__(self):
         return f"abs({self.value})"
 
@@ -296,30 +313,15 @@ class Pow(RealExpr):
     def to_egglog(self):
         return Math.Pow(self.base.to_egglog(), self.exponent.to_egglog())
 
-    def _is_minus_one_base(self) -> bool:
-        return isinstance(self.base, RealLit) and self.base.value == -1
-
     def to_z3(self, env):
-        if self._is_minus_one_base():
-            exponent = self.exponent.to_z3(env=env)
-            return z3.If(
-                exponent == z3.RealVal("0"),
-                z3.RealVal("1"),
-                z3.RealVal("-1"),
-            )
         return self.base.to_z3(env=env) ** self.exponent.to_z3(env=env)
 
 
-    # Negative base power for intervals work pretty bad
     def to_dreal(self, env):
-        if self._is_minus_one_base():
-            exponent = self.exponent.to_dreal(env=env)
-            return dreal.if_then_else(
-                exponent == dreal.Expression(0),
-                dreal.Expression(1),
-                dreal.Expression(-1),
-            )
         return self.base.to_dreal(env=env) ** self.exponent.to_dreal(env=env)
+
+    def fold(self):
+        return _folded_pow_value
 
     def __str__(self):
         return f"({self.base} ** {self.exponent})"
@@ -341,6 +343,9 @@ class Max(RealExpr):
     def to_dreal(self, env):
         return dreal.Max(self.lhs.to_dreal(env=env), self.rhs.to_dreal(env=env))
 
+    def fold(self):
+        return max
+
     def __str__(self):
         return f"max({self.lhs}, {self.rhs})"
 
@@ -360,6 +365,9 @@ class Min(RealExpr):
 
     def to_dreal(self, env):
         return dreal.Min(self.lhs.to_dreal(env=env), self.rhs.to_dreal(env=env))
+
+    def fold(self):
+        return min
 
     def __str__(self):
         return f"min({self.lhs}, {self.rhs})"
@@ -392,6 +400,9 @@ class If(RealExpr):
             self.on_false.to_dreal(env=env),
         )
 
+    def fold(self):
+        return lambda cond, on_true, on_false: on_true if cond else on_false
+
     def __str__(self):
         return f"(if {self.cond} then {self.on_true} else {self.on_false})"
 
@@ -409,6 +420,9 @@ class Eq(BoolExpr):
 
     def to_dreal(self, env):
         return self.lhs.to_dreal(env=env) == self.rhs.to_dreal(env=env)
+
+    def fold(self):
+        return lambda lhs, rhs: lhs == rhs
 
     def __str__(self):
         return f"({self.lhs} == {self.rhs})"
@@ -428,6 +442,9 @@ class NotEq(BoolExpr):
     def to_dreal(self, env):
         return self.lhs.to_dreal(env=env) != self.rhs.to_dreal(env=env)
 
+    def fold(self):
+        return lambda lhs, rhs: lhs != rhs
+
     def __str__(self):
         return f"({self.lhs} != {self.rhs})"
 
@@ -445,6 +462,9 @@ class Lt(BoolExpr):
 
     def to_dreal(self, env):
         return self.lhs.to_dreal(env=env) < self.rhs.to_dreal(env=env)
+
+    def fold(self):
+        return lambda lhs, rhs: lhs < rhs
 
     def __str__(self):
         return f"({self.lhs} < {self.rhs})"
@@ -464,6 +484,9 @@ class Le(BoolExpr):
     def to_dreal(self, env):
         return self.lhs.to_dreal(env=env) <= self.rhs.to_dreal(env=env)
 
+    def fold(self):
+        return lambda lhs, rhs: lhs <= rhs
+
     def __str__(self):
         return f"({self.lhs} <= {self.rhs})"
 
@@ -482,6 +505,9 @@ class Gt(BoolExpr):
     def to_dreal(self, env):
         return self.lhs.to_dreal(env=env) > self.rhs.to_dreal(env=env)
 
+    def fold(self):
+        return lambda lhs, rhs: lhs > rhs
+
     def __str__(self):
         return f"({self.lhs} > {self.rhs})"
 
@@ -499,6 +525,9 @@ class Ge(BoolExpr):
 
     def to_dreal(self, env):
         return self.lhs.to_dreal(env=env) >= self.rhs.to_dreal(env=env)
+
+    def fold(self):
+        return lambda lhs, rhs: lhs >= rhs
 
     def __str__(self):
         return f"({self.lhs} >= {self.rhs})"
@@ -520,6 +549,9 @@ class BoolEq(BoolExpr):
         rhs = self.rhs.to_dreal(env=env)
         return dreal.And(dreal.Or(dreal.Not(lhs), rhs), dreal.Or(dreal.Not(rhs), lhs))
 
+    def fold(self):
+        return lambda lhs, rhs: lhs == rhs
+
     def __str__(self):
         return f"({self.lhs} == {self.rhs})"
 
@@ -536,6 +568,9 @@ class Not(BoolExpr):
 
     def to_dreal(self, env):
         return dreal.Not(self.value.to_dreal(env=env))
+
+    def fold(self):
+        return lambda value: not value
 
     def __str__(self):
         return f"(not {self.value})"
@@ -555,6 +590,9 @@ class Or(BoolExpr):
     def to_dreal(self, env):
         return dreal.Or(self.lhs.to_dreal(env=env), self.rhs.to_dreal(env=env))
 
+    def fold(self):
+        return lambda lhs, rhs: lhs or rhs
+
     def __str__(self):
         return f"({self.lhs} or {self.rhs})"
 
@@ -573,6 +611,9 @@ class And(BoolExpr):
     def to_dreal(self, env):
         return dreal.And(self.lhs.to_dreal(env=env), self.rhs.to_dreal(env=env))
 
+    def fold(self):
+        return lambda lhs, rhs: lhs and rhs
+
     def __str__(self):
         return f"({self.lhs} and {self.rhs})"
 
@@ -583,6 +624,45 @@ def ite(
     on_false: RealExpr,
 ) -> RealExpr:
     return If(cond, RealExpr._coerce(on_true), RealExpr._coerce(on_false))
+
+
+def _folded_pow_value(base: float | int, exponent: float | int):
+    try:
+        value = base ** exponent
+    except (OverflowError, ValueError, ZeroDivisionError):
+        return None
+    if isinstance(value, complex):
+        return None
+    return value
+
+
+def constant_fold(node) -> "SpecNode":
+    args = children(node)
+    if args == ():
+        return node
+
+    folded_args = tuple(constant_fold(arg) for arg in args)
+    output_type = _literal_type(node)
+    fold = node.fold()
+    if all(isinstance(arg, (RealLit, BoolLit)) for arg in folded_args):
+        folded_value = fold(*(arg.value for arg in folded_args))
+        if folded_value is not None:
+            # Successfully folded
+            return output_type(folded_value)
+        
+    # Nothing got folded
+    if all(old is new for old, new in zip(args, folded_args)):
+        return node
+    # Partially folded
+    return type(node)(*folded_args)
+
+
+def _literal_type(node: SpecNode):
+    if isinstance(node, BoolExpr):
+        return BoolLit
+    if isinstance(node, RealExpr):
+        return RealLit
+    raise TypeError(f"Unsupported node type: {type(node).__name__}")
 
 
 def children(node: SpecNode) -> tuple[SpecNode, ...]:
