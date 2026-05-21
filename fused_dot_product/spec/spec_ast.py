@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, fields, is_dataclass
+from fractions import Fraction
+import math
 from typing import Any
 
 from ..egglog import *
@@ -169,14 +171,21 @@ class BoolVar(BoolExpr):
 @dataclass(frozen=True)
 class RealLit(RealExpr):
     value: float | int
+
+    def _as_fraction(self) -> Fraction:
+        if isinstance(self.value, float):
+            if not math.isfinite(self.value):
+                raise ValueError("non-finite RealLit is not supported")
+            return Fraction(self.value)
+        return Fraction(self.value)
     
     def to_egglog(self):
-        if float(self.value) != float(int(self.value)):
-            raise ValueError("only integers are working rn in egglog")
-        return Math.Num(BigRat(int(self.value), 1))
-    
+        ratio = self._as_fraction()
+        return Math.Num(BigRat(ratio.numerator, ratio.denominator))
+            
     def to_z3(self, env):
-        return z3.RealVal(str(self.value))
+        ratio = self._as_fraction()
+        return z3.RealVal(f"{ratio.numerator}/{ratio.denominator}")
 
     def to_dreal(self, env):
         return dreal.Expression(self.value)

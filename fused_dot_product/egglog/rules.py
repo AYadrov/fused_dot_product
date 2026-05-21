@@ -174,7 +174,7 @@ def constant_rules():
         rewrite(Math.Mul(Math.Num(m), Math.Num(n))).to(Math.Num(m * n)),
         rewrite(Math.Pow(Math.Num(m), Math.Num(BigRat(2, 1)))).to(Math.Num(m * m)),
         rewrite(Math.Pow(Math.Num(BigRat(-1, 1)), Math.Num(m))).to(Math.Num(BigRat(-1, 1) ** m), eq(m.denom).to(1)),
-        # Keep this last: simplify mode intentionally drops the final constant rule.
+        # TODO: possible lose of accuracy due to this rule
         rewrite(Math.Pow(Math.Num(BigRat(2, 1)), Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
     ]
 
@@ -309,7 +309,7 @@ def load_rules(egraph: EGraph, simplify=False) -> None:
     res = check_rules(rewrites)
     
     if simplify:
-        rules = lower_rules(rewrites) + constant_rules()[:-1]
+        rules = lower_rules(rewrites) + constant_rules()
     else:
         rules = constant_rules() + lower_rules(rewrites)
     egraph.register(*rules)
