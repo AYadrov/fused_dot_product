@@ -364,13 +364,10 @@ class TestSpecContextLearning(unittest.TestCase):
         ctx.assume(x.eq(ctx.real_val(1)))
         ctx.assume(ctx.real_val(2).eq(y))
 
-        self.assertEqual(
-            ctx.learned_literals(),
-            {
-                x: RealLit(1),
-                y: RealLit(2),
-            },
-        )
+        learned = ctx.learned_literals()
+        self.assertEqual(len(learned), 2)
+        self.assertEqual(learned[x], RealLit(1))
+        self.assertEqual(learned[y], RealLit(2))
 
     def test_learned_literals_reads_foldable_real_equalities(self):
         ctx = SpecContext("learn-real-foldable")
@@ -380,13 +377,10 @@ class TestSpecContextLearning(unittest.TestCase):
         ctx.assume(x.eq(ctx.real_val(2) + ctx.real_val(3)))
         ctx.assume((ctx.real_val(10) - ctx.real_val(4)).eq(y))
 
-        self.assertEqual(
-            ctx.learned_literals(),
-            {
-                x: RealLit(5),
-                y: RealLit(6),
-            },
-        )
+        learned = ctx.learned_literals()
+        self.assertEqual(len(learned), 2)
+        self.assertEqual(learned[x], RealLit(5))
+        self.assertEqual(learned[y], RealLit(6))
 
     def test_learned_literals_reads_bool_var_equalities(self):
         ctx = SpecContext("learn-bool")
@@ -396,13 +390,10 @@ class TestSpecContextLearning(unittest.TestCase):
         ctx.assume(p.eq(ctx.true()))
         ctx.assume(ctx.false().eq(q))
 
-        self.assertEqual(
-            ctx.learned_literals(),
-            {
-                p: BoolLit(True),
-                q: BoolLit(False),
-            },
-        )
+        learned = ctx.learned_literals()
+        self.assertEqual(len(learned), 2)
+        self.assertEqual(learned[p], BoolLit(True))
+        self.assertEqual(learned[q], BoolLit(False))
 
     def test_learned_literals_reads_foldable_bool_equalities(self):
         ctx = SpecContext("learn-bool-foldable")
@@ -412,13 +403,10 @@ class TestSpecContextLearning(unittest.TestCase):
         ctx.assume(p.eq(ctx.real_val(2).eq(ctx.real_val(2))))
         ctx.assume((ctx.real_val(2).eq(ctx.real_val(3))).eq(q))
 
-        self.assertEqual(
-            ctx.learned_literals(),
-            {
-                p: BoolLit(True),
-                q: BoolLit(False),
-            },
-        )
+        learned = ctx.learned_literals()
+        self.assertEqual(len(learned), 2)
+        self.assertEqual(learned[p], BoolLit(True))
+        self.assertEqual(learned[q], BoolLit(False))
 
     def test_learned_literals_ignores_non_literal_equalities(self):
         ctx = SpecContext("learn-ignore")
@@ -438,12 +426,138 @@ class TestSpecContextLearning(unittest.TestCase):
         p = ctx.bool("p")
 
         ctx.assume(x.eq(ctx.real_val(0)))
-        ctx.assume(x.eq(ctx.real_val(1)))
         ctx.assume(p.eq(ctx.true()))
-        ctx.assume(p.eq(ctx.false()))
+        with self.assertRaises(ValueError):
+            ctx.assume(x.eq(ctx.real_val(1)))
+
+    def test_assume_rolls_back_after_conflicting_binding(self):
+        ctx = SpecContext("assume-rollback")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(x.eq(ctx.real_val(0)))
+        before = ctx.copy()
 
         with self.assertRaises(ValueError):
-            ctx.learned_literals()
+            ctx.assume(x.eq(ctx.real_val(1)))
+
+        self.assertEqual(ctx.assumes, before.assumes)
+        self.assertEqual(ctx.checks, before.checks)
+        self.assertEqual(ctx.learned_literals(), {x: RealLit(0)})
+
+        ctx.assume(y.eq(x))
+        self.assertEqual(ctx.assumes, [Eq(x, RealLit(0)), Eq(y, RealLit(0))])
+
+    def test_context_fixpoint_simplifies_assumptions_from_learned_literals(self):
+        ctx = SpecContext("simplify-assumes")
+        and_res = ctx.real("and_res")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(and_res.eq(x * y))
+        ctx.assume(x.eq(ctx.real_val(0)))
+        ctx.assume(y.eq(ctx.real_val(0)))
+
+        self.assertEqual(
+            ctx.assumes,
+            [
+                Eq(and_res, RealLit(0)),
+                Eq(x, RealLit(0)),
+                Eq(y, RealLit(0)),
+            ],
+        )
+
+    def test_context_fixpoint_retains_canonical_learned_assumptions(self):
+        ctx = SpecContext("canonical-assumes")
+        x = ctx.real("x")
+        p = ctx.bool("p")
+
+        ctx.assume(x.eq(ctx.real_val(1) + ctx.real_val(2)))
+        ctx.assume(ctx.real_val(4).eq(x + ctx.real_val(1)))
+        ctx.assume(p.eq(ctx.real_val(2).eq(ctx.real_val(2))))
+
+        self.assertEqual(
+            ctx.assumes,
+            [
+                Eq(x, RealLit(3)),
+                BoolEq(p, BoolLit(True)),
+            ],
+        )
+        self.assertEqual(ctx.learned_literals(), {x: RealLit(3), p: BoolLit(True)})
+
+    def test_context_fixpoint_propagates_through_multiple_rounds(self):
+        ctx = SpecContext("simplify-multi-round")
+        x = ctx.real("x")
+        y = ctx.real("y")
+        z = ctx.real("z")
+
+        ctx.assume(x.eq(y + ctx.real_val(1)))
+        ctx.assume(y.eq(z + ctx.real_val(1)))
+        ctx.assume(z.eq(ctx.real_val(0)))
+
+        self.assertEqual(
+            ctx.assumes,
+            [
+                Eq(x, RealLit(2)),
+                Eq(y, RealLit(1)),
+                Eq(z, RealLit(0)),
+            ],
+        )
+        self.assertEqual(
+            ctx.learned_literals(),
+            {x: RealLit(2), y: RealLit(1), z: RealLit(0)},
+        )
+
+    def test_context_fixpoint_simplifies_checks_from_learned_literals(self):
+        ctx = SpecContext("simplify-checks")
+        x = ctx.real("x")
+
+        ctx.assume(x.eq(ctx.real_val(1)))
+        ctx.check((x + ctx.real_val(2)).eq(ctx.real_val(3)))
+
+        self.assertEqual(ctx.checks, [])
+
+    def test_context_fixpoint_simplifies_bool_assumptions_and_checks(self):
+        ctx = SpecContext("simplify-bool")
+        p = ctx.bool("p")
+        q = ctx.bool("q")
+
+        ctx.assume(p.eq(ctx.true()))
+        ctx.assume(q.eq(p))
+        ctx.check(q.eq(ctx.true()))
+
+        self.assertEqual(ctx.assumes, [BoolEq(p, BoolLit(True)), BoolEq(q, BoolLit(True))])
+        self.assertEqual(ctx.checks, [])
+        self.assertEqual(ctx.learned_literals(), {p: BoolLit(True), q: BoolLit(True)})
+
+    def test_context_fixpoint_accepts_duplicate_equivalent_bindings(self):
+        ctx = SpecContext("simplify-duplicate")
+        x = ctx.real("x")
+        p = ctx.bool("p")
+
+        ctx.assume(x.eq(ctx.real_val(1)))
+        ctx.assume((ctx.real_val(2) - ctx.real_val(1)).eq(x))
+        ctx.assume(p.eq(ctx.true()))
+        ctx.assume(ctx.real_val(3).eq(ctx.real_val(3)).eq(p))
+
+        self.assertEqual(
+            ctx.assumes,
+            [
+                Eq(x, RealLit(1)),
+                Eq(x, RealLit(1)),
+                BoolEq(p, BoolLit(True)),
+                BoolEq(p, BoolLit(True)),
+            ],
+        )
+        self.assertEqual(ctx.learned_literals(), {x: RealLit(1), p: BoolLit(True)})
+
+    def test_context_fixpoint_raises_on_conflicting_bindings(self):
+        ctx = SpecContext("simplify-conflict")
+        x = ctx.real("x")
+
+        ctx.assume(x.eq(ctx.real_val(0)))
+        with self.assertRaises(ValueError):
+            ctx.assume(x.eq(ctx.real_val(1)))
 
 
 class TestSolverApis(unittest.TestCase):
@@ -511,8 +625,8 @@ class TestSignSpecs(unittest.TestCase):
                         "((real(x_sign_0) == 1) or (real(x_sign_0) == 0))",
                         "((real(y_sign_1) == 1) or (real(y_sign_1) == 0))",
                         "((real(xored_signs_2) == 1) or (real(xored_signs_2) == 0))",
-                        f"({float(lhs)} == ((-1 ** real(x_sign_0)) * abs({float(lhs)})))",
-                        f"({float(rhs)} == ((-1 ** real(y_sign_1)) * abs({float(rhs)})))",
+                        f"({float(lhs)} == ((-1 ** real(x_sign_0)) * {abs(float(lhs))}))",
+                        f"({float(rhs)} == ((-1 ** real(y_sign_1)) * {abs(float(rhs))}))",
                         "((-1 ** real(xored_signs_2)) == ((-1 ** real(x_sign_0)) * (-1 ** real(y_sign_1))))",
                     ],
                 )

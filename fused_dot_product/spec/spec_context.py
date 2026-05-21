@@ -26,7 +26,7 @@ class SpecContext:
                 f"SpecContext.assume expects BoolExpr, got {type(condition).__name__}"
             )
         self.assumes.append(condition)
-        # self.assumes.append(condition.constant_fold())
+        self._simplify_context_fixpoint()
     
     def check(self, condition: BoolExpr) -> None:
         if not isinstance(condition, BoolExpr):
@@ -34,7 +34,7 @@ class SpecContext:
                 f"SpecContext.check expects BoolExpr, got {type(condition).__name__}"
             )
         self.checks.append(condition)
-        # self.checks.append(condition.constant_fold())
+        self._simplify_context_fixpoint()
 
     def _context_not_empty(self):
         if len(self.checks) == 0:
@@ -85,14 +85,19 @@ class SpecContext:
                     f"Only BoolExpr checks are supported, got {type(check).__name__}"
                 )
         return to_check
-    
-    def _fold_spec(self, spec):
+
+    def _substitute_spec(
+        self,
+        spec,
+        replacements: dict[RealVar | BoolVar, RealLit | BoolLit],
+    ):
         if isinstance(spec, SpecNode):
-            return spec.constant_fold()
+            return substitute_literals(spec, replacements)
         if isinstance(spec, tuple):
-            return tuple(self._fold_spec(item) for item in spec)
+            return tuple(self._substitute_spec(item, replacements) for item in spec)
         return spec
 
+    # try to learn variable values from equalities on ASSUMES ONLY, throws errors on conflicts
     def learned_literals(self) -> dict[RealVar | BoolVar, RealLit | BoolLit]:
         candidates: dict[RealVar | BoolVar, RealLit | BoolLit] = {}
 
@@ -110,29 +115,67 @@ class SpecContext:
                 )
 
         for assume in self.assumes:
-            if isinstance(assume, Eq):
-                rhs_folded = assume.rhs.constant_fold()
-                lhs_folded = assume.lhs.constant_fold()
-                if isinstance(lhs_folded, RealVar) and isinstance(rhs_folded, RealLit):
-                    record(lhs_folded, rhs_folded)
-                elif isinstance(rhs_folded, RealVar) and isinstance(lhs_folded, RealLit):
-                    record(rhs_folded, lhs_folded)
-            elif isinstance(assume, BoolEq):
-                rhs_folded = assume.rhs.constant_fold()
-                lhs_folded = assume.lhs.constant_fold()
-                if isinstance(lhs_folded, BoolVar) and isinstance(rhs_folded, BoolLit):
-                    record(lhs_folded, rhs_folded)
-                elif isinstance(rhs_folded, BoolVar) and isinstance(lhs_folded, BoolLit):
-                    record(rhs_folded, lhs_folded)
+            learned = self._canonical_learned_assumption(assume)
+            if learned is None:
+                continue
+            record(*learned)
 
         return candidates
 
+    # LOCAL LEARNING FACTS FROM AN ASSUME
+    def _canonical_learned_assumption(
+        self,
+        assume: BoolExpr,
+    ) -> tuple[RealVar | BoolVar, RealLit | BoolLit] | None:
+        if isinstance(assume, Eq):
+            rhs_folded = assume.rhs.constant_fold()
+            lhs_folded = assume.lhs.constant_fold()
+            if isinstance(lhs_folded, RealVar) and isinstance(rhs_folded, RealLit):
+                return lhs_folded, rhs_folded
+            if isinstance(rhs_folded, RealVar) and isinstance(lhs_folded, RealLit):
+                return rhs_folded, lhs_folded
+        elif isinstance(assume, BoolEq):
+            rhs_folded = assume.rhs.constant_fold()
+            lhs_folded = assume.lhs.constant_fold()
+            if isinstance(lhs_folded, BoolVar) and isinstance(rhs_folded, BoolLit):
+                return lhs_folded, rhs_folded
+            if isinstance(rhs_folded, BoolVar) and isinstance(lhs_folded, BoolLit):
+                return rhs_folded, lhs_folded
+        return None
+
+    def _normalize_assume(self, assume: BoolExpr) -> BoolExpr:
+        learned = self._canonical_learned_assumption(assume)
+        if learned is None:
+            return assume
+        var, lit = learned
+        if isinstance(var, RealVar):
+            return Eq(var, lit)
+        return BoolEq(var, lit)
+
+    # LEARNS FROM ASSUMES - APPLIES EVERYWHERE
+    def _simplify_context_fixpoint(self) -> None:
+        max_iterations = len(self.assumes) + len(self.checks) + 1
+        for _ in range(max_iterations):
+            replacements = self.learned_literals()
+            new_assumes = [
+                self._normalize_assume(assume)
+                if self._canonical_learned_assumption(assume) is not None
+                else self._substitute_spec(assume, replacements)
+                for assume in self.assumes
+            ]
+            # SUBSTITUTE AND CONSTANT FOLD
+            new_checks = [
+                self._substitute_spec(check, replacements)
+                for check in self.checks
+            ]
+            if new_assumes == self.assumes and new_checks == self.checks:
+                return
+            self.assumes = new_assumes
+            self.checks = new_checks
+
     def spec_of(self, node: Node):
-        return node._evaluate_spec(ctx=self, cache=self.spec_cache)
-        # spec = node._evaluate_spec(ctx=self, cache=self.spec_cache)
-        # folded = self._fold_spec(spec)
-        # self.spec_cache[node] = folded
-        # return folded
+        spec = node._evaluate_spec(ctx=self, cache=self.spec_cache)
+        return self._substitute_spec(spec, self.learned_literals())
     
     def real_val(self, value: int | float):
         return RealLit(value=value)

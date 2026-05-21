@@ -666,6 +666,28 @@ def constant_fold(node) -> "SpecNode":
     return type(node)(*folded_args)
 
 
+# substitute any known values of variables and rebuilds node + trying to constant fold on top of that
+# POTENTIAL UNSOUNDNESS:
+#  (x == 1 + 2)
+#  (x == y)
+# SECOND ASSUMPTION WON'T BE CHECKED - IT WILL BE SIMPLY DROPPED!!!
+def substitute_literals(
+    node: "SpecNode",
+    replacements: dict[RealVar | BoolVar, RealLit | BoolLit],
+) -> "SpecNode":
+    replacement = replacements.get(node)
+    if replacement is not None:
+        return replacement
+
+    args = children(node)
+    if args == ():
+        return node
+
+    substituted_args = tuple(substitute_literals(arg, replacements) for arg in args)
+    rebuilt = node if all(old is new for old, new in zip(args, substituted_args)) else type(node)(*substituted_args)
+    return constant_fold(rebuilt)
+
+
 def _literal_type(node: SpecNode):
     if isinstance(node, BoolExpr):
         return BoolLit
