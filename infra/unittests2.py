@@ -2,9 +2,11 @@ import unittest
 from unittest.mock import patch
 
 import dreal
+import math
 from egglog import EGraph
 
 from fused_dot_product import *
+from fused_dot_product.ast import nodes as ast_nodes
 from fused_dot_product.egglog.rules import load_rules
 from fused_dot_product.smt import z3_check_eq
 from fused_dot_product.solver import engine as solver_engine
@@ -320,20 +322,16 @@ class TestPowSpecOp(unittest.TestCase):
 
                 self.assertEqual(from_egglog(egraph.extract(lowered)), expected)
 
-    def test_minus_one_symbolic_power_is_solver_friendly_for_dreal(self):
-        ctx = SpecContext("minus-one-dreal")
+    def test_minus_one_symbolic_power_lowers_as_plain_power(self):
         s = RealVar("s")
-        x = RealVar("x")
-        ctx.assume(s.eq(RealLit(0)).or_(s.eq(RealLit(1))))
-        ctx.assume(x.eq((RealLit(-1) ** s) * abs(x)))
+        expr = RealLit(-1) ** s
 
-        env = {}
-        result = dreal.CheckSatisfiability(
-            dreal.And(*[assume.to_dreal(env) for assume in ctx.assumes]),
-            0.001,
-        )
+        z3_expr = expr.to_z3({})
+        dreal_expr = expr.to_dreal({})
 
-        self.assertIsNotNone(result)
+        self.assertNotEqual(z3_expr.decl().kind(), z3.Z3_OP_ITE)
+        self.assertEqual(str(z3_expr), "-1**s")
+        self.assertEqual(str(dreal_expr), "pow(-1, s)")
 
     def test_numeric_equality_constant_folds_in_egglog(self):
         cases = [
@@ -370,7 +368,120 @@ class TestPowSpecOp(unittest.TestCase):
                 self.assertEqual(from_egglog(egraph.extract(lowered)), expected)
 
 
+class TestEgglogFloatLiterals(unittest.TestCase):
+    def test_real_lit_round_trips_exact_finite_float_values(self):
+        values = [
+            0.1,
+            0.2,
+            0.3,
+            1.25,
+            -2.5,
+            1e-6,
+            2.0 ** -20,
+        ]
+
+        for value in values:
+            with self.subTest(value=value):
+                round_tripped = from_egglog(RealLit(value).to_egglog())
+
+                self.assertIsInstance(round_tripped, RealLit)
+                self.assertEqual(round_tripped.value.hex(), value.hex())
+
+    def test_fractional_literals_constant_fold_in_egglog_without_losing_float_bits(self):
+        expr = RealLit(0.1) + RealLit(0.2)
+
+        egraph = EGraph()
+        load_rules(egraph)
+        lowered = expr.to_egglog()
+
+        egraph.register(lowered)
+        egraph.run(1)
+
+        folded = from_egglog(egraph.extract(lowered))
+        self.assertEqual(folded, RealLit(0.1 + 0.2))
+        self.assertEqual(folded.value.hex(), (0.1 + 0.2).hex())
+
+    def test_fractional_pow_round_trips_through_egglog(self):
+        expr = Pow(RealLit(2.5), RealLit(0.5))
+
+        self.assertEqual(from_egglog(expr.to_egglog()), expr)
+
+    def test_non_finite_real_lits_are_rejected_by_egglog_lowering(self):
+        for value in (math.inf, -math.inf, math.nan):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    RealLit(value).to_egglog()
+
+
+class TestSpecAstConstantFolding(unittest.TestCase):
+    def test_global_constant_fold_entry_point_matches_method(self):
+        expr = (RealLit(2) + RealLit(3)) * RealLit(4)
+
+        self.assertEqual(constant_fold(expr), expr.constant_fold())
+        self.assertEqual(constant_fold(expr), RealLit(20))
+
+    def test_constant_fold_collapses_literal_subtrees(self):
+        expr = ((RealLit(2) + RealLit(3)) * RealLit(4)).eq(RealLit(20))
+
+        self.assertEqual(expr.constant_fold(), BoolLit(True))
+
+    def test_constant_fold_can_produce_false(self):
+        expr = (RealLit(2) + RealLit(3)).eq(RealLit(6))
+
+        self.assertEqual(expr.constant_fold(), BoolLit(False))
+
+    def test_constant_fold_keeps_symbolic_if_shape(self):
+        expr = If(BoolLit(True), RealVar("x"), RealVar("y"))
+
+        self.assertEqual(expr.constant_fold(), expr)
+
+    def test_constant_fold_partially_rebuilds_symbolic_real_expr(self):
+        x = RealVar("x")
+        expr = x + (RealLit(2) + RealLit(3))
+
+        self.assertEqual(expr.constant_fold(), Add(x, RealLit(5)))
+
+    def test_constant_fold_partially_rebuilds_symbolic_bool_expr(self):
+        p = BoolVar("p")
+        expr = p.or_(RealLit(2).eq(RealLit(2)))
+
+        self.assertEqual(expr.constant_fold(), Or(p, BoolLit(True)))
+
+    def test_constant_fold_folds_boolean_operator_trees(self):
+        expr = RealLit(2).eq(RealLit(2)).and_(~BoolLit(False))
+
+        self.assertEqual(expr.constant_fold(), BoolLit(True))
+
+    def test_constant_fold_leaves_unsupported_literal_pow_unchanged(self):
+        expr = Pow(RealLit(-2), RealLit(0.5))
+
+        self.assertEqual(expr.constant_fold(), expr)
+
 class TestSolverApis(unittest.TestCase):
+    def test_fp32_adder_check_spec_splits_all_input_class_pairs(self):
+        adder = FP32_IEEE_adder(
+            Var(name="a", sign=Float32T()),
+            Var(name="b", sign=Float32T()),
+        )
+        seen_names = []
+
+        def fake_check_equivalence(query1, query2, ctx, schedule):
+            del query1, query2, schedule
+            seen_names.append(ctx.name)
+            return True, []
+
+        with patch.object(ast_nodes, "check_equivalence", side_effect=fake_check_equivalence):
+            proof_trace = adder.check_spec(schedule=[{"tool": "z3", "timeout_ms": 1}])
+
+        expected_names = {
+            f"FP32_IEEE_adder[x={x_case},y={y_case}]"
+            for x_case in ("norm", "sub", "zero", "inf", "nan")
+            for y_case in ("norm", "sub", "zero", "inf", "nan")
+        }
+        self.assertEqual(proof_trace, [])
+        self.assertEqual(len(seen_names), 25)
+        self.assertEqual(set(seen_names), expected_names)
+
     def test_check_equivalence_returns_flat_proof_trace(self):
         ctx = SpecContext("flat-trace")
         report1 = build_proof_report(ctx, ctx.copy(), tool="branch-a", runtime_s=0.0, equivalent=False)
@@ -437,8 +548,8 @@ class TestSignSpecs(unittest.TestCase):
                         "((real(x_sign_0) == 1) or (real(x_sign_0) == 0))",
                         "((real(y_sign_1) == 1) or (real(y_sign_1) == 0))",
                         "((real(xored_signs_2) == 1) or (real(xored_signs_2) == 0))",
-                        f"({float(lhs)} == ((-1 ** real(x_sign_0)) * abs({float(lhs)})))",
-                        f"({float(rhs)} == ((-1 ** real(y_sign_1)) * abs({float(rhs)})))",
+                        f"({float(lhs)} == ((-1 ** real(x_sign_0)) * {abs(float(lhs))}))",
+                        f"({float(rhs)} == ((-1 ** real(y_sign_1)) * {abs(float(rhs))}))",
                         "((-1 ** real(xored_signs_2)) == ((-1 ** real(x_sign_0)) * (-1 ** real(y_sign_1))))",
                     ],
                 )

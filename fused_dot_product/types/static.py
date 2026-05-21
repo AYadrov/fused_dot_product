@@ -199,17 +199,8 @@ class Float32T(StaticType):
         is_inf = ctx.fresh_real(f"{name}_is_inf")
         is_nan = ctx.fresh_real(f"{name}_is_nan")
         
-        #ctx.assume(is_norm.eq(ctx.real_val(1)).or_(is_norm.eq(ctx.real_val(0))))
-        #ctx.assume(is_sub.eq(ctx.real_val(1)).or_(is_sub.eq(ctx.real_val(0))))
-        ctx.assume(is_norm.eq(ctx.real_val(1)))
-        ctx.assume(is_sub.eq(ctx.real_val(0)))
-        ctx.assume(is_zero.eq(ctx.real_val(0)))
-        ctx.assume(is_inf.eq(ctx.real_val(0)))
-        ctx.assume(is_nan.eq(ctx.real_val(0)))
-        ctx.assume((is_norm + is_sub + is_zero + is_inf + is_nan).eq(ctx.real_val(1)))
-        
         return (value, is_norm, is_sub, is_zero, is_inf, is_nan)
-     
+    
     def random_runtime_value(self, rng: random.Random):
         from .runtime import Float32
         return Float32(rng.getrandbits(self.total_bits()))

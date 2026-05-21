@@ -18,6 +18,9 @@ def Composite(
     spec: tp.Callable[..., tp.Any],
     c_inline: bool = False,
     c_lowering: tp.Optional[CLowering] = None,
+    case_splitter: tp.Optional[
+        tp.Callable[[SpecContext, list[tp.Any], tp.Any, tp.Any], list[SpecContext]]
+    ] = None,
 ):
     def wrapper1(impl: tp.Callable[..., Node]):
         def wrapper2(*args):
@@ -28,6 +31,7 @@ def Composite(
                 name=name,
                 c_inline=c_inline,
                 c_lowering=c_lowering,
+                case_splitter=case_splitter,
             )
         return wrapper2
     return wrapper1
@@ -41,9 +45,13 @@ class composite(Node):
         name: str,
         c_inline: bool = False,
         c_lowering: tp.Optional[CLowering] = None,
+        case_splitter: tp.Optional[
+            tp.Callable[[SpecContext, list[tp.Any], tp.Any, tp.Any], list[SpecContext]]
+        ] = None,
     ):
         self.c_inline = c_inline
         self.c_lowering = c_lowering
+        self.case_splitter = case_splitter
         self.ctx = SpecContext(name)
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         
@@ -79,8 +87,8 @@ class composite(Node):
     def check_spec(self, schedule: list[str | dict[str, tp.Any]] | None = None):
         if schedule is None:
             schedule = [
-                {"tool": "egglog-preprocess", "iterations": 3, "scheduler": {"match_limit": 500_000, "ban_length": 1}},
-                {"tool": "egglog-rewrite", "iterations": 6, "scheduler": {"match_limit": 500_000, "ban_length": 1}},
+                {"tool": "egglog-preprocess", "iterations": 3, "scheduler": {"match_limit": 100_000, "ban_length": 1}},
+                {"tool": "egglog-rewrite", "iterations": 6, "scheduler": {"match_limit": 100_000, "ban_length": 1}},
                 {"tool": "z3", "timeout_ms": 10000},
                 {"tool": "dreal", "precision": 0.001},
             ]
@@ -88,14 +96,27 @@ class composite(Node):
         spec_inner = ctx.spec_of(self.inner_tree)
         inputs = [ctx.spec_of(arg) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, ctx=ctx)
-        
-        equivalence, proof_trace = check_equivalence(
-            spec_inner,
-            spec_outer,
-            ctx=ctx,
-            schedule=schedule,
-        )
-        return proof_trace
+
+        if self.case_splitter is None:
+            initial_ctxs = [ctx]
+        else:
+            initial_ctxs = self.case_splitter(ctx, inputs, spec_inner, spec_outer)
+
+        full_trace = []
+        for initial_ctx in initial_ctxs:
+            print("START -----------------------------------------------------------------")
+            equivalence, proof_trace = check_equivalence(
+                spec_inner,
+                spec_outer,
+                ctx=initial_ctx,
+                schedule=schedule,
+            )
+            full_trace.extend(proof_trace)
+            print("PROOF -----------------------------------------------------------------")
+            print(proof_trace)
+            if not equivalence:
+                return full_trace
+        return full_trace
 
     def _validate_components(self, composite_name: str) -> None:
         visited: set[Node] = set()

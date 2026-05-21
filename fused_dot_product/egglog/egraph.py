@@ -61,12 +61,16 @@ def _simplify_expr(expr: "SpecNode", egraph: EGraph):
 
 
 def _egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
-    from ..spec.spec_ast import Eq, BoolEq
+    from ..spec.spec_ast import Eq, BoolEq, BoolExpr
     
-    def simplify_check(check: BoolEq | Eq):
-        lhs = check.lhs.to_egglog()
-        rhs = check.rhs.to_egglog()
-        check_passed = egraph.check_bool(eq(lhs).to(rhs))
+    def simplify_check(check: BoolExpr):
+        if isinstance(check, Eq) or isinstance(check, BoolEq):
+            lhs = check.lhs.to_egglog()
+            rhs = check.rhs.to_egglog()
+            check_passed = egraph.check_bool(eq(lhs).to(rhs))
+        else:
+            expr = check.to_egglog()
+            check_passed = egraph.check_bool(eq(expr).to(MathBool.True_()))
         if check_passed:
             return None
         return _simplify_expr(check, egraph)
@@ -76,9 +80,9 @@ def _egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
     
     run_started_at = perf_counter()
     for check in ctx.checks:
-        if not isinstance(check, Eq) and not isinstance(check, BoolEq):
+        if not isinstance(check, BoolExpr):
             raise NotImplementedError(
-                f"Only Eq and BoolEq checks are supported, got {type(check).__name__}"
+                f"Only BoolExpr checks are supported, got {type(check).__name__}"
             )
         simplified = simplify_check(check)
         if simplified is not None:
@@ -194,4 +198,4 @@ def egglog_preprocess(ctx: "SpecContext", iterations: int, scheduler=None):
 
     dummy_report = build_proof_report(ctx, ctx.copy(), tool="copy", runtime_s=0.0, equivalent=False)
     
-    return [dummy_report, simplified_checks_report, simplified_assumes_report]
+    return [simplified_assumes_report, simplified_checks_report, dummy_report]

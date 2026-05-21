@@ -2,127 +2,101 @@ from fused_dot_product import *
 from .common import *
 from .encode_Float32 import *
 
+
+_FP32_CLASS_CASES = {
+    "norm": (1, 0, 0, 0, 0),
+    # "sub": (0, 1, 0, 0, 0),
+    # "zero": (0, 0, 1, 0, 0),
+    "inf": (0, 0, 0, 1, 0),
+    "nan": (0, 0, 0, 0, 1),
+}
+
+
+def _assume_fp32_case(spec_value, class_bits, ctx):
+    _, is_norm, is_sub, is_zero, is_inf, is_nan = spec_value
+    flags = (is_norm, is_sub, is_zero, is_inf, is_nan)
+    for flag, bit in zip(flags, class_bits):
+        ctx.assume(flag.eq(ctx.real_val(bit)))
+
+
+def _split_fp32_input_cases(ctx, inputs, spec_inner, spec_outer):
+    del spec_inner, spec_outer
+
+    if len(inputs) != 2:
+        return [ctx]
+
+    split_ctxs = []
+    for x_label, x_case in _FP32_CLASS_CASES.items():
+        for y_label, y_case in _FP32_CLASS_CASES.items():
+            case_ctx = ctx.copy()
+            case_ctx.name = f"{ctx.name}[x={x_label},y={y_label}]"
+            _assume_fp32_case(inputs[0], x_case, case_ctx)
+            _assume_fp32_case(inputs[1], y_case, case_ctx)
+            split_ctxs.append(case_ctx)
+    return split_ctxs
+
+
+# Normal form only for now
 def helper(x, ctx):
     x_val, x_norm, x_sub, x_zero, x_inf, x_nan = x
     sign = ctx.fresh_real("sign")
     exponent = ctx.fresh_real("exponent")
     mantissa = ctx.fresh_real("mantissa")
 
-    # zero = ctx.real_val(0)
-    # one = ctx.real_val(1)
-    # two = ctx.real_val(2)
-    # minus_one = ctx.real_val(-1)
-    # inf_code = ctx.real_val((1 << Float32.exponent_bits) - 1)
-    # mantissa_limit = ctx.real_val(1 << Float32.mantissa_bits)
-    # bias = ctx.real_val(Float32.exponent_bias)
-    # sub_scale = two ** ctx.real_val(1 - Float32.exponent_bias - Float32.mantissa_bits)
+    zero = ctx.real_val(0)
+    one = ctx.real_val(1)
+    two = ctx.real_val(2)
+    minus_one = ctx.real_val(-1)
+    
+    mantissa_ = one + mantissa * two ** ctx.real_val(-Float32.mantissa_bits)
+    exponent_ = exponent - ctx.real_val(Float32.exponent_bias)
+    sign_ = minus_one ** sign
+    
+    ctx.assume(x_val.eq(sign_ * (mantissa_ * (two ** exponent_))))
+    ctx.assume(sign.eq(zero).or_(sign.eq(one)))
+    ctx.assume((exponent >= zero).and_(exponent < ctx.real_val(1 << Float32.exponent_bits)))
+    ctx.assume((mantissa >= zero).and_(mantissa < ctx.real_val(1 << Float32.mantissa_bits)))
+    
+    ctx.assume((x_norm + x_sub + x_zero + x_inf + x_nan).eq(one))
 
-    # is_norm = x_norm.eq(one)
-    # is_sub = x_sub.eq(one)
-    # is_zero = x_zero.eq(one)
-    # is_inf = x_inf.eq(one)
-    # is_nan = x_nan.eq(one)
-
-    # ctx.assume(sign.eq(zero).or_(sign.eq(one)))
-    # ctx.assume((exponent >= zero).and_(exponent < ctx.real_val(1 << Float32.exponent_bits)))
-    # ctx.assume((mantissa >= zero).and_(mantissa < mantissa_limit))
-    # ctx.assume((x_norm + x_sub + x_zero + x_inf + x_nan).eq(one))
-
-    # normal_value = (minus_one ** sign) * (one + mantissa * two ** (-ctx.real_val(Float32.mantissa_bits))) * two ** (exponent - bias)
-    # subnormal_value = (minus_one ** sign) * mantissa * sub_scale
-
-    # ctx.assume(
-    #     (~is_norm).or_(
-    #         (exponent >= one)
-    #         .and_(exponent < inf_code)
-    #         .and_(x_val.eq(normal_value))
-    #     )
-    # )
-    # ctx.assume(
-    #     (~is_sub).or_(
-    #         exponent.eq(zero)
-    #         .and_(mantissa > zero)
-    #         .and_(x_val.eq(subnormal_value))
-    #     )
-    # )
-    # ctx.assume(
-    #     (~is_zero).or_(
-    #         exponent.eq(zero)
-    #         .and_(mantissa.eq(zero))
-    #         .and_(x_val.eq(zero))
-    #     )
-    # )
-    # ctx.assume(
-    #     (~is_inf).or_(
-    #         exponent.eq(inf_code)
-    #         .and_(mantissa.eq(zero))
-    #         .and_(x_val.eq(zero))
-    #     )
-    # )
-    # ctx.assume(
-    #     (~is_nan).or_(
-    #         exponent.eq(inf_code)
-    #         .and_(mantissa > zero)
-    #         .and_(x_val.eq(zero))
-    #     )
-    # )
-
-    return sign, exponent, mantissa
+    return sign, exponent, mantissa, x_val, x_norm, x_sub, x_zero, x_inf, x_nan
 
 # TODO: NaN payload
 def spec(x, y, ctx):
-    return x[0] + y[0], ctx.real_val(1), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0)
- 
-    # zero = ctx.real_val(0)
-    # one = ctx.real_val(1)
-    # two = ctx.real_val(2)
-    # minus_one = ctx.real_val(-1)
-    # bias = ctx.real_val(Float32.exponent_bias)
-
-    # # x argument
-    # x_val, x_norm, x_sub, x_zero, x_inf, x_nan = x
-    # x_sign, x_exponent, x_mantissa = helper(x, ctx)
-    # x_normal_value = (minus_one ** x_sign) * (one + x_mantissa * two ** (-ctx.real_val(Float32.mantissa_bits))) * two ** (x_exponent - bias)
-    # x_subnormal_value = (minus_one ** x_sign) * x_mantissa * two ** (-ctx.real_val(Float32.mantissa_bits)) * two ** (x_exponent - bias)
-    # ctx.assume(x_val.eq(If(x_norm.eq(one), x_normal_value, x_subnormal_value)))
-
-    # # y argument
-    # y_val, y_norm, y_sub, y_zero, y_inf, y_nan = y
-    # y_sign, y_exponent, y_mantissa = helper(y, ctx)
-    # y_normal_value = (minus_one ** y_sign) * (one + y_mantissa * two ** (-ctx.real_val(Float32.mantissa_bits))) * two ** (y_exponent - bias)
-    # y_subnormal_value = (minus_one ** y_sign) * y_mantissa * two ** (-ctx.real_val(Float32.mantissa_bits)) * two ** (y_exponent - bias)
-    # ctx.assume(y_val.eq(If(y_norm.eq(one), y_normal_value, y_subnormal_value)))
-
-    # r_val, r_norm, r_sub, r_zero, r_inf, r_nan = ctx.fresh_real("r_val"), ctx.fresh_real("r_norm"), ctx.fresh_real("r_sub"), ctx.fresh_real("r_zero"), ctx.fresh_real("r_inf"), ctx.fresh_real("r_nan")
+    # return x[0] + y[0], ctx.real_val(1), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0)
     
+    x_sign, x_exp, x_man, x_val, x_norm, x_sub, x_zero, x_inf, x_nan = helper(x, ctx)
+    y_sign, y_exp, y_man, y_val, y_norm, y_sub, y_zero, y_inf, y_nan = helper(y, ctx)
     
+    zero = ctx.real_val(0)
+    one = ctx.real_val(1)
+    
+    # IEEE invalid: +inf + -inf
+    invalid_inf_sum = (
+        x_inf.eq(one)
+        .and_(y_inf.eq(one))
+        .and_(x_sign.ne(y_sign))
+    )
+    
+    res_nan_b = x_nan.eq(one).or_(y_nan.eq(one)).or_(invalid_inf_sum)
+    res_inf_b = (~res_nan_b).and_(x_inf.eq(one).or_(y_inf.eq(one)))
+    
+    finite_sum = x_val + y_val
+    res_norm_b = (~res_nan_b).and_(~res_inf_b)
+    
+    res_val = If(res_nan_b.or_(res_inf_b), zero, finite_sum)
+    
+    return (
+        res_val,
+        If(res_norm_b, one, zero),
+        zero,  # subnormal
+        zero,  # zero
+        If(res_inf_b, one, zero),
+        If(res_nan_b, one, zero),
+    )
 
 
-    
-    # sum_val = x_val + y_val
-    # abs_sum_val = abs(sum_val)
-    
-    # invalid_inf_sum = x_inf.eq(one).and_(y_inf.eq(one)).and_(x_sign.ne(y_sign))
-    # res_nan_b = x_nan.eq(one).or_(y_nan.eq(one)).or_(invalid_inf_sum)
-    # finite_overflow = (~res_nan_b).and_(~x_inf.eq(one)).and_(~y_inf.eq(one)).and_(abs_sum_val > max_finite)
-    # res_inf_b = ((x_inf.eq(one).or_(y_inf.eq(one))).and_(~res_nan_b)).or_(finite_overflow)
-    # res_zero_b = (~res_nan_b).and_(~res_inf_b).and_(sum_val.eq(zero))
-    # res_sub_b = (~res_nan_b).and_(~res_inf_b).and_(~res_zero_b).and_(abs_sum_val < min_normal)
-    # res_norm_b = (~res_nan_b).and_(~res_inf_b).and_(~res_zero_b).and_(~res_sub_b)
-    
-    # res_val = If(res_nan_b.or_(res_inf_b), zero, sum_val)
-    
-    # return (
-    #     res_val,
-    #     If(res_norm_b, one, zero),
-    #     If(res_sub_b, one, zero),
-    #     If(res_zero_b, one, zero),
-    #     If(res_inf_b, one, zero),
-    #     If(res_nan_b, one, zero),
-    # )
-
-
-@Composite(name="FP32_IEEE_adder", spec=spec)
+@Composite(name="FP32_IEEE_adder", spec=spec, case_splitter=_split_fp32_input_cases)
 def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     x_s, x_e, x_m, x_norm, x_sub, x_zero, x_inf, x_nan = fp32_decode(x)
     y_s, y_e, y_m, y_norm, y_sub, y_zero, y_inf, y_nan = fp32_decode(y)
