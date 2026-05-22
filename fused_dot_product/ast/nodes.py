@@ -79,6 +79,7 @@ class composite(Node):
     def check_spec(self, schedule: list[str | dict[str, tp.Any]] | None = None):
         if schedule is None:
             schedule = [
+                {"tool": "simplify"},
                 {"tool": "egglog-preprocess", "iterations": 3, "scheduler": {"match_limit": 500_000, "ban_length": 1}},
                 {"tool": "egglog-rewrite", "iterations": 6, "scheduler": {"match_limit": 500_000, "ban_length": 1}},
                 {"tool": "z3", "timeout_ms": 10000},
@@ -99,25 +100,25 @@ class composite(Node):
 
     def _validate_components(self, composite_name: str) -> None:
         visited: set[Node] = set()
-
+        
         def visit(node: Node, path: str) -> None:
             if node in visited:
                 return
             visited.add(node)
-
+            
             if isinstance(node, (primitive, composite)):
                 for idx, arg in enumerate(node.args):
                     visit(arg, f"{path} -> {node.name}.arg[{idx}]")
                 return
-
+            
             if isinstance(node, (Var, Const)):
                 return
-
+            
             raise TypeError(
                 f"Composite {composite_name} must be composed recursively of Primitive/Composite nodes; "
                 f"found {type(node).__name__} {node.name!r} at {path}"
             )
-
+        
         visit(self.inner_tree, f"{composite_name}.impl")
     
     

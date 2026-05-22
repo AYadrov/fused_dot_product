@@ -1,7 +1,9 @@
 from ..types import *
 from ..ast import *
+from ..spec import If
 from .Tuple import make_Tuple
 from .basics import *
+
 
 ########### Private Helpers ############
 
@@ -74,40 +76,44 @@ def fp32_pack_spec(s, e, m, ctx):
     ctx.assume(s.eq(ctx.real_val(1)).or_(s.eq(ctx.real_val(0))))
     mantissa = ctx.real_val(1) + m * ctx.real_val(2) ** (-ctx.real_val(Float32.mantissa_bits))
     exponent = e - ctx.real_val(Float32.exponent_bias)
-    return ctx.real_val(-1) ** s * mantissa * ctx.real_val(2) ** exponent 
+    value = ctx.real_val(-1) ** s * mantissa * ctx.real_val(2) ** exponent
+    return (value, ctx.real_val(1), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0))
 
 @Primitive(name="fp32_pack", spec=fp32_pack_spec)
 def fp32_pack(sign: Node, exponent: Node, mantissa: Node) -> Node:
     return _fp32_alloc(sign, exponent, mantissa)
 
 def fp32_decode_spec(x, ctx):
+    value, x_norm, x_sub, x_zero, x_inf, x_nan = x
     sign = ctx.fresh_real("sign")
     mantissa = ctx.fresh_real("mantissa")
     exponent = ctx.fresh_real("exponent")
-
+    
     two = ctx.real_val(2)
     one = ctx.real_val(1)
     minus_one = ctx.real_val(-1)
     m_bits = ctx.real_val(Float32.mantissa_bits)
     e_bits = ctx.real_val(Float32.exponent_bias)
-
+    
     mantissa_ = one + mantissa * two ** (-m_bits)
     exponent_ = exponent - e_bits
     sign_ = minus_one ** sign
-    ctx.assume(x.eq(sign_ * (mantissa_ * (two ** exponent_))))
+    
+    ctx.assume(value.eq(sign_ * (mantissa_ * (two ** exponent_))))
     ctx.assume(sign.eq(ctx.real_val(1)).or_(sign.eq(ctx.real_val(0))))
     ctx.assume(sign_.eq(ctx.real_val(1)).or_(sign_.eq(ctx.real_val(-1))))
     ctx.assume((exponent >= ctx.real_val(0)).and_(exponent < ctx.real_val(1 << Float32.exponent_bits)))
     ctx.assume((mantissa >= ctx.real_val(0)).and_(mantissa < ctx.real_val(1 << Float32.mantissa_bits)))
+    
     return (
         sign,
         exponent,
         mantissa,
-        ctx.real_val(1),
-        ctx.real_val(0),
-        ctx.real_val(0),
-        ctx.real_val(0),
-        ctx.real_val(0),
+        x_norm,
+        x_sub,
+        x_zero,
+        x_inf,
+        x_nan,
     )
 
 

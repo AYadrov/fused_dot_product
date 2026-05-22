@@ -3,12 +3,13 @@ from __future__ import annotations
 from .spec_ast import *
 from ..egglog import *
 from egglog import rewrite, vars_
+from ..solver.report import build_proof_report
 
 import copy
 import dreal
+from time import perf_counter
 import z3
 import warnings
-
 
 
 class SpecContext:
@@ -63,22 +64,117 @@ class SpecContext:
                     union(assume.lhs.to_egglog()).with_(assume.rhs.to_egglog())
                 )
             else:
-                warnings.warn(f"Skipped assume for egglog: {str(assume)}")
+                egraph.register(
+                    union(assume.to_egglog()).with_(MathBool.True_())
+                )
         
         to_check = []
         for check in self.checks:
-            if not isinstance(check, Eq) and not isinstance(check, BoolEq):
+            if isinstance(check, Eq) or isinstance(check, BoolEq):
+                lhs = check.lhs.to_egglog()
+                rhs = check.rhs.to_egglog()
+                egraph.register(lhs)
+                egraph.register(rhs)
+                to_check.append(eq(lhs).to(rhs))
+            elif isinstance(check, BoolExpr):
+                expr = check.to_egglog()
+                egraph.register(expr)
+                to_check.append(eq(expr).to(MathBool.True_()))
+            else:
                 raise NotImplementedError(
-                    f"Only Eq and BoolEq checks are supported, got {type(check).__name__}"
+                    f"Only BoolExpr checks are supported, got {type(check).__name__}"
                 )
-            lhs = check.lhs.to_egglog()
-            rhs = check.rhs.to_egglog()
-            egraph.register(lhs)
-            egraph.register(rhs)
-            to_check.append(eq(lhs).to(rhs))
-            
         return to_check
-    
+
+    def _substitute_spec(
+        self,
+        spec,
+        replacements: dict[RealVar | BoolVar, RealLit | BoolLit],
+    ):
+        if isinstance(spec, SpecNode):
+            return substitute_literals(spec, replacements)
+        if isinstance(spec, tuple):
+            return tuple(self._substitute_spec(item, replacements) for item in spec)
+        return spec
+
+    # try to learn variable values from equalities on ASSUMES ONLY, throws errors on conflicts
+    def learned_literals(self) -> dict[RealVar | BoolVar, RealLit | BoolLit]:
+        candidates: dict[RealVar | BoolVar, RealLit | BoolLit] = {}
+
+        def record(
+            var: RealVar | BoolVar,
+            lit: RealLit | BoolLit,
+        ) -> None:
+            existing = candidates.get(var)
+            if existing is None:
+                candidates[var] = lit
+                return
+            if not identical_nodes(existing, lit):
+                raise ValueError(
+                    f"Conflicting learned literals for {var}: {existing} vs {lit}"
+                )
+
+        for assume in self.assumes:
+            learned = self._canonical_learned_assumption(assume)
+            if learned is None:
+                continue
+            record(*learned)
+
+        return candidates
+
+    # LOCAL LEARNING FACTS FROM AN ASSUME
+    def _canonical_learned_assumption(
+        self,
+        assume: BoolExpr,
+    ) -> tuple[RealVar | BoolVar, RealLit | BoolLit] | None:
+        if isinstance(assume, Eq):
+            rhs_folded = assume.rhs.constant_fold()
+            lhs_folded = assume.lhs.constant_fold()
+            if isinstance(lhs_folded, RealVar) and isinstance(rhs_folded, RealLit):
+                return lhs_folded, rhs_folded
+            if isinstance(rhs_folded, RealVar) and isinstance(lhs_folded, RealLit):
+                return rhs_folded, lhs_folded
+        elif isinstance(assume, BoolEq):
+            rhs_folded = assume.rhs.constant_fold()
+            lhs_folded = assume.lhs.constant_fold()
+            if isinstance(lhs_folded, BoolVar) and isinstance(rhs_folded, BoolLit):
+                return lhs_folded, rhs_folded
+            if isinstance(rhs_folded, BoolVar) and isinstance(lhs_folded, BoolLit):
+                return rhs_folded, lhs_folded
+        return None
+
+    def _normalize_assume(self, assume: BoolExpr) -> BoolExpr:
+        learned = self._canonical_learned_assumption(assume)
+        if learned is None:
+            return assume
+        var, lit = learned
+        if isinstance(var, RealVar):
+            return Eq(var, lit)
+        return BoolEq(var, lit)
+
+    # LEARNS FROM ASSUMES - APPLIES EVERYWHERE
+    def simplify(self) -> "SpecContext":
+        simplified = self.copy()
+        max_iterations = len(simplified.assumes) + len(simplified.checks) + 1
+        for _ in range(max_iterations):
+            replacements = simplified.learned_literals()
+            new_assumes = [
+                simplified._normalize_assume(assume)
+                if simplified._canonical_learned_assumption(assume) is not None
+                else simplified._substitute_spec(assume, replacements)
+                for assume in simplified.assumes
+            ]
+            # SUBSTITUTE AND CONSTANT FOLD
+            new_checks = [
+                simplified._substitute_spec(check, replacements)
+                for check in simplified.checks
+            ]
+            if new_assumes == simplified.assumes and new_checks == simplified.checks:
+                break
+            simplified.assumes = new_assumes
+            simplified.checks = new_checks
+        return simplified
+
     def spec_of(self, node: Node):
         return node._evaluate_spec(ctx=self, cache=self.spec_cache)
     
@@ -126,47 +222,6 @@ class SpecContext:
             "context": str(self),
         }
 
-    # TODO: stuff like this: assume(x == y * y); check(x == abs(x)) won't work
-    # TODO: assume(x == 0); assume(x == 1); check(0 == 1) - should not pass
-    # TODO: assume(x == 1);  assume(y == 0); assume(y == 1); check(x == 2) - should not pass
-    # TODO: assume(x == z*y); assume(y==0); check(x == 0) - should pass
-    # def simplify_assumes(self):
-    #     live_vars = set()
-    #     for check in self.checks:
-    #         live_vars.update(variables(check))
-
-    #     if not live_vars:  # checks do not have vars, assumptions are useless
-    #         self.assumes = []
-    #         return self
-
-    #     assume_vars = [variables(assume) for assume in self.assumes]
-    #     var_occurrences = {}
-    #     for vars_ in assume_vars:
-    #         for var in vars_:
-    #             var_occurrences[var] = var_occurrences.get(var, 0) + 1
-
-    #     kept_indices = set()
-    #     changed = True
-    #     while changed:
-    #         changed = False
-    #         for idx, (assume, vars_) in enumerate(zip(self.assumes, assume_vars)):
-    #             if idx in kept_indices:
-    #                 continue
-    #             if not vars_:  # assumption does not have vars
-    #                 kept_indices.add(idx)
-    #                 changed = True
-    #                 continue
-    #             if not (vars_ & live_vars):  # assumption and checks do not have common vars - drop statement
-    #                 continue
-    #             if all(var in live_vars or var_occurrences[var] > 1 for var in vars_):  # all of assume's vars are either in live_vars or they are at least somewhere else as well
-    #                 kept_indices.add(idx)
-    #                 live_vars.update(vars_)
-    #                 changed = True
-
-    #     new_assumes = [assume for idx, assume in enumerate(self.assumes) if idx in kept_indices]
-    #     self.assumes = new_assumes
-    #     return self
-
     def __str__(self) -> str:
         def format_section(title: str, items: list[BoolExpr]) -> list[str]:
             if not items:
@@ -190,3 +245,33 @@ class SpecContext:
         new_ctx._sym_counter = self._sym_counter
         new_ctx.spec_cache = dict(self.spec_cache)
         return new_ctx
+
+def simplify_ctx(ctx: SpecContext):
+    run_started_at = perf_counter()
+    
+    simplified_ctx = ctx.simplify()
+    
+    new_assumes = []
+    for assume in simplified_ctx.assumes:
+        if identical_nodes(assume, BoolLit(True)):
+            continue
+        if identical_nodes(assume, BoolLit(False)):
+            raise ValueError("assumption folds to False")
+        new_assumes.append(assume)
+    
+    new_checks = []
+    for check in simplified_ctx.checks:
+        if identical_nodes(check, BoolLit(True)):
+            continue
+        if identical_nodes(check, BoolLit(False)):
+            raise ValueError("check folds to False")
+        new_checks.append(check)
+    
+    trimmed_ctx = ctx.copy(assumes=new_assumes, checks=new_checks)
+    return build_proof_report(
+        ctx,
+        trimmed_ctx,
+        tool="simplify",
+        runtime_s=perf_counter() - run_started_at,
+        equivalent=len(new_checks) == 0,
+    )

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..spec import SpecContext, SpecNode
+from ..spec.spec_context import simplify_ctx
 from .report import ProofReport
 from ..egglog import egglog_rewrite, egglog_preprocess
 from ..smt import z3_check_eq, dreal_check_eq
@@ -17,6 +18,7 @@ DEFAULT_EGGLOG_BAN_LENGTH = 1
 
 
 TOOL_FNS = {
+    "simplify": simplify_ctx,
     "egglog-preprocess": egglog_preprocess,
     "egglog-rewrite": egglog_rewrite,
     "z3": z3_check_eq,
@@ -96,6 +98,8 @@ def _normalize_schedule(
                     "scheduler": _normalize_egglog_scheduler(step),
                 }
             )
+        elif tool == "simplify":
+            normalized.append({"tool": tool})
         elif tool == "egglog-rewrite":
             normalized.append(
                 {
@@ -153,7 +157,7 @@ def check_equivalence(
 
     current_tracks: list[list[ProofReport]] = [[]]
     current_ctxs = [ctx.copy()]
-
+    
     normalized_schedule = _normalize_schedule(schedule=schedule)
     for step in normalized_schedule:
         next_tracks: list[list[ProofReport]] = []

@@ -353,11 +353,51 @@ class Float32(RuntimeType):
             exp_val = self.exponent - self.exponent_bias
             return float((-1) ** self.sign * frac * (2 ** exp_val))
     
-    # TODO: that's SUPER sketchy
     def to_spec(self, ctx):
-        if self.exponent == self.inf_code or self.exponent == self.nan_code:
-            return ctx.real_val(1)
-        return ctx.real_val(self.to_val())
+        if self.exponent == self.inf_code and self.mantissa == 0:
+            return (
+                ctx.real_val(0),
+                ctx.real_val(0),
+                ctx.real_val(0),
+                ctx.real_val(0),
+                ctx.real_val(1),
+                ctx.real_val(0),
+            )
+        if self.exponent == self.nan_code and self.mantissa != 0:
+            return (
+                ctx.real_val(0),
+                ctx.real_val(0),
+                ctx.real_val(0),
+                ctx.real_val(0),
+                ctx.real_val(0),
+                ctx.real_val(1),
+            )
+        if self.exponent == 0 and self.mantissa == 0:
+            return (
+                ctx.real_val(self.to_val()),
+                ctx.real_val(0),
+                ctx.real_val(0),
+                ctx.real_val(1),
+                ctx.real_val(0),
+                ctx.real_val(0),
+            )
+        if self.exponent == 0:
+            return (
+                ctx.real_val(self.to_val()),
+                ctx.real_val(0),
+                ctx.real_val(1),
+                ctx.real_val(0),
+                ctx.real_val(0),
+                ctx.real_val(0),
+            )
+        return (
+            ctx.real_val(self.to_val()),
+            ctx.real_val(1),
+            ctx.real_val(0),
+            ctx.real_val(0),
+            ctx.real_val(0),
+            ctx.real_val(0),
+        )
     
     def static_type(self):
         return Float32T()
