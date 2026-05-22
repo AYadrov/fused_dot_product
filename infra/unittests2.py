@@ -276,6 +276,51 @@ class TestFingerprint(unittest.TestCase):
 
 
 class TestPowSpecOp(unittest.TestCase):
+    def test_if_constant_fold_prunes_nonliteral_branch(self):
+        x = RealVar("x")
+        y = RealVar("y")
+
+        self.assertEqual(
+            If(BoolLit(False), x + RealLit(1), y + RealLit(2)).constant_fold(),
+            Add(y, RealLit(2)),
+        )
+        self.assertEqual(
+            If(BoolLit(True), x + RealLit(1), y + RealLit(2)).constant_fold(),
+            Add(x, RealLit(1)),
+        )
+
+    def test_boolean_constant_fold_short_circuits_nonliteral_operands(self):
+        p = BoolVar("p")
+
+        self.assertEqual(
+            And(BoolLit(False), p).constant_fold(),
+            BoolLit(False),
+        )
+        self.assertEqual(
+            And(BoolLit(True), p).constant_fold(),
+            p,
+        )
+        self.assertEqual(
+            Or(BoolLit(True), p).constant_fold(),
+            BoolLit(True),
+        )
+        self.assertEqual(
+            Or(BoolLit(False), p).constant_fold(),
+            p,
+        )
+
+    def test_mul_by_zero_shortcuts_nonliteral_operand(self):
+        x = RealVar("x")
+
+        self.assertEqual(
+            Mul(RealLit(0), x + RealLit(1)).constant_fold(),
+            RealLit(0),
+        )
+        self.assertEqual(
+            Mul(x + RealLit(1), RealLit(0)).constant_fold(),
+            RealLit(0),
+        )
+
     def test_pow_python_sugar_uses_negative_one_base(self):
         self.assertEqual(
             RealLit(-1) ** RealLit(3),
@@ -354,6 +399,24 @@ class TestPowSpecOp(unittest.TestCase):
                 egraph.run(1)
 
                 self.assertEqual(from_egglog(egraph.extract(lowered)), expected)
+
+    def test_context_simplify_uses_if_branch_pruning(self):
+        ctx = SpecContext("if-pruning")
+        x = ctx.real("x")
+
+        ctx.check(If(BoolLit(False), x + RealLit(1), RealLit(3)).eq(RealLit(3)))
+
+        simplified = ctx.simplify()
+        self.assertEqual(simplified.checks, [BoolLit(True)])
+
+    def test_context_simplify_uses_mul_by_zero_shortcut(self):
+        ctx = SpecContext("mul-zero")
+        x = ctx.real("x")
+
+        ctx.check((RealLit(0) * (x + RealLit(5))).eq(RealLit(0)))
+
+        simplified = ctx.simplify()
+        self.assertEqual(simplified.checks, [BoolLit(True)])
 
 
 class TestSpecContextLearning(unittest.TestCase):

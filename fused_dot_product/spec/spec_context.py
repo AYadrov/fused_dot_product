@@ -248,9 +248,9 @@ class SpecContext:
 
 def simplify_ctx(ctx: SpecContext):
     run_started_at = perf_counter()
-
+    
     simplified_ctx = ctx.simplify()
-
+    
     new_assumes = []
     for assume in simplified_ctx.assumes:
         if identical_nodes(assume, BoolLit(True)):
@@ -258,7 +258,7 @@ def simplify_ctx(ctx: SpecContext):
         if identical_nodes(assume, BoolLit(False)):
             raise ValueError("assumption folds to False")
         new_assumes.append(assume)
-        
+    
     new_checks = []
     for check in simplified_ctx.checks:
         if identical_nodes(check, BoolLit(True)):
@@ -267,7 +267,7 @@ def simplify_ctx(ctx: SpecContext):
             raise ValueError("check folds to False")
             break
         new_checks.append(check)
-
+    
     trimmed_ctx = ctx.copy(assumes=new_assumes, checks=new_checks)
     return build_proof_report(
         ctx,
