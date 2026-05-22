@@ -782,8 +782,8 @@ class TestSignSpecs(unittest.TestCase):
                         "((real(x_sign_0) == 1) or (real(x_sign_0) == 0))",
                         "((real(y_sign_1) == 1) or (real(y_sign_1) == 0))",
                         "((real(xored_signs_2) == 1) or (real(xored_signs_2) == 0))",
-                        f"({float(lhs)} == ((-1 ** real(x_sign_0)) * {abs(float(lhs))}))",
-                        f"({float(rhs)} == ((-1 ** real(y_sign_1)) * {abs(float(rhs))}))",
+                        f"({float(lhs)} == (-1 ** real(x_sign_0)))",
+                        f"({float(rhs)} == (-1 ** real(y_sign_1)))",
                         "((-1 ** real(xored_signs_2)) == ((-1 ** real(x_sign_0)) * (-1 ** real(y_sign_1))))",
                     ],
                 )
