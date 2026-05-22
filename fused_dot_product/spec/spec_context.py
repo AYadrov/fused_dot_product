@@ -3,9 +3,11 @@ from __future__ import annotations
 from .spec_ast import *
 from ..egglog import *
 from egglog import rewrite, vars_
+from ..solver.report import build_proof_report
 
 import copy
 import dreal
+from time import perf_counter
 import z3
 import warnings
 
@@ -167,11 +169,8 @@ class SpecContext:
                 simplified._substitute_spec(check, replacements)
                 for check in simplified.checks
             ]
-            if (
-                new_assumes == simplified.assumes
-                and new_checks == simplified.checks
-            ):
-                return simplified
+            if new_assumes == simplified.assumes and new_checks == simplified.checks:
+                break
             simplified.assumes = new_assumes
             simplified.checks = new_checks
         return simplified
@@ -246,3 +245,34 @@ class SpecContext:
         new_ctx._sym_counter = self._sym_counter
         new_ctx.spec_cache = dict(self.spec_cache)
         return new_ctx
+
+def simplify_ctx(ctx: SpecContext):
+    run_started_at = perf_counter()
+
+    simplified_ctx = ctx.simplify()
+
+    new_assumes = []
+    for assume in simplified_ctx.assumes:
+        if identical_nodes(assume, BoolLit(True)):
+            continue
+        if identical_nodes(assume, BoolLit(False)):
+            raise ValueError("assumption folds to False")
+        new_assumes.append(assume)
+        
+    new_checks = []
+    for check in simplified_ctx.checks:
+        if identical_nodes(check, BoolLit(True)):
+            continue
+        if identical_nodes(check, BoolLit(False)):
+            raise ValueError("check folds to False")
+            break
+        new_checks.append(check)
+
+    trimmed_ctx = ctx.copy(assumes=new_assumes, checks=new_checks)
+    return build_proof_report(
+        ctx,
+        trimmed_ctx,
+        tool="simplify",
+        runtime_s=perf_counter() - run_started_at,
+        equivalent=len(new_checks) == 0,
+    )

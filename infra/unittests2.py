@@ -9,6 +9,7 @@ from fused_dot_product.egglog.rules import load_rules
 from fused_dot_product.smt import dreal_check_eq, z3_check_eq
 from fused_dot_product.solver import engine as solver_engine
 from fused_dot_product.solver.report import build_proof_report
+from fused_dot_product.spec.spec_context import simplify_ctx
 from fused_dot_product.spec.spec_utils import from_egglog
 from examples.FP32_IEEE_adder import FP32_IEEE_adder
 from examples.FP32_IEEE_mult import FP32_IEEE_mult
@@ -638,6 +639,21 @@ class TestSpecContextLearning(unittest.TestCase):
 
 
 class TestSolverApis(unittest.TestCase):
+
+    def test_check_equivalence_with_simplify_schedule_short_circuits(self):
+        ctx = SpecContext("simplify-schedule")
+
+        equivalent, proof_trace = solver_engine.check_equivalence(
+            RealLit(1) + RealLit(2),
+            RealLit(3),
+            ctx=ctx,
+            schedule=[{"tool": "simplify"}],
+        )
+
+        self.assertTrue(equivalent)
+        self.assertEqual(len(proof_trace), 1)
+        self.assertEqual(proof_trace[0]["tool"], "simplify")
+
     def test_check_equivalence_returns_flat_proof_trace(self):
         ctx = SpecContext("flat-trace")
         report1 = build_proof_report(ctx, ctx.copy(), tool="branch-a", runtime_s=0.0, equivalent=False)
