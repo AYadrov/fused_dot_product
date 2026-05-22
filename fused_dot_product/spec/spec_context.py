@@ -265,7 +265,6 @@ def simplify_ctx(ctx: SpecContext):
             continue
         if identical_nodes(check, BoolLit(False)):
             raise ValueError("check folds to False")
-            break
         new_checks.append(check)
     
     trimmed_ctx = ctx.copy(assumes=new_assumes, checks=new_checks)
