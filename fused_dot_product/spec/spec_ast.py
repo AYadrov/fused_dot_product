@@ -651,6 +651,13 @@ def constant_fold(node) -> "SpecNode":
         return node
 
     folded_args = tuple(constant_fold(arg) for arg in args)
+
+    # Try shortcut
+    shortcut = _shortcut_fold(node, folded_args)
+    if shortcut is not None:
+        return shortcut
+
+    # Else, general case
     output_type = _literal_type(node)
     fold = node.fold()
     if all(isinstance(arg, (RealLit, BoolLit)) for arg in folded_args):
@@ -664,6 +671,81 @@ def constant_fold(node) -> "SpecNode":
         return node
     # Partially folded
     return type(node)(*folded_args)
+
+
+# substitute any known values of variables and rebuilds node + trying to constant fold on top of that
+# POTENTIAL UNSOUNDNESS:
+#  (x == 1 + 2)
+#  (x == y)
+# SECOND ASSUMPTION WON'T BE CHECKED - IT WILL BE SIMPLY DROPPED!!!
+def substitute_literals(
+    node: "SpecNode",
+    replacements: dict[RealVar | BoolVar, RealLit | BoolLit],
+) -> "SpecNode":
+    replacement = replacements.get(node)
+    if replacement is not None:
+        return replacement
+
+    args = children(node)
+    if args == ():
+        return node
+
+    substituted_args = tuple(substitute_literals(arg, replacements) for arg in args)
+    rebuilt = node if all(old is new for old, new in zip(args, substituted_args)) else type(node)(*substituted_args)
+    return constant_fold(rebuilt)
+
+
+def _shortcut_fold(
+    node: SpecNode,
+    folded_args: tuple[SpecNode, ...],
+) -> SpecNode | None:
+    if isinstance(node, If):
+        cond, on_true, on_false = folded_args
+        if isinstance(cond, BoolLit):
+            return on_true if cond.value else on_false
+        if identical_nodes(on_true, on_false):
+            return on_true
+        return None
+
+    if isinstance(node, Mul):
+        lhs, rhs = folded_args
+        if isinstance(lhs, RealLit) and lhs.value == 0:
+            return lhs
+        if isinstance(rhs, RealLit) and rhs.value == 0:
+            return rhs
+
+        if isinstance(lhs, RealLit) and lhs.value == 1:
+            return rhs
+        if isinstance(rhs, RealLit) and rhs.value == 1:
+            return lhs
+        
+        return None
+
+    if isinstance(node, Add):
+        lhs, rhs = folded_args
+        if isinstance(lhs, RealLit) and lhs.value == 0:
+            return rhs
+        if isinstance(rhs, RealLit) and rhs.value == 0:
+            return lhs
+        return None
+
+    if isinstance(node, And):
+        lhs, rhs = folded_args
+        if isinstance(lhs, BoolLit):
+            return rhs if lhs.value else BoolLit(False)
+        if isinstance(rhs, BoolLit):
+            return lhs if rhs.value else BoolLit(False)
+        return None
+
+    if isinstance(node, Or):
+        lhs, rhs = folded_args
+        if isinstance(lhs, BoolLit):
+            return BoolLit(True) if lhs.value else rhs
+        if isinstance(rhs, BoolLit):
+            return BoolLit(True) if rhs.value else lhs
+        return None
+
+    return None
 
 
 def _literal_type(node: SpecNode):

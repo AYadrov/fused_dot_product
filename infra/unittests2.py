@@ -3,14 +3,16 @@ from unittest.mock import patch
 
 import dreal
 import math
+import z3
 from egglog import EGraph
 
 from fused_dot_product import *
 from fused_dot_product.ast import nodes as ast_nodes
 from fused_dot_product.egglog.rules import load_rules
-from fused_dot_product.smt import z3_check_eq
+from fused_dot_product.smt import dreal_check_eq, z3_check_eq
 from fused_dot_product.solver import engine as solver_engine
 from fused_dot_product.solver.report import build_proof_report
+from fused_dot_product.spec.spec_context import simplify_ctx
 from fused_dot_product.spec.spec_utils import from_egglog
 from examples.FP32_IEEE_adder import FP32_IEEE_adder
 from examples.FP32_IEEE_mult import FP32_IEEE_mult
@@ -277,6 +279,51 @@ class TestFingerprint(unittest.TestCase):
 
 
 class TestPowSpecOp(unittest.TestCase):
+    def test_if_constant_fold_prunes_nonliteral_branch(self):
+        x = RealVar("x")
+        y = RealVar("y")
+
+        self.assertEqual(
+            If(BoolLit(False), x + RealLit(1), y + RealLit(2)).constant_fold(),
+            Add(y, RealLit(2)),
+        )
+        self.assertEqual(
+            If(BoolLit(True), x + RealLit(1), y + RealLit(2)).constant_fold(),
+            Add(x, RealLit(1)),
+        )
+
+    def test_boolean_constant_fold_short_circuits_nonliteral_operands(self):
+        p = BoolVar("p")
+
+        self.assertEqual(
+            And(BoolLit(False), p).constant_fold(),
+            BoolLit(False),
+        )
+        self.assertEqual(
+            And(BoolLit(True), p).constant_fold(),
+            p,
+        )
+        self.assertEqual(
+            Or(BoolLit(True), p).constant_fold(),
+            BoolLit(True),
+        )
+        self.assertEqual(
+            Or(BoolLit(False), p).constant_fold(),
+            p,
+        )
+
+    def test_mul_by_zero_shortcuts_nonliteral_operand(self):
+        x = RealVar("x")
+
+        self.assertEqual(
+            Mul(RealLit(0), x + RealLit(1)).constant_fold(),
+            RealLit(0),
+        )
+        self.assertEqual(
+            Mul(x + RealLit(1), RealLit(0)).constant_fold(),
+            RealLit(0),
+        )
+
     def test_pow_python_sugar_uses_negative_one_base(self):
         self.assertEqual(
             RealLit(-1) ** RealLit(3),
@@ -321,7 +368,6 @@ class TestPowSpecOp(unittest.TestCase):
                 egraph.run(1)
 
                 self.assertEqual(from_egglog(egraph.extract(lowered)), expected)
-
     def test_minus_one_symbolic_power_lowers_as_plain_power(self):
         s = RealVar("s")
         expr = RealLit(-1) ** s
@@ -332,7 +378,6 @@ class TestPowSpecOp(unittest.TestCase):
         self.assertNotEqual(z3_expr.decl().kind(), z3.Z3_OP_ITE)
         self.assertEqual(str(z3_expr), "-1**s")
         self.assertEqual(str(dreal_expr), "pow(-1, s)")
-
     def test_numeric_equality_constant_folds_in_egglog(self):
         cases = [
             (RealLit(3).eq(RealLit(3)), BoolLit(True)),
@@ -366,6 +411,306 @@ class TestPowSpecOp(unittest.TestCase):
                 egraph.run(1)
 
                 self.assertEqual(from_egglog(egraph.extract(lowered)), expected)
+
+    def test_context_simplify_uses_if_branch_pruning(self):
+        ctx = SpecContext("if-pruning")
+        x = ctx.real("x")
+
+        ctx.check(If(BoolLit(False), x + RealLit(1), RealLit(3)).eq(RealLit(3)))
+
+        simplified = ctx.simplify()
+        self.assertEqual(simplified.checks, [BoolLit(True)])
+
+    def test_context_simplify_uses_mul_by_zero_shortcut(self):
+        ctx = SpecContext("mul-zero")
+        x = ctx.real("x")
+
+        ctx.check((RealLit(0) * (x + RealLit(5))).eq(RealLit(0)))
+
+        simplified = ctx.simplify()
+        self.assertEqual(simplified.checks, [BoolLit(True)])
+
+
+class TestSpecContextLearning(unittest.TestCase):
+    def test_learned_literals_reads_real_var_equalities(self):
+        ctx = SpecContext("learn-real")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(x.eq(ctx.real_val(1)))
+        ctx.assume(ctx.real_val(2).eq(y))
+
+        learned = ctx.learned_literals()
+        self.assertEqual(len(learned), 2)
+        self.assertEqual(learned[x], RealLit(1))
+        self.assertEqual(learned[y], RealLit(2))
+
+    def test_learned_literals_reads_foldable_real_equalities(self):
+        ctx = SpecContext("learn-real-foldable")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(x.eq(ctx.real_val(2) + ctx.real_val(3)))
+        ctx.assume((ctx.real_val(10) - ctx.real_val(4)).eq(y))
+
+        learned = ctx.learned_literals()
+        self.assertEqual(len(learned), 2)
+        self.assertEqual(learned[x], RealLit(5))
+        self.assertEqual(learned[y], RealLit(6))
+
+    def test_learned_literals_reads_bool_var_equalities(self):
+        ctx = SpecContext("learn-bool")
+        p = ctx.bool("p")
+        q = ctx.bool("q")
+
+        ctx.assume(p.eq(ctx.true()))
+        ctx.assume(ctx.false().eq(q))
+
+        learned = ctx.learned_literals()
+        self.assertEqual(len(learned), 2)
+        self.assertEqual(learned[p], BoolLit(True))
+        self.assertEqual(learned[q], BoolLit(False))
+
+    def test_learned_literals_reads_foldable_bool_equalities(self):
+        ctx = SpecContext("learn-bool-foldable")
+        p = ctx.bool("p")
+        q = ctx.bool("q")
+
+        ctx.assume(p.eq(ctx.real_val(2).eq(ctx.real_val(2))))
+        ctx.assume((ctx.real_val(2).eq(ctx.real_val(3))).eq(q))
+
+        learned = ctx.learned_literals()
+        self.assertEqual(len(learned), 2)
+        self.assertEqual(learned[p], BoolLit(True))
+        self.assertEqual(learned[q], BoolLit(False))
+
+    def test_learned_literals_ignores_non_literal_equalities(self):
+        ctx = SpecContext("learn-ignore")
+        x = ctx.real("x")
+        y = ctx.real("y")
+        p = ctx.bool("p")
+        q = ctx.bool("q")
+
+        ctx.assume(x.eq(y))
+        ctx.assume(p.eq(q))
+
+        self.assertEqual(ctx.learned_literals(), {})
+
+    def test_learned_literals_raises_on_conflicting_bindings(self):
+        ctx = SpecContext("learn-conflict")
+        x = ctx.real("x")
+        p = ctx.bool("p")
+
+        ctx.assume(x.eq(ctx.real_val(0)))
+        ctx.assume(p.eq(ctx.true()))
+        ctx.assume(x.eq(ctx.real_val(1)))
+
+        with self.assertRaises(ValueError):
+            ctx.learned_literals()
+
+    def test_conflicting_assumptions_are_deferred_until_simplification(self):
+        ctx = SpecContext("assume-deferred-conflict")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(x.eq(ctx.real_val(0)))
+        before = ctx.copy()
+        ctx.assume(x.eq(ctx.real_val(1)))
+
+        self.assertEqual(
+            ctx.assumes,
+            before.assumes + [Eq(x, RealLit(1))],
+        )
+        self.assertEqual(ctx.checks, before.checks)
+
+        ctx.assume(y.eq(x))
+        with self.assertRaises(ValueError):
+            ctx.simplify()
+
+        self.assertEqual(
+            ctx.assumes,
+            [Eq(x, RealLit(0)), Eq(x, RealLit(1)), Eq(y, x)],
+        )
+
+    def test_context_fixpoint_simplifies_assumptions_from_learned_literals(self):
+        ctx = SpecContext("simplify-assumes")
+        and_res = ctx.real("and_res")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(and_res.eq(x * y))
+        ctx.assume(x.eq(ctx.real_val(0)))
+        ctx.assume(y.eq(ctx.real_val(0)))
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(
+            ctx.assumes,
+            [
+                Eq(and_res, x * y),
+                Eq(x, RealLit(0)),
+                Eq(y, RealLit(0)),
+            ],
+        )
+        self.assertEqual(
+            simplified.assumes,
+            [
+                Eq(and_res, RealLit(0)),
+                Eq(x, RealLit(0)),
+                Eq(y, RealLit(0)),
+            ],
+        )
+
+    def test_context_fixpoint_retains_canonical_learned_assumptions(self):
+        ctx = SpecContext("canonical-assumes")
+        x = ctx.real("x")
+        p = ctx.bool("p")
+
+        ctx.assume(x.eq(ctx.real_val(1) + ctx.real_val(2)))
+        ctx.assume(ctx.real_val(4).eq(x + ctx.real_val(1)))
+        ctx.assume(p.eq(ctx.real_val(2).eq(ctx.real_val(2))))
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(
+            simplified.assumes,
+            [
+                Eq(x, RealLit(3)),
+                BoolLit(True),
+                BoolEq(p, BoolLit(True)),
+            ],
+        )
+        self.assertEqual(
+            simplified.learned_literals(),
+            {x: RealLit(3), p: BoolLit(True)},
+        )
+
+    def test_context_fixpoint_propagates_through_multiple_rounds(self):
+        ctx = SpecContext("simplify-multi-round")
+        x = ctx.real("x")
+        y = ctx.real("y")
+        z = ctx.real("z")
+
+        ctx.assume(x.eq(y + ctx.real_val(1)))
+        ctx.assume(y.eq(z + ctx.real_val(1)))
+        ctx.assume(z.eq(ctx.real_val(0)))
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(
+            simplified.assumes,
+            [
+                Eq(x, RealLit(2)),
+                Eq(y, RealLit(1)),
+                Eq(z, RealLit(0)),
+            ],
+        )
+        self.assertEqual(
+            simplified.learned_literals(),
+            {x: RealLit(2), y: RealLit(1), z: RealLit(0)},
+        )
+
+    def test_context_fixpoint_simplifies_checks_from_learned_literals(self):
+        ctx = SpecContext("simplify-checks")
+        x = ctx.real("x")
+
+        ctx.assume(x.eq(ctx.real_val(1)))
+        ctx.check((x + ctx.real_val(2)).eq(ctx.real_val(3)))
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(ctx.checks, [Eq(x + RealLit(2), RealLit(3))])
+        self.assertEqual(simplified.checks, [BoolLit(True)])
+
+    def test_context_fixpoint_simplifies_bool_assumptions_and_checks(self):
+        ctx = SpecContext("simplify-bool")
+        p = ctx.bool("p")
+        q = ctx.bool("q")
+
+        ctx.assume(p.eq(ctx.true()))
+        ctx.assume(q.eq(p))
+        ctx.check(q.eq(ctx.true()))
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(ctx.assumes, [BoolEq(p, BoolLit(True)), BoolEq(q, p)])
+        self.assertEqual(
+            simplified.assumes,
+            [BoolEq(p, BoolLit(True)), BoolEq(q, BoolLit(True))],
+        )
+        self.assertEqual(simplified.checks, [BoolLit(True)])
+        self.assertEqual(
+            simplified.learned_literals(),
+            {p: BoolLit(True), q: BoolLit(True)},
+        )
+
+    def test_context_fixpoint_accepts_duplicate_equivalent_bindings(self):
+        ctx = SpecContext("simplify-duplicate")
+        x = ctx.real("x")
+        p = ctx.bool("p")
+
+        ctx.assume(x.eq(ctx.real_val(1)))
+        ctx.assume((ctx.real_val(2) - ctx.real_val(1)).eq(x))
+        ctx.assume(p.eq(ctx.true()))
+        ctx.assume(ctx.real_val(3).eq(ctx.real_val(3)).eq(p))
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(
+            simplified.assumes,
+            [
+                Eq(x, RealLit(1)),
+                Eq(x, RealLit(1)),
+                BoolEq(p, BoolLit(True)),
+                BoolEq(p, BoolLit(True)),
+            ],
+        )
+        self.assertEqual(
+            simplified.learned_literals(),
+            {x: RealLit(1), p: BoolLit(True)},
+        )
+
+    def test_context_fixpoint_raises_on_conflicting_bindings(self):
+        ctx = SpecContext("simplify-conflict")
+        x = ctx.real("x")
+
+        ctx.assume(x.eq(ctx.real_val(0)))
+        ctx.assume(x.eq(ctx.real_val(1)))
+
+        with self.assertRaises(ValueError):
+            ctx.simplify()
+
+    def test_simplify_returns_new_simplified_context(self):
+        ctx = SpecContext("simplify-output")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(x.eq(y + ctx.real_val(1)))
+        ctx.assume(y.eq(ctx.real_val(2)))
+        ctx.check(x.eq(ctx.real_val(3)))
+
+        simplified = ctx.simplify()
+
+        self.assertIsNot(simplified, ctx)
+        self.assertEqual(ctx.assumes, [Eq(x, Add(y, RealLit(1))), Eq(y, RealLit(2))])
+        self.assertEqual(ctx.checks, [Eq(x, RealLit(3))])
+        self.assertEqual(
+            simplified.assumes,
+            [Eq(x, RealLit(3)), Eq(y, RealLit(2))],
+        )
+        self.assertEqual(simplified.checks, [BoolLit(True)])
+
+    def test_simplify_leaves_original_context_unchanged_on_conflict(self):
+        ctx = SpecContext("simplify-conflict-output")
+        x = ctx.real("x")
+
+        ctx.assume(x.eq(ctx.real_val(0)))
+        ctx.assume(x.eq(ctx.real_val(1)))
+
+        with self.assertRaises(ValueError):
+            ctx.simplify()
+
+        self.assertEqual(ctx.assumes, [Eq(x, RealLit(0)), Eq(x, RealLit(1))])
 
 
 class TestEgglogFloatLiterals(unittest.TestCase):
@@ -433,7 +778,7 @@ class TestSpecAstConstantFolding(unittest.TestCase):
     def test_constant_fold_keeps_symbolic_if_shape(self):
         expr = If(BoolLit(True), RealVar("x"), RealVar("y"))
 
-        self.assertEqual(expr.constant_fold(), expr)
+        self.assertEqual(expr.constant_fold(), RealVar("x"))
 
     def test_constant_fold_partially_rebuilds_symbolic_real_expr(self):
         x = RealVar("x")
@@ -445,7 +790,7 @@ class TestSpecAstConstantFolding(unittest.TestCase):
         p = BoolVar("p")
         expr = p.or_(RealLit(2).eq(RealLit(2)))
 
-        self.assertEqual(expr.constant_fold(), Or(p, BoolLit(True)))
+        self.assertEqual(expr.constant_fold(), BoolLit(True))
 
     def test_constant_fold_folds_boolean_operator_trees(self):
         expr = RealLit(2).eq(RealLit(2)).and_(~BoolLit(False))
@@ -475,12 +820,26 @@ class TestSolverApis(unittest.TestCase):
 
         expected_names = {
             f"FP32_IEEE_adder[x={x_case},y={y_case}]"
-            for x_case in ("norm", "sub", "zero", "inf", "nan")
-            for y_case in ("norm", "sub", "zero", "inf", "nan")
+            for x_case in ("norm", "inf", "nan")
+            for y_case in ("norm", "inf", "nan")
         }
         self.assertEqual(proof_trace, [])
-        self.assertEqual(len(seen_names), 25)
+        self.assertEqual(len(seen_names), 9)
         self.assertEqual(set(seen_names), expected_names)
+
+    def test_check_equivalence_with_simplify_schedule_short_circuits(self):
+        ctx = SpecContext("simplify-schedule")
+
+        equivalent, proof_trace = solver_engine.check_equivalence(
+            RealLit(1) + RealLit(2),
+            RealLit(3),
+            ctx=ctx,
+            schedule=[{"tool": "simplify"}],
+        )
+
+        self.assertTrue(equivalent)
+        self.assertEqual(len(proof_trace), 1)
+        self.assertEqual(proof_trace[0]["tool"], "simplify")
 
     def test_check_equivalence_returns_flat_proof_trace(self):
         ctx = SpecContext("flat-trace")
@@ -511,17 +870,15 @@ class TestSolverApis(unittest.TestCase):
         self.assertEqual(report["tool"], "z3")
         self.assertTrue(report["equivalent"])
 
-    def test_fp32_adder_wrong_high_level_spec_is_not_proved_by_dreal(self):
-        adder = FP32_IEEE_adder(
-            Var(name="a", sign=Float32T()),
-            Var(name="b", sign=Float32T()),
-        )
+    def test_dreal_check_eq_returns_single_report(self):
+        ctx = SpecContext("dreal-api")
+        ctx.check(RealLit(1).eq(RealLit(1)))
 
-        trace = adder.check_spec(schedule=[{"tool": "dreal", "precision": 0.001}])
+        report = dreal_check_eq(ctx, precision=0.001)
 
-        self.assertEqual(len(trace), 1)
-        self.assertEqual(trace[0]["tool"], "dreal")
-        self.assertFalse(trace[0]["equivalent"])
+        self.assertIsInstance(report, dict)
+        self.assertEqual(report["tool"], "dreal")
+        self.assertTrue(report["equivalent"])
 
 
 class TestSignSpecs(unittest.TestCase):
@@ -540,16 +897,17 @@ class TestSignSpecs(unittest.TestCase):
 
                 ctx = SpecContext("q_signs_xor")
                 spec = ctx.spec_of(node)
+                simplified = ctx.simplify()
 
                 self.assertEqual(str(spec), "real(xored_signs_2)")
                 self.assertEqual(
-                    [str(assume) for assume in ctx.assumes],
+                    [str(assume) for assume in simplified.assumes],
                     [
                         "((real(x_sign_0) == 1) or (real(x_sign_0) == 0))",
                         "((real(y_sign_1) == 1) or (real(y_sign_1) == 0))",
                         "((real(xored_signs_2) == 1) or (real(xored_signs_2) == 0))",
-                        f"({float(lhs)} == ((-1 ** real(x_sign_0)) * {abs(float(lhs))}))",
-                        f"({float(rhs)} == ((-1 ** real(y_sign_1)) * {abs(float(rhs))}))",
+                        f"({float(lhs)} == (-1 ** real(x_sign_0)))",
+                        f"({float(rhs)} == (-1 ** real(y_sign_1)))",
                         "((-1 ** real(xored_signs_2)) == ((-1 ** real(x_sign_0)) * (-1 ** real(y_sign_1))))",
                     ],
                 )

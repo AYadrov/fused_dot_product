@@ -91,7 +91,7 @@ def bit_or(x: Node, y: Node) -> Node:
 def neg_spec(x, ctx):
     res = ctx.fresh_real('neg_res')
     ctx.assume(res.eq(ctx.real_val(1) - x))
-    ctx.assume(res.eq(If(~x.eq(ctx.real_val(1)), ctx.real_val(1), ctx.real_val(0))))
+    ctx.assume(res.eq(If(x.eq(ctx.real_val(1)), ctx.real_val(0), ctx.real_val(1))))
     ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
     return res
 
