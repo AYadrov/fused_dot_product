@@ -26,7 +26,6 @@ class SpecContext:
                 f"SpecContext.assume expects BoolExpr, got {type(condition).__name__}"
             )
         self.assumes.append(condition)
-        self._simplify_context_fixpoint()
     
     def check(self, condition: BoolExpr) -> None:
         if not isinstance(condition, BoolExpr):
@@ -34,7 +33,6 @@ class SpecContext:
                 f"SpecContext.check expects BoolExpr, got {type(condition).__name__}"
             )
         self.checks.append(condition)
-        self._simplify_context_fixpoint()
 
     def _context_not_empty(self):
         if len(self.checks) == 0:
@@ -153,29 +151,33 @@ class SpecContext:
         return BoolEq(var, lit)
 
     # LEARNS FROM ASSUMES - APPLIES EVERYWHERE
-    def _simplify_context_fixpoint(self) -> None:
-        max_iterations = len(self.assumes) + len(self.checks) + 1
+    def simplify(self) -> "SpecContext":
+        simplified = self.copy()
+        max_iterations = len(simplified.assumes) + len(simplified.checks) + 1
         for _ in range(max_iterations):
-            replacements = self.learned_literals()
+            replacements = simplified.learned_literals()
             new_assumes = [
-                self._normalize_assume(assume)
-                if self._canonical_learned_assumption(assume) is not None
-                else self._substitute_spec(assume, replacements)
-                for assume in self.assumes
+                simplified._normalize_assume(assume)
+                if simplified._canonical_learned_assumption(assume) is not None
+                else simplified._substitute_spec(assume, replacements)
+                for assume in simplified.assumes
             ]
             # SUBSTITUTE AND CONSTANT FOLD
             new_checks = [
-                self._substitute_spec(check, replacements)
-                for check in self.checks
+                simplified._substitute_spec(check, replacements)
+                for check in simplified.checks
             ]
-            if new_assumes == self.assumes and new_checks == self.checks:
-                return
-            self.assumes = new_assumes
-            self.checks = new_checks
+            if (
+                new_assumes == simplified.assumes
+                and new_checks == simplified.checks
+            ):
+                return simplified
+            simplified.assumes = new_assumes
+            simplified.checks = new_checks
+        return simplified
 
     def spec_of(self, node: Node):
-        spec = node._evaluate_spec(ctx=self, cache=self.spec_cache)
-        return self._substitute_spec(spec, self.learned_literals())
+        return node._evaluate_spec(ctx=self, cache=self.spec_cache)
     
     def real_val(self, value: int | float):
         return RealLit(value=value)
