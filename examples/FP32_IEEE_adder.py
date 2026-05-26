@@ -39,9 +39,9 @@ def _split_fp32_input_cases(ctx, inputs, spec_inner, spec_outer):
 # Normal form only for now
 def helper(x, ctx):
     x_val, x_norm, x_sub, x_zero, x_inf, x_nan = x
-    sign = ctx.fresh_real("sign")
-    exponent = ctx.fresh_real("exponent")
-    mantissa = ctx.fresh_real("mantissa")
+    sign = ctx.real(x_val.name + "_sign")
+    exponent = ctx.real(x_val.name + "_exponent")
+    mantissa = ctx.real(x_val.name + "_mantissa")
 
     zero = ctx.real_val(0)
     one = ctx.real_val(1)
@@ -54,8 +54,8 @@ def helper(x, ctx):
     
     ctx.assume(x_val.eq(sign_ * (mantissa_ * (two ** exponent_))))
     ctx.assume(sign.eq(zero).or_(sign.eq(one)))
-    ctx.assume((exponent >= zero).and_(exponent < ctx.real_val(1 << Float32.exponent_bits)))
-    ctx.assume((mantissa >= zero).and_(mantissa < ctx.real_val(1 << Float32.mantissa_bits)))
+    ctx.assume((exponent >= zero).and_(exponent <= ctx.real_val((1 << Float32.exponent_bits) - 1)))
+    ctx.assume((mantissa >= zero).and_(mantissa <= ctx.real_val((1 << Float32.mantissa_bits) - 1)))
     
     ctx.assume((x_norm + x_sub + x_zero + x_inf + x_nan).eq(one))
 

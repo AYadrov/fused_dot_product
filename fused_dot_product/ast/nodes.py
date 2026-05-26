@@ -105,16 +105,13 @@ class composite(Node):
 
         full_trace = []
         for initial_ctx in initial_ctxs:
-            print("START -----------------------------------------------------------------")
             equivalence, proof_trace = check_equivalence(
                 spec_inner,
                 spec_outer,
                 ctx=initial_ctx,
                 schedule=schedule,
             )
-            full_trace.extend(proof_trace)
-            print("PROOF -----------------------------------------------------------------")
-            print(proof_trace)
+            full_trace.append(proof_trace)
             if not equivalence:
                 return full_trace
         return full_trace

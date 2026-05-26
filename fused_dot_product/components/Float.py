@@ -85,9 +85,9 @@ def fp32_pack(sign: Node, exponent: Node, mantissa: Node) -> Node:
 
 def fp32_decode_spec(x, ctx):
     value, x_norm, x_sub, x_zero, x_inf, x_nan = x
-    sign = ctx.fresh_real("sign")
-    mantissa = ctx.fresh_real("mantissa")
-    exponent = ctx.fresh_real("exponent")
+    sign = ctx.real(value.name + "_sign")
+    mantissa = ctx.real(value.name + "_mantissa")
+    exponent = ctx.real(value.name + "_exponent")
     
     two = ctx.real_val(2)
     one = ctx.real_val(1)
@@ -102,8 +102,8 @@ def fp32_decode_spec(x, ctx):
     ctx.assume(value.eq(sign_ * (mantissa_ * (two ** exponent_))))
     ctx.assume(sign.eq(ctx.real_val(1)).or_(sign.eq(ctx.real_val(0))))
     ctx.assume(sign_.eq(ctx.real_val(1)).or_(sign_.eq(ctx.real_val(-1))))
-    ctx.assume((exponent >= ctx.real_val(0)).and_(exponent < ctx.real_val(1 << Float32.exponent_bits)))
-    ctx.assume((mantissa >= ctx.real_val(0)).and_(mantissa < ctx.real_val(1 << Float32.mantissa_bits)))
+    ctx.assume((exponent >= ctx.real_val(0)).and_(exponent <= ctx.real_val((1 << Float32.exponent_bits) - 1)))
+    ctx.assume((mantissa >= ctx.real_val(0)).and_(mantissa <= ctx.real_val((1 << Float32.mantissa_bits) - 1)))
     
     return (
         sign,

@@ -729,6 +729,14 @@ def _shortcut_fold(
             return lhs
         return None
 
+    if isinstance(node, Sub):
+        lhs, rhs = folded_args
+        if isinstance(rhs, RealLit) and rhs.value == 0:
+            return lhs
+        if isinstance(lhs, RealLit) and lhs.value == 0:
+            return Neg(rhs)
+        return None
+
     if isinstance(node, And):
         lhs, rhs = folded_args
         if isinstance(lhs, BoolLit):

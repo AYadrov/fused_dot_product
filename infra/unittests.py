@@ -42,7 +42,14 @@ def _trace_runtime_s(proof_trace: list[dict]) -> float:
     return sum(float(stage.get("runtime_s", 0.0)) for stage in proof_trace)
 
 
-def merge_spec_reports(reports: list[list[dict]]):
+def _report_name(proof_traces: list[list[dict]]) -> str:
+    for proof_trace in proof_traces:
+        if proof_trace:
+            return str(proof_trace[0]["name"])
+    raise AssertionError("Expected at least one non-empty proof trace from design.check_spec()")
+
+
+def merge_spec_reports(reports: list[list[list[dict]]]):
     merged_rule_application_counts = {}
     
     runtime_s_by_design = {}
@@ -51,23 +58,25 @@ def merge_spec_reports(reports: list[list[dict]]):
     total_runtime_s = 0.0
     all_equivalent = True
     
-    for proof_trace in reports:
-        if not proof_trace:
-            raise AssertionError("Expected non-empty proof trace from design.check_spec()")
-        design_name = proof_trace[0]["name"]
-        runtime_s = sum(stage['runtime_s'] for stage in proof_trace)
-        equivalent = any(stage["equivalent"] for stage in proof_trace)
+    for proof_traces in reports:
+        if not proof_traces:
+            raise AssertionError("Expected proof traces from design.check_spec()")
+        design_name = _report_name(proof_traces)
+        runtime_s = sum(_trace_runtime_s(proof_trace) for proof_trace in proof_traces)
+        equivalent = all(_trace_equivalent(proof_trace) for proof_trace in proof_traces)
         
         runtime_s_by_design[design_name] = runtime_s
         equivalent_by_design[design_name] = equivalent
         total_runtime_s += runtime_s
         all_equivalent = all_equivalent and equivalent
         
-        rules_used = proof_trace[0].get("rule_application_counts", {})
-        for rule, count in rules_used.items():
-            merged_rule_application_counts[rule] = (
-                merged_rule_application_counts.get(rule, 0) + int(count)
-            )
+        for proof_trace in proof_traces:
+            for stage in proof_trace:
+                rules_used = stage.get("rule_application_counts", {})
+                for rule, count in rules_used.items():
+                    merged_rule_application_counts[rule] = (
+                        merged_rule_application_counts.get(rule, 0) + int(count)
+                    )
     
     return {
         "equivalent": all_equivalent,

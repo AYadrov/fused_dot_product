@@ -823,7 +823,7 @@ class TestSolverApis(unittest.TestCase):
             for x_case in ("norm", "inf", "nan")
             for y_case in ("norm", "inf", "nan")
         }
-        self.assertEqual(proof_trace, [])
+        self.assertEqual(proof_trace, [[] for _ in range(9)])
         self.assertEqual(len(seen_names), 9)
         self.assertEqual(set(seen_names), expected_names)
 

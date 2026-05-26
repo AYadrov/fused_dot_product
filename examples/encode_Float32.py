@@ -294,7 +294,7 @@ def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node) -
         ctx.assume(is_sub.eq(zero))
         ctx.assume(is_zero.eq(zero))
         # ctx.assume((is_norm + is_sub + is_zero + is_inf + is_nan).eq(ctx.real_val(1)))
-
+        
         ctx.assume(value.eq(If(is_nan.eq(one).or_(is_inf.eq(one)), zero, value)))
         
         return (value, is_norm, is_sub, is_zero, is_inf, is_nan)

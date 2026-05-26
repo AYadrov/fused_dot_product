@@ -94,7 +94,7 @@ def rewrite_rules():
         # Equality
         ("eq_1", (a.eq(a)).eq(true)),
         ("eq_2", (bool_var.eq(bool_var)).eq(true)),
-
+        
         # Boolean simplification
         # Constants
         ("bool_not_1", (~true).eq(false)),
@@ -153,6 +153,12 @@ def rewrite_rules():
         ("if_1", If(true, a, b).eq(a)),
         ("if_2", If(false, a, b).eq(b)),
         ("if_3", If(bool_var, a, a).eq(a)),
+        ("if_4", (one - If(bool_var, one, zero)).eq(If(~bool_var, one, zero))),
+        ("if_5", (one - If(bool_var, one, zero)).eq(If(bool_var, zero, one))),
+        ("if_6", (If(bool_var, a, b).eq(a)).eq(bool_var.or_(b.eq(a)))),
+        ("if_7", (If(bool_var, a, b).eq(b)).eq((~bool_var).or_(a.eq(b)))),
+        ("if_8", (If(bool_var, a, b).ne(a)).eq((~bool_var).and_(b.ne(a)))),
+        ("if_9", (If(bool_var, a, b).ne(b)).eq(bool_var.and_(a.ne(b)))),
     ]
 
 
@@ -174,7 +180,7 @@ def constant_rules():
         rewrite(Math.Mul(Math.Num(m), Math.Num(n))).to(Math.Num(m * n)),
         rewrite(Math.Pow(Math.Num(m), Math.Num(BigRat(2, 1)))).to(Math.Num(m * m)),
         rewrite(Math.Pow(Math.Num(BigRat(-1, 1)), Math.Num(m))).to(Math.Num(BigRat(-1, 1) ** m), eq(m.denom).to(1)),
-        # TODO: possible lose of accuracy due to this rule
+        # TODO: possible lose of accuracy due to this rule: 2^-1024 will be extracted as zero
         rewrite(Math.Pow(Math.Num(BigRat(2, 1)), Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
     ]
 
