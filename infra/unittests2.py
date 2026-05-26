@@ -759,11 +759,10 @@ class TestEgglogFloatLiterals(unittest.TestCase):
 
 
 class TestSpecAstConstantFolding(unittest.TestCase):
-    def test_global_constant_fold_entry_point_matches_method(self):
+    def test_constant_fold_method_folds_literal_tree(self):
         expr = (RealLit(2) + RealLit(3)) * RealLit(4)
 
-        self.assertEqual(constant_fold(expr), expr.constant_fold())
-        self.assertEqual(constant_fold(expr), RealLit(20))
+        self.assertEqual(expr.constant_fold(), RealLit(20))
 
     def test_constant_fold_collapses_literal_subtrees(self):
         expr = ((RealLit(2) + RealLit(3)) * RealLit(4)).eq(RealLit(20))

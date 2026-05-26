@@ -25,8 +25,32 @@ class SpecNode:
         return identical_nodes(self, other)
 
     def constant_fold(self) -> "SpecNode":
-        return constant_fold(self)
+        args = children(self)
+        if args == ():
+            return self
 
+        folded_args = tuple(arg.constant_fold() for arg in args)
+        
+        # Try shortcut
+        shortcut = _shortcut_fold(self, folded_args)
+        if shortcut is not None:
+            return shortcut
+        
+        # Else, general case
+        output_type = _literal_type(self)
+        fold = self.fold()
+        if all(isinstance(arg, (RealLit, BoolLit)) for arg in folded_args):
+            folded_value = fold(*(arg.value for arg in folded_args))
+            if folded_value is not None:
+                # Successfully folded
+                return output_type(folded_value)
+            
+        # Nothing got folded
+        if all(old is new for old, new in zip(args, folded_args)):
+            return self
+        # Partially folded
+        return type(self)(*folded_args)
+        
     def fold(self):
         raise NotImplementedError
 
@@ -645,34 +669,6 @@ def _folded_pow_value(base: float | int, exponent: float | int):
     return value
 
 
-def constant_fold(node) -> "SpecNode":
-    args = children(node)
-    if args == ():
-        return node
-
-    folded_args = tuple(constant_fold(arg) for arg in args)
-
-    # Try shortcut
-    shortcut = _shortcut_fold(node, folded_args)
-    if shortcut is not None:
-        return shortcut
-
-    # Else, general case
-    output_type = _literal_type(node)
-    fold = node.fold()
-    if all(isinstance(arg, (RealLit, BoolLit)) for arg in folded_args):
-        folded_value = fold(*(arg.value for arg in folded_args))
-        if folded_value is not None:
-            # Successfully folded
-            return output_type(folded_value)
-        
-    # Nothing got folded
-    if all(old is new for old, new in zip(args, folded_args)):
-        return node
-    # Partially folded
-    return type(node)(*folded_args)
-
-
 # substitute any known values of variables and rebuilds node + trying to constant fold on top of that
 # POTENTIAL UNSOUNDNESS:
 #  (x == 1 + 2)
@@ -692,7 +688,7 @@ def substitute_literals(
 
     substituted_args = tuple(substitute_literals(arg, replacements) for arg in args)
     rebuilt = node if all(old is new for old, new in zip(args, substituted_args)) else type(node)(*substituted_args)
-    return constant_fold(rebuilt)
+    return rebuilt.constant_fold()
 
 
 def _shortcut_fold(
