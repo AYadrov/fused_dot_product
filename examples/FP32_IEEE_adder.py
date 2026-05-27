@@ -35,38 +35,10 @@ def _split_fp32_input_cases(ctx, inputs, spec_inner, spec_outer):
             split_ctxs.append(case_ctx)
     return split_ctxs
 
-
-# Normal form only for now
-def helper(x, ctx):
-    x_val, x_norm, x_sub, x_zero, x_inf, x_nan = x
-    sign = ctx.real(x_val.name + "_sign")
-    exponent = ctx.real(x_val.name + "_exponent")
-    mantissa = ctx.real(x_val.name + "_mantissa")
-
-    zero = ctx.real_val(0)
-    one = ctx.real_val(1)
-    two = ctx.real_val(2)
-    minus_one = ctx.real_val(-1)
-    
-    mantissa_ = one + mantissa * two ** ctx.real_val(-Float32.mantissa_bits)
-    exponent_ = exponent - ctx.real_val(Float32.exponent_bias)
-    sign_ = minus_one ** sign
-    
-    ctx.assume(x_val.eq(sign_ * (mantissa_ * (two ** exponent_))))
-    ctx.assume(sign.eq(zero).or_(sign.eq(one)))
-    ctx.assume((exponent >= zero).and_(exponent <= ctx.real_val((1 << Float32.exponent_bits) - 1)))
-    ctx.assume((mantissa >= zero).and_(mantissa <= ctx.real_val((1 << Float32.mantissa_bits) - 1)))
-    
-    ctx.assume((x_norm + x_sub + x_zero + x_inf + x_nan).eq(one))
-
-    return sign, exponent, mantissa, x_val, x_norm, x_sub, x_zero, x_inf, x_nan
-
 # TODO: NaN payload
 def spec(x, y, ctx):
-    # return x[0] + y[0], ctx.real_val(1), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0)
-    
-    x_sign, x_exp, x_man, x_val, x_norm, x_sub, x_zero, x_inf, x_nan = helper(x, ctx)
-    y_sign, y_exp, y_man, y_val, y_norm, y_sub, y_zero, y_inf, y_nan = helper(y, ctx)
+    x_val, x_sign, x_exp, x_man, x_norm, x_sub, x_zero, x_inf, x_nan = x
+    y_val, y_sign, y_exp, y_man, y_norm, y_sub, y_zero, y_inf, y_nan = y
     
     zero = ctx.real_val(0)
     one = ctx.real_val(1)

@@ -47,13 +47,13 @@ class SpecContext:
         check_terms = [check.to_z3(env=env) for check in self.checks]
         
         return z3.And(z3.And(*assume_terms), z3.Not(z3.And(*check_terms)))
-
+    
     def to_dreal(self):
         self._context_not_empty()
         env: dict[tuple[str, str], dreal.Variable] = {}
         assume_terms = [assume.to_dreal(env) for assume in self.assumes] + [dreal.Formula.TRUE()]  # make sure it is not empty
         check_terms = [check.to_dreal(env) for check in self.checks]
-
+        
         return dreal.And(dreal.And(*assume_terms), dreal.Not(dreal.And(*check_terms)))
     
     def to_egglog(self, egraph):
@@ -85,7 +85,7 @@ class SpecContext:
                     f"Only BoolExpr checks are supported, got {type(check).__name__}"
                 )
         return to_check
-
+    
     def _substitute_spec(
         self,
         spec,
@@ -96,11 +96,11 @@ class SpecContext:
         if isinstance(spec, tuple):
             return tuple(self._substitute_spec(item, replacements) for item in spec)
         return spec
-
+    
     # try to learn variable values from equalities on ASSUMES ONLY, throws errors on conflicts
     def learned_literals(self) -> dict[RealVar | BoolVar, RealLit | BoolLit]:
         candidates: dict[RealVar | BoolVar, RealLit | BoolLit] = {}
-
+        
         def record(
             var: RealVar | BoolVar,
             lit: RealLit | BoolLit,
@@ -113,15 +113,15 @@ class SpecContext:
                 raise ValueError(
                     f"Conflicting learned literals for {var}: {existing} vs {lit}"
                 )
-
+        
         for assume in self.assumes:
             learned = self._canonical_learned_assumption(assume)
             if learned is None:
                 continue
             record(*learned)
-
+        
         return candidates
-
+    
     # LOCAL LEARNING FACTS FROM AN ASSUME
     def _canonical_learned_assumption(
         self,
@@ -142,7 +142,7 @@ class SpecContext:
             if isinstance(rhs_folded, BoolVar) and isinstance(lhs_folded, BoolLit):
                 return rhs_folded, lhs_folded
         return None
-
+    
     def _normalize_assume(self, assume: BoolExpr) -> BoolExpr:
         learned = self._canonical_learned_assumption(assume)
         if learned is None:
@@ -151,7 +151,7 @@ class SpecContext:
         if isinstance(var, RealVar):
             return Eq(var, lit)
         return BoolEq(var, lit)
-
+    
     # LEARNS FROM ASSUMES - APPLIES EVERYWHERE
     def simplify(self) -> "SpecContext":
         simplified = self.copy()
@@ -174,7 +174,7 @@ class SpecContext:
             simplified.assumes = new_assumes
             simplified.checks = new_checks
         return simplified
-
+    
     def spec_of(self, node: Node):
         return node._evaluate_spec(ctx=self, cache=self.spec_cache)
     
@@ -196,7 +196,12 @@ class SpecContext:
         name = BoolVar(name=f"{base}_{self._sym_counter}")
         self._sym_counter += 1
         return name
-    
+
+    def fresh_float(self, base: str):
+        from .spec_values import fresh_float
+
+        return fresh_float(base, self)
+
     def bool_val(self, value: bool):
         return BoolLit(value=value)
     

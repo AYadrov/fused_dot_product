@@ -84,36 +84,16 @@ def fp32_pack(sign: Node, exponent: Node, mantissa: Node) -> Node:
     return _fp32_alloc(sign, exponent, mantissa)
 
 def fp32_decode_spec(x, ctx):
-    value, x_norm, x_sub, x_zero, x_inf, x_nan = x
-    sign = ctx.real(value.name + "_sign")
-    mantissa = ctx.real(value.name + "_mantissa")
-    exponent = ctx.real(value.name + "_exponent")
-    
-    two = ctx.real_val(2)
-    one = ctx.real_val(1)
-    minus_one = ctx.real_val(-1)
-    m_bits = ctx.real_val(Float32.mantissa_bits)
-    e_bits = ctx.real_val(Float32.exponent_bias)
-    
-    mantissa_ = one + mantissa * two ** (-m_bits)
-    exponent_ = exponent - e_bits
-    sign_ = minus_one ** sign
-    
-    ctx.assume(value.eq(sign_ * (mantissa_ * (two ** exponent_))))
-    ctx.assume(sign.eq(ctx.real_val(1)).or_(sign.eq(ctx.real_val(0))))
-    ctx.assume(sign_.eq(ctx.real_val(1)).or_(sign_.eq(ctx.real_val(-1))))
-    ctx.assume((exponent >= ctx.real_val(0)).and_(exponent <= ctx.real_val((1 << Float32.exponent_bits) - 1)))
-    ctx.assume((mantissa >= ctx.real_val(0)).and_(mantissa <= ctx.real_val((1 << Float32.mantissa_bits) - 1)))
-    
+    value, sign, exponent, mantissa, is_norm, is_sub, is_zero, is_inf, is_nan = x
     return (
         sign,
         exponent,
         mantissa,
-        x_norm,
-        x_sub,
-        x_zero,
-        x_inf,
-        x_nan,
+        is_norm,
+        is_sub,
+        is_zero,
+        is_inf,
+        is_nan,
     )
 
 
