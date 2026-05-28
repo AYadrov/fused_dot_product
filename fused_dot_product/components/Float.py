@@ -110,7 +110,7 @@ def fp32_decode(x: Node) -> Node:
     exponent_is_not_all_ones = basic_invert(exponent_is_all_ones, out=Const(UQ(0, 1, 0)))
     exponent_is_nonzero = basic_or_reduce(exponent, out=Const(UQ(0, 1, 0)))
     exponent_is_zero = basic_invert(exponent_is_nonzero, out=Const(UQ(0, 1, 0)))
-
+    
     is_normal = basic_and(exponent_is_nonzero, exponent_is_not_all_ones, Const(UQ(0, 1, 0)),)
     is_subnormal = basic_and(exponent_is_zero, mantissa_is_nonzero, Const(UQ(0, 1, 0)))
     is_zero = basic_and(exponent_is_zero, mantissa_is_zero, Const(UQ(0, 1, 0)))

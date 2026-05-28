@@ -67,6 +67,17 @@ def spec(x, y, ctx):
         If(res_nan_b, one, zero),
     )
 
+# def spec(x: Float32Spec, y: Float32Spec, ctx):
+#     invalid_inf_sum = x.is_inf.and_(y.is_inf).and_(x.sign.ne(y.sign))
+#     res_is_nan = x.is_nan.or_(y.is_nan).or_(invalid_inf_sum)
+#     res_is_inf = (~res_is_nan).and_(x.is_inf.or_(y.is_inf))
+#     res_value = If(res_is_nan.or_(res_is_inf), ctx.real_val(0), x.value + y.value)
+
+#     return Float32Spec(
+#         ... fields/flags for result ...
+#     )
+
+
 
 @Composite(name="FP32_IEEE_adder", spec=spec, case_splitter=_split_fp32_input_cases)
 def FP32_IEEE_adder(x: Node, y: Node) -> Node:

@@ -43,26 +43,12 @@ class Float32Spec():
 
 
 # General case
-def fresh_float32(name: str, flag: str = None, ctx) -> Float32Spec:
+def fresh_float(name: str, ctx) -> Float32Spec:
     is_norm = ctx.fresh_bool(f"{name}_is_norm")
     is_sub = ctx.fresh_bool(f"{name}_is_sub")
     is_zero = ctx.fresh_bool(f"{name}_is_zero")
     is_inf = ctx.fresh_bool(f"{name}_is_inf")
     is_nan = ctx.fresh_bool(f"{name}_is_nan")
-    
-    if flag is not None:
-        if flag == "norm":
-            ctx.assume(is_norm.eq(ctx.bool_val(True)))
-        elif flag == "sub":
-            ctx.assume(is_sub.eq(ctx.bool_val(True)))
-        elif flag == "zero":
-            ctx.assume(is_zero.eq(ctx.bool_val(True)))
-        elif flag == "inf":
-            ctx.assume(is_inf.eq(ctx.bool_val(True)))
-        elif flag == "nan":
-            ctx.assume(is_nan.eq(ctx.bool_val(True)))
-        else:
-            raise ValueError(f"Unknown flag {flag}, norm/sub/zero/inf/nan are allowed")
     
     sign = ctx.fresh_real(f"{name}_sign")
     exponent = ctx.fresh_real(f"{name}_exponent")
@@ -76,7 +62,6 @@ def fresh_float32(name: str, flag: str = None, ctx) -> Float32Spec:
     max_mantissa = ctx.real_val((1 << Float32.mantissa_bits) - 1)
     min_normal_exponent = ctx.real_val(1)
     max_normal_exponent = ctx.real_val(Float32.inf_code - 1)
-    subnormal_exponent = ctx.real_val(1 - Float32.exponent_bias)
     
     signed = minus_one ** sign
     
@@ -85,6 +70,7 @@ def fresh_float32(name: str, flag: str = None, ctx) -> Float32Spec:
     norm_value = signed * norm_mantissa * (two ** norm_exponent)
     
     sub_mantissa = mantissa * (two ** ctx.real_val(-Float32.mantissa_bits))
+    subnormal_exponent = ctx.real_val(exponent + one - Float32.exponent_bias)
     sub_value = signed * sub_mantissa * (two ** subnormal_exponent)
     
     value_case = If(
