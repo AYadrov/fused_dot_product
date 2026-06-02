@@ -180,11 +180,18 @@ def _encode_from_components(
     subnormal_magnitude = mantissa * two ** (-mantissa_bits) * two ** (one - exponent_bias)
     
     is_subnormal_range = is_finite.and_(normal_magnitude < smallest_normal)
-    is_zero = is_subnormal_range.and_(subnormal_magnitude < smallest_subnormal)
-    is_sub = is_subnormal_range.and_(~is_zero)
-    is_norm = is_finite.and_(normal_magnitude >= smallest_normal).and_(normal_magnitude <= greatest_normal)
-    is_inf = is_finite.and_(~is_norm).and_(~is_subnormal_range).or_(forced_inf)
-    is_nan = forced_nan
+
+    is_norm = ctx.fresh_bool(f"{name}_is_norm")
+    is_sub = ctx.fresh_bool(f"{name}_is_sub")
+    is_zero = ctx.fresh_bool(f"{name}_is_zero")
+    is_inf = ctx.fresh_bool(f"{name}_is_inf")
+    is_nan = ctx.fresh_bool(f"{name}_is_nan")
+    
+    ctx.assume(is_zero.eq(is_subnormal_range.and_(subnormal_magnitude < smallest_subnormal)))
+    ctx.assume(is_sub.eq(is_subnormal_range.and_(~is_zero)))
+    ctx.assume(is_norm.eq(is_finite.and_(normal_magnitude >= smallest_normal).and_(normal_magnitude <= greatest_normal)))
+    ctx.assume(is_inf.eq(is_finite.and_(~is_norm).and_(~is_subnormal_range).or_(forced_inf)))
+    ctx.assume(is_nan.eq(forced_nan))
     
     # Some constant encodings, such as inf/nan.
     out_exponent = If(

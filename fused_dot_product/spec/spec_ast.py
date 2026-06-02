@@ -729,14 +729,10 @@ def _can_constant_fold_literal(output_type, value: float | int | bool) -> bool:
     return True
 
 
-# substitute any known values of variables and rebuilds node + trying to constant fold on top of that
-# POTENTIAL UNSOUNDNESS:
-#  (x == 1 + 2)
-#  (x == y)
-# SECOND ASSUMPTION WON'T BE CHECKED - IT WILL BE SIMPLY DROPPED!!!
+# Substitute exact learned literal facts, then rebuild and constant-fold.
 def substitute_literals(
     node: "SpecNode",
-    replacements: dict[RealVar | BoolVar, RealLit | BoolLit],
+    replacements: dict[SpecNode, RealLit | BoolLit],
 ) -> "SpecNode":
     replacement = replacements.get(node)
     if replacement is not None:
@@ -747,7 +743,11 @@ def substitute_literals(
         return node
 
     substituted_args = tuple(substitute_literals(arg, replacements) for arg in args)
-    rebuilt = node if all(old is new for old, new in zip(args, substituted_args)) else type(node)(*substituted_args)
+    rebuilt = (
+        node
+        if all(old is new for old, new in zip(args, substituted_args))
+        else type(node)(*substituted_args)
+    )
     return rebuilt.constant_fold()
 
 

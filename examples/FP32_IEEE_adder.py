@@ -89,7 +89,7 @@ def spec(x, y, ctx):
     
     finite_sum = x_val + y_val
     res_val = If(res_nan_b.or_(res_inf_b), zero, finite_sum)
-
+    
     return ctx.encode_fp32(
         value=res_val,
         encode_inf=If(res_inf_b, ctx.real_val(1), ctx.real_val(0)),

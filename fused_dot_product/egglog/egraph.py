@@ -2,6 +2,7 @@ from time import perf_counter
 
 from egglog import *
 
+from .datatypes import MathBool
 from .rules import load_rules
 from ..solver.report import build_proof_report, merge_rule_application_counts
 
