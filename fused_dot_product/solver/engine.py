@@ -164,7 +164,7 @@ def check_equivalence(
         next_ctxs: list[SpecContext] = []
 
         for current_ctx, current_track in zip(current_ctxs, current_tracks):
-            raise NotImplementedError
+            print(current_ctx)
             reports = _run_tool(current_ctx, step)
             for report in reports:
                 next_track = current_track + [report]
