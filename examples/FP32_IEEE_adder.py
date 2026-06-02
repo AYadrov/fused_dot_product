@@ -5,15 +5,15 @@ from .encode_Float32 import *
 
 _FP32_CLASS_CASES = {
     "norm": (1, 0, 0, 0, 0),
-    # "sub": (0, 1, 0, 0, 0),
-    # "zero": (0, 0, 1, 0, 0),
+    "sub": (0, 1, 0, 0, 0),
+    "zero": (0, 0, 1, 0, 0),
     "inf": (0, 0, 0, 1, 0),
     "nan": (0, 0, 0, 0, 1),
 }
 
 
 def _assume_fp32_case(spec_value, class_bits, ctx):
-    _, is_norm, is_sub, is_zero, is_inf, is_nan = spec_value
+    _, _, _, _, is_norm, is_sub, is_zero, is_inf, is_nan = spec_value
     flags = (is_norm, is_sub, is_zero, is_inf, is_nan)
     for flag, bit in zip(flags, class_bits):
         ctx.assume(flag.eq(ctx.real_val(bit)))
@@ -35,47 +35,32 @@ def _split_fp32_input_cases(ctx, inputs, spec_inner, spec_outer):
             split_ctxs.append(case_ctx)
     return split_ctxs
 
+
 # TODO: NaN payload
 def spec(x, y, ctx):
     x_val, x_sign, x_exp, x_man, x_norm, x_sub, x_zero, x_inf, x_nan = x
     y_val, y_sign, y_exp, y_man, y_norm, y_sub, y_zero, y_inf, y_nan = y
     
     zero = ctx.real_val(0)
-    one = ctx.real_val(1)
     
     # IEEE invalid: +inf + -inf
     invalid_inf_sum = (
-        x_inf.eq(one)
-        .and_(y_inf.eq(one))
+        x_inf.eq(ctx.real_val(1))
+        .and_(y_inf.eq(ctx.real_val(1)))
         .and_(x_sign.ne(y_sign))
     )
     
-    res_nan_b = x_nan.eq(one).or_(y_nan.eq(one)).or_(invalid_inf_sum)
-    res_inf_b = (~res_nan_b).and_(x_inf.eq(one).or_(y_inf.eq(one)))
+    res_nan_b = x_nan.eq(ctx.real_val(1)).or_(y_nan.eq(ctx.real_val(1))).or_(invalid_inf_sum)
+    res_inf_b = (~res_nan_b).and_(x_inf.eq(ctx.real_val(1)).or_(y_inf.eq(ctx.real_val(1))))
     
     finite_sum = x_val + y_val
-    res_norm_b = (~res_nan_b).and_(~res_inf_b)
-    
     res_val = If(res_nan_b.or_(res_inf_b), zero, finite_sum)
-    
-    return (
-        res_val,
-        If(res_norm_b, one, zero),
-        zero,  # subnormal
-        zero,  # zero
-        If(res_inf_b, one, zero),
-        If(res_nan_b, one, zero),
-    )
 
-# def spec(x: Float32Spec, y: Float32Spec, ctx):
-#     invalid_inf_sum = x.is_inf.and_(y.is_inf).and_(x.sign.ne(y.sign))
-#     res_is_nan = x.is_nan.or_(y.is_nan).or_(invalid_inf_sum)
-#     res_is_inf = (~res_is_nan).and_(x.is_inf.or_(y.is_inf))
-#     res_value = If(res_is_nan.or_(res_is_inf), ctx.real_val(0), x.value + y.value)
-
-#     return Float32Spec(
-#         ... fields/flags for result ...
-#     )
+    return ctx.encode_fp32(
+        value=res_val,
+        encode_inf=If(res_inf_b, ctx.real_val(1), ctx.real_val(0)),
+        encode_nan=If(res_nan_b, ctx.real_val(1), ctx.real_val(0)),
+    ).as_tuple()
 
 
 

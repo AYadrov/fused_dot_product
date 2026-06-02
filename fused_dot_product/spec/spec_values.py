@@ -42,11 +42,11 @@ class Float32Spec:
             self.sign,
             self.exponent,
             self.mantissa,
-            self.is_norm,
-            self.is_sub,
-            self.is_zero,
-            self.is_inf,
-            self.is_nan,
+            _flag_as_real(self.is_norm),
+            _flag_as_real(self.is_sub),
+            _flag_as_real(self.is_zero),
+            _flag_as_real(self.is_inf),
+            _flag_as_real(self.is_nan),
         )
 
     def __iter__(self):
@@ -172,6 +172,7 @@ def _encode_from_components(
     max_exponent = ctx.real_val((1 << Float32.exponent_bits) - 1)
     
     smallest_normal = two ** (one - exponent_bias)
+    # Greatest_normal cannot fit in egglog if folded
     greatest_normal = (two - two ** (-mantissa_bits)) * two ** (two ** exponent_bits - two - exponent_bias)
     smallest_subnormal = two ** (one - exponent_bias - mantissa_bits)
     

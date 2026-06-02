@@ -191,15 +191,7 @@ class Float32T(StaticType):
         return Float32T()
     
     def to_spec(self, name, ctx):
-        value = ctx.fresh_real(f"{name}_value")
-        
-        is_norm = ctx.fresh_real(f"{name}_is_norm")
-        is_sub = ctx.fresh_real(f"{name}_is_sub")
-        is_zero = ctx.fresh_real(f"{name}_is_zero")
-        is_inf = ctx.fresh_real(f"{name}_is_inf")
-        is_nan = ctx.fresh_real(f"{name}_is_nan")
-        
-        return (value, is_norm, is_sub, is_zero, is_inf, is_nan)
+        return ctx.fresh_float(name).as_fields_tuple()
     
     def random_runtime_value(self, rng: random.Random):
         from .runtime import Float32

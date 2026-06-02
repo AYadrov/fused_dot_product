@@ -276,28 +276,13 @@ def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node) -
     assert e.node_type.frac_bits == 0
     
     def spec(s, e, m, encode_nan, encode_inf, ctx):
-        value = (ctx.real_val(-1) ** s) * m * (ctx.real_val(2) ** (e - ctx.real_val(127)))
-        
-        is_norm = ctx.fresh_real("res_is_norm")
-        is_sub = ctx.fresh_real(f"res_is_sub")
-        is_zero = ctx.fresh_real(f"res_is_zero")
-        is_inf = ctx.fresh_real(f"res_is_inf")
-        is_nan = ctx.fresh_real(f"res_is_nan")
-        
-        zero = ctx.real_val(0)
-        one = ctx.real_val(1)
-        
-        ctx.assume(is_norm.eq(If(encode_nan.eq(zero).and_(encode_inf.eq(zero)), one, zero)))
-        ctx.assume(is_norm.eq(one).or_(is_norm.eq(zero)))
-        ctx.assume(is_inf.eq(encode_inf))
-        ctx.assume(is_nan.eq(encode_nan))
-        ctx.assume(is_sub.eq(zero))
-        ctx.assume(is_zero.eq(zero))
-        # ctx.assume((is_norm + is_sub + is_zero + is_inf + is_nan).eq(ctx.real_val(1)))
-        
-        ctx.assume(value.eq(If(is_nan.eq(one).or_(is_inf.eq(one)), zero, value)))
-        
-        return (value, is_norm, is_sub, is_zero, is_inf, is_nan)
+        return ctx.encode_fp32(
+            sign=s,
+            exponent=e,
+            mantissa=m,
+            encode_inf=encode_inf,
+            encode_nan=encode_nan,
+        ).as_tuple()
     
     @Composite(name="fp32_encode", spec=spec)
     def impl(s_uq: Node, e_q: Node, m_uq: Node, encode_nan: Node, encode_inf: Node) -> Node:

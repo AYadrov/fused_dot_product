@@ -83,21 +83,7 @@ def fp32_pack_spec(s, e, m, ctx):
 def fp32_pack(sign: Node, exponent: Node, mantissa: Node) -> Node:
     return _fp32_alloc(sign, exponent, mantissa)
 
-def fp32_decode_spec(x, ctx):
-    value, sign, exponent, mantissa, is_norm, is_sub, is_zero, is_inf, is_nan = x
-    return (
-        sign,
-        exponent,
-        mantissa,
-        is_norm,
-        is_sub,
-        is_zero,
-        is_inf,
-        is_nan,
-    )
-
-
-@Primitive(name="fp32_decode", spec=fp32_decode_spec)
+@Primitive(name="fp32_decode", spec=lambda x, ctx: x[1:])
 def fp32_decode(x: Node) -> Node:
     sign = _fp32_sign(x)
     exponent = _fp32_exponent(x)

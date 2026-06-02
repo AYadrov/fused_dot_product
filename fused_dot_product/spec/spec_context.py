@@ -127,6 +127,12 @@ class SpecContext:
         self,
         assume: BoolExpr,
     ) -> tuple[RealVar | BoolVar, RealLit | BoolLit] | None:
+        folded_assume = assume.constant_fold()
+        if not identical_nodes(folded_assume, assume):
+            if isinstance(folded_assume, BoolExpr):
+                return self._canonical_learned_assumption(folded_assume)
+            return None
+
         if isinstance(assume, Eq):
             rhs_folded = assume.rhs.constant_fold()
             lhs_folded = assume.lhs.constant_fold()
@@ -199,8 +205,11 @@ class SpecContext:
 
     def fresh_float(self, base: str):
         from .spec_values import fresh_float
-
         return fresh_float(base, self)
+
+    def encode_fp32(self, **kwargs):
+        from .spec_values import encode_fp32
+        return encode_fp32(self, **kwargs)
 
     def bool_val(self, value: bool):
         return BoolLit(value=value)

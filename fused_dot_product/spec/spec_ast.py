@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, fields, is_dataclass
 from fractions import Fraction
 import math
+import sys
 from typing import Any
 
 from ..egglog import *
@@ -41,7 +42,7 @@ class SpecNode:
         fold = self.fold()
         if all(isinstance(arg, (RealLit, BoolLit)) for arg in folded_args):
             folded_value = fold(*(arg.value for arg in folded_args))
-            if folded_value is not None:
+            if folded_value is not None and _can_constant_fold_literal(output_type, folded_value):
                 # Successfully folded
                 return output_type(folded_value)
             
@@ -205,7 +206,7 @@ class RealLit(RealExpr):
     
     def to_egglog(self):
         ratio = self._as_fraction()
-        return Math.Num(BigRat(ratio.numerator, ratio.denominator))
+        return _fraction_to_egglog(ratio)
             
     def to_z3(self, env):
         ratio = self._as_fraction()
@@ -669,6 +670,65 @@ def _folded_pow_value(base: float | int, exponent: float | int):
     return value
 
 
+_C_LONG_MIN = -sys.maxsize - 1
+_C_LONG_MAX = sys.maxsize
+
+
+def _fits_c_long(value: int) -> bool:
+    return _C_LONG_MIN <= value <= _C_LONG_MAX
+
+
+def _fraction_fits_c_long(value: Fraction) -> bool:
+    return _fits_c_long(value.numerator) and _fits_c_long(value.denominator)
+
+
+def _real_lit_fits_c_long(value: float | int) -> bool:
+    try:
+        ratio = Fraction(value)
+    except (OverflowError, ValueError):
+        return False
+    return _fraction_fits_c_long(ratio)
+
+
+def _math_num(numerator: int, denominator: int = 1):
+    return Math.Num(BigRat(numerator, denominator))
+
+
+def _remove_factor_of_two(value: int) -> tuple[int, int]:
+    shift = 0
+    while value != 0 and value % 2 == 0:
+        value //= 2
+        shift += 1
+    return value, shift
+
+
+def _fraction_to_egglog(value: Fraction):
+    if _fraction_fits_c_long(value):
+        return _math_num(value.numerator, value.denominator)
+
+    sign = -1 if value.numerator < 0 else 1
+    numerator_odd, numerator_shift = _remove_factor_of_two(abs(value.numerator))
+    denominator_odd, denominator_shift = _remove_factor_of_two(value.denominator)
+    coefficient = Fraction(sign * numerator_odd, denominator_odd)
+    exponent = numerator_shift - denominator_shift
+
+    if not _fraction_fits_c_long(coefficient) or not _fits_c_long(exponent):
+        raise OverflowError(f"RealLit {value} cannot be represented with C-long-sized egglog literals")
+
+    scale = Math.Pow(_math_num(2), _math_num(exponent))
+    if coefficient == 1:
+        return scale
+    if coefficient == -1:
+        return Math.Neg(scale)
+    return Math.Mul(_math_num(coefficient.numerator, coefficient.denominator), scale)
+
+
+def _can_constant_fold_literal(output_type, value: float | int | bool) -> bool:
+    if output_type is RealLit:
+        return _real_lit_fits_c_long(value)
+    return True
+
+
 # substitute any known values of variables and rebuilds node + trying to constant fold on top of that
 # POTENTIAL UNSOUNDNESS:
 #  (x == 1 + 2)
@@ -695,6 +755,16 @@ def _shortcut_fold(
     node: SpecNode,
     folded_args: tuple[SpecNode, ...],
 ) -> SpecNode | None:
+    if isinstance(node, Eq):
+        lhs, rhs = folded_args
+        folded = _fold_indicator_equality(lhs, rhs)
+        if folded is not None:
+            return folded
+        folded = _fold_indicator_equality(rhs, lhs)
+        if folded is not None:
+            return folded
+        return None
+
     if isinstance(node, If):
         cond, on_true, on_false = folded_args
         if isinstance(cond, BoolLit):
@@ -750,6 +820,35 @@ def _shortcut_fold(
         return None
 
     return None
+
+
+def _fold_indicator_equality(
+    expr: SpecNode,
+    target: SpecNode,
+) -> BoolExpr | None:
+    if not isinstance(expr, If) or not isinstance(target, RealLit):
+        return None
+
+    cond = expr.cond
+    on_true = expr.on_true
+    on_false = expr.on_false
+    if not isinstance(on_true, RealLit) or not isinstance(on_false, RealLit):
+        return None
+    if on_true.value == on_false.value:
+        return None
+
+    if target.value == on_true.value:
+        cond_value = True
+    elif target.value == on_false.value:
+        cond_value = False
+    else:
+        return BoolLit(False)
+
+    if isinstance(cond, Not):
+        value = cond.value
+        if isinstance(value, BoolVar):
+            return BoolEq(value, BoolLit(not cond_value))
+    return BoolEq(cond, BoolLit(cond_value))
 
 
 def _literal_type(node: SpecNode):

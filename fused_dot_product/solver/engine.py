@@ -154,7 +154,7 @@ def check_equivalence(
     schedule: list[str | dict[str, Any]],
 ):
     _enqueue_equivalence(query1, query2, ctx=ctx)
-    
+
     current_tracks: list[list[ProofReport]] = [[]]
     current_ctxs = [ctx.copy()]
     
@@ -164,6 +164,7 @@ def check_equivalence(
         next_ctxs: list[SpecContext] = []
 
         for current_ctx, current_track in zip(current_ctxs, current_tracks):
+            raise NotImplementedError
             reports = _run_tool(current_ctx, step)
             for report in reports:
                 next_track = current_track + [report]
