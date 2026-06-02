@@ -199,11 +199,11 @@ def _encode_from_components(
     ctx.assume(_implies(is_sub.or_(is_norm), (out_mantissa >= zero).and_(out_mantissa <= max_mantissa)))
     ctx.assume(_implies(is_norm, (out_exponent >= one).and_(out_exponent <= max_exponent - one)))
     
-    out_subnormal_maginitude = out_mantissa * two ** (-mantissa_bits) * two ** (one - exponent_bias)
-    out_normal_maginitude = (one + out_mantissa * two ** (-mantissa_bits)) * two ** (out_exponent - exponent_bias)
+    out_subnormal_magnitude = out_mantissa * two ** (-mantissa_bits) * two ** (one - exponent_bias)
+    out_normal_magnitude = (one + out_mantissa * two ** (-mantissa_bits)) * two ** (out_exponent - exponent_bias)
     
-    ctx.assume(_implies(is_norm, out_normal_maginitude.eq(normal_magnitude)))
-    ctx.assume(_implies(is_sub, out_subnormal_maginitude.eq(subnormal_magnitude)))
+    ctx.assume(_implies(is_norm, out_normal_magnitude.eq(normal_magnitude)))
+    ctx.assume(_implies(is_sub, out_subnormal_magnitude.eq(subnormal_magnitude)))
     
     flags = (is_norm, is_sub, is_zero, is_inf, is_nan)
     ctx.assume(is_norm.or_(is_sub).or_(is_zero).or_(is_inf).or_(is_nan))
@@ -211,15 +211,18 @@ def _encode_from_components(
         for rhs in flags[i + 1:]:
             ctx.assume((~lhs).or_(~rhs))
     
-    subnormal_val = (-one) ** sign * out_subnormal_maginitude
-    normal_val = (-one) ** sign * out_normal_maginitude
+    subnormal_val = (-one) ** sign * out_subnormal_magnitude
+    normal_val = (-one) ** sign * out_normal_magnitude
     
-    value = If(is_norm,
-               normal_val,
-               If(is_sub,
-                  subnormal_val,
-                  zero)
-               )
+    value = If(
+        is_norm,
+        normal_val,
+        If(
+            is_sub,
+            subnormal_val,
+            zero,
+        ),
+    )
     
     return Float32Spec(
         value=value,
@@ -236,7 +239,6 @@ def _encode_from_components(
 
 def encode_fp32(
     ctx,
-    name: str,
     encode_inf: RealExpr,
     encode_nan: RealExpr,
     value: RealExpr | None = None,
@@ -244,6 +246,7 @@ def encode_fp32(
     exponent: RealExpr | None = None,
     mantissa: RealExpr | None = None,
 ) -> Float32Spec:
+    name = "encoded_fp32"
     if value is not None:
         return _encode_from_value(
             ctx,
