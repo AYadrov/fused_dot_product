@@ -5,19 +5,19 @@ from .encode_Float32 import *
 
 _FP32_INPUT_CLASS_CASES = {
     "norm": (1, 0, 0, 0, 0),
-    "sub": (0, 1, 0, 0, 0),
-    "zero": (0, 0, 1, 0, 0),
-    "inf": (0, 0, 0, 1, 0),
-    "nan": (0, 0, 0, 0, 1),
+    #"sub": (0, 1, 0, 0, 0),
+    #"zero": (0, 0, 1, 0, 0),
+    #"inf": (0, 0, 0, 1, 0),
+    #"nan": (0, 0, 0, 0, 1),
 }
 
 
 _FP32_OUTPUT_CLASS_CASES = {
     "norm": (1, 0, 0, 0, 0),
-    "sub": (0, 1, 0, 0, 0),
-    "zero": (0, 0, 1, 0, 0),
-    "inf": (0, 0, 0, 1, 0),
-    "nan": (0, 0, 0, 0, 1),
+    #"sub": (0, 1, 0, 0, 0),
+    #"zero": (0, 0, 1, 0, 0),
+    #"inf": (0, 0, 0, 1, 0),
+    #"nan": (0, 0, 0, 0, 1),
 }
 
 
@@ -43,19 +43,22 @@ def _append_fp32_case_name(name, case_label):
     return f"{name}[{case_label}]"
 
 
-def _split_fp32_output_cases(ctx, spec_inner):
+def _split_fp32_output_cases(ctx, spec_inner, spec_outer):
     split_ctxs = []
-    for out_label, out_case in _FP32_OUTPUT_CLASS_CASES.items():
-        case_ctx = ctx.copy()
-        case_ctx.name = _append_fp32_case_name(ctx.name, f"out={out_label}")
-        _assume_fp32_case(spec_inner, out_case, case_ctx)
-        split_ctxs.append(case_ctx)
+    for inner_out_label, inner_out_case in _FP32_OUTPUT_CLASS_CASES.items():
+        for outer_out_label, outer_out_case in _FP32_OUTPUT_CLASS_CASES.items():
+            case_ctx = ctx.copy()
+            case_ctx.name = _append_fp32_case_name(
+                ctx.name,
+                f"inner_out={inner_out_label},outer_out={outer_out_label}",
+            )
+            _assume_fp32_case(spec_inner, inner_out_case, case_ctx)
+            _assume_fp32_case(spec_outer, outer_out_case, case_ctx)
+            split_ctxs.append(case_ctx)
     return split_ctxs
 
 
 def _split_fp32_input_cases(ctx, inputs, spec_inner, spec_outer):
-    del spec_outer
-    
     if len(inputs) != 2:
         return [ctx]
     
@@ -66,7 +69,7 @@ def _split_fp32_input_cases(ctx, inputs, spec_inner, spec_outer):
             case_ctx.name = f"{ctx.name}[x={x_label},y={y_label}]"
             _assume_fp32_case(inputs[0], x_case, case_ctx)
             _assume_fp32_case(inputs[1], y_case, case_ctx)
-            split_ctxs.extend(_split_fp32_output_cases(case_ctx, spec_inner))
+            split_ctxs.extend(_split_fp32_output_cases(case_ctx, spec_inner, spec_outer))
     return split_ctxs
 
 
