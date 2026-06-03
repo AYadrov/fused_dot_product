@@ -14,6 +14,10 @@ def _flag_as_real(flag: BoolExpr) -> RealExpr:
     return If(flag, RealLit(1), RealLit(0))
 
 
+def _sign_factor(sign: RealExpr) -> RealExpr:
+    return If(sign.eq(RealLit(1)), RealLit(-1), RealLit(1))
+
+
 @dataclass(frozen=True)
 class Float32Spec:
     value: RealExpr
@@ -65,7 +69,6 @@ def fresh_float(name: str, ctx) -> Float32Spec:
     exponent = ctx.fresh_real(f"{name}_exponent")
     mantissa = ctx.fresh_real(f"{name}_mantissa")
 
-    minus_one = ctx.real_val(-1)
     zero = ctx.real_val(0)
     one = ctx.real_val(1)
     two = ctx.real_val(2)
@@ -92,8 +95,9 @@ def fresh_float(name: str, ctx) -> Float32Spec:
     ctx.assume(_implies(is_sub.or_(is_nan), mantissa > zero))
 
 
-    norm_value = minus_one ** sign * (one + mantissa * (two ** (-m_bits))) * (two ** (exponent - bias))
-    sub_value = minus_one ** sign * mantissa * (two ** (-m_bits)) * (two ** (one - bias))
+    sign_value = _sign_factor(sign)
+    norm_value = sign_value * (one + mantissa * (two ** (-m_bits))) * (two ** (exponent - bias))
+    sub_value = sign_value * mantissa * (two ** (-m_bits)) * (two ** (one - bias))
 
     value = If(
         is_norm,
@@ -163,6 +167,11 @@ def _encode_from_components(
     zero = ctx.real_val(0)
     one = ctx.real_val(1)
     two = ctx.real_val(2)
+    sign_value = _sign_factor(sign)
+
+    ctx.assume(sign.eq(zero).or_(sign.eq(one)))
+    ctx.assume(encode_inf.eq(zero).or_(encode_inf.eq(one)))
+    ctx.assume(encode_nan.eq(zero).or_(encode_nan.eq(one)))
     
     mantissa_bits = ctx.real_val(Float32.mantissa_bits)
     exponent_bits = ctx.real_val(Float32.exponent_bits)
@@ -219,8 +228,8 @@ def _encode_from_components(
         for rhs in flags[i + 1:]:
             ctx.assume((~lhs).or_(~rhs))
     
-    subnormal_val = (-one) ** sign * out_subnormal_magnitude
-    normal_val = (-one) ** sign * out_normal_magnitude
+    subnormal_val = sign_value * out_subnormal_magnitude
+    normal_val = sign_value * out_normal_magnitude
     
     value = If(
         is_norm,

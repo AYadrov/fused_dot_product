@@ -1,4 +1,6 @@
 import unittest
+import contextlib
+import os
 from unittest.mock import patch
 
 import dreal
@@ -14,6 +16,7 @@ from fused_dot_product.solver import engine as solver_engine
 from fused_dot_product.solver.report import build_proof_report
 from fused_dot_product.spec.spec_context import simplify_ctx
 from fused_dot_product.spec.spec_utils import from_egglog
+import examples.FP32_IEEE_adder as fp32_adder_module
 from examples.FP32_IEEE_adder import FP32_IEEE_adder
 from examples.FP32_IEEE_mult import FP32_IEEE_mult
 from examples.conventional import Conventional
@@ -818,12 +821,14 @@ class TestSolverApis(unittest.TestCase):
             proof_trace = adder.check_spec(schedule=[{"tool": "z3", "timeout_ms": 1}])
 
         expected_names = {
-            f"FP32_IEEE_adder[x={x_case},y={y_case}]"
-            for x_case in ("norm", "inf", "nan")
-            for y_case in ("norm", "inf", "nan")
+            f"FP32_IEEE_adder[x={x_case},y={y_case},inner_out={inner_case},outer_out={outer_case}]"
+            for x_case in fp32_adder_module._FP32_INPUT_CLASS_CASES
+            for y_case in fp32_adder_module._FP32_INPUT_CLASS_CASES
+            for inner_case in fp32_adder_module._FP32_OUTPUT_CLASS_CASES
+            for outer_case in fp32_adder_module._FP32_OUTPUT_CLASS_CASES
         }
-        self.assertEqual(proof_trace, [[] for _ in range(9)])
-        self.assertEqual(len(seen_names), 9)
+        self.assertEqual(proof_trace, [[] for _ in expected_names])
+        self.assertEqual(len(seen_names), len(expected_names))
         self.assertEqual(set(seen_names), expected_names)
 
     def test_check_equivalence_with_simplify_schedule_short_circuits(self):
@@ -858,6 +863,33 @@ class TestSolverApis(unittest.TestCase):
         self.assertEqual(len(proof_trace), 1)
         self.assertIsInstance(proof_trace[0], dict)
         self.assertEqual(proof_trace[0]["tool"], "branch-b")
+
+    def test_fp32_adder_norm_norm_proves_with_egglog(self):
+        adder = FP32_IEEE_adder(
+            Var(name="a", sign=Float32T()),
+            Var(name="b", sign=Float32T()),
+        )
+
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            proof_traces = adder.check_spec(
+                schedule=[
+                    {"tool": "simplify"},
+                    {
+                        "tool": "egglog-rewrite",
+                        "iterations": 6,
+                        "scheduler": {"match_limit": 500_000, "ban_length": 1},
+                    },
+                ]
+            )
+
+        self.assertEqual(len(proof_traces), 1)
+        self.assertTrue(
+            any(
+                report["tool"] == "egglog_rewrite" and report["equivalent"]
+                for report in proof_traces[0]
+            ),
+            proof_traces[0],
+        )
 
     def test_z3_check_eq_returns_single_report(self):
         ctx = SpecContext("z3-api")
@@ -896,20 +928,11 @@ class TestSignSpecs(unittest.TestCase):
 
                 ctx = SpecContext("q_signs_xor")
                 spec = ctx.spec_of(node)
-                simplified = ctx.simplify()
+                ctx.check(spec.eq(ctx.real_val(expected)))
+                report = z3_check_eq(ctx.simplify(), timeout_ms=1000)
 
                 self.assertEqual(str(spec), "real(xored_signs_2)")
-                self.assertEqual(
-                    [str(assume) for assume in simplified.assumes],
-                    [
-                        "((real(x_sign_0) == 1) or (real(x_sign_0) == 0))",
-                        "((real(y_sign_1) == 1) or (real(y_sign_1) == 0))",
-                        "((real(xored_signs_2) == 1) or (real(xored_signs_2) == 0))",
-                        f"({float(lhs)} == (-1 ** real(x_sign_0)))",
-                        f"({float(rhs)} == (-1 ** real(y_sign_1)))",
-                        "((-1 ** real(xored_signs_2)) == ((-1 ** real(x_sign_0)) * (-1 ** real(y_sign_1))))",
-                    ],
-                )
+                self.assertTrue(report["equivalent"], report)
 
 
 if __name__ == "__main__":
