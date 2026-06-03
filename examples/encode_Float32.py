@@ -280,10 +280,12 @@ def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node) -
         one = ctx.real_val(1)
         sign = If(s.eq(one), ctx.real_val(-1), one)
         finite_value = sign * m * (ctx.real_val(2) ** (e - ctx.real_val(Float32.exponent_bias)))
+        
         forced_nan = encode_nan.eq(one)
         forced_inf = (~forced_nan).and_(encode_inf.eq(one))
+        
         return ctx.encode_fp32(
-            value=If(forced_nan.or_(forced_inf), zero, finite_value),
+            value=finite_value,
             encode_inf=encode_inf,
             encode_nan=encode_nan,
         ).as_tuple()

@@ -13,11 +13,11 @@ _FP32_INPUT_CLASS_CASES = {
 
 
 _FP32_OUTPUT_CLASS_CASES = {
-    "norm": (1, 0, 0, 0, 0),
+    #"norm": (1, 0, 0, 0, 0),
     #"sub": (0, 1, 0, 0, 0),
     #"zero": (0, 0, 1, 0, 0),
     #"inf": (0, 0, 0, 1, 0),
-    #"nan": (0, 0, 0, 0, 1),
+    "nan": (0, 0, 0, 0, 1),
 }
 
 
@@ -90,11 +90,10 @@ def spec(x, y, ctx):
     res_nan_b = x_nan.eq(ctx.real_val(1)).or_(y_nan.eq(ctx.real_val(1))).or_(invalid_inf_sum)
     res_inf_b = (~res_nan_b).and_(x_inf.eq(ctx.real_val(1)).or_(y_inf.eq(ctx.real_val(1))))
     
-    finite_sum = x_val + y_val
-    res_val = If(res_nan_b.or_(res_inf_b), zero, finite_sum)
+    _sum = x_val + y_val
     
     return ctx.encode_fp32(
-        value=res_val,
+        value=_sum,
         encode_inf=If(res_inf_b, ctx.real_val(1), ctx.real_val(0)),
         encode_nan=If(res_nan_b, ctx.real_val(1), ctx.real_val(0)),
     ).as_tuple()
