@@ -4,7 +4,7 @@ from typing import Any
 
 from ..spec import SpecContext, SpecNode
 from ..spec.spec_context import simplify_ctx
-from .report import ProofReport
+from .report import ProofReport, validate_proof_status
 from ..egglog import egglog_rewrite, egglog_preprocess
 from ..smt import z3_check_eq, dreal_check_eq
 
@@ -142,8 +142,11 @@ def _normalize_tool_reports(
     for report in reports:
         if "new_ctx" not in report:
             raise KeyError("Each tool report must include 'new_ctx'")
-        if "equivalent" not in report:
-            raise KeyError("Each tool report must include 'equivalent'")
+        if "status" not in report:
+            raise KeyError("Each tool report must include 'status'")
+        if "equivalent" in report:
+            raise KeyError("Tool reports must use 'status', not 'equivalent'")
+        validate_proof_status(report["status"])
     return reports
 
 
@@ -164,12 +167,12 @@ def check_equivalence(
         next_ctxs: list[SpecContext] = []
 
         for current_ctx, current_track in zip(current_ctxs, current_tracks):
-            #print(current_ctx)
             reports = _run_tool(current_ctx, step)
             for report in reports:
                 next_track = current_track + [report]
-                if report["equivalent"]:
-                    return True, next_track
+                status = report["status"]
+                if status in {"sat", "unsat"}:
+                    return status, next_track
                 next_tracks.append(next_track)
                 next_ctxs.append(report["new_ctx"])
 
@@ -177,5 +180,5 @@ def check_equivalence(
         current_ctxs = next_ctxs
 
     if not current_tracks:
-        return False, []
-    return False, current_tracks[0]
+        return "unknown", []
+    return "unknown", current_tracks[0]

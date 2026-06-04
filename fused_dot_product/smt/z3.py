@@ -37,15 +37,14 @@ def z3_check_eq(ctx: "SpecContext", timeout_ms: int):
     runtime_s = perf_counter() - run_started_at
     
     #stats = _stats_to_dict(solver.statistics())
-    equivalent = (result == z3.unsat)
+    status = str(result)
     new_ctx = ctx.copy()
     report = build_proof_report(
         ctx,
         new_ctx,
         tool="z3",
         runtime_s=runtime_s,
-        equivalent=equivalent,
-        status=str(result),
+        status=status,
         timeout_ms=timeout_ms,
         #stats=stats,
         #smt_query=solver.to_smt2(),

@@ -36,24 +36,23 @@ def _egglog_check_ctx(ctx: "SpecContext", iterations=6, simplify=False, schedule
     
     rule_application_counts: dict[str, int] = {}
     iterations_used = 0
-    equivalent = egraph.check_bool(*to_check)
+    proved = egraph.check_bool(*to_check)
     
     for _ in range(iterations):
-        if equivalent:
+        if proved:
             break
         run_report = egraph.run(run_schedule)
-        total_size = sum(sz for _, sz in egraph.all_function_sizes())
         iterations_used += 1
         for rule, num_matches in run_report.num_matches_per_rule.items():
             rule_name = str(rule)
             rule_application_counts[rule_name] = (
                 rule_application_counts.get(rule_name, 0) + int(num_matches)
             )
-        equivalent = egraph.check_bool(*to_check)
+        proved = egraph.check_bool(*to_check)
         
     run_runtime_s = perf_counter() - run_started_at
     
-    return equivalent, run_runtime_s, egraph, rule_application_counts, iterations_used
+    return proved, run_runtime_s, egraph, rule_application_counts, iterations_used
 
 
 def _simplify_expr(expr: "SpecNode", egraph: EGraph):
@@ -93,21 +92,21 @@ def _egglog_simplify_ctx(ctx: "SpecContext", egraph: EGraph):
     run_runtime_s = perf_counter() - run_started_at
 
     simplified_ctx = ctx.copy(assumes=ctx.assumes + discharged_checks, checks=simplified_checks)
-    equivalent = len(simplified_checks) == 0
-    return equivalent, run_runtime_s, simplified_ctx
+    status = "unsat" if len(simplified_checks) == 0 else "unknown"
+    return status, run_runtime_s, simplified_ctx
 
 
 ####################### PUBLIC #############################
 
 
 def egglog_rewrite(ctx: "SpecContext", iterations: int, scheduler=None):
-    equivalent, egglog_runtime_s, egraph, rule_application_counts, iterations_used = _egglog_check_ctx(
+    proved, egglog_runtime_s, egraph, rule_application_counts, iterations_used = _egglog_check_ctx(
         ctx=ctx,
         iterations=iterations,
         simplify=False,
         scheduler=scheduler,
     )
-    equivalent, simplify_runtime_s, simplified_ctx = _egglog_simplify_ctx(
+    status, simplify_runtime_s, simplified_ctx = _egglog_simplify_ctx(
         ctx=ctx,
         egraph=egraph,
     )
@@ -115,9 +114,9 @@ def egglog_rewrite(ctx: "SpecContext", iterations: int, scheduler=None):
     report = build_proof_report(
         ctx,
         simplified_ctx,
-        tool="egglog_rewrite",
+        tool="egglog-rewrite",
         runtime_s=egglog_runtime_s + simplify_runtime_s,
-        equivalent=equivalent,
+        status=status,
         rule_application_counts=rule_application_counts,
         iterations_used=iterations_used,
         egraph=egraph,
@@ -131,33 +130,34 @@ def egglog_preprocess(ctx: "SpecContext", iterations: int, scheduler=None):
     from ..spec.spec_ast import Eq, BoolEq
 
     # Preprocess checks
-    equivalent, egglog_runtime_s, egraph, check_rule_application_counts, check_iterations_used = _egglog_check_ctx(
+    proved, egglog_runtime_s, egraph, check_rule_application_counts, check_iterations_used = _egglog_check_ctx(
         ctx=ctx,
         iterations=iterations,
         simplify=True,
         scheduler=scheduler,
     )
-    equivalent, simplify_runtime_s, simplified_ctx = _egglog_simplify_ctx(ctx=ctx, egraph=egraph)
+    status, simplify_runtime_s, simplified_ctx = _egglog_simplify_ctx(ctx=ctx, egraph=egraph)
 
     simplified_checks_report = build_proof_report(
         ctx,
         simplified_ctx,
-        tool="egglog_preprocess",
+        tool="egglog-preprocess",
         runtime_s=egglog_runtime_s + simplify_runtime_s,
-        equivalent=equivalent,
+        status=status,
         rule_application_counts=check_rule_application_counts,
         iterations_used=check_iterations_used,
         egraph=egraph,
         egraph_size=sum(sz for _, sz in egraph.all_function_sizes()),
     )
 
-    if equivalent:
+    if status == "unsat":
         return simplified_checks_report
 
     # Preprocess assumes
     egraph = _create_egraph(simplify=True)
     preprocessed_assumes = []
     preprocessed_checks = simplified_ctx.checks
+    false_assumes = []
     
     for assume in simplified_ctx.assumes:
         egraph.register(assume.to_egglog())
@@ -174,7 +174,8 @@ def egglog_preprocess(ctx: "SpecContext", iterations: int, scheduler=None):
     for assume in simplified_ctx.assumes:
         simplified = _simplify_expr(assume, egraph)
         if simplified == ctx.false():
-            equivalent = False
+            false_assumes.append(str(assume))
+            preprocessed_assumes.append(simplified)
         elif simplified != ctx.true():
             preprocessed_assumes.append(simplified) # TODO: not fully sound, for full soundness we don't want to simplify assumes
 
@@ -182,21 +183,25 @@ def egglog_preprocess(ctx: "SpecContext", iterations: int, scheduler=None):
         assumes=preprocessed_assumes,
         checks=preprocessed_checks,
     )
+    extra = {}
+    if false_assumes:
+        extra["false_assumes"] = false_assumes
 
     simplified_assumes_report = build_proof_report(
         ctx,
         preprocessed_ctx,
-        tool="egglog_preprocess",
+        tool="egglog-preprocess",
         runtime_s=egglog_runtime_s + simplify_runtime_s + assume_runtime_s,
-        equivalent=equivalent,
+        status="unknown",
         rule_application_counts=merge_rule_application_counts(
             check_rule_application_counts,
             assume_rule_application_counts,
         ),
         iterations_used=check_iterations_used + iterations,
         egraph=egraph,
+        **extra,
     )
 
-    dummy_report = build_proof_report(ctx, ctx.copy(), tool="copy", runtime_s=0.0, equivalent=False)
+    dummy_report = build_proof_report(ctx, ctx.copy(), tool="copy", runtime_s=0.0, status="unknown")
     
     return [simplified_assumes_report, simplified_checks_report, dummy_report]

@@ -289,29 +289,53 @@ class PoorSpec(Exception):
 def simplify_ctx(ctx: SpecContext):
     run_started_at = perf_counter()
     
-    simplified_ctx = ctx.simplify()
+    try:
+        simplified_ctx = ctx.simplify()
+    except PoorSpec as exc:
+        return build_proof_report(
+            ctx,
+            ctx.copy(),
+            tool="simplify",
+            runtime_s=perf_counter() - run_started_at,
+            status="sat",
+            poor_spec=str(exc),
+        )
     
     new_assumes = []
-    for assume in simplified_ctx.assumes:
-        if identical_nodes(assume, BoolLit(True)):
+    false_assumes = []
+    for simplified_assume, original_assume in zip(simplified_ctx.assumes, ctx.assumes):
+        if identical_nodes(simplified_assume, BoolLit(True)):
             continue
-        if identical_nodes(assume, BoolLit(False)):
-            raise PoorSpec("assumption folds to False")
-        new_assumes.append(assume)
+        if identical_nodes(simplified_assume, BoolLit(False)):
+            false_assumes.append(str(original_assume))
+        new_assumes.append(simplified_assume)
     
     new_checks = []
-    for check in simplified_ctx.checks:
-        if identical_nodes(check, BoolLit(True)):
+    false_checks = []
+    for simplified_check, original_check in zip(simplified_ctx.checks, ctx.checks):
+        if identical_nodes(simplified_check, BoolLit(True)):
             continue
-        if identical_nodes(check, BoolLit(False)):
-            raise PoorSpec("check folds to False")
-        new_checks.append(check)
+        if identical_nodes(simplified_check, BoolLit(False)):
+            false_checks.append(str(original_check))
+        new_checks.append(simplified_check)
     
     trimmed_ctx = ctx.copy(assumes=new_assumes, checks=new_checks)
+    if false_assumes or false_checks:
+        status = "sat"
+    elif len(new_checks) == 0:
+        status = "unsat"
+    else:
+        status = "unknown"
+    extra = {}
+    if false_assumes:
+        extra["false_assumes"] = false_assumes
+    if false_checks:
+        extra["false_checks"] = false_checks
     return build_proof_report(
         ctx,
         trimmed_ctx,
         tool="simplify",
         runtime_s=perf_counter() - run_started_at,
-        equivalent=len(new_checks) == 0,
+        status=status,
+        **extra,
     )

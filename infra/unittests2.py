@@ -815,7 +815,7 @@ class TestSolverApis(unittest.TestCase):
         def fake_check_equivalence(query1, query2, ctx, schedule):
             del query1, query2, schedule
             seen_names.append(ctx.name)
-            return True, []
+            return "unsat", []
 
         with patch.object(ast_nodes, "check_equivalence", side_effect=fake_check_equivalence):
             proof_trace = adder.check_spec(schedule=[{"tool": "z3", "timeout_ms": 1}])
@@ -834,31 +834,31 @@ class TestSolverApis(unittest.TestCase):
     def test_check_equivalence_with_simplify_schedule_short_circuits(self):
         ctx = SpecContext("simplify-schedule")
 
-        equivalent, proof_trace = solver_engine.check_equivalence(
+        status, proof_trace = solver_engine.check_equivalence(
             RealLit(1) + RealLit(2),
             RealLit(3),
             ctx=ctx,
             schedule=[{"tool": "simplify"}],
         )
 
-        self.assertTrue(equivalent)
+        self.assertEqual(status, "unsat")
         self.assertEqual(len(proof_trace), 1)
         self.assertEqual(proof_trace[0]["tool"], "simplify")
 
     def test_check_equivalence_returns_flat_proof_trace(self):
         ctx = SpecContext("flat-trace")
-        report1 = build_proof_report(ctx, ctx.copy(), tool="branch-a", runtime_s=0.0, equivalent=False)
-        report2 = build_proof_report(ctx, ctx.copy(), tool="branch-b", runtime_s=0.0, equivalent=True)
+        report1 = build_proof_report(ctx, ctx.copy(), tool="branch-a", runtime_s=0.0, status="unknown")
+        report2 = build_proof_report(ctx, ctx.copy(), tool="branch-b", runtime_s=0.0, status="unsat")
 
         with patch.dict(solver_engine.TOOL_FNS, {"z3": lambda _ctx, timeout_ms: [report1, report2]}):
-            equivalent, proof_trace = solver_engine.check_equivalence(
+            status, proof_trace = solver_engine.check_equivalence(
                 RealLit(1),
                 RealLit(1),
                 ctx=ctx,
                 schedule=[{"tool": "z3", "timeout_ms": 1}],
             )
 
-        self.assertTrue(equivalent)
+        self.assertEqual(status, "unsat")
         self.assertIsInstance(proof_trace, list)
         self.assertEqual(len(proof_trace), 1)
         self.assertIsInstance(proof_trace[0], dict)
@@ -882,13 +882,19 @@ class TestSolverApis(unittest.TestCase):
                 ]
             )
 
-        self.assertEqual(len(proof_traces), 1)
+        target_name = "FP32_IEEE_adder[x=norm,y=norm,inner_out=norm,outer_out=norm]"
+        matching_traces = [
+            proof_trace
+            for proof_trace in proof_traces
+            if proof_trace and proof_trace[0]["name"] == target_name
+        ]
+        self.assertEqual(len(matching_traces), 1)
         self.assertTrue(
             any(
-                report["tool"] == "egglog_rewrite" and report["equivalent"]
-                for report in proof_traces[0]
+                report["tool"] == "egglog-rewrite" and report["status"] == "unsat"
+                for report in matching_traces[0]
             ),
-            proof_traces[0],
+            matching_traces[0],
         )
 
     def test_z3_check_eq_returns_single_report(self):
@@ -899,7 +905,7 @@ class TestSolverApis(unittest.TestCase):
 
         self.assertIsInstance(report, dict)
         self.assertEqual(report["tool"], "z3")
-        self.assertTrue(report["equivalent"])
+        self.assertEqual(report["status"], "unsat")
 
     def test_dreal_check_eq_returns_single_report(self):
         ctx = SpecContext("dreal-api")
@@ -909,7 +915,7 @@ class TestSolverApis(unittest.TestCase):
 
         self.assertIsInstance(report, dict)
         self.assertEqual(report["tool"], "dreal")
-        self.assertTrue(report["equivalent"])
+        self.assertEqual(report["status"], "unsat")
 
 
 class TestSignSpecs(unittest.TestCase):
@@ -932,7 +938,7 @@ class TestSignSpecs(unittest.TestCase):
                 report = z3_check_eq(ctx.simplify(), timeout_ms=1000)
 
                 self.assertEqual(str(spec), "real(xored_signs_2)")
-                self.assertTrue(report["equivalent"], report)
+                self.assertEqual(report["status"], "unsat", report)
 
 
 if __name__ == "__main__":

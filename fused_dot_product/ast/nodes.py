@@ -7,7 +7,7 @@ from ..utils import make_fixed_arguments
 from ..solver.engine import check_equivalence
 from .node import Node
 from .proofs import SpecRecorder, record_specs
-from ..spec import SpecContext, PoorSpec
+from ..spec import SpecContext
 
 
 CLowering = tp.Callable[[list[str], bool], str]
@@ -105,18 +105,14 @@ class composite(Node):
 
         full_trace = []
         for initial_ctx in initial_ctxs:
-            try:
-                equivalence, proof_trace = check_equivalence(
-                    spec_inner,
-                    spec_outer,
-                    ctx=initial_ctx,
-                    schedule=schedule,
-                )
-            except PoorSpec:
-                equivalence, proof_trace = False, [{'tool': 'simplify', 'equivalent': False}]
-                
+            _status, proof_trace = check_equivalence(
+                spec_inner,
+                spec_outer,
+                ctx=initial_ctx,
+                schedule=schedule,
+            )
             full_trace.append(proof_trace)
-            print(initial_ctx.name, "\t", equivalence, "\t", [x['tool'] for x in proof_trace])
+            print(initial_ctx.name, _status)
             
         return full_trace
 
