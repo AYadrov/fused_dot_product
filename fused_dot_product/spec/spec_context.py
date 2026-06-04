@@ -98,7 +98,7 @@ class SpecContext:
             if existing is None:
                 candidates[expr] = lit
             elif not identical_nodes(existing, lit):
-                raise ValueError(
+                raise PoorSpec(
                     f"Conflicting learned literals for {expr}: {existing} vs {lit}"
                 )
 
@@ -282,6 +282,10 @@ class SpecContext:
         new_ctx.spec_cache = dict(self.spec_cache)
         return new_ctx
 
+
+class PoorSpec(Exception):
+    pass
+
 def simplify_ctx(ctx: SpecContext):
     run_started_at = perf_counter()
     
@@ -292,7 +296,7 @@ def simplify_ctx(ctx: SpecContext):
         if identical_nodes(assume, BoolLit(True)):
             continue
         if identical_nodes(assume, BoolLit(False)):
-            raise ValueError("assumption folds to False")
+            raise PoorSpec("assumption folds to False")
         new_assumes.append(assume)
     
     new_checks = []
@@ -300,7 +304,7 @@ def simplify_ctx(ctx: SpecContext):
         if identical_nodes(check, BoolLit(True)):
             continue
         if identical_nodes(check, BoolLit(False)):
-            raise ValueError("check folds to False")
+            raise PoorSpec("check folds to False")
         new_checks.append(check)
     
     trimmed_ctx = ctx.copy(assumes=new_assumes, checks=new_checks)
