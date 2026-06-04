@@ -724,9 +724,7 @@ def _fraction_to_egglog(value: Fraction):
 
 
 def _can_constant_fold_literal(output_type, value: float | int | bool) -> bool:
-    if output_type is RealLit:
-        return _real_lit_fits_c_long(value)
-    return True
+    return output_type is not RealLit or _real_lit_fits_c_long(value)
 
 
 # Substitute exact learned literal facts, then rebuild and constant-fold.
@@ -822,6 +820,7 @@ def _shortcut_fold(
     return None
 
 
+# Helper to recognize shortcuts like (if cond then 1 else 0) == 1 -> cond == True
 def _fold_indicator_equality(
     expr: SpecNode,
     target: SpecNode,
