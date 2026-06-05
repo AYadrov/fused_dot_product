@@ -87,17 +87,12 @@ class SpecContext:
         return to_check
 
     def RunWithRival(self):
-        from ..rival import build_machine, collect_free_vars
-
-        simplified = self.simplify()
-        exprs = [
-            expr
-            for expr in simplified.assumes + simplified.checks
-            if not identical_nodes(expr, BoolLit(True))
-        ] or [BoolLit(True)]
+        from ..rival import build_machine, collect_free_vars, get_rival_rects
+        exprs = self.assumes + self.checks
         free_vars = collect_free_vars(exprs)
-        print(free_vars)
-        return build_machine(exprs, free_vars)
+        machine = build_machine(exprs, free_vars)
+        rects = get_rival_rects(self.assumes, free_vars)
+        return machine, rects
 
     # Try to learn literal facts from assumes only. Conflicting facts are errors.
     def learned_literals(self) -> dict[SpecNode, RealLit | BoolLit]:

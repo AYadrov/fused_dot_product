@@ -14,7 +14,7 @@ from fused_dot_product.egglog.rules import load_rules
 from fused_dot_product.smt import dreal_check_eq, z3_check_eq
 from fused_dot_product.solver import engine as solver_engine
 from fused_dot_product.solver.report import build_proof_report
-from fused_dot_product.rival import collect_free_vars, to_rival_ir
+from fused_dot_product.rival import collect_free_vars, get_rival_rects, to_rival_ir
 from fused_dot_product.spec.spec_context import simplify_ctx
 from fused_dot_product.spec.spec_utils import from_egglog
 import examples.FP32_IEEE_adder as fp32_adder_module
@@ -853,6 +853,114 @@ class TestRivalTranslation(unittest.TestCase):
 
         self.assertEqual(collect_free_vars(exprs), ["a", "flag", "z"])
 
+    def test_rival_rects_default_to_unbounded(self):
+        ctx = SpecContext("rival-rects-default")
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["x", "y"]),
+            [[(-math.inf, math.inf), (-math.inf, math.inf)]],
+        )
+
+    def test_rival_rects_extract_closed_bounds(self):
+        ctx = SpecContext("rival-rects-closed")
+        x = ctx.real("x")
+
+        ctx.assume((x >= ctx.real_val(1)).and_(x <= ctx.real_val(254)))
+
+        self.assertEqual(get_rival_rects(ctx.assumes, ["x"]), [[(1.0, 254.0)]])
+
+    def test_rival_rects_extract_bounds_with_literal_on_lhs(self):
+        ctx = SpecContext("rival-rects-reversed")
+        x = ctx.real("x")
+
+        ctx.assume((ctx.real_val(1) <= x).and_(ctx.real_val(254) >= x))
+
+        self.assertEqual(get_rival_rects(ctx.assumes, ["x"]), [[(1.0, 254.0)]])
+
+    def test_rival_rects_treat_strict_bounds_as_closed(self):
+        ctx = SpecContext("rival-rects-strict")
+        x = ctx.real("x")
+
+        ctx.assume((x > ctx.real_val(1)).and_(x < ctx.real_val(254)))
+
+        self.assertEqual(get_rival_rects(ctx.assumes, ["x"]), [[(1.0, 254.0)]])
+
+    def test_rival_rects_extract_point_disjunction(self):
+        ctx = SpecContext("rival-rects-point-or")
+        sign = ctx.real("sign")
+
+        ctx.assume(sign.eq(ctx.real_val(0)).or_(ctx.real_val(1).eq(sign)))
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["sign"]),
+            [[(0.0, 0.0)], [(1.0, 1.0)]],
+        )
+
+    def test_rival_rects_cartesian_product_for_independent_disjunctions(self):
+        ctx = SpecContext("rival-rects-cartesian-or")
+        sign = ctx.real("sign")
+        exponent = ctx.real("exponent")
+
+        ctx.assume(sign.eq(ctx.real_val(0)).or_(sign.eq(ctx.real_val(1))))
+        ctx.assume(exponent.eq(ctx.real_val(0)).or_(exponent.eq(ctx.real_val(255))))
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["sign", "exponent"]),
+            [
+                [(0.0, 0.0), (0.0, 0.0)],
+                [(0.0, 0.0), (255.0, 255.0)],
+                [(1.0, 1.0), (0.0, 0.0)],
+                [(1.0, 1.0), (255.0, 255.0)],
+            ],
+        )
+
+    def test_rival_rects_preserve_free_var_order(self):
+        ctx = SpecContext("rival-rects-order")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(x >= ctx.real_val(1))
+        ctx.assume(y <= ctx.real_val(2))
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["y", "x", "z"]),
+            [[(-math.inf, 2.0), (1.0, math.inf), (-math.inf, math.inf)]],
+        )
+
+    def test_rival_rects_drop_conflicting_bounds(self):
+        ctx = SpecContext("rival-rects-conflict")
+        x = ctx.real("x")
+
+        ctx.assume(x >= ctx.real_val(2))
+        ctx.assume(x <= ctx.real_val(1))
+
+        self.assertEqual(get_rival_rects(ctx.assumes, ["x"]), [])
+
+    def test_rival_rects_ignore_unsupported_assumptions(self):
+        ctx = SpecContext("rival-rects-unsupported")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume((x + y).eq(ctx.real_val(1)))
+        ctx.assume(x >= ctx.real_val(0))
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["x", "y"]),
+            [[(0.0, math.inf), (-math.inf, math.inf)]],
+        )
+
+    def test_rival_rects_ignore_or_when_any_branch_is_unsupported(self):
+        ctx = SpecContext("rival-rects-unsupported-or")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume((x >= ctx.real_val(0)).or_((x + y).eq(ctx.real_val(1))))
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["x", "y"]),
+            [[(-math.inf, math.inf), (-math.inf, math.inf)]],
+        )
+
     def test_context_run_with_rival_builds_machine_from_assumes_and_checks(self):
         ctx = SpecContext("rival-context")
         x = ctx.real("x")
@@ -866,11 +974,14 @@ class TestRivalTranslation(unittest.TestCase):
             open(os.devnull, "w") as devnull,
             contextlib.redirect_stdout(devnull),
         ):
-            self.assertEqual(ctx.RunWithRival(), "machine")
+            self.assertEqual(
+                ctx.RunWithRival(),
+                ("machine", [[(0.0, math.inf), (-math.inf, math.inf)]]),
+            )
 
         build.assert_called_once_with(ctx.assumes + ctx.checks, ["x", "y"])
 
-    def test_context_run_with_rival_replaces_learned_literals(self):
+    def test_context_run_with_rival_uses_current_context_without_learning(self):
         ctx = SpecContext("rival-learned-constants")
         x = ctx.real("x")
         y = ctx.real("y")
@@ -885,14 +996,20 @@ class TestRivalTranslation(unittest.TestCase):
             open(os.devnull, "w") as devnull,
             contextlib.redirect_stdout(devnull),
         ):
-            self.assertEqual(ctx.RunWithRival(), "machine")
+            self.assertEqual(
+                ctx.RunWithRival(),
+                (
+                    "machine",
+                    [[(0.0, 0.0), (-math.inf, math.inf), (-math.inf, math.inf)]],
+                ),
+            )
 
         exprs, free_vars = build.call_args.args
-        self.assertEqual(exprs, [BoolLit(True)])
-        self.assertEqual(free_vars, [])
-        self.assertEqual(collect_free_vars(exprs), [])
+        self.assertEqual(exprs, ctx.assumes + ctx.checks)
+        self.assertEqual(free_vars, ["x", "y", "z"])
+        self.assertEqual(collect_free_vars(exprs), ["x", "y", "z"])
 
-    def test_context_run_with_rival_keeps_trivial_true_expr_when_everything_folds(self):
+    def test_context_run_with_rival_passes_unfolded_exprs(self):
         ctx = SpecContext("rival-all-folded")
         x = ctx.real("x")
 
@@ -904,9 +1021,9 @@ class TestRivalTranslation(unittest.TestCase):
             open(os.devnull, "w") as devnull,
             contextlib.redirect_stdout(devnull),
         ):
-            self.assertEqual(ctx.RunWithRival(), "machine")
+            self.assertEqual(ctx.RunWithRival(), ("machine", [[(1.0, 1.0)]]))
 
-        build.assert_called_once_with([BoolLit(True)], [])
+        build.assert_called_once_with(ctx.assumes + ctx.checks, ["x"])
 
     def test_context_run_with_rival_preserves_compound_learned_assumptions(self):
         ctx = SpecContext("rival-compound-assume")
@@ -921,11 +1038,36 @@ class TestRivalTranslation(unittest.TestCase):
             open(os.devnull, "w") as devnull,
             contextlib.redirect_stdout(devnull),
         ):
-            self.assertEqual(ctx.RunWithRival(), "machine")
+            self.assertEqual(
+                ctx.RunWithRival(),
+                ("machine", [[(-math.inf, math.inf), (-math.inf, math.inf)]]),
+            )
 
         exprs, free_vars = build.call_args.args
         self.assertEqual(free_vars, ["x", "y"])
         self.assertIn(Eq(x + y, RealLit(1)), exprs)
+
+    def test_context_run_with_rival_rects_use_build_machine_free_var_order(self):
+        ctx = SpecContext("rival-order")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(y <= ctx.real_val(2))
+        ctx.assume(x >= ctx.real_val(1))
+        ctx.check((x + y).eq(ctx.real_val(0)))
+
+        with (
+            patch("fused_dot_product.rival.build_machine", return_value="machine") as build,
+            open(os.devnull, "w") as devnull,
+            contextlib.redirect_stdout(devnull),
+        ):
+            machine, rects = ctx.RunWithRival()
+
+        self.assertEqual(machine, "machine")
+        exprs, free_vars = build.call_args.args
+        self.assertEqual(exprs, ctx.assumes + ctx.checks)
+        self.assertEqual(free_vars, ["x", "y"])
+        self.assertEqual(rects, [[(1.0, math.inf), (-math.inf, 2.0)]])
 
 
 class TestSolverApis(unittest.TestCase):

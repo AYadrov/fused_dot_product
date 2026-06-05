@@ -41,6 +41,7 @@ __all__ = [
     "RivalMachine",
     "build_machine",
     "collect_free_vars",
+    "get_rival_rects",
     "to_rival_ir",
 ]
 
@@ -104,6 +105,144 @@ def collect_free_vars(exprs: Iterable[SpecNode]) -> list[str]:
             raise TypeError(f"Expected SpecNode, got {type(expr).__name__}")
         visit(expr)
     return sorted(found)
+
+
+def get_rival_rects(
+    assumes: Sequence[BoolExpr],
+    free_vars: Sequence[str],
+) -> list[list[tuple[float, float]]]:
+    var_indexes = {name: index for index, name in enumerate(free_vars)}
+    rects = [_rival_unbounded_rect(len(free_vars))]
+    for assume in assumes:
+        alternatives = _rival_rect_alternatives(
+            assume,
+            var_indexes,
+            len(free_vars),
+        )
+        if alternatives is None:
+            continue
+        rects = _intersect_rival_rect_sets(rects, alternatives)
+        if not rects:
+            break
+    return rects
+
+
+def _rival_unbounded_rect(dimensions: int) -> list[tuple[float, float]]:
+    return [(-math.inf, math.inf) for _ in range(dimensions)]
+
+
+def _rival_rect_alternatives(
+    expr: BoolExpr,
+    var_indexes: dict[str, int],
+    dimensions: int,
+) -> list[list[tuple[float, float]]] | None:
+    if isinstance(expr, And):
+        lhs = _rival_rect_alternatives(expr.lhs, var_indexes, dimensions)
+        rhs = _rival_rect_alternatives(expr.rhs, var_indexes, dimensions)
+        if lhs == [] or rhs == []:
+            return []
+        if lhs is None:
+            return rhs
+        if rhs is None:
+            return lhs
+        return _intersect_rival_rect_sets(lhs, rhs)
+
+    if isinstance(expr, Or):
+        lhs = _rival_rect_alternatives(expr.lhs, var_indexes, dimensions)
+        rhs = _rival_rect_alternatives(expr.rhs, var_indexes, dimensions)
+        if lhs is None or rhs is None:
+            return None
+        return lhs + rhs
+
+    return _rival_comparison_rect(expr, var_indexes, dimensions)
+
+
+def _rival_comparison_rect(
+    expr: BoolExpr,
+    var_indexes: dict[str, int],
+    dimensions: int,
+) -> list[list[tuple[float, float]]] | None:
+    if not isinstance(expr, (Eq, Lt, Le, Gt, Ge)):
+        return None
+
+    var: RealVar
+    literal: RealLit
+    var_on_lhs: bool
+    if isinstance(expr.lhs, RealVar) and isinstance(expr.rhs, RealLit):
+        var = expr.lhs
+        literal = expr.rhs
+        var_on_lhs = True
+    elif isinstance(expr.lhs, RealLit) and isinstance(expr.rhs, RealVar):
+        var = expr.rhs
+        literal = expr.lhs
+        var_on_lhs = False
+    else:
+        return None
+
+    value = _rival_literal_value(literal)
+    if value is None:
+        return None
+
+    var_index = var_indexes.get(var.name)
+    if var_index is None:
+        return [_rival_unbounded_rect(dimensions)]
+
+    lower = -math.inf
+    upper = math.inf
+    if isinstance(expr, Eq):
+        lower = value
+        upper = value
+    elif isinstance(expr, (Gt, Ge)):
+        if var_on_lhs:
+            lower = value
+        else:
+            upper = value
+    elif isinstance(expr, (Lt, Le)):
+        if var_on_lhs:
+            upper = value
+        else:
+            lower = value
+
+    rect = _rival_unbounded_rect(dimensions)
+    rect[var_index] = (lower, upper)
+    return [] if lower > upper else [rect]
+
+
+def _rival_literal_value(literal: RealLit) -> float | None:
+    try:
+        value = float(literal.value)
+    except (OverflowError, TypeError, ValueError):
+        return None
+    if not math.isfinite(value):
+        return None
+    return value
+
+
+def _intersect_rival_rect_sets(
+    lhs_rects: list[list[tuple[float, float]]],
+    rhs_rects: list[list[tuple[float, float]]],
+) -> list[list[tuple[float, float]]]:
+    intersections: list[list[tuple[float, float]]] = []
+    for lhs in lhs_rects:
+        for rhs in rhs_rects:
+            intersection = _intersect_rival_rects(lhs, rhs)
+            if intersection is not None:
+                intersections.append(intersection)
+    return intersections
+
+
+def _intersect_rival_rects(
+    lhs: list[tuple[float, float]],
+    rhs: list[tuple[float, float]],
+) -> list[tuple[float, float]] | None:
+    rect: list[tuple[float, float]] = []
+    for (lhs_lower, lhs_upper), (rhs_lower, rhs_upper) in zip(lhs, rhs):
+        lower = max(lhs_lower, rhs_lower)
+        upper = min(lhs_upper, rhs_upper)
+        if lower > upper:
+            return None
+        rect.append((lower, upper))
+    return rect
 
 
 def to_rival_ir(node: SpecNode) -> RivalIR:
