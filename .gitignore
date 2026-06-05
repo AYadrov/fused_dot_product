@@ -9,3 +9,5 @@ report.json
 .venv/*
 ac_types/
 *.hpp
+target/
+crates/*/target/

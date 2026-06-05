@@ -17,6 +17,17 @@ make install
 ```
 python main.py --seed 0
 ```
+
+## Optional Rival3 bridge
+The `fused_dot_product.rival` module can translate `SpecNode` expressions into
+Rival3 and build a native Rival machine. The pure-Python translator works
+without extra setup. To enable `build_machine(...)` and
+`RivalMachine.apply_with_hints(...)`, build the PyO3 extension:
+```
+pip install maturin
+maturin develop -m crates/rival_bridge/Cargo.toml
+```
+
 ## Testing
 ```
 make unit-tests

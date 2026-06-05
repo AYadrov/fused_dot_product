@@ -112,8 +112,7 @@ class composite(Node):
                 schedule=schedule,
             )
             full_trace.append(proof_trace)
-            print(initial_ctx.name, _status)
-            
+
         return full_trace
 
     def _validate_components(self, composite_name: str) -> None:

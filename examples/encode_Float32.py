@@ -276,9 +276,8 @@ def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node) -
     assert e.node_type.frac_bits == 0
     
     def spec(s, e, m, encode_nan, encode_inf, ctx):
-        zero = ctx.real_val(0)
         one = ctx.real_val(1)
-        sign = If(s.eq(one), ctx.real_val(-1), one)
+        sign = ctx.real_val(-1) ** s
         finite_value = sign * m * (ctx.real_val(2) ** (e - ctx.real_val(Float32.exponent_bias)))
         
         forced_nan = encode_nan.eq(one)

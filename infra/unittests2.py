@@ -14,6 +14,7 @@ from fused_dot_product.egglog.rules import load_rules
 from fused_dot_product.smt import dreal_check_eq, z3_check_eq
 from fused_dot_product.solver import engine as solver_engine
 from fused_dot_product.solver.report import build_proof_report
+from fused_dot_product.rival import collect_free_vars, to_rival_ir
 from fused_dot_product.spec.spec_context import simplify_ctx
 from fused_dot_product.spec.spec_utils import from_egglog
 import examples.FP32_IEEE_adder as fp32_adder_module
@@ -803,6 +804,67 @@ class TestSpecAstConstantFolding(unittest.TestCase):
         expr = Pow(RealLit(-2), RealLit(0.5))
 
         self.assertEqual(expr.constant_fold(), expr)
+
+
+class TestRivalTranslation(unittest.TestCase):
+    def test_real_expression_translates_to_rival_ir(self):
+        x = RealVar("x")
+        y = RealVar("y")
+        expr = If(x < y, abs(x - RealLit(1)), RealLit(2) ** y)
+
+        self.assertEqual(
+            to_rival_ir(expr),
+            {
+                "op": "if",
+                "cond": {
+                    "op": "lt",
+                    "lhs": {"op": "var", "name": "x"},
+                    "rhs": {"op": "var", "name": "y"},
+                },
+                "on_true": {
+                    "op": "abs",
+                    "arg": {
+                        "op": "sub",
+                        "lhs": {"op": "var", "name": "x"},
+                        "rhs": {"op": "real_lit", "num": "1", "den": "1"},
+                    },
+                },
+                "on_false": {
+                    "op": "pow",
+                    "lhs": {"op": "real_lit", "num": "2", "den": "1"},
+                    "rhs": {"op": "var", "name": "y"},
+                },
+            },
+        )
+
+    def test_bool_expression_translates_to_rival_ir(self):
+        p = BoolVar("p")
+        q = BoolVar("q")
+
+        self.assertEqual(
+            to_rival_ir(p.and_(~q).eq(BoolLit(True))),
+            {
+                "op": "bool_eq",
+                "lhs": {
+                    "op": "and",
+                    "lhs": {"op": "var", "name": "p"},
+                    "rhs": {"op": "not", "arg": {"op": "var", "name": "q"}},
+                },
+                "rhs": {"op": "bool_lit", "value": True},
+            },
+        )
+
+    def test_float_literal_translates_exact_fraction(self):
+        self.assertEqual(
+            to_rival_ir(RealLit(0.5)),
+            {"op": "real_lit", "num": "1", "den": "2"},
+        )
+
+    def test_collect_free_vars_is_sorted(self):
+        exprs = [RealVar("z") + RealVar("a"), BoolVar("flag")]
+
+        self.assertEqual(collect_free_vars(exprs), ["a", "flag", "z"])
+
 
 class TestSolverApis(unittest.TestCase):
     def test_fp32_adder_check_spec_splits_all_input_class_pairs(self):

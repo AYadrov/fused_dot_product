@@ -283,7 +283,7 @@ class SpecContext:
         return new_ctx
 
 
-class PoorSpec(Exception):
+class PoorSpec(ValueError):
     pass
 
 def simplify_ctx(ctx: SpecContext):
