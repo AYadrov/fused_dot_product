@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 from fractions import Fraction
+from itertools import product
 import math
+from time import perf_counter
+import sys
 from typing import Any, Iterable, Sequence
 
 from .spec.spec_ast import (
@@ -42,6 +46,7 @@ __all__ = [
     "build_machine",
     "collect_free_vars",
     "get_rival_rects",
+    "rival_check_solution_exists",
     "to_rival_ir",
 ]
 
@@ -86,7 +91,9 @@ def build_machine(
     var_list = _validate_free_vars(free_vars)
     _validate_referenced_vars(expr_list, var_list)
     native = _load_native_module()
-    translated_exprs = [_append_assert(to_rival_ir(expr)) for expr in expr_list]
+    translated_exprs = [
+        _append_assert(_and_exprs(to_rival_ir(expr) for expr in expr_list))
+    ]
     raw_machine = native.build_machine(translated_exprs, var_list)
     return RivalMachine(raw_machine)
 
@@ -125,6 +132,107 @@ def get_rival_rects(
         if not rects:
             break
     return rects
+
+
+def rival_check_solution_exists(
+    ctx: "SpecContext",
+    max_depth: int = 20,
+):
+    from .solver.report import build_proof_report
+
+    max_depth = int(max_depth)
+    run_started_at = perf_counter()
+    exprs = ctx.assumes + ctx.checks
+    free_vars = collect_free_vars(exprs)
+    machine = build_machine(exprs, free_vars)
+
+    work_queue = deque(
+        (rect, None, 0)
+        for rect in get_rival_rects(ctx.assumes, free_vars)
+    )
+    unresolved = False
+
+    while work_queue:
+        rect, hints, depth = work_queue.popleft()
+        analysis = machine.apply_with_hints(rect, hints)
+        status = analysis.status
+
+        if status == (True, True):
+            continue
+
+        if status == (False, False):
+            return build_proof_report(
+                ctx,
+                ctx.copy(),
+                tool="rival_check_solution_exists",
+                runtime_s=perf_counter() - run_started_at,
+                status="sat",
+                max_depth=max_depth,
+                supplementary_info=rect,
+            )
+
+        if status == (False, True) and depth < max_depth:
+            children = _subdivide_rival_rect(rect)
+            if children:
+                for child in children:
+                    work_queue.append((child, analysis.hints, depth + 1))
+            else:
+                unresolved = True
+            continue
+
+        unresolved = True
+
+    return build_proof_report(
+        ctx,
+        ctx.copy(),
+        tool="rival_check_solution_exists",
+        runtime_s=perf_counter() - run_started_at,
+        status="unknown" if unresolved else "unsat",
+        max_depth=max_depth,
+    )
+
+
+def _subdivide_rival_rect(
+    rect: Sequence[tuple[float, float]],
+) -> list[list[tuple[float, float]]]:
+    dimension_options: list[list[tuple[float, float]]] = []
+    split_any_dimension = False
+    for interval in rect:
+        split = _split_rival_interval(interval)
+        if split is None:
+            dimension_options.append([interval])
+        else:
+            split_any_dimension = True
+            dimension_options.append(split)
+
+    if not split_any_dimension:
+        return []
+
+    return [list(child) for child in product(*dimension_options)]
+
+
+def _split_rival_interval(
+    interval: tuple[float, float],
+) -> list[tuple[float, float]] | None:
+    lower, upper = interval
+    if lower > upper:
+        return None
+
+    effective_lower = -sys.float_info.max if lower == -math.inf else lower
+    effective_upper = sys.float_info.max if upper == math.inf else upper
+    midpoint = (effective_lower / 2.0) + (effective_upper / 2.0)
+    right_lower = math.nextafter(midpoint, math.inf)
+
+    left = (lower, midpoint)
+    right = (right_lower, upper)
+    if (
+        lower <= midpoint
+        and right_lower <= upper
+        and left != interval
+        and right != interval
+    ):
+        return [left, right]
+    return None
 
 
 def _rival_unbounded_rect(dimensions: int) -> list[tuple[float, float]]:
@@ -192,12 +300,22 @@ def _rival_comparison_rect(
     if isinstance(expr, Eq):
         lower = value
         upper = value
-    elif isinstance(expr, (Gt, Ge)):
+    elif isinstance(expr, Gt):
+        if var_on_lhs:
+            lower = math.nextafter(value, math.inf)
+        else:
+            upper = math.nextafter(value, -math.inf)
+    elif isinstance(expr, Ge):
         if var_on_lhs:
             lower = value
         else:
             upper = value
-    elif isinstance(expr, (Lt, Le)):
+    elif isinstance(expr, Lt):
+        if var_on_lhs:
+            upper = math.nextafter(value, -math.inf)
+        else:
+            lower = math.nextafter(value, math.inf)
+    elif isinstance(expr, Le):
         if var_on_lhs:
             upper = value
         else:
@@ -312,6 +430,14 @@ def _binary(op: str, lhs: SpecNode, rhs: SpecNode) -> RivalIR:
 
 def _unary(op: str, arg: SpecNode) -> RivalIR:
     return {"op": op, "arg": to_rival_ir(arg)}
+
+
+def _and_exprs(exprs: Iterable[RivalIR]) -> RivalIR:
+    expr_iter = iter(exprs)
+    result = next(expr_iter)
+    for expr in expr_iter:
+        result = {"op": "and", "lhs": result, "rhs": expr}
+    return result
 
 
 def _append_assert(expr: RivalIR) -> RivalIR:
