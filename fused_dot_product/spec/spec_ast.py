@@ -755,12 +755,26 @@ def _shortcut_fold(
 ) -> SpecNode | None:
     if isinstance(node, Eq):
         lhs, rhs = folded_args
+        if identical_nodes(lhs, rhs):
+            return BoolLit(True)
         folded = _fold_indicator_equality(lhs, rhs)
         if folded is not None:
             return folded
         folded = _fold_indicator_equality(rhs, lhs)
         if folded is not None:
             return folded
+        return None
+
+    if isinstance(node, BoolEq):
+        lhs, rhs = folded_args
+        if identical_nodes(lhs, rhs):
+            return BoolLit(True)
+        return None
+
+    if isinstance(node, NotEq):
+        lhs, rhs = folded_args
+        if identical_nodes(lhs, rhs):
+            return BoolLit(False)
         return None
 
     if isinstance(node, If):

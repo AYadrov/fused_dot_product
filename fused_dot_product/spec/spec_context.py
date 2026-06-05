@@ -86,6 +86,19 @@ class SpecContext:
                 )
         return to_check
 
+    def RunWithRival(self):
+        from ..rival import build_machine, collect_free_vars
+
+        simplified = self.simplify()
+        exprs = [
+            expr
+            for expr in simplified.assumes + simplified.checks
+            if not identical_nodes(expr, BoolLit(True))
+        ] or [BoolLit(True)]
+        free_vars = collect_free_vars(exprs)
+        print(free_vars)
+        return build_machine(exprs, free_vars)
+
     # Try to learn literal facts from assumes only. Conflicting facts are errors.
     def learned_literals(self) -> dict[SpecNode, RealLit | BoolLit]:
         candidates: dict[SpecNode, RealLit | BoolLit] = {}
@@ -157,40 +170,19 @@ class SpecContext:
                 return rhs_folded, lhs_folded
         return None
     
-    def _normalize_assume(
-        self,
-        assume: BoolExpr,
-        replacements: dict[SpecNode, RealLit | BoolLit],
-    ) -> BoolExpr:
-        learned = self._canonical_learned_assumption(assume)
-        if learned is None:
-            return assume
-        expr, lit = learned
-        if not isinstance(expr, (RealVar, BoolVar)):
-            local_replacements = dict(replacements)
-            local_replacements.pop(expr, None)
-            expr = substitute_literals(expr, local_replacements)
-        if isinstance(expr, RealExpr):
-            return Eq(expr, lit).constant_fold()
-        return BoolEq(expr, lit).constant_fold()
-
-    def _simplify_assume(
-        self,
-        assume: BoolExpr,
-        replacements: dict[SpecNode, RealLit | BoolLit],
-    ) -> BoolExpr:
-        if self._canonical_learned_assumption(assume) is not None:
-            return self._normalize_assume(assume, replacements)
-        return substitute_literals(assume, replacements)
-    
     # LEARNS FROM ASSUMES - APPLIES EVERYWHERE
     def simplify(self) -> "SpecContext":
         simplified = self.copy()
         max_iterations = len(simplified.assumes) + len(simplified.checks) + 1
         for _ in range(max_iterations):
             replacements = simplified.learned_literals()
+            assumption_replacements = {
+                expr: lit
+                for expr, lit in replacements.items()
+                if isinstance(expr, (RealVar, BoolVar))
+            }
             new_assumes = [
-                simplified._simplify_assume(assume, replacements)
+                substitute_literals(assume, assumption_replacements)
                 for assume in simplified.assumes
             ]
             new_checks = [

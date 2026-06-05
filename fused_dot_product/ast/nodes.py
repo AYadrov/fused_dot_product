@@ -111,6 +111,7 @@ class composite(Node):
                 ctx=initial_ctx,
                 schedule=schedule,
             )
+            print(initial_ctx.name, _status, [t['tool'] for t in proof_trace])
             full_trace.append(proof_trace)
 
         return full_trace

@@ -157,7 +157,6 @@ def check_equivalence(
     schedule: list[str | dict[str, Any]],
 ):
     _enqueue_equivalence(query1, query2, ctx=ctx)
-
     current_tracks: list[list[ProofReport]] = [[]]
     current_ctxs = [ctx.copy()]
     

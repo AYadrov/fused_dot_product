@@ -84,12 +84,12 @@ def fresh_float(name: str, ctx) -> Float32Spec:
         for rhs in flags[i + 1:]:
             ctx.assume((~lhs).or_(~rhs))
 
-    ctx.assume(_implies(is_norm, exponent > zero))
+    ctx.assume(_implies(is_norm, exponent >= one))
     ctx.assume(_implies(is_norm, exponent <= (max_exponent - one)))
     ctx.assume(_implies(is_sub.or_(is_zero), exponent.eq(zero)))
     ctx.assume(_implies(is_zero.or_(is_inf), mantissa.eq(zero)))
     ctx.assume(_implies(is_inf.or_(is_nan), exponent.eq(max_exponent)))
-    ctx.assume(_implies(is_sub.or_(is_nan), mantissa > zero))
+    ctx.assume(_implies(is_sub.or_(is_nan), mantissa >= one))
 
     sign_value = negative_one ** sign
     norm_value = sign_value * (one + mantissa * (two ** (-m_bits))) * (two ** (exponent - bias))
