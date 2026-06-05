@@ -85,7 +85,8 @@ def build_machine(
     var_list = _validate_free_vars(free_vars)
     _validate_referenced_vars(expr_list, var_list)
     native = _load_native_module()
-    raw_machine = native.build_machine([to_rival_ir(expr) for expr in expr_list], var_list)
+    translated_exprs = [_append_assert(to_rival_ir(expr)) for expr in expr_list]
+    raw_machine = native.build_machine(translated_exprs, var_list)
     return RivalMachine(raw_machine)
 
 
@@ -172,6 +173,10 @@ def _binary(op: str, lhs: SpecNode, rhs: SpecNode) -> RivalIR:
 
 def _unary(op: str, arg: SpecNode) -> RivalIR:
     return {"op": op, "arg": to_rival_ir(arg)}
+
+
+def _append_assert(expr: RivalIR) -> RivalIR:
+    return {"op": "assert", "arg": expr}
 
 
 def _real_literal_ratio(value: int | float) -> Fraction:

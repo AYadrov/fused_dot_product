@@ -135,6 +135,7 @@ fn parse_expr(obj: &PyAny) -> PyResult<Expr> {
         "not" => parse_unary(dict, Expr::Not),
         "or" => parse_binary(dict, Expr::Or),
         "and" => parse_binary(dict, Expr::And),
+        "assert" => parse_unary(dict, Expr::Assert),
         _ => Err(PyValueError::new_err(format!(
             "unsupported Rival IR op {op:?}"
         ))),
