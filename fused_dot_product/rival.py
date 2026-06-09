@@ -41,13 +41,7 @@ from .spec.spec_ast import (
 RivalIR = dict[str, Any]
 
 __all__ = [
-    "RivalAnalysis",
-    "RivalMachine",
-    "build_machine",
-    "collect_free_vars",
-    "get_rival_rects",
-    "rival_check_solution_exists",
-    "to_rival_ir",
+    "rival_feasibility_check",
 ]
 
 
@@ -134,9 +128,9 @@ def get_rival_rects(
     return rects
 
 
-def rival_check_solution_exists(
+def rival_feasibility_check(
     ctx: "SpecContext",
-    max_depth: int = 20,
+    max_depth: int = 1,
 ):
     from .solver.report import build_proof_report
 
@@ -150,7 +144,8 @@ def rival_check_solution_exists(
         (rect, None, 0)
         for rect in get_rival_rects(ctx.assumes, free_vars)
     )
-    unresolved = False
+
+    sat_flag = True
 
     while work_queue:
         rect, hints, depth = work_queue.popleft()
@@ -158,6 +153,7 @@ def rival_check_solution_exists(
         status = analysis.status
 
         if status == (True, True):
+            sat_flag = sat_flag and True
             continue
 
         if status == (False, False):
@@ -166,7 +162,7 @@ def rival_check_solution_exists(
                 ctx.copy(),
                 tool="rival_check_solution_exists",
                 runtime_s=perf_counter() - run_started_at,
-                status="sat",
+                status="unsat",
                 max_depth=max_depth,
                 supplementary_info=rect,
             )
@@ -176,21 +172,16 @@ def rival_check_solution_exists(
             if children:
                 for child in children:
                     work_queue.append((child, analysis.hints, depth + 1))
-            else:
-                unresolved = True
-            continue
-
-        unresolved = True
+        sat_flag = False
 
     return build_proof_report(
         ctx,
         ctx.copy(),
         tool="rival_check_solution_exists",
         runtime_s=perf_counter() - run_started_at,
-        status="unknown" if unresolved else "unsat",
+        status="sat" if sat_flag else "unknown",
         max_depth=max_depth,
     )
-
 
 def _subdivide_rival_rect(
     rect: Sequence[tuple[float, float]],

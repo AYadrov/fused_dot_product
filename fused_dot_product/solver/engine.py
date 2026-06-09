@@ -6,12 +6,10 @@ from ..spec import SpecContext, SpecNode
 from ..spec.spec_context import simplify_ctx
 from .report import ProofReport, validate_proof_status
 from ..egglog import egglog_rewrite, egglog_preprocess
-from ..rival import rival_check_solution_exists
 from ..smt import z3_check_eq, dreal_check_eq
 
 
 DEFAULT_REWRITE_ITERS = 6
-DEFAULT_PREPROCESS_ITERS = 3
 DEFAULT_Z3_TIMEOUT = 10000
 DEFAULT_DREAL_PRECISION = 0.001
 DEFAULT_EGGLOG_MATCH_LIMIT = 100000
@@ -20,9 +18,7 @@ DEFAULT_EGGLOG_BAN_LENGTH = 1
 
 TOOL_FNS = {
     "simplify": simplify_ctx,
-    "egglog-preprocess": egglog_preprocess,
     "egglog-rewrite": egglog_rewrite,
-    "rival_check_solution_exists": rival_check_solution_exists,
     "z3": z3_check_eq,
     "dreal": dreal_check_eq,
 }
@@ -92,15 +88,7 @@ def _normalize_schedule(
                 f"Unknown schedule tool {step['tool']}. Supported aliases: {list(TOOL_FNS.keys())}"
             )
 
-        if tool == "egglog-preprocess":
-            normalized.append(
-                {
-                    "tool": tool,
-                    "iterations": int(step.get("iterations", DEFAULT_PREPROCESS_ITERS)),
-                    "scheduler": _normalize_egglog_scheduler(step),
-                }
-            )
-        elif tool == "simplify":
+        if tool == "simplify":
             normalized.append({"tool": tool})
         elif tool == "egglog-rewrite":
             normalized.append(
@@ -117,10 +105,6 @@ def _normalize_schedule(
         elif tool == "dreal":
             normalized.append(
                 {"tool": tool, "precision": float(step.get("precision", DEFAULT_DREAL_PRECISION))}
-            )
-        elif tool == "rival_check_solution_exists":
-            normalized.append(
-                {"tool": tool, "max_depth": int(step.get("max_depth", 20))}
             )
 
     return normalized

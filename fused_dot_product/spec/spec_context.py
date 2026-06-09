@@ -4,6 +4,7 @@ from .spec_ast import *
 from ..egglog import *
 from egglog import rewrite, vars_
 from ..solver.report import build_proof_report
+from ..rival import rival_feasibility_check
 
 import copy
 import dreal
@@ -85,14 +86,6 @@ class SpecContext:
                     f"Only BoolExpr checks are supported, got {type(check).__name__}"
                 )
         return to_check
-
-    def RunWithRival(self):
-        from ..rival import build_machine, collect_free_vars, get_rival_rects
-        exprs = self.assumes + self.checks
-        free_vars = collect_free_vars(exprs)
-        machine = build_machine(exprs, free_vars)
-        rects = get_rival_rects(self.assumes, free_vars)
-        return machine, rects
 
     # Try to learn literal facts from assumes only. Conflicting facts are errors.
     def learned_literals(self) -> dict[SpecNode, RealLit | BoolLit]:
@@ -186,8 +179,8 @@ class SpecContext:
             ]
             if new_assumes == simplified.assumes and new_checks == simplified.checks:
                 break
-            simplified.assumes = new_assumes
-            simplified.checks = new_checks
+            simplified.assumes = [x for x in new_assumes if not identical_nodes(x, BoolLit(True))]
+            simplified.checks = [x for x in new_checks if not identical_nodes(x, BoolLit(True))]
         return simplified
     
     def spec_of(self, node: Node):
@@ -287,42 +280,14 @@ def simplify_ctx(ctx: SpecContext):
             status="sat",
             poor_spec=str(exc),
         )
-    
-    new_assumes = []
-    false_assumes = []
-    for simplified_assume, original_assume in zip(simplified_ctx.assumes, ctx.assumes):
-        if identical_nodes(simplified_assume, BoolLit(True)):
-            continue
-        if identical_nodes(simplified_assume, BoolLit(False)):
-            false_assumes.append(str(original_assume))
-        new_assumes.append(simplified_assume)
-    
-    new_checks = []
-    false_checks = []
-    for simplified_check, original_check in zip(simplified_ctx.checks, ctx.checks):
-        if identical_nodes(simplified_check, BoolLit(True)):
-            continue
-        if identical_nodes(simplified_check, BoolLit(False)):
-            false_checks.append(str(original_check))
-        new_checks.append(simplified_check)
-    
-    trimmed_ctx = ctx.copy(assumes=new_assumes, checks=new_checks)
-    if false_assumes or false_checks:
-        status = "sat"
-    elif len(new_checks) == 0:
-        status = "unsat"
-    else:
-        status = "unknown"
-    extra = {}
-    if false_assumes:
-        extra["false_assumes"] = false_assumes
-    if false_checks:
-        extra["false_checks"] = false_checks
+
+    status = rival_feasibility_check(simplified_ctx, max_depth=0)["status"]
+    print(simplified_ctx.name, status, len(simplified_ctx.checks))
+    print(simplified_ctx)
     return build_proof_report(
         ctx,
-        trimmed_ctx,
+        simplified_ctx,
         tool="simplify",
         runtime_s=perf_counter() - run_started_at,
         status=status,
-        **extra,
     )
