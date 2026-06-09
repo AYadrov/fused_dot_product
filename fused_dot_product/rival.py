@@ -9,34 +9,7 @@ from time import perf_counter
 import sys
 from typing import Any, Iterable, Sequence
 
-from .spec.spec_ast import (
-    Abs,
-    Add,
-    And,
-    BoolEq,
-    BoolExpr,
-    BoolLit,
-    BoolVar,
-    Eq,
-    Ge,
-    Gt,
-    If,
-    Le,
-    Lt,
-    Max,
-    Min,
-    Mul,
-    Neg,
-    Not,
-    NotEq,
-    Or,
-    Pow,
-    RealLit,
-    RealVar,
-    SpecNode,
-    Sub,
-    children,
-)
+from .spec.spec_ast import *
 
 RivalIR = dict[str, Any]
 
@@ -172,6 +145,7 @@ def rival_feasibility_check(
             if children:
                 for child in children:
                     work_queue.append((child, analysis.hints, depth + 1))
+                continue
         sat_flag = False
 
     return build_proof_report(
@@ -182,6 +156,7 @@ def rival_feasibility_check(
         status="sat" if sat_flag else "unknown",
         max_depth=max_depth,
     )
+
 
 def _subdivide_rival_rect(
     rect: Sequence[tuple[float, float]],
