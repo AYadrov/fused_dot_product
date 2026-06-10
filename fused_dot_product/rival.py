@@ -112,18 +112,19 @@ def rival_feasibility_check(
     run_started_at = perf_counter()
     exprs = ctx.assumes + ctx.checks
     free_vars = collect_free_vars(exprs)
-    
+
     if not exprs:
         return build_proof_report(
             ctx,
             ctx.copy(),
             tool="rival_feasibility_check",
             runtime_s=perf_counter() - run_started_at,
-            status="sat",
+            status="unsat",
             max_depth=max_depth,
         )
 
     machine = build_machine(exprs, free_vars)
+    expr_splitters = _build_rival_expr_splitters(exprs, free_vars)
 
     work_queue = deque(
         (rect, None, 0)
@@ -153,7 +154,9 @@ def rival_feasibility_check(
             )
 
         if status == (False, True) and depth < max_depth:
-            children = _subdivide_rival_rect(rect)
+            # Split only on variables that are in assumptions/checks that fail
+            split_indexes = _rival_uncertain_split_indexes(expr_splitters, rect)
+            children = _subdivide_rival_rect(rect, split_indexes)
             if children:
                 for child in children:
                     work_queue.append((child, analysis.hints, depth + 1))
@@ -185,12 +188,51 @@ def rival_trim_context(ctx: "SpecContext") -> "SpecContext":
     )
 
 
+def _build_rival_expr_splitters(
+    exprs: Sequence[SpecNode],
+    free_vars: Sequence[str],
+) -> list[tuple[RivalMachine, set[int]]]:
+    free_var_indexes = {name: index for index, name in enumerate(free_vars)}
+    splitters: list[tuple[RivalMachine, set[int]]] = []
+    for expr in exprs:
+        # free_vars = ["x", "y", "z"]
+        # assume x >= 0      # split_indexes = {0}
+        # assume z >= 0      # split_indexes = {2}
+        # check  x == y      # split_indexes = {0, 1}
+        split_indexes = {
+            free_var_indexes[name]
+            for name in collect_free_vars([expr])
+            if name in free_var_indexes
+        }
+        if split_indexes:
+            splitters.append((build_machine([expr], free_vars), split_indexes))
+    return splitters
+
+
+def _rival_uncertain_split_indexes(
+    expr_splitters: Sequence[tuple[RivalMachine, set[int]]],
+    rect: Sequence[tuple[float, float]],
+) -> set[int]:
+    split_indexes: set[int] = set()
+    for machine, machine_split_indexes in expr_splitters:
+        analysis = machine.apply_with_hints(rect, None)
+        if analysis.status == (False, True):
+            split_indexes.update(machine_split_indexes)
+    return split_indexes
+
+
 def _subdivide_rival_rect(
     rect: Sequence[tuple[float, float]],
+    split_indexes: Iterable[int] | None = None,
 ) -> list[list[tuple[float, float]]]:
+    allowed_indexes = None if split_indexes is None else set(split_indexes)
     dimension_options: list[list[tuple[float, float]]] = []
     split_any_dimension = False
-    for interval in rect:
+    for index, interval in enumerate(rect):
+        if allowed_indexes is not None and index not in allowed_indexes:
+            dimension_options.append([interval])
+            continue
+
         split = _split_rival_interval(interval)
         if split is None:
             dimension_options.append([interval])

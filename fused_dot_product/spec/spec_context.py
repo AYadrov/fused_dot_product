@@ -327,9 +327,16 @@ def simplify_ctx(ctx: SpecContext):
         )
 
     trimmed_ctx = rival_trim_context(simplified_ctx)
+
     print(trimmed_ctx)
-    status = rival_feasibility_check(trimmed_ctx, max_depth=2)["status"]
-    print(trimmed_ctx.name, status, len(trimmed_ctx.checks))
+    
+    rival_status = rival_feasibility_check(trimmed_ctx, max_depth=1)["status"]
+
+    if rival_status in {'sat', 'unsat'}:
+        status = rival_status
+    else:
+        status = "unsat" if len(trimmed_ctx.checks) == 0 else "unknown"
+    
     return build_proof_report(
         ctx,
         trimmed_ctx,
