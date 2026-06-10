@@ -15,6 +15,7 @@ RivalIR = dict[str, Any]
 
 __all__ = [
     "rival_feasibility_check",
+    "rival_trim_context",
 ]
 
 
@@ -111,6 +112,17 @@ def rival_feasibility_check(
     run_started_at = perf_counter()
     exprs = ctx.assumes + ctx.checks
     free_vars = collect_free_vars(exprs)
+    
+    if not exprs:
+        return build_proof_report(
+            ctx,
+            ctx.copy(),
+            tool="rival_feasibility_check",
+            runtime_s=perf_counter() - run_started_at,
+            status="sat",
+            max_depth=max_depth,
+        )
+
     machine = build_machine(exprs, free_vars)
 
     work_queue = deque(
@@ -133,7 +145,7 @@ def rival_feasibility_check(
             return build_proof_report(
                 ctx,
                 ctx.copy(),
-                tool="rival_check_solution_exists",
+                tool="rival_feasibility_check",
                 runtime_s=perf_counter() - run_started_at,
                 status="unsat",
                 max_depth=max_depth,
@@ -151,10 +163,25 @@ def rival_feasibility_check(
     return build_proof_report(
         ctx,
         ctx.copy(),
-        tool="rival_check_solution_exists",
+        tool="rival_feasibility_check",
         runtime_s=perf_counter() - run_started_at,
         status="sat" if sat_flag else "unknown",
         max_depth=max_depth,
+    )
+
+
+def rival_trim_context(ctx: "SpecContext") -> "SpecContext":
+    exprs = ctx.assumes + ctx.checks
+    free_vars = collect_free_vars(exprs)
+    rect = _rival_unbounded_rect(len(free_vars))
+
+    def is_always_true(expr: BoolExpr) -> bool:
+        machine = build_machine([expr], free_vars)
+        return machine.apply_with_hints(rect, None).status == (False, False)
+
+    return ctx.copy(
+        assumes=[assume for assume in ctx.assumes if not is_always_true(assume)],
+        checks=[check for check in ctx.checks if not is_always_true(check)],
     )
 
 

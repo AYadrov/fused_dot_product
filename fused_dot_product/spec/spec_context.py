@@ -4,7 +4,7 @@ from .spec_ast import *
 from ..egglog import *
 from egglog import rewrite, vars_
 from ..solver.report import build_proof_report
-from ..rival import rival_feasibility_check
+from ..rival import rival_feasibility_check, rival_trim_context
 
 import copy
 import dreal
@@ -326,12 +326,13 @@ def simplify_ctx(ctx: SpecContext):
             poor_spec=str(exc),
         )
 
-    status = rival_feasibility_check(simplified_ctx, max_depth=0)["status"]
-    print(simplified_ctx.name, status, len(simplified_ctx.checks))
-    print(simplified_ctx)
+    trimmed_ctx = rival_trim_context(simplified_ctx)
+    print(trimmed_ctx)
+    status = rival_feasibility_check(trimmed_ctx, max_depth=2)["status"]
+    print(trimmed_ctx.name, status, len(trimmed_ctx.checks))
     return build_proof_report(
         ctx,
-        simplified_ctx,
+        trimmed_ctx,
         tool="simplify",
         runtime_s=perf_counter() - run_started_at,
         status=status,

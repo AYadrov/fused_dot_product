@@ -138,7 +138,9 @@ def _encode_from_value(
         encode_inf=encode_inf,
         encode_nan=encode_nan,
     )
-    ctx.assume(res.value.eq(value))
+    ctx.assume(_implies(res.is_norm, res.value.eq(value)))
+    ctx.assume(_implies(res.is_sub, res.value.eq(value)))
+    ctx.assume(_implies(res.is_zero, res.value.eq(value)))
     return res
 
 

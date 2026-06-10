@@ -6,6 +6,7 @@ from ..spec import SpecContext, SpecNode
 from ..spec.spec_context import simplify_ctx
 from .report import ProofReport, validate_proof_status
 from ..egglog import egglog_rewrite, egglog_preprocess
+from ..rival import rival_feasibility_check
 from ..smt import z3_check_eq, dreal_check_eq
 
 
@@ -21,6 +22,7 @@ TOOL_FNS = {
     "egglog-rewrite": egglog_rewrite,
     "z3": z3_check_eq,
     "dreal": dreal_check_eq,
+    "rival_feasibility_check": rival_feasibility_check,
 }
 
 
@@ -105,6 +107,10 @@ def _normalize_schedule(
         elif tool == "dreal":
             normalized.append(
                 {"tool": tool, "precision": float(step.get("precision", DEFAULT_DREAL_PRECISION))}
+            )
+        elif tool == "rival_feasibility_check":
+            normalized.append(
+                {"tool": tool, "max_depth": int(step.get("max_depth", 1))}
             )
 
     return normalized
