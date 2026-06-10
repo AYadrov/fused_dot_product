@@ -727,20 +727,28 @@ def _can_constant_fold_literal(output_type, value: float | int | bool) -> bool:
     return output_type is not RealLit or _real_lit_fits_c_long(value)
 
 
-# Substitute exact learned literal facts, then rebuild and constant-fold.
+# Substitute exact learned facts, then rebuild and constant-fold.
 def substitute_literals(
     node: "SpecNode",
-    replacements: dict[SpecNode, RealLit | BoolLit],
+    replacements: dict[SpecNode, SpecNode],
+    _seen: set[SpecNode] | None = None,
 ) -> "SpecNode":
+    if _seen is None:  # Avoid loops
+        _seen = set()
+
     replacement = replacements.get(node)
     if replacement is not None:
-        return replacement
+        if node in _seen:
+            return node
+        return substitute_literals(replacement, replacements, _seen | {node})
 
     args = children(node)
     if args == ():
         return node
 
-    substituted_args = tuple(substitute_literals(arg, replacements) for arg in args)
+    substituted_args = tuple(
+        substitute_literals(arg, replacements, _seen) for arg in args
+    )
     rebuilt = (
         node
         if all(old is new for old, new in zip(args, substituted_args))

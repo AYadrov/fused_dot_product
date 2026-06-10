@@ -110,21 +110,63 @@ class SpecContext:
             record(*learned)
         
         return candidates
+
+    # Try to learn non-literal aliases from assumes only. Multiple aliases for
+    # one variable are allowed; the remaining assumptions preserve constraints.
+    def learned_aliases(self) -> dict[RealVar | BoolVar, SpecNode]:
+        aliases: dict[RealVar | BoolVar, SpecNode] = {}
+
+        def safe_alias(var, expr, lit_type):
+            if isinstance(expr, lit_type) or isinstance(expr, (RealVar, BoolVar)):
+                return None
+            if var in variables(expr):
+                return None
+            return var, expr
+
+        def from_sides(lhs, rhs, var_type, lit_type):
+            if isinstance(lhs, var_type):
+                return safe_alias(lhs, rhs, lit_type)
+            if isinstance(rhs, var_type):
+                return safe_alias(rhs, lhs, lit_type)
+            return None
+
+        def learned_from(assume):
+            assume = assume.constant_fold()
+            if isinstance(assume, Eq):
+                return from_sides(
+                    assume.lhs,
+                    assume.rhs,
+                    RealVar,
+                    RealLit,
+                )
+            if isinstance(assume, BoolEq):
+                return from_sides(
+                    assume.lhs,
+                    assume.rhs,
+                    BoolVar,
+                    BoolLit,
+                )
+            return None
+
+        for assume in self.assumes:
+            learned = learned_from(assume)
+            if learned is None:
+                continue
+            var, expr = learned
+            if aliases.get(var, None) is None:
+                aliases[var] = expr
+            else:
+                # TODO
+                if expr != aliases[var]:
+                    raise PoorSpec()
+        return aliases
     
-    # LOCAL LEARNING FACTS FROM AN ASSUME
+    # learning facts like: RealExpr == RealLit
     def _canonical_learned_assumption(
         self,
         assume: BoolExpr,
     ) -> tuple[SpecNode, RealLit | BoolLit] | None:
-        folded_assume = assume.constant_fold()
-        if not identical_nodes(folded_assume, assume):
-            if not isinstance(folded_assume, BoolExpr):
-                raise TypeError(
-                    "BoolExpr.constant_fold() must return BoolExpr, "
-                    f"got {type(folded_assume).__name__}"
-                )
-            return self._canonical_learned_assumption(folded_assume)
-
+        assume = assume.constant_fold()
         if isinstance(assume, Eq):
             rhs_folded = assume.rhs.constant_fold()
             lhs_folded = assume.lhs.constant_fold()
@@ -157,30 +199,38 @@ class SpecContext:
             ):
                 return rhs_folded, lhs_folded
         return None
-    
+
     # LEARNS FROM ASSUMES - APPLIES EVERYWHERE
     def simplify(self) -> "SpecContext":
         simplified = self.copy()
         max_iterations = len(simplified.assumes) + len(simplified.checks) + 1
         for _ in range(max_iterations):
-            replacements = simplified.learned_literals()
+            literal_replacements = simplified.learned_literals()
+            alias_replacements = simplified.learned_aliases()
+            
             assumption_replacements = {
                 expr: lit
-                for expr, lit in replacements.items()
-                if isinstance(expr, (RealVar, BoolVar))
+                for expr, lit in literal_replacements.items()
+                if isinstance(expr, (RealVar, BoolVar))  # get rid only of assigned vars
             }
+            assumption_replacements = alias_replacements | assumption_replacements
+            check_replacements = alias_replacements | literal_replacements
+            
             new_assumes = [
                 substitute_literals(assume, assumption_replacements)
                 for assume in simplified.assumes
             ]
             new_checks = [
-                substitute_literals(check, replacements)
+                substitute_literals(check, check_replacements)
                 for check in simplified.checks
             ]
             if new_assumes == simplified.assumes and new_checks == simplified.checks:
                 break
-            simplified.assumes = [x for x in new_assumes if not identical_nodes(x, BoolLit(True))]
-            simplified.checks = [x for x in new_checks if not identical_nodes(x, BoolLit(True))]
+            simplified.assumes = new_assumes
+            simplified.checks = new_checks
+        
+        simplified.assumes = [x for x in simplified.assumes if not identical_nodes(x, BoolLit(True))]
+        simplified.checks = [x for x in simplified.checks if not identical_nodes(x, BoolLit(True))]
         return simplified
     
     def spec_of(self, node: Node):

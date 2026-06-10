@@ -573,6 +573,58 @@ class TestSpecContextLearning(unittest.TestCase):
             ],
         )
 
+    def test_context_fixpoint_inlines_non_literal_aliases(self):
+        ctx = SpecContext("simplify-aliases")
+        xor_res = ctx.real("xor_res")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(xor_res.eq(x + y))
+        ctx.assume((xor_res * ctx.real_val(1)).eq(x + y))
+        ctx.check((xor_res + ctx.real_val(1)).eq((x + y) + ctx.real_val(1)))
+
+        simplified = ctx.simplify()
+
+        self.assertNotIn("xor_res", str(simplified))
+        self.assertEqual(simplified.assumes, [])
+        self.assertEqual(simplified.checks, [])
+
+    def test_context_fixpoint_keeps_self_referential_constraints(self):
+        ctx = SpecContext("simplify-self-reference")
+        x = ctx.real("x")
+
+        ctx.assume(x.eq(abs(x)))
+        ctx.check(x.eq(abs(x)))
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(simplified.assumes, [Eq(x, Abs(x))])
+        self.assertEqual(simplified.checks, [Eq(x, Abs(x))])
+
+    def test_assume_rejects_alias_loops(self):
+        ctx = SpecContext("assume-alias-loop")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(x.eq(y + ctx.real_val(1)))
+
+        with self.assertRaises(ValueError):
+            ctx.assume(y.eq(x + ctx.real_val(1)))
+
+        self.assertEqual(ctx.assumes, [Eq(x, y + RealLit(1))])
+
+    def test_check_rejects_alias_loops(self):
+        ctx = SpecContext("check-alias-loop")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(x.eq(y + ctx.real_val(1)))
+
+        with self.assertRaises(ValueError):
+            ctx.check(y.eq(x + ctx.real_val(1)))
+
+        self.assertEqual(ctx.checks, [])
+
     def test_context_fixpoint_substitutes_canonical_learned_assumptions(self):
         ctx = SpecContext("canonical-assumes")
         x = ctx.real("x")
