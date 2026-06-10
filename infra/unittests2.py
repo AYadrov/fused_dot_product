@@ -589,6 +589,22 @@ class TestSpecContextLearning(unittest.TestCase):
         self.assertEqual(simplified.assumes, [])
         self.assertEqual(simplified.checks, [])
 
+    def test_context_fixpoint_preserves_duplicate_aliases_as_constraints(self):
+        ctx = SpecContext("simplify-duplicate-aliases")
+        alias = ctx.real("alias")
+        y = ctx.real("y")
+        z = ctx.real("z")
+
+        ctx.assume(alias.eq(y + ctx.real_val(1)))
+        ctx.assume(alias.eq(z + ctx.real_val(1)))
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(
+            simplified.assumes,
+            [Eq(y + RealLit(1), z + RealLit(1))],
+        )
+
     def test_context_fixpoint_keeps_self_referential_constraints(self):
         ctx = SpecContext("simplify-self-reference")
         x = ctx.real("x")

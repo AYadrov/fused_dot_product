@@ -153,12 +153,7 @@ class SpecContext:
             if learned is None:
                 continue
             var, expr = learned
-            if aliases.get(var, None) is None:
-                aliases[var] = expr
-            else:
-                # TODO
-                if expr != aliases[var]:
-                    raise PoorSpec()
+            aliases.setdefault(var, expr)
         return aliases
     
     # learning facts like: RealExpr == RealLit
