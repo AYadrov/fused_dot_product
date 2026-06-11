@@ -8,11 +8,21 @@ Python model of the fused dot product described by Kaul et al. (2019). The proje
 - `docs/operators.md` – Tables of all basic operators, fixed-point primitives, and composites.
 
 ## Quick start
-1) Ensure Python 3.11+ is available.  
+1) Ensure Python 3.11+ is available.
 2) Install deps:
 ```
 make install
 ```
+   `make install` also ensures Rust/Cargo is available for the Rival3 bridge.
+   If Cargo is missing, it uses the recommended `rustup` installer, which does
+   not require sudo and installs into your home directory:
+```
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+. "$HOME/.cargo/env"
+```
+   If your environment does not allow user-local toolchains, install Rust/Cargo
+   with your system's approved package manager instead; that path may require
+   sudo.
 3) Run the sample check (compares optimized vs conventional on random BF16 vectors):
 ```
 python main.py --seed 0
@@ -27,6 +37,7 @@ without extra setup. To enable `build_machine(...)` and
 pip install maturin
 maturin develop -m crates/rival_bridge/Cargo.toml
 ```
+`make install` runs this bridge build automatically.
 
 ## Testing
 ```
