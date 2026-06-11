@@ -327,8 +327,6 @@ def simplify_ctx(ctx: SpecContext):
         )
 
     trimmed_ctx = rival_trim_context(simplified_ctx)
-
-    print(trimmed_ctx)
     
     rival_status = rival_feasibility_check(trimmed_ctx, max_depth=1)["status"]
 

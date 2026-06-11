@@ -25,14 +25,6 @@ class RivalAnalysis:
     hints: Any
     converged: bool
 
-    @property
-    def is_error(self) -> bool:
-        return self.status[0]
-
-    @property
-    def maybe_error(self) -> bool:
-        return self.status[1]
-
 
 class RivalMachine:
     def __init__(self, raw_machine: Any):
@@ -173,6 +165,7 @@ def rival_feasibility_check(
     )
 
 
+# Drop expressions that are certainly known to be True/True
 def rival_trim_context(ctx: "SpecContext") -> "SpecContext":
     exprs = ctx.assumes + ctx.checks
     free_vars = collect_free_vars(exprs)
