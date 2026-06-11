@@ -112,7 +112,7 @@ def rival_feasibility_check(
     run_started_at = perf_counter()
     exprs = ctx.assumes + ctx.checks
     free_vars = collect_free_vars(exprs)
-
+    
     if not exprs:
         return build_proof_report(
             ctx,

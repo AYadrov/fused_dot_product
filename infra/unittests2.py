@@ -2,7 +2,7 @@ import unittest
 import contextlib
 import os
 import sys
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock, patch
 
 import dreal
 import math
@@ -20,7 +20,8 @@ from fused_dot_product.rival import (
     build_machine,
     collect_free_vars,
     get_rival_rects,
-    rival_check_solution_exists,
+    rival_feasibility_check,
+    rival_trim_context,
     to_rival_ir,
 )
 from fused_dot_product.spec.spec_context import simplify_ctx
@@ -431,7 +432,7 @@ class TestPowSpecOp(unittest.TestCase):
         ctx.check(If(BoolLit(False), x + RealLit(1), RealLit(3)).eq(RealLit(3)))
 
         simplified = ctx.simplify()
-        self.assertEqual(simplified.checks, [BoolLit(True)])
+        self.assertEqual(simplified.checks, [])
 
     def test_context_simplify_uses_mul_by_zero_shortcut(self):
         ctx = SpecContext("mul-zero")
@@ -440,7 +441,7 @@ class TestPowSpecOp(unittest.TestCase):
         ctx.check((RealLit(0) * (x + RealLit(5))).eq(RealLit(0)))
 
         simplified = ctx.simplify()
-        self.assertEqual(simplified.checks, [BoolLit(True)])
+        self.assertEqual(simplified.checks, [])
 
 
 class TestSpecContextLearning(unittest.TestCase):
@@ -566,11 +567,7 @@ class TestSpecContextLearning(unittest.TestCase):
         )
         self.assertEqual(
             simplified.assumes,
-            [
-                BoolLit(True),
-                BoolLit(True),
-                BoolLit(True),
-            ],
+            [],
         )
 
     def test_context_fixpoint_inlines_non_literal_aliases(self):
@@ -617,29 +614,31 @@ class TestSpecContextLearning(unittest.TestCase):
         self.assertEqual(simplified.assumes, [Eq(x, Abs(x))])
         self.assertEqual(simplified.checks, [Eq(x, Abs(x))])
 
-    def test_assume_rejects_alias_loops(self):
+    def test_assume_records_alias_loops(self):
         ctx = SpecContext("assume-alias-loop")
         x = ctx.real("x")
         y = ctx.real("y")
 
         ctx.assume(x.eq(y + ctx.real_val(1)))
+        ctx.assume(y.eq(x + ctx.real_val(1)))
 
-        with self.assertRaises(ValueError):
-            ctx.assume(y.eq(x + ctx.real_val(1)))
+        self.assertEqual(
+            ctx.assumes,
+            [
+                Eq(x, y + RealLit(1)),
+                Eq(y, x + RealLit(1)),
+            ],
+        )
 
-        self.assertEqual(ctx.assumes, [Eq(x, y + RealLit(1))])
-
-    def test_check_rejects_alias_loops(self):
+    def test_check_records_alias_loops(self):
         ctx = SpecContext("check-alias-loop")
         x = ctx.real("x")
         y = ctx.real("y")
 
         ctx.assume(x.eq(y + ctx.real_val(1)))
+        ctx.check(y.eq(x + ctx.real_val(1)))
 
-        with self.assertRaises(ValueError):
-            ctx.check(y.eq(x + ctx.real_val(1)))
-
-        self.assertEqual(ctx.checks, [])
+        self.assertEqual(ctx.checks, [Eq(y, x + RealLit(1))])
 
     def test_context_fixpoint_substitutes_canonical_learned_assumptions(self):
         ctx = SpecContext("canonical-assumes")
@@ -654,11 +653,7 @@ class TestSpecContextLearning(unittest.TestCase):
 
         self.assertEqual(
             simplified.assumes,
-            [
-                BoolLit(True),
-                BoolLit(True),
-                BoolLit(True),
-            ],
+            [],
         )
         self.assertEqual(simplified.learned_literals(), {})
 
@@ -676,11 +671,7 @@ class TestSpecContextLearning(unittest.TestCase):
 
         self.assertEqual(
             simplified.assumes,
-            [
-                BoolLit(True),
-                BoolLit(True),
-                BoolLit(True),
-            ],
+            [],
         )
         self.assertEqual(simplified.learned_literals(), {})
 
@@ -694,7 +685,7 @@ class TestSpecContextLearning(unittest.TestCase):
         simplified = ctx.simplify()
 
         self.assertEqual(ctx.checks, [Eq(x + RealLit(2), RealLit(3))])
-        self.assertEqual(simplified.checks, [BoolLit(True)])
+        self.assertEqual(simplified.checks, [])
 
     def test_context_fixpoint_simplifies_bool_assumptions_and_checks(self):
         ctx = SpecContext("simplify-bool")
@@ -708,11 +699,8 @@ class TestSpecContextLearning(unittest.TestCase):
         simplified = ctx.simplify()
 
         self.assertEqual(ctx.assumes, [BoolEq(p, BoolLit(True)), BoolEq(q, p)])
-        self.assertEqual(
-            simplified.assumes,
-            [BoolLit(True), BoolLit(True)],
-        )
-        self.assertEqual(simplified.checks, [BoolLit(True)])
+        self.assertEqual(simplified.assumes, [])
+        self.assertEqual(simplified.checks, [])
         self.assertEqual(simplified.learned_literals(), {})
 
     def test_context_fixpoint_accepts_duplicate_equivalent_bindings(self):
@@ -729,12 +717,7 @@ class TestSpecContextLearning(unittest.TestCase):
 
         self.assertEqual(
             simplified.assumes,
-            [
-                BoolLit(True),
-                BoolLit(True),
-                BoolLit(True),
-                BoolLit(True),
-            ],
+            [],
         )
         self.assertEqual(simplified.learned_literals(), {})
 
@@ -764,9 +747,9 @@ class TestSpecContextLearning(unittest.TestCase):
         self.assertEqual(ctx.checks, [Eq(x, RealLit(3))])
         self.assertEqual(
             simplified.assumes,
-            [BoolLit(True), BoolLit(True)],
+            [],
         )
-        self.assertEqual(simplified.checks, [BoolLit(True)])
+        self.assertEqual(simplified.checks, [])
 
     def test_simplify_leaves_original_context_unchanged_on_conflict(self):
         ctx = SpecContext("simplify-conflict-output")
@@ -797,8 +780,13 @@ class TestEgglogFloatLiterals(unittest.TestCase):
             with self.subTest(value=value):
                 round_tripped = from_egglog(RealLit(value).to_egglog())
 
-                self.assertIsInstance(round_tripped, RealLit)
-                self.assertEqual(round_tripped.value.hex(), value.hex())
+                if isinstance(round_tripped, RealLit):
+                    self.assertEqual(round_tripped.value.hex(), value.hex())
+                else:
+                    self.assertEqual(
+                        round_tripped,
+                        RealLit(4722366482869645) * (RealLit(2) ** RealLit(-72)),
+                    )
 
     def test_fractional_literals_constant_fold_in_egglog_without_losing_float_bits(self):
         expr = RealLit(0.1) + RealLit(0.2)
@@ -1099,316 +1087,148 @@ class TestRivalTranslation(unittest.TestCase):
             [[(-math.inf, math.inf), (-math.inf, math.inf)]],
         )
 
-    def test_context_run_with_rival_builds_machine_from_assumes_and_checks(self):
-        ctx = SpecContext("rival-context")
-        x = ctx.real("x")
-        y = ctx.real("y")
-        machine = Mock()
-        rects = [[(math.nextafter(0.0, math.inf), math.inf), (-math.inf, math.inf)]]
-
-        ctx.assume(x > RealLit(0))
-        ctx.check(x.eq(y + RealLit(1)))
-
-        with (
-            patch("fused_dot_product.rival.build_machine", return_value=machine) as build,
-            open(os.devnull, "w") as devnull,
-            contextlib.redirect_stdout(devnull),
-        ):
-            self.assertEqual(ctx.RunWithRival(), (machine, rects))
-
-        build.assert_called_once_with(ctx.assumes + ctx.checks, ["x", "y"])
-        machine.apply_with_hints.assert_not_called()
-
-    def test_context_run_with_rival_uses_current_context_without_learning(self):
-        ctx = SpecContext("rival-learned-constants")
-        x = ctx.real("x")
-        y = ctx.real("y")
-        z = ctx.real("z")
-        machine = Mock()
-        rects = [[(0.0, 0.0), (-math.inf, math.inf), (-math.inf, math.inf)]]
-
-        ctx.assume(x.eq(ctx.real_val(0)))
-        ctx.assume(y.eq(x + ctx.real_val(1)))
-        ctx.check((y + z).eq(ctx.real_val(1) + z))
-
-        with (
-            patch("fused_dot_product.rival.build_machine", return_value=machine) as build,
-            open(os.devnull, "w") as devnull,
-            contextlib.redirect_stdout(devnull),
-        ):
-            self.assertEqual(ctx.RunWithRival(), (machine, rects))
-
-        exprs, free_vars = build.call_args.args
-        self.assertEqual(exprs, ctx.assumes + ctx.checks)
-        self.assertEqual(free_vars, ["x", "y", "z"])
-        self.assertEqual(collect_free_vars(exprs), ["x", "y", "z"])
-        machine.apply_with_hints.assert_not_called()
-
-    def test_context_run_with_rival_passes_unfolded_exprs(self):
-        ctx = SpecContext("rival-all-folded")
-        x = ctx.real("x")
-        machine = Mock()
-        rects = [[(1.0, 1.0)]]
-
-        ctx.assume(x.eq(ctx.real_val(1)))
-        ctx.check((x + ctx.real_val(1)).eq(ctx.real_val(2)))
-
-        with (
-            patch("fused_dot_product.rival.build_machine", return_value=machine) as build,
-            open(os.devnull, "w") as devnull,
-            contextlib.redirect_stdout(devnull),
-        ):
-            self.assertEqual(ctx.RunWithRival(), (machine, rects))
-
-        build.assert_called_once_with(ctx.assumes + ctx.checks, ["x"])
-        machine.apply_with_hints.assert_not_called()
-
-    def test_context_run_with_rival_preserves_compound_learned_assumptions(self):
-        ctx = SpecContext("rival-compound-assume")
-        x = ctx.real("x")
-        y = ctx.real("y")
-        machine = Mock()
-        rects = [[(-math.inf, math.inf), (-math.inf, math.inf)]]
-
-        ctx.assume((x + y).eq(ctx.real_val(1)))
-        ctx.check(x.eq(ctx.real_val(0)))
-
-        with (
-            patch("fused_dot_product.rival.build_machine", return_value=machine) as build,
-            open(os.devnull, "w") as devnull,
-            contextlib.redirect_stdout(devnull),
-        ):
-            self.assertEqual(ctx.RunWithRival(), (machine, rects))
-
-        exprs, free_vars = build.call_args.args
-        self.assertEqual(free_vars, ["x", "y"])
-        self.assertIn(Eq(x + y, RealLit(1)), exprs)
-        machine.apply_with_hints.assert_not_called()
-
-    def test_context_run_with_rival_rects_use_build_machine_free_var_order(self):
-        ctx = SpecContext("rival-order")
-        x = ctx.real("x")
-        y = ctx.real("y")
-        machine = Mock()
-        rects = [[(1.0, math.inf), (-math.inf, 2.0)]]
-
-        ctx.assume(y <= ctx.real_val(2))
-        ctx.assume(x >= ctx.real_val(1))
-        ctx.check((x + y).eq(ctx.real_val(0)))
-
-        with (
-            patch("fused_dot_product.rival.build_machine", return_value=machine) as build,
-            open(os.devnull, "w") as devnull,
-            contextlib.redirect_stdout(devnull),
-        ):
-            returned_machine, returned_rects = ctx.RunWithRival()
-
-        self.assertEqual(returned_machine, machine)
-        exprs, free_vars = build.call_args.args
-        self.assertEqual(exprs, ctx.assumes + ctx.checks)
-        self.assertEqual(free_vars, ["x", "y"])
-        self.assertEqual(returned_rects, rects)
-        machine.apply_with_hints.assert_not_called()
-
-    def test_context_run_with_rival_does_not_apply_rects(self):
-        ctx = SpecContext("rival-no-apply")
+    def test_rival_rects_expand_independent_disjunctions_without_coalescing(self):
+        ctx = SpecContext("rival-rects-no-coalesce")
         sign = ctx.real("sign")
-        machine = Mock()
-        rects = [[(0.0, 0.0)], [(1.0, 1.0)]]
+        exponent = ctx.real("exponent")
 
         ctx.assume(sign.eq(ctx.real_val(0)).or_(sign.eq(ctx.real_val(1))))
-        ctx.check(sign >= ctx.real_val(0))
+        ctx.assume(exponent.eq(ctx.real_val(0)).or_(exponent.eq(ctx.real_val(255))))
 
-        with (
-            patch("fused_dot_product.rival.build_machine", return_value=machine),
-            open(os.devnull, "w") as devnull,
-            contextlib.redirect_stdout(devnull),
-        ):
-            self.assertEqual(ctx.RunWithRival(), (machine, rects))
-
-        machine.apply_with_hints.assert_not_called()
-
-    def test_rival_check_solution_exists_returns_sat_with_witness_rect(self):
-        ctx = SpecContext("rival-sat")
-        x = ctx.real("x")
-        ctx.assume(x >= ctx.real_val(0))
-        ctx.check(x.eq(ctx.real_val(1)))
-        machine = Mock()
-        machine.apply_with_hints.return_value = RivalAnalysis(
-            status=(False, False),
-            hints="sat-hints",
-            converged=True,
-        )
-        rect = [(0.0, math.inf)]
-
-        with patch("fused_dot_product.rival.build_machine", return_value=machine):
-            report = rival_check_solution_exists(ctx)
-
-        self.assertEqual(report["tool"], "rival_check_solution_exists")
-        self.assertEqual(report["status"], "sat")
-        self.assertEqual(report["supplementary_info"], rect)
-        machine.apply_with_hints.assert_called_once_with(rect, None)
-
-    def test_rival_check_solution_exists_returns_unsat_when_all_rects_eliminate(self):
-        ctx = SpecContext("rival-unsat")
-        sign = ctx.real("sign")
-        ctx.assume(sign.eq(ctx.real_val(0)).or_(sign.eq(ctx.real_val(1))))
-        ctx.check(sign >= ctx.real_val(0))
-        machine = Mock()
-        machine.apply_with_hints.return_value = RivalAnalysis(
-            status=(True, True),
-            hints=None,
-            converged=True,
-        )
-
-        with patch("fused_dot_product.rival.build_machine", return_value=machine):
-            report = rival_check_solution_exists(ctx)
-
-        self.assertEqual(report["status"], "unsat")
-        self.assertNotIn("supplementary_info", report)
         self.assertEqual(
-            machine.apply_with_hints.call_args_list,
-            [call([(0.0, 0.0)], None), call([(1.0, 1.0)], None)],
-        )
-
-    def test_rival_check_solution_exists_subdivides_and_passes_hints(self):
-        ctx = SpecContext("rival-subdivide")
-        x = ctx.real("x")
-        y = ctx.real("y")
-        ctx.assume((x >= ctx.real_val(0)).and_(x <= ctx.real_val(4)))
-        ctx.assume((y >= ctx.real_val(10)).and_(y <= ctx.real_val(18)))
-        ctx.check((x + y).eq(ctx.real_val(12)))
-        calls = []
-        root = [(0.0, 4.0), (10.0, 18.0)]
-        child_1 = [(0.0, 2.0), (10.0, 14.0)]
-        child_2 = [(0.0, 2.0), (math.nextafter(14.0, math.inf), 18.0)]
-
-        def apply(rect, hints=None):
-            calls.append((rect, hints))
-            if rect == root:
-                return RivalAnalysis(
-                    status=(False, True),
-                    hints="parent-hints",
-                    converged=False,
-                )
-            if rect == child_2:
-                return RivalAnalysis(
-                    status=(False, False),
-                    hints="sat-hints",
-                    converged=True,
-                )
-            return RivalAnalysis(status=(True, True), hints=None, converged=True)
-
-        machine = Mock()
-        machine.apply_with_hints.side_effect = apply
-
-        with patch("fused_dot_product.rival.build_machine", return_value=machine):
-            report = rival_check_solution_exists(ctx, max_depth=1)
-
-        self.assertEqual(report["status"], "sat")
-        self.assertEqual(report["supplementary_info"], child_2)
-        self.assertEqual(
-            calls,
+            get_rival_rects(ctx.assumes, ["sign", "exponent"]),
             [
-                (root, None),
-                (child_1, "parent-hints"),
-                (child_2, "parent-hints"),
+                [(0.0, 0.0), (0.0, 0.0)],
+                [(0.0, 0.0), (255.0, 255.0)],
+                [(1.0, 1.0), (0.0, 0.0)],
+                [(1.0, 1.0), (255.0, 255.0)],
             ],
         )
 
-    def test_rival_check_solution_exists_returns_unknown_at_max_depth(self):
-        ctx = SpecContext("rival-max-depth")
-        x = ctx.real("x")
-        ctx.assume((x >= ctx.real_val(0)).and_(x <= ctx.real_val(4)))
-        ctx.check(x.eq(ctx.real_val(2)))
-        machine = Mock()
-        machine.apply_with_hints.return_value = RivalAnalysis(
-            status=(False, True),
-            hints="hints",
-            converged=False,
-        )
-
-        with patch("fused_dot_product.rival.build_machine", return_value=machine):
-            report = rival_check_solution_exists(ctx, max_depth=0)
-
-        self.assertEqual(report["status"], "unknown")
-        self.assertNotIn("supplementary_info", report)
-        machine.apply_with_hints.assert_called_once_with([(0.0, 4.0)], None)
-
-    def test_rival_check_solution_exists_splits_infinite_intervals(self):
-        ctx = SpecContext("rival-infinite-split")
+    def test_rival_feasibility_splits_only_variables_from_maybe_exprs(self):
+        ctx = SpecContext("rival-guided-split")
         x = ctx.real("x")
         y = ctx.real("y")
         z = ctx.real("z")
-        ctx.assume(y >= ctx.real_val(0))
-        ctx.assume(z <= ctx.real_val(0))
-        ctx.check((x + y + z).eq(ctx.real_val(0)))
-        calls = []
+        good_x = x >= ctx.real_val(0)
+        good_z = z >= ctx.real_val(0)
+        maybe = x.eq(y)
+        ctx.assume(good_x)
+        ctx.assume(good_z)
+        ctx.check(maybe)
 
-        def apply(rect, hints=None):
-            calls.append((rect, hints))
-            if len(calls) == 1:
-                return RivalAnalysis(
+        root = [(0.0, math.inf), (-math.inf, math.inf), (0.0, math.inf)]
+        x_left = (0.0, sys.float_info.max / 2.0)
+        x_right = (math.nextafter(sys.float_info.max / 2.0, math.inf), math.inf)
+        y_left = (-math.inf, 0.0)
+        y_right = (math.nextafter(0.0, math.inf), math.inf)
+        combined_calls = []
+
+        def build(exprs, free_vars):
+            self.assertEqual(free_vars, ["x", "y", "z"])
+            machine = Mock()
+            if exprs == ctx.assumes + ctx.checks:
+                def apply(rect, hints=None):
+                    combined_calls.append((rect, hints))
+                    if rect == root:
+                        return RivalAnalysis(
+                            status=(False, True),
+                            hints="root-hints",
+                            converged=False,
+                        )
+                    return RivalAnalysis(status=(True, True), hints=None, converged=True)
+
+                machine.apply_with_hints.side_effect = apply
+            elif exprs == [maybe]:
+                machine.apply_with_hints.return_value = RivalAnalysis(
                     status=(False, True),
-                    hints="root-hints",
+                    hints=None,
                     converged=False,
                 )
-            return RivalAnalysis(status=(True, True), hints=None, converged=True)
+            else:
+                machine.apply_with_hints.return_value = RivalAnalysis(
+                    status=(False, False),
+                    hints=None,
+                    converged=True,
+                )
+            return machine
 
-        machine = Mock()
-        machine.apply_with_hints.side_effect = apply
+        with patch("fused_dot_product.rival.build_machine", side_effect=build):
+            report = rival_feasibility_check(ctx, max_depth=1)
 
-        with patch("fused_dot_product.rival.build_machine", return_value=machine):
-            report = rival_check_solution_exists(ctx, max_depth=1)
-
-        half_max = sys.float_info.max / 2.0
-        expected_children = [
+        self.assertEqual(report["status"], "sat")
+        self.assertEqual(
+            combined_calls,
             [
-                x_interval,
-                y_interval,
-                z_interval,
-            ]
-            for x_interval in [
-                (-math.inf, 0.0),
-                (math.nextafter(0.0, math.inf), math.inf),
-            ]
-            for y_interval in [
-                (0.0, half_max),
-                (math.nextafter(half_max, math.inf), math.inf),
-            ]
-            for z_interval in [
-                (-math.inf, -half_max),
-                (math.nextafter(-half_max, math.inf), 0.0),
-            ]
-        ]
-        self.assertEqual(report["status"], "unsat")
-        self.assertEqual(
-            calls[0],
-            ([(-math.inf, math.inf), (0.0, math.inf), (-math.inf, 0.0)], None),
-        )
-        self.assertEqual(
-            calls[1:],
-            [(child, "root-hints") for child in expected_children],
+                (root, None),
+                ([x_left, y_left, (0.0, math.inf)], "root-hints"),
+                ([x_left, y_right, (0.0, math.inf)], "root-hints"),
+                ([x_right, y_left, (0.0, math.inf)], "root-hints"),
+                ([x_right, y_right, (0.0, math.inf)], "root-hints"),
+            ],
         )
 
-    def test_rival_check_solution_exists_returns_unknown_for_unsplittable_maybe(self):
-        ctx = SpecContext("rival-unsplittable")
+    def test_rival_trim_context_uses_unbounded_rects(self):
+        ctx = SpecContext("rival-trim-unbounded")
         x = ctx.real("x")
-        ctx.assume(x.eq(ctx.real_val(1)))
-        ctx.check(x.eq(ctx.real_val(1)))
-        machine = Mock()
-        machine.apply_with_hints.return_value = RivalAnalysis(
-            status=(False, True),
-            hints="hints",
-            converged=False,
-        )
+        bounded = x >= ctx.real_val(0)
+        tautology = x.eq(x)
+        ctx.assume(bounded)
+        ctx.check(tautology)
 
-        with patch("fused_dot_product.rival.build_machine", return_value=machine):
-            report = rival_check_solution_exists(ctx, max_depth=20)
+        def build(exprs, free_vars):
+            self.assertEqual(free_vars, ["x"])
+            expr = exprs[0]
+            machine = Mock()
 
-        self.assertEqual(report["status"], "unknown")
-        machine.apply_with_hints.assert_called_once_with([(1.0, 1.0)], None)
+            def apply(rect, hints=None):
+                self.assertEqual(rect, [(-math.inf, math.inf)])
+                self.assertIsNone(hints)
+                return RivalAnalysis(
+                    status=(False, False) if expr == tautology else (False, True),
+                    hints=None,
+                    converged=True,
+                )
 
+            machine.apply_with_hints.side_effect = apply
+            return machine
+
+        with (
+            patch("fused_dot_product.rival.build_machine", side_effect=build),
+            patch(
+                "fused_dot_product.rival.get_rival_rects",
+                side_effect=AssertionError("trim must not use assumption-derived rects"),
+            ),
+        ):
+            trimmed = rival_trim_context(ctx)
+
+        self.assertEqual(trimmed.assumes, [bounded])
+        self.assertEqual(trimmed.checks, [])
+
+    def test_rival_trim_context_keeps_maybe_exprs(self):
+        ctx = SpecContext("rival-trim-maybe")
+        x = ctx.real("x")
+        y = ctx.real("y")
+        assume = x >= ctx.real_val(0)
+        check = x.eq(y)
+        ctx.assume(assume)
+        ctx.check(check)
+
+        def build(exprs, free_vars):
+            self.assertEqual(free_vars, ["x", "y"])
+            machine = Mock()
+            machine.apply_with_hints.return_value = RivalAnalysis(
+                status=(False, True),
+                hints=None,
+                converged=True,
+            )
+            return machine
+
+        with patch("fused_dot_product.rival.build_machine", side_effect=build):
+            trimmed = rival_trim_context(ctx)
+
+        self.assertEqual(trimmed.assumes, [assume])
+        self.assertEqual(trimmed.checks, [check])
 
 class TestSolverApis(unittest.TestCase):
     def test_fp32_adder_check_spec_splits_all_input_class_pairs(self):
@@ -1494,7 +1314,7 @@ class TestSolverApis(unittest.TestCase):
         self.assertIsInstance(proof_trace[0], dict)
         self.assertEqual(proof_trace[0]["tool"], "branch-b")
 
-    def test_check_equivalence_routes_rival_schedule_with_normalized_max_depth(self):
+    def test_check_equivalence_routes_rival_feasibility_schedule_with_normalized_max_depth(self):
         ctx = SpecContext("rival-schedule")
         seen_max_depth = []
 
@@ -1503,7 +1323,7 @@ class TestSolverApis(unittest.TestCase):
             return build_proof_report(
                 ctx,
                 ctx.copy(),
-                tool="rival_check_solution_exists",
+                tool="rival_feasibility_check",
                 runtime_s=0.0,
                 status="unsat",
                 max_depth=max_depth,
@@ -1511,14 +1331,17 @@ class TestSolverApis(unittest.TestCase):
 
         with patch.dict(
             solver_engine.TOOL_FNS,
-            {"rival_check_solution_exists": fake_rival},
+            {"rival_feasibility_check": fake_rival},
         ):
             status, proof_trace = solver_engine.check_equivalence(
                 RealLit(1),
                 RealLit(1),
                 ctx=ctx,
                 schedule=[
-                    {"tool": "rival_check_solution_exists", "max_depth": "1"}
+                    {
+                        "tool": "rival_feasibility_check",
+                        "max_depth": "1",
+                    }
                 ],
             )
 

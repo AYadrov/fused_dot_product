@@ -5,19 +5,19 @@ from .encode_Float32 import *
 
 _FP32_INPUT_CLASS_CASES = {
     "norm": (1, 0, 0, 0, 0),
-    #"sub": (0, 1, 0, 0, 0),
+    "sub": (0, 1, 0, 0, 0),
     "zero": (0, 0, 1, 0, 0),
-    #"inf": (0, 0, 0, 1, 0),
-    #"nan": (0, 0, 0, 0, 1),
+    "inf": (0, 0, 0, 1, 0),
+    "nan": (0, 0, 0, 0, 1),
 }
 
 
 _FP32_OUTPUT_CLASS_CASES = {
-    #"norm": (1, 0, 0, 0, 0),
-    #"sub": (0, 1, 0, 0, 0),
-    #"zero": (0, 0, 1, 0, 0),
+    "norm": (1, 0, 0, 0, 0),
+    "sub": (0, 1, 0, 0, 0),
+    "zero": (0, 0, 1, 0, 0),
     "inf": (0, 0, 0, 1, 0),
-    #"nan": (0, 0, 0, 0, 1),
+    "nan": (0, 0, 0, 0, 1),
 }
 
 
@@ -166,6 +166,7 @@ if __name__ == '__main__':
         Var(name="a", sign=Float32T()),
         Var(name="b", sign=Float32T()),
     )
+    #adder.check_spec()
     pprint(adder.check_spec())
     with open("examples/adder_jit.hpp", "w") as file:
         file.write(adder.to_cpp(jittable=True))

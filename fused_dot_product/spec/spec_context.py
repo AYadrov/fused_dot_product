@@ -343,4 +343,5 @@ def simplify_ctx(ctx: SpecContext):
         tool="simplify",
         runtime_s=perf_counter() - run_started_at,
         status=status,
+        feasibility_status=rival_status,
     )
