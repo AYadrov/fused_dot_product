@@ -52,6 +52,21 @@ class Float32Spec:
     def __iter__(self):
         yield from self.as_fields_tuple()
 
+    def __len__(self):
+        return len(self.as_fields_tuple())
+
+    def __getitem__(self, idx: int):
+        return self.as_fields_tuple()[idx]
+
+    def special_flags(self):
+        return {
+            "norm": self.is_norm,
+            "sub": self.is_sub,
+            "zero": self.is_zero,
+            "inf": self.is_inf,
+            "nan": self.is_nan,
+        }
+
 
 # General case for FP32
 def fresh_float(name: str, ctx) -> Float32Spec:

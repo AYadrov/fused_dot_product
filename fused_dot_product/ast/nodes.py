@@ -13,14 +13,63 @@ from ..spec import SpecContext
 CLowering = tp.Callable[[list[str], bool], str]
 
 
+def _append_case_name(name: str, case_label: str) -> str:
+    if name.endswith("]") and "[" in name:
+        return f"{name[:-1]},{case_label}]"
+    return f"{name}[{case_label}]"
+
+
+def _split_special_cases(
+    ctx: SpecContext,
+    inputs: list[tp.Any],
+    spec_inner: tp.Any,
+    spec_outer: tp.Any,
+) -> list[SpecContext]:
+    values = [
+        (f"arg{idx}", value)
+        for idx, value in enumerate(inputs)
+    ] + [
+        ("inner_spec", spec_inner),
+        ("outer_spec", spec_outer),
+    ]
+
+    split_ctxs = [ctx]
+    for value_name, value in values:
+        special_flags = getattr(value, "special_flags", lambda: None)()
+        if special_flags is None:
+            continue
+
+        next_ctxs = []
+        for base_ctx in split_ctxs:
+            for selected_name, selected_flag in special_flags.items():
+                case_ctx = base_ctx.copy()
+                case_ctx.name = _append_case_name(
+                    case_ctx.name,
+                    f"{value_name}={selected_name}",
+                )
+                for flag_name, flag in special_flags.items():
+                    case_ctx.assume(flag.eq(case_ctx.bool_val(flag_name == selected_name)))
+                next_ctxs.append(case_ctx)
+        split_ctxs = next_ctxs
+    return split_ctxs
+
+
+def _equivalence_query(spec_value: tp.Any):
+    if isinstance(spec_value, tuple):
+        return tuple(_equivalence_query(item) for item in spec_value)
+
+    as_tuple = getattr(spec_value, "as_tuple", None)
+    if as_tuple is not None:
+        return _equivalence_query(as_tuple())
+
+    return spec_value
+
+
 def Composite(
     name: str,
     spec: tp.Callable[..., tp.Any],
     c_inline: bool = False,
     c_lowering: tp.Optional[CLowering] = None,
-    case_splitter: tp.Optional[
-        tp.Callable[[SpecContext, list[tp.Any], tp.Any, tp.Any], list[SpecContext]]
-    ] = None,
 ):
     def wrapper1(impl: tp.Callable[..., Node]):
         def wrapper2(*args):
@@ -31,7 +80,6 @@ def Composite(
                 name=name,
                 c_inline=c_inline,
                 c_lowering=c_lowering,
-                case_splitter=case_splitter,
             )
         return wrapper2
     return wrapper1
@@ -45,13 +93,9 @@ class composite(Node):
         name: str,
         c_inline: bool = False,
         c_lowering: tp.Optional[CLowering] = None,
-        case_splitter: tp.Optional[
-            tp.Callable[[SpecContext, list[tp.Any], tp.Any, tp.Any], list[SpecContext]]
-        ] = None,
     ):
         self.c_inline = c_inline
         self.c_lowering = c_lowering
-        self.case_splitter = case_splitter
         self.ctx = SpecContext(name)
         self.inner_args = [Var(name=f"arg_{i}", sign=x.node_type.copy()) for i, x in enumerate(args)]
         
@@ -85,6 +129,7 @@ class composite(Node):
         )
     
     def check_spec(self, schedule: list[str | dict[str, tp.Any]] | None = None):
+        # Scheduler for solver
         if schedule is None:
             schedule = [
                 {"tool": "simplify"},
@@ -92,29 +137,31 @@ class composite(Node):
                 {"tool": "z3", "timeout_ms": 10000},
                 {"tool": "dreal", "precision": 0.001},
             ]
+
+        # Collecting specification into ctx
         ctx = self.ctx.copy()
         spec_inner = ctx.spec_of(self.inner_tree)
         inputs = [ctx.spec_of(arg) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, ctx=ctx)
 
-        # ugly patch
-        try:
-            spec_inner = spec_inner.as_tuple()
-            spec_outer = spec_outer.as_tuple()
-            inputs = [x.as_tuple() for x in inputs]
-        except:
-            pass
+        # Subsplit a general specification into special-value cases (if applicable)
+        initial_ctxs = _split_special_cases(
+            ctx,
+            inputs,
+            spec_inner,
+            spec_outer,
+        )
 
-        if self.case_splitter is None:
-            initial_ctxs = [ctx]
-        else:
-            initial_ctxs = self.case_splitter(ctx, inputs, spec_inner, spec_outer)
+        # Float32Spec -> tuple of values for equivalence check
+        query_inner = _equivalence_query(spec_inner)
+        query_outer = _equivalence_query(spec_outer)
 
+        # Run equivalence checks
         full_trace = []
         for initial_ctx in initial_ctxs:
             _status, proof_trace = check_equivalence(
-                spec_inner,
-                spec_outer,
+                query_inner,
+                query_outer,
                 ctx=initial_ctx,
                 schedule=schedule,
             )

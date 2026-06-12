@@ -26,7 +26,6 @@ from fused_dot_product.rival import (
 )
 from fused_dot_product.spec.spec_context import simplify_ctx
 from fused_dot_product.spec.spec_utils import from_egglog
-import examples.FP32_IEEE_adder as fp32_adder_module
 from examples.FP32_IEEE_adder import FP32_IEEE_adder
 from examples.FP32_IEEE_mult import FP32_IEEE_mult
 from examples.conventional import Conventional
@@ -1298,12 +1297,13 @@ class TestSolverApis(unittest.TestCase):
         ):
             proof_trace = adder.check_spec(schedule=[{"tool": "z3", "timeout_ms": 1}])
 
+        fp32_cases = ("norm", "sub", "zero", "inf", "nan")
         expected_names = {
-            f"FP32_IEEE_adder[x={x_case},y={y_case},inner_out={inner_case},outer_out={outer_case}]"
-            for x_case in fp32_adder_module._FP32_INPUT_CLASS_CASES
-            for y_case in fp32_adder_module._FP32_INPUT_CLASS_CASES
-            for inner_case in fp32_adder_module._FP32_OUTPUT_CLASS_CASES
-            for outer_case in fp32_adder_module._FP32_OUTPUT_CLASS_CASES
+            f"FP32_IEEE_adder[arg0={x_case},arg1={y_case},inner_spec={inner_case},outer_spec={outer_case}]"
+            for x_case in fp32_cases
+            for y_case in fp32_cases
+            for inner_case in fp32_cases
+            for outer_case in fp32_cases
         }
         self.assertEqual(proof_trace, [[] for _ in expected_names])
         self.assertEqual(len(seen_names), len(expected_names))
@@ -1398,7 +1398,7 @@ class TestSolverApis(unittest.TestCase):
                 ]
             )
 
-        target_name = "FP32_IEEE_adder[x=norm,y=norm,inner_out=norm,outer_out=norm]"
+        target_name = "FP32_IEEE_adder[arg0=norm,arg1=norm,inner_spec=norm,outer_spec=norm]"
         matching_traces = [
             proof_trace
             for proof_trace in proof_traces

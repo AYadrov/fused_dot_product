@@ -3,76 +3,6 @@ from .common import *
 from .encode_Float32 import *
 
 
-_FP32_INPUT_CLASS_CASES = {
-    "norm": (1, 0, 0, 0, 0),
-    "sub": (0, 1, 0, 0, 0),
-    "zero": (0, 0, 1, 0, 0),
-    "inf": (0, 0, 0, 1, 0),
-    "nan": (0, 0, 0, 0, 1),
-}
-
-
-_FP32_OUTPUT_CLASS_CASES = {
-    "norm": (1, 0, 0, 0, 0),
-    "sub": (0, 1, 0, 0, 0),
-    "zero": (0, 0, 1, 0, 0),
-    "inf": (0, 0, 0, 1, 0),
-    "nan": (0, 0, 0, 0, 1),
-}
-
-
-def _fp32_flags(spec_value):
-    if len(spec_value) == 9:
-        return spec_value[4:9]
-    if len(spec_value) == 6:
-        return spec_value[1:6]
-    raise ValueError(
-        f"Expected a 6- or 9-field Float32 spec tuple, got {len(spec_value)} fields"
-    )
-
-
-def _assume_fp32_case(spec_value, class_bits, ctx):
-    flags = _fp32_flags(spec_value)
-    for flag, bit in zip(flags, class_bits):
-        ctx.assume(flag.eq(ctx.bool_val(True if bit == 1 else False)))
-
-
-def _append_fp32_case_name(name, case_label):
-    if name.endswith("]") and "[" in name:
-        return f"{name[:-1]},{case_label}]"
-    return f"{name}[{case_label}]"
-
-
-def _split_fp32_output_cases(ctx, spec_inner, spec_outer):
-    split_ctxs = []
-    for inner_out_label, inner_out_case in _FP32_OUTPUT_CLASS_CASES.items():
-        for outer_out_label, outer_out_case in _FP32_OUTPUT_CLASS_CASES.items():
-            case_ctx = ctx.copy()
-            case_ctx.name = _append_fp32_case_name(
-                ctx.name,
-                f"inner_out={inner_out_label},outer_out={outer_out_label}",
-            )
-            _assume_fp32_case(spec_inner, inner_out_case, case_ctx)
-            _assume_fp32_case(spec_outer, outer_out_case, case_ctx)
-            split_ctxs.append(case_ctx)
-    return split_ctxs
-
-
-def _split_fp32_input_cases(ctx, inputs, spec_inner, spec_outer):
-    if len(inputs) != 2:
-        return [ctx]
-    
-    split_ctxs = []
-    for x_label, x_case in _FP32_INPUT_CLASS_CASES.items():
-        for y_label, y_case in _FP32_INPUT_CLASS_CASES.items():
-            case_ctx = ctx.copy()
-            case_ctx.name = f"{ctx.name}[x={x_label},y={y_label}]"
-            _assume_fp32_case(inputs[0], x_case, case_ctx)
-            _assume_fp32_case(inputs[1], y_case, case_ctx)
-            split_ctxs.extend(_split_fp32_output_cases(case_ctx, spec_inner, spec_outer))
-    return split_ctxs
-
-
 def spec(x, y, ctx):
     # IEEE invalid: +inf + -inf
     invalid = x.is_inf & y.is_inf & x.sign.ne(y.sign)
@@ -88,7 +18,7 @@ def spec(x, y, ctx):
     )
 
 
-@Composite(name="FP32_IEEE_adder", spec=spec, case_splitter=_split_fp32_input_cases)
+@Composite(name="FP32_IEEE_adder", spec=spec)
 def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     x_s, x_e, x_m, x_norm, x_sub, x_zero, x_inf, x_nan = fp32_decode(x)
     y_s, y_e, y_m, y_norm, y_sub, y_zero, y_inf, y_nan = fp32_decode(y)
