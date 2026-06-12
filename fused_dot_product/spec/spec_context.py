@@ -330,7 +330,7 @@ def simplify_ctx(ctx: SpecContext):
     
     rival_status = rival_feasibility_check(trimmed_ctx, max_depth=1)["status"]
 
-    if rival_status in {'sat', 'unsat'}:
+    if rival_status is 'sat':
         status = rival_status
     else:
         status = "unsat" if len(trimmed_ctx.checks) == 0 else "unknown"
