@@ -64,10 +64,10 @@ def bf16_decode_spec(x, ctx):
     exponent_ = exponent - e_bits
     sign_ = minus_one ** sign
     ctx.assume(x.eq(sign_ * (mantissa_ * (two ** exponent_))))
-    ctx.assume(sign.eq(ctx.real_val(1)).or_(sign.eq(ctx.real_val(0))))
-    ctx.assume(sign_.eq(ctx.real_val(1)).or_(sign_.eq(ctx.real_val(-1))))
-    ctx.assume((exponent >= ctx.real_val(0)).and_(exponent < ctx.real_val(1 << BFloat16.exponent_bits)))
-    ctx.assume((mantissa >= ctx.real_val(0)).and_(mantissa < ctx.real_val(1 << BFloat16.mantissa_bits)))
+    ctx.assume(sign.eq(ctx.real_val(1)) | sign.eq(ctx.real_val(0)))
+    ctx.assume(sign_.eq(ctx.real_val(1)) | sign_.eq(ctx.real_val(-1)))
+    ctx.assume((exponent >= ctx.real_val(0)) & (exponent < ctx.real_val(1 << BFloat16.exponent_bits)))
+    ctx.assume((mantissa >= ctx.real_val(0)) & (mantissa < ctx.real_val(1 << BFloat16.mantissa_bits)))
     return (sign, mantissa, exponent)
 
 

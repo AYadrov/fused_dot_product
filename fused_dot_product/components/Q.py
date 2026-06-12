@@ -52,9 +52,9 @@ def q_signs_xor_spec(x, y, ctx):
     y_sign = ctx.fresh_real("y_sign")
     res = ctx.fresh_real("xored_signs")
 
-    ctx.assume(x_sign.eq(ctx.real_val(1)).or_(x_sign.eq(ctx.real_val(0))))
-    ctx.assume(y_sign.eq(ctx.real_val(1)).or_(y_sign.eq(ctx.real_val(0))))
-    ctx.assume(res.eq(ctx.real_val(1)).or_(res.eq(ctx.real_val(0))))
+    ctx.assume(x_sign.eq(ctx.real_val(1)) | x_sign.eq(ctx.real_val(0)))
+    ctx.assume(y_sign.eq(ctx.real_val(1)) | y_sign.eq(ctx.real_val(0)))
+    ctx.assume(res.eq(ctx.real_val(1)) | res.eq(ctx.real_val(0)))
     x_sign_value = ctx.real_val(-1) ** x_sign
     y_sign_value = ctx.real_val(-1) ** y_sign
     res_sign_value = ctx.real_val(-1) ** res
@@ -175,7 +175,7 @@ def q_aligner(x: Node,
 
 def q_sign_bit_spec(x, ctx):
     sign = ctx.fresh_real("sign")
-    ctx.assume(sign.eq(ctx.real_val(0)).or_(sign.eq(ctx.real_val(1))))
+    ctx.assume(sign.eq(ctx.real_val(0)) | sign.eq(ctx.real_val(1)))
     ctx.assume(x.eq((ctx.real_val(-1) ** sign) * abs(x)))
     return sign
 

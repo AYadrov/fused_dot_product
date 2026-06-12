@@ -843,12 +843,12 @@ class TestSpecAstConstantFolding(unittest.TestCase):
 
     def test_constant_fold_partially_rebuilds_symbolic_bool_expr(self):
         p = BoolVar("p")
-        expr = p.or_(RealLit(2).eq(RealLit(2)))
+        expr = p | RealLit(2).eq(RealLit(2))
 
         self.assertEqual(expr.constant_fold(), BoolLit(True))
 
     def test_constant_fold_folds_boolean_operator_trees(self):
-        expr = RealLit(2).eq(RealLit(2)).and_(~BoolLit(False))
+        expr = RealLit(2).eq(RealLit(2)) & ~BoolLit(False)
 
         self.assertEqual(expr.constant_fold(), BoolLit(True))
 
@@ -894,7 +894,7 @@ class TestRivalTranslation(unittest.TestCase):
         q = BoolVar("q")
 
         self.assertEqual(
-            to_rival_ir(p.and_(~q).eq(BoolLit(True))),
+            to_rival_ir((p & ~q).eq(BoolLit(True))),
             {
                 "op": "bool_eq",
                 "lhs": {
@@ -977,7 +977,7 @@ class TestRivalTranslation(unittest.TestCase):
         ctx = SpecContext("rival-rects-closed")
         x = ctx.real("x")
 
-        ctx.assume((x >= ctx.real_val(1)).and_(x <= ctx.real_val(254)))
+        ctx.assume((x >= ctx.real_val(1)) & (x <= ctx.real_val(254)))
 
         self.assertEqual(get_rival_rects(ctx.assumes, ["x"]), [[(1.0, 254.0)]])
 
@@ -985,7 +985,7 @@ class TestRivalTranslation(unittest.TestCase):
         ctx = SpecContext("rival-rects-reversed")
         x = ctx.real("x")
 
-        ctx.assume((ctx.real_val(1) <= x).and_(ctx.real_val(254) >= x))
+        ctx.assume((ctx.real_val(1) <= x) & (ctx.real_val(254) >= x))
 
         self.assertEqual(get_rival_rects(ctx.assumes, ["x"]), [[(1.0, 254.0)]])
 
@@ -993,7 +993,7 @@ class TestRivalTranslation(unittest.TestCase):
         ctx = SpecContext("rival-rects-strict")
         x = ctx.real("x")
 
-        ctx.assume((x > ctx.real_val(1)).and_(x < ctx.real_val(254)))
+        ctx.assume((x > ctx.real_val(1)) & (x < ctx.real_val(254)))
 
         self.assertEqual(
             get_rival_rects(ctx.assumes, ["x"]),
@@ -1004,7 +1004,7 @@ class TestRivalTranslation(unittest.TestCase):
         ctx = SpecContext("rival-rects-reversed-strict")
         x = ctx.real("x")
 
-        ctx.assume((ctx.real_val(1) < x).and_(ctx.real_val(254) > x))
+        ctx.assume((ctx.real_val(1) < x) & (ctx.real_val(254) > x))
 
         self.assertEqual(
             get_rival_rects(ctx.assumes, ["x"]),
@@ -1015,7 +1015,7 @@ class TestRivalTranslation(unittest.TestCase):
         ctx = SpecContext("rival-rects-point-or")
         sign = ctx.real("sign")
 
-        ctx.assume(sign.eq(ctx.real_val(0)).or_(ctx.real_val(1).eq(sign)))
+        ctx.assume(sign.eq(ctx.real_val(0)) | ctx.real_val(1).eq(sign))
 
         self.assertEqual(
             get_rival_rects(ctx.assumes, ["sign"]),
@@ -1027,8 +1027,8 @@ class TestRivalTranslation(unittest.TestCase):
         sign = ctx.real("sign")
         exponent = ctx.real("exponent")
 
-        ctx.assume(sign.eq(ctx.real_val(0)).or_(sign.eq(ctx.real_val(1))))
-        ctx.assume(exponent.eq(ctx.real_val(0)).or_(exponent.eq(ctx.real_val(255))))
+        ctx.assume(sign.eq(ctx.real_val(0)) | sign.eq(ctx.real_val(1)))
+        ctx.assume(exponent.eq(ctx.real_val(0)) | exponent.eq(ctx.real_val(255)))
 
         self.assertEqual(
             get_rival_rects(ctx.assumes, ["sign", "exponent"]),
@@ -1080,7 +1080,7 @@ class TestRivalTranslation(unittest.TestCase):
         x = ctx.real("x")
         y = ctx.real("y")
 
-        ctx.assume((x >= ctx.real_val(0)).or_((x + y).eq(ctx.real_val(1))))
+        ctx.assume((x >= ctx.real_val(0)) | (x + y).eq(ctx.real_val(1)))
 
         self.assertEqual(
             get_rival_rects(ctx.assumes, ["x", "y"]),
@@ -1092,8 +1092,8 @@ class TestRivalTranslation(unittest.TestCase):
         sign = ctx.real("sign")
         exponent = ctx.real("exponent")
 
-        ctx.assume(sign.eq(ctx.real_val(0)).or_(sign.eq(ctx.real_val(1))))
-        ctx.assume(exponent.eq(ctx.real_val(0)).or_(exponent.eq(ctx.real_val(255))))
+        ctx.assume(sign.eq(ctx.real_val(0)) | sign.eq(ctx.real_val(1)))
+        ctx.assume(exponent.eq(ctx.real_val(0)) | exponent.eq(ctx.real_val(255)))
 
         self.assertEqual(
             get_rival_rects(ctx.assumes, ["sign", "exponent"]),
@@ -1171,7 +1171,7 @@ class TestRivalTranslation(unittest.TestCase):
     def test_rival_feasibility_returns_first_clean_rect(self):
         ctx = SpecContext("rival-feasible-rect")
         x = ctx.real("x")
-        ctx.assume(x.eq(ctx.real_val(0)).or_(x.eq(ctx.real_val(1))))
+        ctx.assume(x.eq(ctx.real_val(0)) | x.eq(ctx.real_val(1)))
         ctx.check(x.eq(ctx.real_val(0)))
 
         clean_rect = [(0.0, 0.0)]

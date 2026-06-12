@@ -83,12 +83,12 @@ def spec(x, y, ctx):
     # IEEE invalid: +inf + -inf
     invalid_inf_sum = (
         x_inf.eq(ctx.real_val(1))
-        .and_(y_inf.eq(ctx.real_val(1)))
-        .and_(x_sign.ne(y_sign))
+        & y_inf.eq(ctx.real_val(1))
+        & x_sign.ne(y_sign)
     )
     
-    res_nan_b = x_nan.eq(ctx.real_val(1)).or_(y_nan.eq(ctx.real_val(1))).or_(invalid_inf_sum)
-    res_inf_b = (~res_nan_b).and_(x_inf.eq(ctx.real_val(1)).or_(y_inf.eq(ctx.real_val(1))))
+    res_nan_b = x_nan.eq(ctx.real_val(1)) | y_nan.eq(ctx.real_val(1)) | invalid_inf_sum
+    res_inf_b = (~res_nan_b) & (x_inf.eq(ctx.real_val(1)) | y_inf.eq(ctx.real_val(1)))
     
     _sum = x_val + y_val
     
