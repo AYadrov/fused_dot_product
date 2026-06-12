@@ -283,11 +283,12 @@ def fp32_encode(s: Node, e: Node, m: Node, encode_nan: Node, encode_inf: Node) -
         forced_nan = encode_nan.eq(one)
         forced_inf = (~forced_nan) & encode_inf.eq(one)
         
-        return ctx.encode_fp32(
+        return  ctx.encode_fp32_real(
             value=finite_value,
-            encode_inf=encode_inf,
-            encode_nan=encode_nan,
-        ).as_tuple()
+            inf=forced_inf,
+            nan=forced_nan,
+            rounding="rne",
+        )
     
     @Composite(name="fp32_encode", spec=spec)
     def impl(s_uq: Node, e_q: Node, m_uq: Node, encode_nan: Node, encode_inf: Node) -> Node:

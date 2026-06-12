@@ -83,7 +83,14 @@ def fp32_pack_spec(s, e, m, ctx):
 def fp32_pack(sign: Node, exponent: Node, mantissa: Node) -> Node:
     return _fp32_alloc(sign, exponent, mantissa)
 
-@Primitive(name="fp32_decode", spec=lambda x, ctx: x[1:])
+
+def decoder_spec(x, ctx):
+    sign, exponent, mantissa, is_normal, is_subnormal, is_zero, is_inf, is_nan = x.as_fields_tuple()[1:]
+    def bool_to_real(flag):
+        return If(flag, ctx.real_val(1), ctx.real_val(0))
+    return sign, exponent, mantissa, bool_to_real(is_normal), bool_to_real(is_subnormal), bool_to_real(is_zero), bool_to_real(is_inf), bool_to_real(is_nan)
+
+@Primitive(name="fp32_decode", spec=decoder_spec)
 def fp32_decode(x: Node) -> Node:
     sign = _fp32_sign(x)
     exponent = _fp32_exponent(x)

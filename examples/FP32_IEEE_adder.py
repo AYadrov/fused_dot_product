@@ -34,7 +34,7 @@ def _fp32_flags(spec_value):
 def _assume_fp32_case(spec_value, class_bits, ctx):
     flags = _fp32_flags(spec_value)
     for flag, bit in zip(flags, class_bits):
-        ctx.assume(flag.eq(ctx.real_val(bit)))
+        ctx.assume(flag.eq(ctx.bool_val(True if bit == 1 else False)))
 
 
 def _append_fp32_case_name(name, case_label):
@@ -73,30 +73,19 @@ def _split_fp32_input_cases(ctx, inputs, spec_inner, spec_outer):
     return split_ctxs
 
 
-# TODO: NaN payload
 def spec(x, y, ctx):
-    x_val, x_sign, x_exp, x_man, x_norm, x_sub, x_zero, x_inf, x_nan = x
-    y_val, y_sign, y_exp, y_man, y_norm, y_sub, y_zero, y_inf, y_nan = y
-    
-    zero = ctx.real_val(0)
-    
     # IEEE invalid: +inf + -inf
-    invalid_inf_sum = (
-        x_inf.eq(ctx.real_val(1))
-        & y_inf.eq(ctx.real_val(1))
-        & x_sign.ne(y_sign)
+    invalid_inf_sum = x.is_inf & y.is_inf & x.sign.ne(y.sign)
+    
+    nan = x.is_nan | y.is_nan | invalid_inf_sum
+    inf = (~nan) & (x.is_inf | y.is_inf)
+    
+    return ctx.encode_fp32_real(
+        value=x.value + y.value,
+        inf=inf,
+        nan=nan,
+        rounding="rne",
     )
-    
-    res_nan_b = x_nan.eq(ctx.real_val(1)) | y_nan.eq(ctx.real_val(1)) | invalid_inf_sum
-    res_inf_b = (~res_nan_b) & (x_inf.eq(ctx.real_val(1)) | y_inf.eq(ctx.real_val(1)))
-    
-    _sum = x_val + y_val
-    
-    return ctx.encode_fp32(
-        value=_sum,
-        encode_inf=If(res_inf_b, ctx.real_val(1), ctx.real_val(0)),
-        encode_nan=If(res_nan_b, ctx.real_val(1), ctx.real_val(0)),
-    ).as_tuple()
 
 
 @Composite(name="FP32_IEEE_adder", spec=spec, case_splitter=_split_fp32_input_cases)

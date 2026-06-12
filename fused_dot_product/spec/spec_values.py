@@ -29,11 +29,11 @@ class Float32Spec:
     def as_tuple(self) -> tuple[RealExpr, RealExpr, RealExpr, RealExpr, RealExpr, RealExpr]:
         return (
             self.value,
-            _flag_as_real(self.is_norm),
-            _flag_as_real(self.is_sub),
-            _flag_as_real(self.is_zero),
-            _flag_as_real(self.is_inf),
-            _flag_as_real(self.is_nan),
+            self.is_norm,
+            self.is_sub,
+            self.is_zero,
+            self.is_inf,
+            self.is_nan,
         )
 
     def as_fields_tuple(self) -> tuple[RealExpr, RealExpr, RealExpr, RealExpr, BoolExpr, BoolExpr, BoolExpr, BoolExpr, BoolExpr]:
@@ -42,11 +42,11 @@ class Float32Spec:
             self.sign,
             self.exponent,
             self.mantissa,
-            _flag_as_real(self.is_norm),
-            _flag_as_real(self.is_sub),
-            _flag_as_real(self.is_zero),
-            _flag_as_real(self.is_inf),
-            _flag_as_real(self.is_nan),
+            self.is_norm,
+            self.is_sub,
+            self.is_zero,
+            self.is_inf,
+            self.is_nan,
         )
 
     def __iter__(self):
@@ -118,13 +118,14 @@ def fresh_float(name: str, ctx) -> Float32Spec:
     )
 
 
-def _encode_from_value(
+def encode_fp32_real(
     ctx,
-    name: str,
     value: RealExpr,
-    encode_inf: RealExpr,
-    encode_nan: RealExpr,
+    inf: BoolExpr,
+    nan: BoolExpr,
+    rounding: str,
 ) -> Float32Spec:
+    name = f"encoded_fp32_{rounding}"
     
     ############# Constants #############
     zero = ctx.real_val(0)
@@ -161,8 +162,8 @@ def _encode_from_value(
 
     ############## Flags ###############
     
-    forced_nan = encode_nan.eq(ctx.real_val(1))
-    forced_inf = (~forced_nan) & encode_inf.eq(ctx.real_val(1))
+    forced_nan = nan
+    forced_inf = (~forced_nan) & inf
 
     is_finite = (~forced_nan) & (~forced_inf)
 
@@ -235,17 +236,18 @@ def _encode_from_value(
 # sign is assumed to be {0, 1}
 # encode_inf is assumed to be {0, 1}
 # encode_nan is assumed to be {0, 1}
-def _encode_from_components(
+def encode_fp32_components(
     ctx,
-    name: str,
     sign: RealExpr,
     exponent: RealExpr,
     mantissa: RealExpr,
-    encode_inf: RealExpr,
-    encode_nan: RealExpr,
+    inf: BoolExpr,
+    nan: BoolExpr,
 ) -> Float32Spec:
-    forced_nan = encode_nan.eq(ctx.real_val(1))
-    forced_inf = (~forced_nan) & encode_inf.eq(ctx.real_val(1))
+    name = "encoded_fp32_components"
+    
+    forced_nan = nan
+    forced_inf = (~forced_nan) & inf
 
     is_finite = (~forced_nan) & (~forced_inf)
 
@@ -338,42 +340,3 @@ def _encode_from_components(
         is_inf=is_inf,
         is_nan=is_nan,
     )
-
-
-def encode_fp32(
-    ctx,
-    encode_inf: RealExpr,
-    encode_nan: RealExpr,
-    value: RealExpr | None = None,
-    sign: RealExpr | None = None,
-    exponent: RealExpr | None = None,
-    mantissa: RealExpr | None = None,
-) -> Float32Spec:
-    name = "encoded_fp32"
-    if value is not None:
-        return _encode_from_value(
-            ctx,
-            name=name,
-            value=value,
-            encode_nan=encode_nan,
-            encode_inf=encode_inf,
-        )
-
-    if sign is None or exponent is None or mantissa is None:
-        raise TypeError("encode_fp32 requires either value=... or sign/exponent/mantissa components")
-    if encode_inf is None or encode_nan is None:
-        raise TypeError("component-based encode_fp32 requires encode_inf and encode_nan")
-
-    return _encode_from_components(
-        ctx,
-        name=name,
-        sign=sign,
-        exponent=exponent,
-        mantissa=mantissa,
-        encode_inf=encode_inf,
-        encode_nan=encode_nan,
-    )
-
-
-def fresh_float32(name: str, ctx) -> Float32Spec:
-    return fresh_float(name, ctx)

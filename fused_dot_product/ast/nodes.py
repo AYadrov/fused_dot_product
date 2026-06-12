@@ -97,9 +97,20 @@ class composite(Node):
         inputs = [ctx.spec_of(arg) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, ctx=ctx)
 
+        # ugly patch
+        try:
+            spec_inner = spec_inner.as_tuple()
+            spec_outer = spec_outer.as_tuple()
+            inputs = [x.as_tuple() for x in inputs]
+        except:
+            pass
+
         if self.case_splitter is None:
             initial_ctxs = [ctx]
         else:
+            print(inputs)
+            print(spec_inner)
+            print(spec_outer)
             initial_ctxs = self.case_splitter(ctx, inputs, spec_inner, spec_outer)
 
         full_trace = []
@@ -110,6 +121,7 @@ class composite(Node):
                 ctx=initial_ctx,
                 schedule=schedule,
             )
+            print(initial_ctx.name, _status)
             full_trace.append(proof_trace)
 
         return full_trace

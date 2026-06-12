@@ -191,7 +191,7 @@ class Float32T(StaticType):
         return Float32T()
     
     def to_spec(self, name, ctx):
-        return ctx.fresh_float(name).as_fields_tuple()
+        return ctx.fresh_float(name)
     
     def random_runtime_value(self, rng: random.Random):
         from .runtime import Float32
