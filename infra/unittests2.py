@@ -1154,9 +1154,9 @@ class TestRivalTranslation(unittest.TestCase):
             return machine
 
         with patch("fused_dot_product.rival.build_machine", side_effect=build):
-            report = rival_feasibility_check(ctx, max_depth=1)
+            status = rival_feasibility_check(ctx, max_depth=1)
 
-        self.assertEqual(report["status"], "sat")
+        self.assertEqual(status, "not feasible")
         self.assertEqual(
             combined_calls,
             [
@@ -1167,6 +1167,54 @@ class TestRivalTranslation(unittest.TestCase):
                 ([x_right, y_right, (0.0, math.inf)], "root-hints"),
             ],
         )
+
+    def test_rival_feasibility_returns_first_clean_rect(self):
+        ctx = SpecContext("rival-feasible-rect")
+        x = ctx.real("x")
+        ctx.assume(x.eq(ctx.real_val(0)).or_(x.eq(ctx.real_val(1))))
+        ctx.check(x.eq(ctx.real_val(0)))
+
+        clean_rect = [(0.0, 0.0)]
+        bad_rect = [(1.0, 1.0)]
+        combined_calls = []
+
+        def build(exprs, free_vars):
+            self.assertEqual(free_vars, ["x"])
+            machine = Mock()
+            if exprs == ctx.assumes + ctx.checks:
+                def apply(rect, hints=None):
+                    combined_calls.append((rect, hints))
+                    if rect == clean_rect:
+                        return RivalAnalysis(
+                            status=(False, False),
+                            hints=None,
+                            converged=True,
+                        )
+                    if rect == bad_rect:
+                        return RivalAnalysis(
+                            status=(True, True),
+                            hints=None,
+                            converged=True,
+                        )
+                    raise AssertionError(f"unexpected rect {rect}")
+
+                machine.apply_with_hints.side_effect = apply
+            else:
+                machine.apply_with_hints.return_value = RivalAnalysis(
+                    status=(False, False),
+                    hints=None,
+                    converged=True,
+                )
+            return machine
+
+        with (
+            patch("fused_dot_product.rival.get_rival_rects", return_value=[clean_rect, bad_rect]),
+            patch("fused_dot_product.rival.build_machine", side_effect=build),
+        ):
+            status = rival_feasibility_check(ctx, max_depth=1)
+
+        self.assertEqual(status, "feasible")
+        self.assertEqual(combined_calls, [(clean_rect, None)])
 
     def test_rival_trim_context_uses_unbounded_rects(self):
         ctx = SpecContext("rival-trim-unbounded")
@@ -1314,26 +1362,11 @@ class TestSolverApis(unittest.TestCase):
         self.assertIsInstance(proof_trace[0], dict)
         self.assertEqual(proof_trace[0]["tool"], "branch-b")
 
-    def test_check_equivalence_routes_rival_feasibility_schedule_with_normalized_max_depth(self):
+    def test_check_equivalence_rejects_rival_feasibility_as_proof_tool(self):
         ctx = SpecContext("rival-schedule")
-        seen_max_depth = []
 
-        def fake_rival(ctx, max_depth):
-            seen_max_depth.append(max_depth)
-            return build_proof_report(
-                ctx,
-                ctx.copy(),
-                tool="rival_feasibility_check",
-                runtime_s=0.0,
-                status="unsat",
-                max_depth=max_depth,
-            )
-
-        with patch.dict(
-            solver_engine.TOOL_FNS,
-            {"rival_feasibility_check": fake_rival},
-        ):
-            status, proof_trace = solver_engine.check_equivalence(
+        with self.assertRaises(ValueError) as raised:
+            solver_engine.check_equivalence(
                 RealLit(1),
                 RealLit(1),
                 ctx=ctx,
@@ -1345,9 +1378,7 @@ class TestSolverApis(unittest.TestCase):
                 ],
             )
 
-        self.assertEqual(status, "unsat")
-        self.assertEqual(seen_max_depth, [1])
-        self.assertEqual(proof_trace[0]["max_depth"], 1)
+        self.assertIn("Unknown schedule tool rival_feasibility_check", str(raised.exception))
 
     def test_fp32_adder_norm_norm_proves_with_egglog(self):
         adder = FP32_IEEE_adder(

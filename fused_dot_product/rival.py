@@ -94,36 +94,27 @@ def get_rival_rects(
     return rects
 
 
-def rival_feasibility_check(
-    ctx: "SpecContext",
-    max_depth: int = 1,
-):
-    from .solver.report import build_proof_report
-
+def rival_feasibility_check(ctx: "SpecContext", max_depth: int = 1):
     max_depth = int(max_depth)
-    run_started_at = perf_counter()
     exprs = ctx.assumes + ctx.checks
     free_vars = collect_free_vars(exprs)
     
     if not exprs:
-        return build_proof_report(
-            ctx,
-            ctx.copy(),
-            tool="rival_feasibility_check",
-            runtime_s=perf_counter() - run_started_at,
-            status="unsat",
-            max_depth=max_depth,
-        )
+        return "feasible"
+
+    rects = get_rival_rects(ctx.assumes, free_vars)
+    if not rects:
+        return "not feasible"
 
     machine = build_machine(exprs, free_vars)
     expr_splitters = _build_rival_expr_splitters(exprs, free_vars)
 
     work_queue = deque(
         (rect, None, 0)
-        for rect in get_rival_rects(ctx.assumes, free_vars)
+        for rect in rects
     )
 
-    sat_flag = True
+    may_be_feasible = False
 
     while work_queue:
         rect, hints, depth = work_queue.popleft()
@@ -131,19 +122,10 @@ def rival_feasibility_check(
         status = analysis.status
 
         if status == (True, True):
-            sat_flag = sat_flag and True
             continue
 
         if status == (False, False):
-            return build_proof_report(
-                ctx,
-                ctx.copy(),
-                tool="rival_feasibility_check",
-                runtime_s=perf_counter() - run_started_at,
-                status="unsat",
-                max_depth=max_depth,
-                supplementary_info=rect,
-            )
+            return "feasible"
 
         if status == (False, True) and depth < max_depth:
             # Split only on variables that are in assumptions/checks that fail
@@ -153,16 +135,9 @@ def rival_feasibility_check(
                 for child in children:
                     work_queue.append((child, analysis.hints, depth + 1))
                 continue
-        sat_flag = False
 
-    return build_proof_report(
-        ctx,
-        ctx.copy(),
-        tool="rival_feasibility_check",
-        runtime_s=perf_counter() - run_started_at,
-        status="sat" if sat_flag else "unknown",
-        max_depth=max_depth,
-    )
+        may_be_feasible = True
+    return "unknown" if may_be_feasible else "not feasible"
 
 
 # Drop expressions that are certainly known to be True/True
