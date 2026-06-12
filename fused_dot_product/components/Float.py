@@ -73,7 +73,7 @@ def _fp32_alloc(sign_bit: Node,
 
 # Does not track nan/infs/subnormals yet
 def fp32_pack_spec(s, e, m, ctx):
-    ctx.assume(s.eq(ctx.real_val(1)).or_(s.eq(ctx.real_val(0))))
+    ctx.assume(s.eq(ctx.real_val(1)) | s.eq(ctx.real_val(0)))
     mantissa = ctx.real_val(1) + m * ctx.real_val(2) ** (-ctx.real_val(Float32.mantissa_bits))
     exponent = e - ctx.real_val(Float32.exponent_bias)
     value = ctx.real_val(-1) ** s * mantissa * ctx.real_val(2) ** exponent

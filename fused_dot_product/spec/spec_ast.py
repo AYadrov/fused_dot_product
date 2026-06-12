@@ -134,6 +134,18 @@ class BoolExpr(SpecNode):
 
     def __invert__(self) -> "BoolExpr":
         return Not(self)
+
+    def __and__(self, other: "BoolExpr") -> "BoolExpr":
+        return self.and_(other)
+
+    def __rand__(self, other: "BoolExpr") -> "BoolExpr":
+        return self._coerce(other).and_(self)
+
+    def __or__(self, other: "BoolExpr") -> "BoolExpr":
+        return self.or_(other)
+
+    def __ror__(self, other: "BoolExpr") -> "BoolExpr":
+        return self._coerce(other).or_(self)
         
     def eq(self, other: "BoolExpr") -> "BoolExpr":
         return BoolEq(self, self._coerce(other))
