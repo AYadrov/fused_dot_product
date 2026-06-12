@@ -11,8 +11,12 @@ SEED ?= $(shell date "+%Y%j")
 DREAL_REPO ?= https://github.com/dreal/dreal4
 
 BAZELISK_URL := https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64
+RUSTUP_INIT_URL := https://sh.rustup.rs
+CARGO_HOME ?= $(HOME)/.cargo
+RUSTUP_HOME ?= $(HOME)/.rustup
+RUST_PATH := $(CARGO_HOME)/bin:$(PATH)
 
-.PHONY: nightly install install-prereqs _check-python unit-tests _venv _install-prereqs _python-deps _install-dreal _bazelisk clean _download_ac_int
+.PHONY: nightly install install-prereqs _check-python unit-tests _venv _install-prereqs _python-deps _install-dreal _install-rust _install-rival _bazelisk clean _download_ac_int
 
 _check-python:
 	@echo "Checking Python installation"
@@ -88,6 +92,26 @@ _install-dreal: _venv
 	@$(VENV_PIP) install --upgrade "wheel<0.38"
 	@$(VENV_PIP) install --no-build-isolation dreal
 
+_install-rust:
+	@echo "Ensuring Rust/Cargo is available"
+	@if PATH="$(RUST_PATH)" command -v cargo >/dev/null 2>&1; then \
+		cargo_version="$$(PATH="$(RUST_PATH)" cargo --version)"; \
+		echo "Cargo found: $$cargo_version"; \
+	else \
+		command -v curl >/dev/null 2>&1 || { \
+			echo "curl not found. Please install curl or Rust/Cargo manually."; \
+			exit 1; \
+		}; \
+		echo "Installing Rust/Cargo with rustup into $(RUSTUP_HOME) and $(CARGO_HOME)"; \
+		echo "This user-local install does not require sudo."; \
+		curl --proto '=https' --tlsv1.2 -sSf "$(RUSTUP_INIT_URL)" | CARGO_HOME="$(CARGO_HOME)" RUSTUP_HOME="$(RUSTUP_HOME)" sh -s -- -y --no-modify-path; \
+	fi
+
+_install-rival: _venv _install-rust
+	@echo "Installing Rival3 Python bridge into $(VENV_DIR)"
+	@$(VENV_PIP) install --upgrade maturin
+	@env -u CONDA_PREFIX VIRTUAL_ENV="$(abspath $(VENV_DIR))" PATH="$(RUST_PATH)" $(VENV_PYTHON) -m maturin develop -m crates/rival_bridge/Cargo.toml
+
 _download_ac_int:
 	@echo "Downloading ac_int library into infra/ac_types"
 	@if [ ! -d "infra/ac_types" ]; then \
@@ -96,7 +120,7 @@ _download_ac_int:
 
 
 # This runs without sudo
-install: _python-deps _install-dreal _download_ac_int
+install: _python-deps _install-dreal _install-rival _download_ac_int
 
 unit-tests:
 	@echo "Running infra/unittests.py..."

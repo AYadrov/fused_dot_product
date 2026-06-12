@@ -88,7 +88,6 @@ class composite(Node):
         if schedule is None:
             schedule = [
                 {"tool": "simplify"},
-                # {"tool": "egglog-preprocess", "iterations": 3, "scheduler": {"match_limit": 500_000, "ban_length": 1}},
                 {"tool": "egglog-rewrite", "iterations": 6, "scheduler": {"match_limit": 500_000, "ban_length": 1}},
                 {"tool": "z3", "timeout_ms": 10000},
                 {"tool": "dreal", "precision": 0.001},
@@ -112,8 +111,7 @@ class composite(Node):
                 schedule=schedule,
             )
             full_trace.append(proof_trace)
-            print(initial_ctx.name, _status)
-            
+
         return full_trace
 
     def _validate_components(self, composite_name: str) -> None:

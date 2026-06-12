@@ -14,10 +14,6 @@ def _flag_as_real(flag: BoolExpr) -> RealExpr:
     return If(flag, RealLit(1), RealLit(0))
 
 
-def _sign_factor(sign: RealExpr) -> RealExpr:
-    return If(sign.eq(RealLit(1)), RealLit(-1), RealLit(1))
-
-
 @dataclass(frozen=True)
 class Float32Spec:
     value: RealExpr
@@ -64,38 +60,38 @@ def fresh_float(name: str, ctx) -> Float32Spec:
     is_zero = ctx.fresh_bool(f"{name}_is_zero")
     is_inf = ctx.fresh_bool(f"{name}_is_inf")
     is_nan = ctx.fresh_bool(f"{name}_is_nan")
-    
+
     sign = ctx.fresh_real(f"{name}_sign")
     exponent = ctx.fresh_real(f"{name}_exponent")
     mantissa = ctx.fresh_real(f"{name}_mantissa")
 
     zero = ctx.real_val(0)
     one = ctx.real_val(1)
+    negative_one = ctx.real_val(-1)
     two = ctx.real_val(2)
     m_bits = ctx.real_val(Float32.mantissa_bits)
     bias = ctx.real_val(Float32.exponent_bias)
     max_exponent = ctx.real_val((1 << Float32.exponent_bits) - 1)
     max_mantissa = ctx.real_val((1 << Float32.mantissa_bits) - 1)
-    
+
     ctx.assume(sign.eq(zero).or_(sign.eq(one)))
     ctx.assume((exponent >= zero).and_(exponent <= max_exponent))
     ctx.assume((mantissa >= zero).and_(mantissa <= max_mantissa))
-    
+
     flags = (is_norm, is_sub, is_zero, is_inf, is_nan)
     ctx.assume(is_norm.or_(is_sub).or_(is_zero).or_(is_inf).or_(is_nan))
     for i, lhs in enumerate(flags):
         for rhs in flags[i + 1:]:
             ctx.assume((~lhs).or_(~rhs))
 
-    ctx.assume(_implies(is_norm, exponent > zero))
+    ctx.assume(_implies(is_norm, exponent >= one))
     ctx.assume(_implies(is_norm, exponent <= (max_exponent - one)))
     ctx.assume(_implies(is_sub.or_(is_zero), exponent.eq(zero)))
     ctx.assume(_implies(is_zero.or_(is_inf), mantissa.eq(zero)))
     ctx.assume(_implies(is_inf.or_(is_nan), exponent.eq(max_exponent)))
-    ctx.assume(_implies(is_sub.or_(is_nan), mantissa > zero))
+    ctx.assume(_implies(is_sub.or_(is_nan), mantissa >= one))
 
-
-    sign_value = _sign_factor(sign)
+    sign_value = negative_one ** sign
     norm_value = sign_value * (one + mantissa * (two ** (-m_bits))) * (two ** (exponent - bias))
     sub_value = sign_value * mantissa * (two ** (-m_bits)) * (two ** (one - bias))
 
@@ -108,7 +104,7 @@ def fresh_float(name: str, ctx) -> Float32Spec:
             zero,
         ),
     )
-    
+
     return Float32Spec(
         value=value,
         sign=sign,
@@ -129,21 +125,110 @@ def _encode_from_value(
     encode_inf: RealExpr,
     encode_nan: RealExpr,
 ) -> Float32Spec:
-    sign_expr = ctx.fresh_real(f"{name}_sign")
-    exponent_expr = ctx.fresh_real(f"{name}_exponent")
-    mantissa_expr = ctx.fresh_real(f"{name}_mantissa")
+    
+    ############# Constants #############
+    zero = ctx.real_val(0)
+    one = ctx.real_val(1)
+    negative_one = ctx.real_val(-1)
+    two = ctx.real_val(2)
+    max_exponent = ctx.real_val((1 << Float32.exponent_bits) - 1)
+    max_mantissa = ctx.real_val((1 << Float32.mantissa_bits) - 1)
+    
+    mantissa_bits = ctx.real_val(Float32.mantissa_bits)
+    exponent_bits = ctx.real_val(Float32.exponent_bits)
+    exponent_bias = ctx.real_val(Float32.exponent_bias)
+    
+    smallest_normal = two ** (one - exponent_bias)
+    # Greatest_normal cannot fit in egglog if folded
+    greatest_normal = (two - two ** (-mantissa_bits)) * two ** (two ** exponent_bits - two - exponent_bias)
+    smallest_subnormal = two ** (one - exponent_bias - mantissa_bits)
 
-    res = _encode_from_components(
-        ctx=ctx,
-        name=name,
-        sign=sign_expr,
-        exponent=exponent_expr,
-        mantissa=mantissa_expr,
-        encode_inf=encode_inf,
-        encode_nan=encode_nan,
+    ####################################
+
+    ########### Components #############
+
+    sign = ctx.fresh_real(f"{name}_sign")
+    exponent = ctx.fresh_real(f"{name}_exponent")
+    mantissa = ctx.fresh_real(f"{name}_mantissa")
+
+    ctx.assume(sign.eq(zero).or_(sign.eq(one)))
+    ctx.assume(_implies(value < zero, sign.eq(one)))
+    ctx.assume(_implies(value >= zero, sign.eq(zero)))
+    ctx.assume((exponent >= zero).and_(exponent <= max_exponent))
+    ctx.assume((mantissa >= zero).and_(mantissa <= max_mantissa))
+    
+    ####################################
+
+    ############## Flags ###############
+    
+    forced_nan = encode_nan.eq(ctx.real_val(1))
+    forced_inf = (~forced_nan).and_(encode_inf.eq(ctx.real_val(1)))
+
+    is_finite = (~forced_nan).and_(~forced_inf)
+
+    magnitude = abs(value)
+    
+    is_subnormal_range = is_finite.and_(magnitude < smallest_normal)
+
+    is_norm = ctx.fresh_bool(f"{name}_is_norm")
+    is_sub = ctx.fresh_bool(f"{name}_is_sub")
+    is_zero = ctx.fresh_bool(f"{name}_is_zero")
+    is_inf = ctx.fresh_bool(f"{name}_is_inf")
+    is_nan = ctx.fresh_bool(f"{name}_is_nan")
+
+    ctx.assume(is_zero.eq(is_finite.and_(magnitude < smallest_subnormal)))
+    ctx.assume(is_sub.eq(is_finite.and_(magnitude < smallest_normal).and_(magnitude >= smallest_subnormal)))
+    ctx.assume(is_norm.eq(is_finite.and_(magnitude >= smallest_normal).and_(magnitude <= greatest_normal)))
+    ctx.assume(is_inf.eq((is_finite.and_(magnitude > greatest_normal)).or_(forced_inf)))
+    ctx.assume(is_nan.eq(forced_nan))
+
+    flags = (is_norm, is_sub, is_zero, is_inf, is_nan)
+    ctx.assume(is_norm.or_(is_sub).or_(is_zero).or_(is_inf).or_(is_nan))
+    for i, lhs in enumerate(flags):
+        for rhs in flags[i + 1:]:
+            ctx.assume((~lhs).or_(~rhs))
+
+    ####################################
+
+    ###### Components Constraints ######
+
+    ctx.assume(_implies(is_norm, exponent >= one))
+    ctx.assume(_implies(is_norm, exponent <= (max_exponent - one)))
+    ctx.assume(_implies(is_sub.or_(is_zero), exponent.eq(zero)))
+    ctx.assume(_implies(is_zero.or_(is_inf), mantissa.eq(zero)))
+    ctx.assume(_implies(is_inf.or_(is_nan), exponent.eq(max_exponent)))
+    ctx.assume(_implies(is_sub.or_(is_nan), mantissa >= one))
+
+    sign_value = negative_one ** sign
+    norm_value = sign_value * (one + mantissa * (two ** (-mantissa_bits))) * (two ** (exponent - exponent_bias))
+    sub_value = sign_value * mantissa * (two ** (-mantissa_bits)) * (two ** (one - exponent_bias))
+
+    value_from_components = If(
+        is_norm,
+        norm_value,
+        If(
+            is_sub,
+            sub_value,
+            zero,
+        ),
     )
-    ctx.assume(res.value.eq(value))
-    return res
+    
+    ctx.assume(_implies(is_norm, value.eq(value_from_components)))
+    ctx.assume(_implies(is_sub, value.eq(value_from_components)))
+    
+    ####################################
+    
+    return Float32Spec(
+        value=value_from_components,
+        sign=sign,
+        exponent=exponent,
+        mantissa=mantissa,
+        is_norm=is_norm,
+        is_sub=is_sub,
+        is_zero=is_zero,
+        is_inf=is_inf,
+        is_nan=is_nan,
+    )
 
 
 # Priority for flags: NaN -> Inf
@@ -161,33 +246,34 @@ def _encode_from_components(
 ) -> Float32Spec:
     forced_nan = encode_nan.eq(ctx.real_val(1))
     forced_inf = (~forced_nan).and_(encode_inf.eq(ctx.real_val(1)))
-    
+
     is_finite = (~forced_nan).and_(~forced_inf)
-    
+
     zero = ctx.real_val(0)
     one = ctx.real_val(1)
+    negative_one = ctx.real_val(-1)
     two = ctx.real_val(2)
-    sign_value = _sign_factor(sign)
+    sign_value = negative_one ** sign
 
     ctx.assume(sign.eq(zero).or_(sign.eq(one)))
     ctx.assume(encode_inf.eq(zero).or_(encode_inf.eq(one)))
     ctx.assume(encode_nan.eq(zero).or_(encode_nan.eq(one)))
-    
+
     mantissa_bits = ctx.real_val(Float32.mantissa_bits)
     exponent_bits = ctx.real_val(Float32.exponent_bits)
     exponent_bias = ctx.real_val(Float32.exponent_bias)
-    
+
     max_mantissa = ctx.real_val((1 << Float32.mantissa_bits) - 1)
     max_exponent = ctx.real_val((1 << Float32.exponent_bits) - 1)
-    
+
     smallest_normal = two ** (one - exponent_bias)
     # Greatest_normal cannot fit in egglog if folded
     greatest_normal = (two - two ** (-mantissa_bits)) * two ** (two ** exponent_bits - two - exponent_bias)
     smallest_subnormal = two ** (one - exponent_bias - mantissa_bits)
-    
+
     normal_magnitude = (one + mantissa * two ** (-mantissa_bits)) * two ** (exponent - exponent_bias)
     subnormal_magnitude = mantissa * two ** (-mantissa_bits) * two ** (one - exponent_bias)
-    
+
     is_subnormal_range = is_finite.and_(normal_magnitude < smallest_normal)
 
     is_norm = ctx.fresh_bool(f"{name}_is_norm")
@@ -195,13 +281,13 @@ def _encode_from_components(
     is_zero = ctx.fresh_bool(f"{name}_is_zero")
     is_inf = ctx.fresh_bool(f"{name}_is_inf")
     is_nan = ctx.fresh_bool(f"{name}_is_nan")
-    
+
     ctx.assume(is_zero.eq(is_subnormal_range.and_(subnormal_magnitude < smallest_subnormal)))
     ctx.assume(is_sub.eq(is_subnormal_range.and_(~is_zero)))
     ctx.assume(is_norm.eq(is_finite.and_(normal_magnitude >= smallest_normal).and_(normal_magnitude <= greatest_normal)))
-    ctx.assume(is_inf.eq(is_finite.and_(~is_norm).and_(~is_subnormal_range).or_(forced_inf)))
+    ctx.assume(is_inf.eq((is_finite.and_(normal_magnitude > greatest_normal)).or_(forced_inf)))
     ctx.assume(is_nan.eq(forced_nan))
-    
+
     # Some constant encodings, such as inf/nan.
     out_exponent = If(
         is_nan.or_(is_inf),
@@ -215,22 +301,22 @@ def _encode_from_components(
     )
     ctx.assume(_implies(is_sub.or_(is_norm), (out_mantissa >= zero).and_(out_mantissa <= max_mantissa)))
     ctx.assume(_implies(is_norm, (out_exponent >= one).and_(out_exponent <= max_exponent - one)))
-    
+
     out_subnormal_magnitude = out_mantissa * two ** (-mantissa_bits) * two ** (one - exponent_bias)
     out_normal_magnitude = (one + out_mantissa * two ** (-mantissa_bits)) * two ** (out_exponent - exponent_bias)
-    
+
     ctx.assume(_implies(is_norm, out_normal_magnitude.eq(normal_magnitude)))
     ctx.assume(_implies(is_sub, out_subnormal_magnitude.eq(subnormal_magnitude)))
-    
+
     flags = (is_norm, is_sub, is_zero, is_inf, is_nan)
     ctx.assume(is_norm.or_(is_sub).or_(is_zero).or_(is_inf).or_(is_nan))
     for i, lhs in enumerate(flags):
         for rhs in flags[i + 1:]:
             ctx.assume((~lhs).or_(~rhs))
-    
+
     subnormal_val = sign_value * out_subnormal_magnitude
     normal_val = sign_value * out_normal_magnitude
-    
+
     value = If(
         is_norm,
         normal_val,
@@ -240,7 +326,7 @@ def _encode_from_components(
             zero,
         ),
     )
-    
+
     return Float32Spec(
         value=value,
         sign=sign,

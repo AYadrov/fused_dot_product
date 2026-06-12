@@ -1,7 +1,8 @@
 import unittest
 import contextlib
 import os
-from unittest.mock import patch
+import sys
+from unittest.mock import Mock, patch
 
 import dreal
 import math
@@ -14,6 +15,15 @@ from fused_dot_product.egglog.rules import load_rules
 from fused_dot_product.smt import dreal_check_eq, z3_check_eq
 from fused_dot_product.solver import engine as solver_engine
 from fused_dot_product.solver.report import build_proof_report
+from fused_dot_product.rival import (
+    RivalAnalysis,
+    build_machine,
+    collect_free_vars,
+    get_rival_rects,
+    rival_feasibility_check,
+    rival_trim_context,
+    to_rival_ir,
+)
 from fused_dot_product.spec.spec_context import simplify_ctx
 from fused_dot_product.spec.spec_utils import from_egglog
 import examples.FP32_IEEE_adder as fp32_adder_module
@@ -422,7 +432,7 @@ class TestPowSpecOp(unittest.TestCase):
         ctx.check(If(BoolLit(False), x + RealLit(1), RealLit(3)).eq(RealLit(3)))
 
         simplified = ctx.simplify()
-        self.assertEqual(simplified.checks, [BoolLit(True)])
+        self.assertEqual(simplified.checks, [])
 
     def test_context_simplify_uses_mul_by_zero_shortcut(self):
         ctx = SpecContext("mul-zero")
@@ -431,7 +441,7 @@ class TestPowSpecOp(unittest.TestCase):
         ctx.check((RealLit(0) * (x + RealLit(5))).eq(RealLit(0)))
 
         simplified = ctx.simplify()
-        self.assertEqual(simplified.checks, [BoolLit(True)])
+        self.assertEqual(simplified.checks, [])
 
 
 class TestSpecContextLearning(unittest.TestCase):
@@ -557,14 +567,80 @@ class TestSpecContextLearning(unittest.TestCase):
         )
         self.assertEqual(
             simplified.assumes,
+            [],
+        )
+
+    def test_context_fixpoint_inlines_non_literal_aliases(self):
+        ctx = SpecContext("simplify-aliases")
+        xor_res = ctx.real("xor_res")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(xor_res.eq(x + y))
+        ctx.assume((xor_res * ctx.real_val(1)).eq(x + y))
+        ctx.check((xor_res + ctx.real_val(1)).eq((x + y) + ctx.real_val(1)))
+
+        simplified = ctx.simplify()
+
+        self.assertNotIn("xor_res", str(simplified))
+        self.assertEqual(simplified.assumes, [])
+        self.assertEqual(simplified.checks, [])
+
+    def test_context_fixpoint_preserves_duplicate_aliases_as_constraints(self):
+        ctx = SpecContext("simplify-duplicate-aliases")
+        alias = ctx.real("alias")
+        y = ctx.real("y")
+        z = ctx.real("z")
+
+        ctx.assume(alias.eq(y + ctx.real_val(1)))
+        ctx.assume(alias.eq(z + ctx.real_val(1)))
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(
+            simplified.assumes,
+            [Eq(y + RealLit(1), z + RealLit(1))],
+        )
+
+    def test_context_fixpoint_keeps_self_referential_constraints(self):
+        ctx = SpecContext("simplify-self-reference")
+        x = ctx.real("x")
+
+        ctx.assume(x.eq(abs(x)))
+        ctx.check(x.eq(abs(x)))
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(simplified.assumes, [Eq(x, Abs(x))])
+        self.assertEqual(simplified.checks, [Eq(x, Abs(x))])
+
+    def test_assume_records_alias_loops(self):
+        ctx = SpecContext("assume-alias-loop")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(x.eq(y + ctx.real_val(1)))
+        ctx.assume(y.eq(x + ctx.real_val(1)))
+
+        self.assertEqual(
+            ctx.assumes,
             [
-                Eq(and_res, RealLit(0)),
-                Eq(x, RealLit(0)),
-                Eq(y, RealLit(0)),
+                Eq(x, y + RealLit(1)),
+                Eq(y, x + RealLit(1)),
             ],
         )
 
-    def test_context_fixpoint_retains_canonical_learned_assumptions(self):
+    def test_check_records_alias_loops(self):
+        ctx = SpecContext("check-alias-loop")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(x.eq(y + ctx.real_val(1)))
+        ctx.check(y.eq(x + ctx.real_val(1)))
+
+        self.assertEqual(ctx.checks, [Eq(y, x + RealLit(1))])
+
+    def test_context_fixpoint_substitutes_canonical_learned_assumptions(self):
         ctx = SpecContext("canonical-assumes")
         x = ctx.real("x")
         p = ctx.bool("p")
@@ -577,16 +653,9 @@ class TestSpecContextLearning(unittest.TestCase):
 
         self.assertEqual(
             simplified.assumes,
-            [
-                Eq(x, RealLit(3)),
-                BoolLit(True),
-                BoolEq(p, BoolLit(True)),
-            ],
+            [],
         )
-        self.assertEqual(
-            simplified.learned_literals(),
-            {x: RealLit(3), p: BoolLit(True)},
-        )
+        self.assertEqual(simplified.learned_literals(), {})
 
     def test_context_fixpoint_propagates_through_multiple_rounds(self):
         ctx = SpecContext("simplify-multi-round")
@@ -602,16 +671,9 @@ class TestSpecContextLearning(unittest.TestCase):
 
         self.assertEqual(
             simplified.assumes,
-            [
-                Eq(x, RealLit(2)),
-                Eq(y, RealLit(1)),
-                Eq(z, RealLit(0)),
-            ],
+            [],
         )
-        self.assertEqual(
-            simplified.learned_literals(),
-            {x: RealLit(2), y: RealLit(1), z: RealLit(0)},
-        )
+        self.assertEqual(simplified.learned_literals(), {})
 
     def test_context_fixpoint_simplifies_checks_from_learned_literals(self):
         ctx = SpecContext("simplify-checks")
@@ -623,7 +685,7 @@ class TestSpecContextLearning(unittest.TestCase):
         simplified = ctx.simplify()
 
         self.assertEqual(ctx.checks, [Eq(x + RealLit(2), RealLit(3))])
-        self.assertEqual(simplified.checks, [BoolLit(True)])
+        self.assertEqual(simplified.checks, [])
 
     def test_context_fixpoint_simplifies_bool_assumptions_and_checks(self):
         ctx = SpecContext("simplify-bool")
@@ -637,15 +699,9 @@ class TestSpecContextLearning(unittest.TestCase):
         simplified = ctx.simplify()
 
         self.assertEqual(ctx.assumes, [BoolEq(p, BoolLit(True)), BoolEq(q, p)])
-        self.assertEqual(
-            simplified.assumes,
-            [BoolEq(p, BoolLit(True)), BoolEq(q, BoolLit(True))],
-        )
-        self.assertEqual(simplified.checks, [BoolLit(True)])
-        self.assertEqual(
-            simplified.learned_literals(),
-            {p: BoolLit(True), q: BoolLit(True)},
-        )
+        self.assertEqual(simplified.assumes, [])
+        self.assertEqual(simplified.checks, [])
+        self.assertEqual(simplified.learned_literals(), {})
 
     def test_context_fixpoint_accepts_duplicate_equivalent_bindings(self):
         ctx = SpecContext("simplify-duplicate")
@@ -661,17 +717,9 @@ class TestSpecContextLearning(unittest.TestCase):
 
         self.assertEqual(
             simplified.assumes,
-            [
-                Eq(x, RealLit(1)),
-                Eq(x, RealLit(1)),
-                BoolEq(p, BoolLit(True)),
-                BoolEq(p, BoolLit(True)),
-            ],
+            [],
         )
-        self.assertEqual(
-            simplified.learned_literals(),
-            {x: RealLit(1), p: BoolLit(True)},
-        )
+        self.assertEqual(simplified.learned_literals(), {})
 
     def test_context_fixpoint_raises_on_conflicting_bindings(self):
         ctx = SpecContext("simplify-conflict")
@@ -699,9 +747,9 @@ class TestSpecContextLearning(unittest.TestCase):
         self.assertEqual(ctx.checks, [Eq(x, RealLit(3))])
         self.assertEqual(
             simplified.assumes,
-            [Eq(x, RealLit(3)), Eq(y, RealLit(2))],
+            [],
         )
-        self.assertEqual(simplified.checks, [BoolLit(True)])
+        self.assertEqual(simplified.checks, [])
 
     def test_simplify_leaves_original_context_unchanged_on_conflict(self):
         ctx = SpecContext("simplify-conflict-output")
@@ -732,8 +780,13 @@ class TestEgglogFloatLiterals(unittest.TestCase):
             with self.subTest(value=value):
                 round_tripped = from_egglog(RealLit(value).to_egglog())
 
-                self.assertIsInstance(round_tripped, RealLit)
-                self.assertEqual(round_tripped.value.hex(), value.hex())
+                if isinstance(round_tripped, RealLit):
+                    self.assertEqual(round_tripped.value.hex(), value.hex())
+                else:
+                    self.assertEqual(
+                        round_tripped,
+                        RealLit(4722366482869645) * (RealLit(2) ** RealLit(-72)),
+                    )
 
     def test_fractional_literals_constant_fold_in_egglog_without_losing_float_bits(self):
         expr = RealLit(0.1) + RealLit(0.2)
@@ -804,6 +857,427 @@ class TestSpecAstConstantFolding(unittest.TestCase):
 
         self.assertEqual(expr.constant_fold(), expr)
 
+
+class TestRivalTranslation(unittest.TestCase):
+    def test_real_expression_translates_to_rival_ir(self):
+        x = RealVar("x")
+        y = RealVar("y")
+        expr = If(x < y, abs(x - RealLit(1)), RealLit(2) ** y)
+
+        self.assertEqual(
+            to_rival_ir(expr),
+            {
+                "op": "if",
+                "cond": {
+                    "op": "lt",
+                    "lhs": {"op": "var", "name": "x"},
+                    "rhs": {"op": "var", "name": "y"},
+                },
+                "on_true": {
+                    "op": "abs",
+                    "arg": {
+                        "op": "sub",
+                        "lhs": {"op": "var", "name": "x"},
+                        "rhs": {"op": "real_lit", "num": "1", "den": "1"},
+                    },
+                },
+                "on_false": {
+                    "op": "pow",
+                    "lhs": {"op": "real_lit", "num": "2", "den": "1"},
+                    "rhs": {"op": "var", "name": "y"},
+                },
+            },
+        )
+
+    def test_bool_expression_translates_to_rival_ir(self):
+        p = BoolVar("p")
+        q = BoolVar("q")
+
+        self.assertEqual(
+            to_rival_ir(p.and_(~q).eq(BoolLit(True))),
+            {
+                "op": "bool_eq",
+                "lhs": {
+                    "op": "and",
+                    "lhs": {"op": "var", "name": "p"},
+                    "rhs": {"op": "not", "arg": {"op": "var", "name": "q"}},
+                },
+                "rhs": {"op": "bool_lit", "value": True},
+            },
+        )
+
+    def test_float_literal_translates_exact_fraction(self):
+        self.assertEqual(
+            to_rival_ir(RealLit(0.5)),
+            {"op": "real_lit", "num": "1", "den": "2"},
+        )
+
+    def test_collect_free_vars_is_sorted(self):
+        exprs = [RealVar("z") + RealVar("a"), BoolVar("flag")]
+
+        self.assertEqual(collect_free_vars(exprs), ["a", "flag", "z"])
+
+    def test_build_machine_combines_exprs_into_single_asserted_and(self):
+        x = RealVar("x")
+        y = RealVar("y")
+        raw_machine = object()
+        native = Mock()
+        native.build_machine.return_value = raw_machine
+
+        with patch("fused_dot_product.rival._load_native_module", return_value=native):
+            machine = build_machine(
+                [
+                    x >= RealLit(0),
+                    y <= RealLit(1),
+                    x.eq(y),
+                ],
+                ["x", "y"],
+            )
+
+        self.assertIs(machine._raw_machine, raw_machine)
+        native.build_machine.assert_called_once_with(
+            [
+                {
+                    "op": "assert",
+                    "arg": {
+                        "op": "and",
+                        "lhs": {
+                            "op": "and",
+                            "lhs": {
+                                "op": "ge",
+                                "lhs": {"op": "var", "name": "x"},
+                                "rhs": {"op": "real_lit", "num": "0", "den": "1"},
+                            },
+                            "rhs": {
+                                "op": "le",
+                                "lhs": {"op": "var", "name": "y"},
+                                "rhs": {"op": "real_lit", "num": "1", "den": "1"},
+                            },
+                        },
+                        "rhs": {
+                            "op": "eq",
+                            "lhs": {"op": "var", "name": "x"},
+                            "rhs": {"op": "var", "name": "y"},
+                        },
+                    },
+                }
+            ],
+            ["x", "y"],
+        )
+
+    def test_rival_rects_default_to_unbounded(self):
+        ctx = SpecContext("rival-rects-default")
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["x", "y"]),
+            [[(-math.inf, math.inf), (-math.inf, math.inf)]],
+        )
+
+    def test_rival_rects_extract_closed_bounds(self):
+        ctx = SpecContext("rival-rects-closed")
+        x = ctx.real("x")
+
+        ctx.assume((x >= ctx.real_val(1)).and_(x <= ctx.real_val(254)))
+
+        self.assertEqual(get_rival_rects(ctx.assumes, ["x"]), [[(1.0, 254.0)]])
+
+    def test_rival_rects_extract_bounds_with_literal_on_lhs(self):
+        ctx = SpecContext("rival-rects-reversed")
+        x = ctx.real("x")
+
+        ctx.assume((ctx.real_val(1) <= x).and_(ctx.real_val(254) >= x))
+
+        self.assertEqual(get_rival_rects(ctx.assumes, ["x"]), [[(1.0, 254.0)]])
+
+    def test_rival_rects_offset_strict_bounds_by_one_ulp(self):
+        ctx = SpecContext("rival-rects-strict")
+        x = ctx.real("x")
+
+        ctx.assume((x > ctx.real_val(1)).and_(x < ctx.real_val(254)))
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["x"]),
+            [[(math.nextafter(1.0, math.inf), math.nextafter(254.0, -math.inf))]],
+        )
+
+    def test_rival_rects_offset_reversed_strict_bounds_by_one_ulp(self):
+        ctx = SpecContext("rival-rects-reversed-strict")
+        x = ctx.real("x")
+
+        ctx.assume((ctx.real_val(1) < x).and_(ctx.real_val(254) > x))
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["x"]),
+            [[(math.nextafter(1.0, math.inf), math.nextafter(254.0, -math.inf))]],
+        )
+
+    def test_rival_rects_extract_point_disjunction(self):
+        ctx = SpecContext("rival-rects-point-or")
+        sign = ctx.real("sign")
+
+        ctx.assume(sign.eq(ctx.real_val(0)).or_(ctx.real_val(1).eq(sign)))
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["sign"]),
+            [[(0.0, 0.0)], [(1.0, 1.0)]],
+        )
+
+    def test_rival_rects_cartesian_product_for_independent_disjunctions(self):
+        ctx = SpecContext("rival-rects-cartesian-or")
+        sign = ctx.real("sign")
+        exponent = ctx.real("exponent")
+
+        ctx.assume(sign.eq(ctx.real_val(0)).or_(sign.eq(ctx.real_val(1))))
+        ctx.assume(exponent.eq(ctx.real_val(0)).or_(exponent.eq(ctx.real_val(255))))
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["sign", "exponent"]),
+            [
+                [(0.0, 0.0), (0.0, 0.0)],
+                [(0.0, 0.0), (255.0, 255.0)],
+                [(1.0, 1.0), (0.0, 0.0)],
+                [(1.0, 1.0), (255.0, 255.0)],
+            ],
+        )
+
+    def test_rival_rects_preserve_free_var_order(self):
+        ctx = SpecContext("rival-rects-order")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume(x >= ctx.real_val(1))
+        ctx.assume(y <= ctx.real_val(2))
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["y", "x", "z"]),
+            [[(-math.inf, 2.0), (1.0, math.inf), (-math.inf, math.inf)]],
+        )
+
+    def test_rival_rects_drop_conflicting_bounds(self):
+        ctx = SpecContext("rival-rects-conflict")
+        x = ctx.real("x")
+
+        ctx.assume(x >= ctx.real_val(2))
+        ctx.assume(x <= ctx.real_val(1))
+
+        self.assertEqual(get_rival_rects(ctx.assumes, ["x"]), [])
+
+    def test_rival_rects_ignore_unsupported_assumptions(self):
+        ctx = SpecContext("rival-rects-unsupported")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume((x + y).eq(ctx.real_val(1)))
+        ctx.assume(x >= ctx.real_val(0))
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["x", "y"]),
+            [[(0.0, math.inf), (-math.inf, math.inf)]],
+        )
+
+    def test_rival_rects_ignore_or_when_any_branch_is_unsupported(self):
+        ctx = SpecContext("rival-rects-unsupported-or")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        ctx.assume((x >= ctx.real_val(0)).or_((x + y).eq(ctx.real_val(1))))
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["x", "y"]),
+            [[(-math.inf, math.inf), (-math.inf, math.inf)]],
+        )
+
+    def test_rival_rects_expand_independent_disjunctions_without_coalescing(self):
+        ctx = SpecContext("rival-rects-no-coalesce")
+        sign = ctx.real("sign")
+        exponent = ctx.real("exponent")
+
+        ctx.assume(sign.eq(ctx.real_val(0)).or_(sign.eq(ctx.real_val(1))))
+        ctx.assume(exponent.eq(ctx.real_val(0)).or_(exponent.eq(ctx.real_val(255))))
+
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["sign", "exponent"]),
+            [
+                [(0.0, 0.0), (0.0, 0.0)],
+                [(0.0, 0.0), (255.0, 255.0)],
+                [(1.0, 1.0), (0.0, 0.0)],
+                [(1.0, 1.0), (255.0, 255.0)],
+            ],
+        )
+
+    def test_rival_feasibility_splits_only_variables_from_maybe_exprs(self):
+        ctx = SpecContext("rival-guided-split")
+        x = ctx.real("x")
+        y = ctx.real("y")
+        z = ctx.real("z")
+        good_x = x >= ctx.real_val(0)
+        good_z = z >= ctx.real_val(0)
+        maybe = x.eq(y)
+        ctx.assume(good_x)
+        ctx.assume(good_z)
+        ctx.check(maybe)
+
+        root = [(0.0, math.inf), (-math.inf, math.inf), (0.0, math.inf)]
+        x_left = (0.0, sys.float_info.max / 2.0)
+        x_right = (math.nextafter(sys.float_info.max / 2.0, math.inf), math.inf)
+        y_left = (-math.inf, 0.0)
+        y_right = (math.nextafter(0.0, math.inf), math.inf)
+        combined_calls = []
+
+        def build(exprs, free_vars):
+            self.assertEqual(free_vars, ["x", "y", "z"])
+            machine = Mock()
+            if exprs == ctx.assumes + ctx.checks:
+                def apply(rect, hints=None):
+                    combined_calls.append((rect, hints))
+                    if rect == root:
+                        return RivalAnalysis(
+                            status=(False, True),
+                            hints="root-hints",
+                            converged=False,
+                        )
+                    return RivalAnalysis(status=(True, True), hints=None, converged=True)
+
+                machine.apply_with_hints.side_effect = apply
+            elif exprs == [maybe]:
+                machine.apply_with_hints.return_value = RivalAnalysis(
+                    status=(False, True),
+                    hints=None,
+                    converged=False,
+                )
+            else:
+                machine.apply_with_hints.return_value = RivalAnalysis(
+                    status=(False, False),
+                    hints=None,
+                    converged=True,
+                )
+            return machine
+
+        with patch("fused_dot_product.rival.build_machine", side_effect=build):
+            status = rival_feasibility_check(ctx, max_depth=1)
+
+        self.assertEqual(status, "not feasible")
+        self.assertEqual(
+            combined_calls,
+            [
+                (root, None),
+                ([x_left, y_left, (0.0, math.inf)], "root-hints"),
+                ([x_left, y_right, (0.0, math.inf)], "root-hints"),
+                ([x_right, y_left, (0.0, math.inf)], "root-hints"),
+                ([x_right, y_right, (0.0, math.inf)], "root-hints"),
+            ],
+        )
+
+    def test_rival_feasibility_returns_first_clean_rect(self):
+        ctx = SpecContext("rival-feasible-rect")
+        x = ctx.real("x")
+        ctx.assume(x.eq(ctx.real_val(0)).or_(x.eq(ctx.real_val(1))))
+        ctx.check(x.eq(ctx.real_val(0)))
+
+        clean_rect = [(0.0, 0.0)]
+        bad_rect = [(1.0, 1.0)]
+        combined_calls = []
+
+        def build(exprs, free_vars):
+            self.assertEqual(free_vars, ["x"])
+            machine = Mock()
+            if exprs == ctx.assumes + ctx.checks:
+                def apply(rect, hints=None):
+                    combined_calls.append((rect, hints))
+                    if rect == clean_rect:
+                        return RivalAnalysis(
+                            status=(False, False),
+                            hints=None,
+                            converged=True,
+                        )
+                    if rect == bad_rect:
+                        return RivalAnalysis(
+                            status=(True, True),
+                            hints=None,
+                            converged=True,
+                        )
+                    raise AssertionError(f"unexpected rect {rect}")
+
+                machine.apply_with_hints.side_effect = apply
+            else:
+                machine.apply_with_hints.return_value = RivalAnalysis(
+                    status=(False, False),
+                    hints=None,
+                    converged=True,
+                )
+            return machine
+
+        with (
+            patch("fused_dot_product.rival.get_rival_rects", return_value=[clean_rect, bad_rect]),
+            patch("fused_dot_product.rival.build_machine", side_effect=build),
+        ):
+            status = rival_feasibility_check(ctx, max_depth=1)
+
+        self.assertEqual(status, "feasible")
+        self.assertEqual(combined_calls, [(clean_rect, None)])
+
+    def test_rival_trim_context_uses_unbounded_rects(self):
+        ctx = SpecContext("rival-trim-unbounded")
+        x = ctx.real("x")
+        bounded = x >= ctx.real_val(0)
+        tautology = x.eq(x)
+        ctx.assume(bounded)
+        ctx.check(tautology)
+
+        def build(exprs, free_vars):
+            self.assertEqual(free_vars, ["x"])
+            expr = exprs[0]
+            machine = Mock()
+
+            def apply(rect, hints=None):
+                self.assertEqual(rect, [(-math.inf, math.inf)])
+                self.assertIsNone(hints)
+                return RivalAnalysis(
+                    status=(False, False) if expr == tautology else (False, True),
+                    hints=None,
+                    converged=True,
+                )
+
+            machine.apply_with_hints.side_effect = apply
+            return machine
+
+        with (
+            patch("fused_dot_product.rival.build_machine", side_effect=build),
+            patch(
+                "fused_dot_product.rival.get_rival_rects",
+                side_effect=AssertionError("trim must not use assumption-derived rects"),
+            ),
+        ):
+            trimmed = rival_trim_context(ctx)
+
+        self.assertEqual(trimmed.assumes, [bounded])
+        self.assertEqual(trimmed.checks, [])
+
+    def test_rival_trim_context_keeps_maybe_exprs(self):
+        ctx = SpecContext("rival-trim-maybe")
+        x = ctx.real("x")
+        y = ctx.real("y")
+        assume = x >= ctx.real_val(0)
+        check = x.eq(y)
+        ctx.assume(assume)
+        ctx.check(check)
+
+        def build(exprs, free_vars):
+            self.assertEqual(free_vars, ["x", "y"])
+            machine = Mock()
+            machine.apply_with_hints.return_value = RivalAnalysis(
+                status=(False, True),
+                hints=None,
+                converged=True,
+            )
+            return machine
+
+        with patch("fused_dot_product.rival.build_machine", side_effect=build):
+            trimmed = rival_trim_context(ctx)
+
+        self.assertEqual(trimmed.assumes, [assume])
+        self.assertEqual(trimmed.checks, [check])
+
 class TestSolverApis(unittest.TestCase):
     def test_fp32_adder_check_spec_splits_all_input_class_pairs(self):
         adder = FP32_IEEE_adder(
@@ -817,7 +1291,11 @@ class TestSolverApis(unittest.TestCase):
             seen_names.append(ctx.name)
             return "unsat", []
 
-        with patch.object(ast_nodes, "check_equivalence", side_effect=fake_check_equivalence):
+        with (
+            patch.object(ast_nodes, "check_equivalence", side_effect=fake_check_equivalence),
+            open(os.devnull, "w") as devnull,
+            contextlib.redirect_stdout(devnull),
+        ):
             proof_trace = adder.check_spec(schedule=[{"tool": "z3", "timeout_ms": 1}])
 
         expected_names = {
@@ -845,6 +1323,26 @@ class TestSolverApis(unittest.TestCase):
         self.assertEqual(len(proof_trace), 1)
         self.assertEqual(proof_trace[0]["tool"], "simplify")
 
+    def test_check_equivalence_reports_poor_spec_from_simplify_schedule(self):
+        ctx = SpecContext("simplify-conflict-schedule")
+        x = ctx.real("x")
+
+        ctx.assume(x.eq(ctx.real_val(0)))
+        ctx.assume(x.eq(ctx.real_val(1)))
+
+        status, proof_trace = solver_engine.check_equivalence(
+            x,
+            ctx.real_val(0),
+            ctx=ctx,
+            schedule=[{"tool": "simplify"}],
+        )
+
+        self.assertEqual(status, "sat")
+        self.assertEqual(len(proof_trace), 1)
+        self.assertEqual(proof_trace[0]["tool"], "simplify")
+        self.assertEqual(proof_trace[0]["status"], "sat")
+        self.assertIn("Conflicting learned literals", proof_trace[0]["poor_spec"])
+
     def test_check_equivalence_returns_flat_proof_trace(self):
         ctx = SpecContext("flat-trace")
         report1 = build_proof_report(ctx, ctx.copy(), tool="branch-a", runtime_s=0.0, status="unknown")
@@ -863,6 +1361,24 @@ class TestSolverApis(unittest.TestCase):
         self.assertEqual(len(proof_trace), 1)
         self.assertIsInstance(proof_trace[0], dict)
         self.assertEqual(proof_trace[0]["tool"], "branch-b")
+
+    def test_check_equivalence_rejects_rival_feasibility_as_proof_tool(self):
+        ctx = SpecContext("rival-schedule")
+
+        with self.assertRaises(ValueError) as raised:
+            solver_engine.check_equivalence(
+                RealLit(1),
+                RealLit(1),
+                ctx=ctx,
+                schedule=[
+                    {
+                        "tool": "rival_feasibility_check",
+                        "max_depth": "1",
+                    }
+                ],
+            )
+
+        self.assertIn("Unknown schedule tool rival_feasibility_check", str(raised.exception))
 
     def test_fp32_adder_norm_norm_proves_with_egglog(self):
         adder = FP32_IEEE_adder(

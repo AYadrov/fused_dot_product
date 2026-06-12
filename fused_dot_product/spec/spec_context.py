@@ -4,6 +4,7 @@ from .spec_ast import *
 from ..egglog import *
 from egglog import rewrite, vars_
 from ..solver.report import build_proof_report
+from ..rival import rival_feasibility_check, rival_trim_context
 
 import copy
 import dreal
@@ -109,21 +110,58 @@ class SpecContext:
             record(*learned)
         
         return candidates
+
+    # Try to learn non-literal aliases from assumes only. Multiple aliases for
+    # one variable are allowed; the remaining assumptions preserve constraints.
+    def learned_aliases(self) -> dict[RealVar | BoolVar, SpecNode]:
+        aliases: dict[RealVar | BoolVar, SpecNode] = {}
+
+        def safe_alias(var, expr, lit_type):
+            if isinstance(expr, lit_type) or isinstance(expr, (RealVar, BoolVar)):
+                return None
+            if var in variables(expr):
+                return None
+            return var, expr
+
+        def from_sides(lhs, rhs, var_type, lit_type):
+            if isinstance(lhs, var_type):
+                return safe_alias(lhs, rhs, lit_type)
+            if isinstance(rhs, var_type):
+                return safe_alias(rhs, lhs, lit_type)
+            return None
+
+        def learned_from(assume):
+            assume = assume.constant_fold()
+            if isinstance(assume, Eq):
+                return from_sides(
+                    assume.lhs,
+                    assume.rhs,
+                    RealVar,
+                    RealLit,
+                )
+            if isinstance(assume, BoolEq):
+                return from_sides(
+                    assume.lhs,
+                    assume.rhs,
+                    BoolVar,
+                    BoolLit,
+                )
+            return None
+
+        for assume in self.assumes:
+            learned = learned_from(assume)
+            if learned is None:
+                continue
+            var, expr = learned
+            aliases.setdefault(var, expr)
+        return aliases
     
-    # LOCAL LEARNING FACTS FROM AN ASSUME
+    # learning facts like: RealExpr == RealLit
     def _canonical_learned_assumption(
         self,
         assume: BoolExpr,
     ) -> tuple[SpecNode, RealLit | BoolLit] | None:
-        folded_assume = assume.constant_fold()
-        if not identical_nodes(folded_assume, assume):
-            if not isinstance(folded_assume, BoolExpr):
-                raise TypeError(
-                    "BoolExpr.constant_fold() must return BoolExpr, "
-                    f"got {type(folded_assume).__name__}"
-                )
-            return self._canonical_learned_assumption(folded_assume)
-
+        assume = assume.constant_fold()
         if isinstance(assume, Eq):
             rhs_folded = assume.rhs.constant_fold()
             lhs_folded = assume.lhs.constant_fold()
@@ -156,51 +194,38 @@ class SpecContext:
             ):
                 return rhs_folded, lhs_folded
         return None
-    
-    def _normalize_assume(
-        self,
-        assume: BoolExpr,
-        replacements: dict[SpecNode, RealLit | BoolLit],
-    ) -> BoolExpr:
-        learned = self._canonical_learned_assumption(assume)
-        if learned is None:
-            return assume
-        expr, lit = learned
-        if not isinstance(expr, (RealVar, BoolVar)):
-            local_replacements = dict(replacements)
-            local_replacements.pop(expr, None)
-            expr = substitute_literals(expr, local_replacements)
-        if isinstance(expr, RealExpr):
-            return Eq(expr, lit).constant_fold()
-        return BoolEq(expr, lit).constant_fold()
 
-    def _simplify_assume(
-        self,
-        assume: BoolExpr,
-        replacements: dict[SpecNode, RealLit | BoolLit],
-    ) -> BoolExpr:
-        if self._canonical_learned_assumption(assume) is not None:
-            return self._normalize_assume(assume, replacements)
-        return substitute_literals(assume, replacements)
-    
     # LEARNS FROM ASSUMES - APPLIES EVERYWHERE
     def simplify(self) -> "SpecContext":
         simplified = self.copy()
         max_iterations = len(simplified.assumes) + len(simplified.checks) + 1
         for _ in range(max_iterations):
-            replacements = simplified.learned_literals()
+            literal_replacements = simplified.learned_literals()
+            alias_replacements = simplified.learned_aliases()
+            
+            assumption_replacements = {
+                expr: lit
+                for expr, lit in literal_replacements.items()
+                if isinstance(expr, (RealVar, BoolVar))  # get rid only of assigned vars
+            }
+            assumption_replacements = alias_replacements | assumption_replacements
+            check_replacements = alias_replacements | literal_replacements
+            
             new_assumes = [
-                simplified._simplify_assume(assume, replacements)
+                substitute_literals(assume, assumption_replacements)
                 for assume in simplified.assumes
             ]
             new_checks = [
-                substitute_literals(check, replacements)
+                substitute_literals(check, check_replacements)
                 for check in simplified.checks
             ]
             if new_assumes == simplified.assumes and new_checks == simplified.checks:
                 break
             simplified.assumes = new_assumes
             simplified.checks = new_checks
+        
+        simplified.assumes = [x for x in simplified.assumes if not identical_nodes(x, BoolLit(True))]
+        simplified.checks = [x for x in simplified.checks if not identical_nodes(x, BoolLit(True))]
         return simplified
     
     def spec_of(self, node: Node):
@@ -283,7 +308,7 @@ class SpecContext:
         return new_ctx
 
 
-class PoorSpec(Exception):
+class PoorSpec(ValueError):
     pass
 
 def simplify_ctx(ctx: SpecContext):
@@ -300,42 +325,21 @@ def simplify_ctx(ctx: SpecContext):
             status="sat",
             poor_spec=str(exc),
         )
+
+    trimmed_ctx = rival_trim_context(simplified_ctx)
     
-    new_assumes = []
-    false_assumes = []
-    for simplified_assume, original_assume in zip(simplified_ctx.assumes, ctx.assumes):
-        if identical_nodes(simplified_assume, BoolLit(True)):
-            continue
-        if identical_nodes(simplified_assume, BoolLit(False)):
-            false_assumes.append(str(original_assume))
-        new_assumes.append(simplified_assume)
-    
-    new_checks = []
-    false_checks = []
-    for simplified_check, original_check in zip(simplified_ctx.checks, ctx.checks):
-        if identical_nodes(simplified_check, BoolLit(True)):
-            continue
-        if identical_nodes(simplified_check, BoolLit(False)):
-            false_checks.append(str(original_check))
-        new_checks.append(simplified_check)
-    
-    trimmed_ctx = ctx.copy(assumes=new_assumes, checks=new_checks)
-    if false_assumes or false_checks:
+    feasibility_status = rival_feasibility_check(trimmed_ctx, max_depth=1)
+
+    if feasibility_status == "not feasible":
         status = "sat"
-    elif len(new_checks) == 0:
-        status = "unsat"
     else:
-        status = "unknown"
-    extra = {}
-    if false_assumes:
-        extra["false_assumes"] = false_assumes
-    if false_checks:
-        extra["false_checks"] = false_checks
+        status = "unsat" if len(trimmed_ctx.checks) == 0 else "unknown"
+    
     return build_proof_report(
         ctx,
         trimmed_ctx,
         tool="simplify",
         runtime_s=perf_counter() - run_started_at,
         status=status,
-        **extra,
+        feasibility_status=feasibility_status,
     )

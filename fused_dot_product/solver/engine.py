@@ -10,7 +10,6 @@ from ..smt import z3_check_eq, dreal_check_eq
 
 
 DEFAULT_REWRITE_ITERS = 6
-DEFAULT_PREPROCESS_ITERS = 3
 DEFAULT_Z3_TIMEOUT = 10000
 DEFAULT_DREAL_PRECISION = 0.001
 DEFAULT_EGGLOG_MATCH_LIMIT = 100000
@@ -19,7 +18,6 @@ DEFAULT_EGGLOG_BAN_LENGTH = 1
 
 TOOL_FNS = {
     "simplify": simplify_ctx,
-    "egglog-preprocess": egglog_preprocess,
     "egglog-rewrite": egglog_rewrite,
     "z3": z3_check_eq,
     "dreal": dreal_check_eq,
@@ -90,15 +88,7 @@ def _normalize_schedule(
                 f"Unknown schedule tool {step['tool']}. Supported aliases: {list(TOOL_FNS.keys())}"
             )
 
-        if tool == "egglog-preprocess":
-            normalized.append(
-                {
-                    "tool": tool,
-                    "iterations": int(step.get("iterations", DEFAULT_PREPROCESS_ITERS)),
-                    "scheduler": _normalize_egglog_scheduler(step),
-                }
-            )
-        elif tool == "simplify":
+        if tool == "simplify":
             normalized.append({"tool": tool})
         elif tool == "egglog-rewrite":
             normalized.append(
@@ -157,7 +147,6 @@ def check_equivalence(
     schedule: list[str | dict[str, Any]],
 ):
     _enqueue_equivalence(query1, query2, ctx=ctx)
-
     current_tracks: list[list[ProofReport]] = [[]]
     current_ctxs = [ctx.copy()]
     

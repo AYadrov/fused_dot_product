@@ -29,10 +29,6 @@ def _q_is_min_val(x: Node) -> Op:
 
 ############# Public API ###############
 
-def _sign_factor(sign, ctx):
-    return If(sign.eq(ctx.real_val(1)), ctx.real_val(-1), ctx.real_val(1))
-
-
 # Function does not care about int_bits/frac_bits types, it takes their values
 def q_alloc(int_bits: Node, frac_bits: Node) -> Op:
     def sign(x: StaticType, y: StaticType) -> QT:
@@ -59,9 +55,12 @@ def q_signs_xor_spec(x, y, ctx):
     ctx.assume(x_sign.eq(ctx.real_val(1)).or_(x_sign.eq(ctx.real_val(0))))
     ctx.assume(y_sign.eq(ctx.real_val(1)).or_(y_sign.eq(ctx.real_val(0))))
     ctx.assume(res.eq(ctx.real_val(1)).or_(res.eq(ctx.real_val(0))))
-    ctx.assume(x.eq(_sign_factor(x_sign, ctx) * abs(x)))
-    ctx.assume(y.eq(_sign_factor(y_sign, ctx) * abs(y)))
-    ctx.assume(_sign_factor(res, ctx).eq(_sign_factor(x_sign, ctx) * _sign_factor(y_sign, ctx)))
+    x_sign_value = ctx.real_val(-1) ** x_sign
+    y_sign_value = ctx.real_val(-1) ** y_sign
+    res_sign_value = ctx.real_val(-1) ** res
+    ctx.assume(x.eq(x_sign_value * abs(x)))
+    ctx.assume(y.eq(y_sign_value * abs(y)))
+    ctx.assume(res_sign_value.eq(x_sign_value * y_sign_value))
     return res
 
 @Primitive(name="q_signs_xor", spec=q_signs_xor_spec)
@@ -177,7 +176,7 @@ def q_aligner(x: Node,
 def q_sign_bit_spec(x, ctx):
     sign = ctx.fresh_real("sign")
     ctx.assume(sign.eq(ctx.real_val(0)).or_(sign.eq(ctx.real_val(1))))
-    ctx.assume(x.eq(_sign_factor(sign, ctx) * abs(x)))
+    ctx.assume(x.eq((ctx.real_val(-1) ** sign) * abs(x)))
     return sign
 
 @Primitive(name="q_sign_bit", spec=q_sign_bit_spec, c_inline=True)
@@ -294,7 +293,7 @@ def q_rshift(x: Node, n: Node) -> Node:
 
 
 def q_add_sign_spec(x, s, ctx):
-    return _sign_factor(s, ctx) * x
+    return (ctx.real_val(-1) ** s) * x
 
 @Primitive(name="q_add_sign", spec=q_add_sign_spec)
 def q_add_sign(x: Node, s: Node) -> Node:
