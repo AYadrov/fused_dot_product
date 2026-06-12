@@ -75,9 +75,9 @@ def _split_fp32_input_cases(ctx, inputs, spec_inner, spec_outer):
 
 def spec(x, y, ctx):
     # IEEE invalid: +inf + -inf
-    invalid_inf_sum = x.is_inf & y.is_inf & x.sign.ne(y.sign)
+    invalid = x.is_inf & y.is_inf & x.sign.ne(y.sign)
     
-    nan = x.is_nan | y.is_nan | invalid_inf_sum
+    nan = x.is_nan | y.is_nan | invalid
     inf = (~nan) & (x.is_inf | y.is_inf)
     
     return ctx.encode_fp32_real(

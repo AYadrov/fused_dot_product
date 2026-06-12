@@ -108,9 +108,6 @@ class composite(Node):
         if self.case_splitter is None:
             initial_ctxs = [ctx]
         else:
-            print(inputs)
-            print(spec_inner)
-            print(spec_outer)
             initial_ctxs = self.case_splitter(ctx, inputs, spec_inner, spec_outer)
 
         full_trace = []
