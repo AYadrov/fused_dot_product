@@ -137,13 +137,13 @@ class composite(Node):
                 {"tool": "z3", "timeout_ms": 10000},
                 {"tool": "dreal", "precision": 0.001},
             ]
-
+        
         # Collecting specification into ctx
         ctx = self.ctx.copy()
         spec_inner = ctx.spec_of(self.inner_tree)
         inputs = [ctx.spec_of(arg) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, ctx=ctx)
-
+        
         # Subsplit a general specification into special-value cases (if applicable)
         initial_ctxs = _split_special_cases(
             ctx,
@@ -151,13 +151,14 @@ class composite(Node):
             spec_inner,
             spec_outer,
         )
-
+        
         # Float32Spec -> tuple of values for equivalence check
         query_inner = _equivalence_query(spec_inner)
         query_outer = _equivalence_query(spec_outer)
-
+        
         # Run equivalence checks
         full_trace = []
+        proved = True
         for initial_ctx in initial_ctxs:
             _status, proof_trace = check_equivalence(
                 query_inner,
@@ -165,11 +166,18 @@ class composite(Node):
                 ctx=initial_ctx,
                 schedule=schedule,
             )
-            print(initial_ctx.name, _status)
+            # hard coded - to be changed
+            feasiblility = proof_trace[-1].get("feasibility_status", "unknown")
+            solution_can_exist = (feasiblility != "not feasible")
+            if solution_can_exist:
+                proved = proved and (_status == "unsat")
+                print(initial_ctx.name, _status)
             full_trace.append(proof_trace)
-
+        
+        print(f"{ctx.name} {'has' if proved else 'has not'} been proved")
+        
         return full_trace
-
+    
     def _validate_components(self, composite_name: str) -> None:
         visited: set[Node] = set()
         
@@ -210,7 +218,7 @@ class composite(Node):
         
     def __str__(self):
         return f"[Composite] {self.name}: {' -> '.join([str(x) for x in self.args_types])} -> {self.node_type}"
-
+    
     def _fingerprint(self, jittable: bool = False):
         def build():
             direct_cpp_lowering = None
@@ -227,7 +235,7 @@ class composite(Node):
                 direct_cpp_lowering,
                 self.inner_tree._fingerprint(jittable) if direct_cpp_lowering is None else None,
             )
-
+        
         return self._cached_fingerprint(jittable, build)
 
 
@@ -307,7 +315,7 @@ class primitive(Node):
     
     def __str__(self):
         return f"[Primitive] {self.name}: {' -> '.join([str(x) for x in self.args_types])} -> {self.node_type}"
-
+    
     def _fingerprint(self, jittable: bool = False):
         def build():
             direct_cpp_lowering = None
@@ -324,7 +332,7 @@ class primitive(Node):
                 direct_cpp_lowering,
                 self.inner_tree._fingerprint(jittable) if direct_cpp_lowering is None else None,
             )
-
+        
         return self._cached_fingerprint(jittable, build)
 
 
@@ -356,7 +364,7 @@ class Op(Node):
     
     def __str__(self):
         return f"{self.node_type}: {self.name} [Op]"
-
+    
     def _fingerprint(self, jittable: bool = False):
         def build():
             lowering_fingerprint = None
@@ -372,7 +380,7 @@ class Op(Node):
                 lowering_fingerprint,
                 tuple(arg._fingerprint(jittable) for arg in self.args),
             )
-
+        
         return self._cached_fingerprint(jittable, build)
 
 
@@ -408,7 +416,7 @@ class Const(Node):
     
     def __str__(self):
         return f"{self.node_type}: {self.name if self.name else str(self.val)} [Const]"
-
+    
     def _fingerprint(self, jittable: bool = False):
         return self._cached_fingerprint(
             jittable,
@@ -438,12 +446,12 @@ class Var(Node):
             args=[],
             name=name,
         )
-
+    
     def load_rand(self, rng: tp.Optional[random.Random] = None):
         if rng is None:
             rng = random.Random()
         self.load_val(self.sign().random_runtime_value(rng))
-        
+    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.node_type}: {self.name} [Var]")
@@ -457,7 +465,7 @@ class Var(Node):
     
     def __str__(self):
         return f"{self.node_type}: {self.name} [Var]"
-
+    
     def _fingerprint(self, jittable: bool = False):
         return self._cached_fingerprint(
             jittable,

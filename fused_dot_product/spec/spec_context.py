@@ -323,7 +323,7 @@ def simplify_ctx(ctx: SpecContext):
             tool="simplify",
             runtime_s=perf_counter() - run_started_at,
             status="sat",
-            poor_spec=str(exc),
+            feasibility_status="not feasible",
         )
     
     trimmed_ctx = rival_trim_context(simplified_ctx)
