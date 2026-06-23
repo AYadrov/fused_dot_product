@@ -43,11 +43,13 @@ def _egglog_check_ctx(ctx: "SpecContext", iterations=6, simplify=False, schedule
             break
         run_report = egraph.run(run_schedule)
         iterations_used += 1
-        for rule, num_matches in run_report.num_matches_per_rule.items():
-            rule_name = str(rule)
-            rule_application_counts[rule_name] = (
-                rule_application_counts.get(rule_name, 0) + int(num_matches)
-            )
+
+        # # Rule names do not work
+        # for rule, num_matches in run_report.num_matches_per_rule.items():
+        #     rule_name = str(rule)
+        #     rule_application_counts[rule_name] = (
+        #         rule_application_counts.get(rule_name, 0) + int(num_matches)
+        #     )
         proved = egraph.check_bool(*to_check)
         
     run_runtime_s = perf_counter() - run_started_at

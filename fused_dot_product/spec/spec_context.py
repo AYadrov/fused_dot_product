@@ -325,11 +325,11 @@ def simplify_ctx(ctx: SpecContext):
             status="sat",
             poor_spec=str(exc),
         )
-
+    
     trimmed_ctx = rival_trim_context(simplified_ctx)
     
     feasibility_status = rival_feasibility_check(trimmed_ctx, max_depth=1)
-
+    
     if feasibility_status == "not feasible":
         status = "sat"
     else:

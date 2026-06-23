@@ -3,22 +3,23 @@ from .common import *
 from .encode_Float32 import *
 
 
-def spec(x, y, ctx):
+def spec_FP32_IEEE_adder(x: "FP32", y: "FP32", ctx):
     # IEEE invalid: +inf + -inf
     invalid = x.is_inf & y.is_inf & x.sign.ne(y.sign)
     
     nan = x.is_nan | y.is_nan | invalid
     inf = (~nan) & (x.is_inf | y.is_inf)
     
+    # Real -> FP32 encodings
     return ctx.encode_fp32_real(
         value=x.value + y.value,
         inf=inf,
         nan=nan,
-        rounding="rne",
+        rounding="RNE",
     )
 
 
-@Composite(name="FP32_IEEE_adder", spec=spec)
+@Composite(name="FP32_IEEE_adder", spec=spec_FP32_IEEE_adder)
 def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     x_s, x_e, x_m, x_norm, x_sub, x_zero, x_inf, x_nan = fp32_decode(x)
     y_s, y_e, y_m, y_norm, y_sub, y_zero, y_inf, y_nan = fp32_decode(y)
