@@ -285,7 +285,7 @@ def fp32_encode_spec(s, e, m, encode_nan, encode_inf, ctx):
         value=finite_value,
         inf=forced_inf,
         nan=forced_nan,
-        rounding="rne",
+        rounding="RNE",
     )
 
 # Assume that e is biased
@@ -294,21 +294,12 @@ def fp32_encode(s_uq: Node, e_q: Node, m_uq: Node, encode_nan: Node, encode_inf:
     assert e_q.node_type.frac_bits == 0
     
     encode_zero = uq_is_zero(m_uq)
-    # Do not consider zero for now in spec
-    with context() as ctx:
-        ctx.assume(ctx.spec_of(encode_zero).eq(ctx.bool_val(False)))
         
     normalized_m_uq, normalized_e_q = normalize_to_1_xxx(m_uq, e_q)
     shifted_m_uq, shifted_e_uq = shift_if_subnormal(normalized_m_uq, normalized_e_q)
     shifted_dropped_bit_m_uq = drop_implicit_bit(shifted_m_uq)
     
     m_rounded_uq, e_rounded_uq = round_mantissa(shifted_dropped_bit_m_uq, shifted_e_uq)
-    with context() as ctx:
-        two = ctx.real_val(2)
-        one = ctx.real_val(1)
-        rhs = (ctx.spec_of(m_rounded_uq) + one) * two ** ctx.spec_of(e_rounded_uq)
-        lhs = ctx.spec_of(shifted_m_uq) * two ** ctx.spec_of(shifted_e_uq)
-        ctx.assume(lhs.eq(rhs))
         
     final_m_uq, final_e_uq = fp32_encodings(m_rounded_uq, e_rounded_uq)
     

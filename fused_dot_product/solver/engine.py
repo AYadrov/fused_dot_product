@@ -5,7 +5,7 @@ from typing import Any
 from ..spec import SpecContext, SpecNode
 from ..spec.spec_context import simplify_ctx
 from .report import ProofReport, validate_proof_status
-from ..egglog import egglog_rewrite, egglog_preprocess
+from ..egglog import egglog_rewrite
 from ..smt import z3_check_eq, dreal_check_eq
 
 
