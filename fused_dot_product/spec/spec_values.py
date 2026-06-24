@@ -225,7 +225,15 @@ def encode_fp32_real(
         If(
             is_sub,
             sub_value,
-            zero,
+            If(
+                is_zero,
+                zero,
+                If(
+                    is_nan,
+                    ctx.nan(),
+                    ctx.inf(),
+                ),
+            ),
         ),
     )
     

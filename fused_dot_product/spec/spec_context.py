@@ -6,7 +6,6 @@ from egglog import rewrite, vars_
 from ..solver.report import build_proof_report
 from ..rival import rival_feasibility_check, rival_trim_context
 
-import copy
 import dreal
 from time import perf_counter
 import z3
@@ -226,6 +225,10 @@ class SpecContext:
         
         simplified.assumes = [x for x in simplified.assumes if not identical_nodes(x, BoolLit(True))]
         simplified.checks = [x for x in simplified.checks if not identical_nodes(x, BoolLit(True))]
+
+        if any([identical_nodes(x, BoolLit(False)) for x in simplified.assumes + simplified.checks]):
+            raise PoorSpec("One of checks/assumptions folds to False")
+        
         return simplified
     
     def spec_of(self, node: Node):
@@ -302,9 +305,12 @@ class SpecContext:
     
     def copy(self, assumes=None, checks=None):
         if assumes is None:
-            assumes = copy.deepcopy(self.assumes)
+            # Spec AST nodes are immutable, so a shallow list copy is enough here.
+            # Deep-copying rebuilds nodes such as Eq via pickle-style protocols,
+            # which breaks for custom __new__ constructors used in the spec AST.
+            assumes = list(self.assumes)
         if checks is None:
-            checks = copy.deepcopy(self.checks)
+            checks = list(self.checks)
 
         new_ctx = SpecContext(self.name)
         new_ctx.assumes = assumes

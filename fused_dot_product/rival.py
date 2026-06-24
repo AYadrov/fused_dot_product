@@ -96,37 +96,37 @@ def get_rival_rects(
 
 def rival_feasibility_check(ctx: "SpecContext", max_depth: int = 1):
     max_depth = int(max_depth)
-    exprs = ctx.assumes + ctx.checks
+    exprs = ctx.assumes
     free_vars = collect_free_vars(exprs)
     
     if not exprs:
         return "feasible"
-
+    
     rects = get_rival_rects(ctx.assumes, free_vars)
     if not rects:
         return "not feasible"
-
+    
     machine = build_machine(exprs, free_vars)
     expr_splitters = _build_rival_expr_splitters(exprs, free_vars)
-
+    
     work_queue = deque(
         (rect, None, 0)
         for rect in rects
     )
-
+    
     may_be_feasible = False
-
+    
     while work_queue:
         rect, hints, depth = work_queue.popleft()
         analysis = machine.apply_with_hints(rect, hints)
         status = analysis.status
-
+        
         if status == (True, True):
             continue
-
+        
         if status == (False, False):
             return "feasible"
-
+        
         if status == (False, True) and depth < max_depth:
             # Split only on variables that are in assumptions/checks that fail
             split_indexes = _rival_uncertain_split_indexes(expr_splitters, rect)
@@ -135,7 +135,7 @@ def rival_feasibility_check(ctx: "SpecContext", max_depth: int = 1):
                 for child in children:
                     work_queue.append((child, analysis.hints, depth + 1))
                 continue
-
+        
         may_be_feasible = True
     return "unknown" if may_be_feasible else "not feasible"
 
@@ -145,11 +145,11 @@ def rival_trim_context(ctx: "SpecContext") -> "SpecContext":
     exprs = ctx.assumes + ctx.checks
     free_vars = collect_free_vars(exprs)
     rect = _rival_unbounded_rect(len(free_vars))
-
+    
     def is_always_true(expr: BoolExpr) -> bool:
         machine = build_machine([expr], free_vars)
         return machine.apply_with_hints(rect, None).status == (False, False)
-
+    
     return ctx.copy(
         assumes=[assume for assume in ctx.assumes if not is_always_true(assume)],
         checks=[check for check in ctx.checks if not is_always_true(check)],
@@ -200,17 +200,17 @@ def _subdivide_rival_rect(
         if allowed_indexes is not None and index not in allowed_indexes:
             dimension_options.append([interval])
             continue
-
+        
         split = _split_rival_interval(interval)
         if split is None:
             dimension_options.append([interval])
         else:
             split_any_dimension = True
             dimension_options.append(split)
-
+    
     if not split_any_dimension:
         return []
-
+    
     return [list(child) for child in product(*dimension_options)]
 
 
@@ -220,12 +220,12 @@ def _split_rival_interval(
     lower, upper = interval
     if lower > upper:
         return None
-
+    
     effective_lower = -sys.float_info.max if lower == -math.inf else lower
     effective_upper = sys.float_info.max if upper == math.inf else upper
     midpoint = (effective_lower / 2.0) + (effective_upper / 2.0)
     right_lower = math.nextafter(midpoint, math.inf)
-
+    
     left = (lower, midpoint)
     right = (right_lower, upper)
     if (
@@ -257,14 +257,14 @@ def _rival_rect_alternatives(
         if rhs is None:
             return lhs
         return _intersect_rival_rect_sets(lhs, rhs)
-
+    
     if isinstance(expr, Or):
         lhs = _rival_rect_alternatives(expr.lhs, var_indexes, dimensions)
         rhs = _rival_rect_alternatives(expr.rhs, var_indexes, dimensions)
         if lhs is None or rhs is None:
             return None
         return lhs + rhs
-
+    
     return _rival_comparison_rect(expr, var_indexes, dimensions)
 
 
@@ -275,7 +275,7 @@ def _rival_comparison_rect(
 ) -> list[list[tuple[float, float]]] | None:
     if not isinstance(expr, (Eq, Lt, Le, Gt, Ge)):
         return None
-
+    
     var: RealVar
     literal: RealLit
     var_on_lhs: bool
@@ -289,15 +289,15 @@ def _rival_comparison_rect(
         var_on_lhs = False
     else:
         return None
-
+    
     value = _rival_literal_value(literal)
     if value is None:
         return None
-
+    
     var_index = var_indexes.get(var.name)
     if var_index is None:
         return [_rival_unbounded_rect(dimensions)]
-
+    
     lower = -math.inf
     upper = math.inf
     if isinstance(expr, Eq):
@@ -323,7 +323,7 @@ def _rival_comparison_rect(
             upper = value
         else:
             lower = value
-
+    
     rect = _rival_unbounded_rect(dimensions)
     rect[var_index] = (lower, upper)
     return [] if lower > upper else [rect]
@@ -378,7 +378,7 @@ def to_rival_ir(node: SpecNode) -> RivalIR:
         }
     if isinstance(node, BoolLit):
         return {"op": "bool_lit", "value": bool(node.value)}
-
+    
     if isinstance(node, Add):
         return _binary("add", node.lhs, node.rhs)
     if isinstance(node, Sub):
@@ -402,7 +402,7 @@ def to_rival_ir(node: SpecNode) -> RivalIR:
             "on_true": to_rival_ir(node.on_true),
             "on_false": to_rival_ir(node.on_false),
         }
-
+    
     if isinstance(node, Eq):
         return _binary("eq", node.lhs, node.rhs)
     if isinstance(node, NotEq):
@@ -423,7 +423,7 @@ def to_rival_ir(node: SpecNode) -> RivalIR:
         return _binary("or", node.lhs, node.rhs)
     if isinstance(node, And):
         return _binary("and", node.lhs, node.rhs)
-
+    
     raise TypeError(f"Unsupported SpecNode for Rival translation: {type(node).__name__}")
 
 

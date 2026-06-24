@@ -58,25 +58,33 @@ class SpecNode:
 
 class RealExpr(SpecNode):
     @staticmethod
-    def _coerce(value):
+    def _coerce_real_expr(value):
+        if isinstance(value, SpecialExpr):
+            raise TypeError("Cannot do an operation over RealExpr and SpecialExpr")
         if isinstance(value, RealExpr):
             return value
         raise TypeError(f"Expected RealExpr, got {type(value).__name__}")
     
+    @staticmethod
+    def _coerce_real_like_expr(value):
+        if isinstance(value, (RealExpr, SpecialExpr)):
+            return value
+        raise TypeError(f"Expected RealExpr or SpecialExpr, got {type(value).__name__}")
+    
     def __add__(self, other: "RealExpr") -> "RealExpr":
-        return Add(self, self._coerce(other))
+        return Add(self, other)
     
     def __iadd__(self, other: "RealExpr") -> "RealExpr":
         return self + other
     
     def __sub__(self, other: "RealExpr") -> "RealExpr":
-        return Sub(self, self._coerce(other))
+        return Sub(self, other)
     
     def __isub__(self, other: "RealExpr") -> "RealExpr":
         return self - other
     
     def __mul__(self, other: "RealExpr") -> "RealExpr":
-        return Mul(self, self._coerce(other))
+        return Mul(self, other)
     
     def __imul__(self, other: "RealExpr") -> "RealExpr":
         return self * other
@@ -84,7 +92,7 @@ class RealExpr(SpecNode):
     def __pow__(self, other: "RealExpr", modulo=None) -> "RealExpr":
         if modulo is not None:
             raise NotImplementedError("pow(..., modulo) is not supported for spec AST")
-        return Pow(self, self._coerce(other))
+        return Pow(self, other)
     
     def __ipow__(self, other: "RealExpr") -> "RealExpr":
         return self ** other
@@ -99,35 +107,41 @@ class RealExpr(SpecNode):
         return Abs(self)
     
     def __lt__(self, other: "RealExpr") -> "BoolExpr":
-        return Lt(self, self._coerce(other))
-    
+        return Lt(self, other)
+        
     def __le__(self, other: "RealExpr") -> "BoolExpr":
-        return Le(self, self._coerce(other))
+        return Le(self, other)
     
     def __gt__(self, other: "RealExpr") -> "BoolExpr":
-        return Gt(self, self._coerce(other))
+        return Gt(self, other)
     
     def __ge__(self, other: "RealExpr") -> "BoolExpr":
-        return Ge(self, self._coerce(other))
+        return Ge(self, other)
     
     def eq(self, other: "RealExpr") -> "BoolExpr":
-        return Eq(self, self._coerce(other))
+        return Eq(self, other)
     
     def ne(self, other: "RealExpr") -> "BoolExpr":
-        return NotEq(self, self._coerce(other))
+        return NotEq(self, other)
     
     def max(self, other: "RealExpr") -> "RealExpr":
-        return Max(self, self._coerce(other))
+        return Max(self, other)
     
     def min(self, other: "RealExpr") -> "RealExpr":
-        return Min(self, self._coerce(other))
+        return Min(self, other)
+
+
+class SpecialExpr(RealExpr):
+    pass
+
 
 class BoolExpr(SpecNode):
     @staticmethod
-    def _coerce(value):
+    def _coerce_bool_expr(value):
         if isinstance(value, BoolExpr):
             return value
-        raise TypeError(f"Expected BoolExpr, got {type(value).__name__}")    
+        raise TypeError(f"Expected BoolExpr, got {type(value).__name__}")
+
     
     def __bool__(self) -> bool:
         raise TypeError("Spec BoolExpr cannot be used as a Python bool")
@@ -139,25 +153,25 @@ class BoolExpr(SpecNode):
         return self.and_(other)
     
     def __rand__(self, other: "BoolExpr") -> "BoolExpr":
-        return self._coerce(other).and_(self)
+        return And(other, self)
     
     def __or__(self, other: "BoolExpr") -> "BoolExpr":
         return self.or_(other)
     
     def __ror__(self, other: "BoolExpr") -> "BoolExpr":
-        return self._coerce(other).or_(self)
+        return Or(other, self)
     
     def eq(self, other: "BoolExpr") -> "BoolExpr":
-        return BoolEq(self, self._coerce(other))
+        return BoolEq(self, other)
     
     def ne(self, other: "BoolExpr") -> "BoolExpr":
-        raise BoolEq(~self, self._coerce(other))
+        return BoolEq(~self, other)
     
     def or_(self, other: "BoolExpr") -> "BoolExpr":
-        return Or(self, self._coerce(other))
+        return Or(self, other)
     
     def and_(self, other: "BoolExpr") -> "BoolExpr":
-        return And(self, self._coerce(other))
+        return And(self, other)
 
 @dataclass(frozen=True)
 class RealVar(RealExpr):
@@ -171,13 +185,13 @@ class RealVar(RealExpr):
         if key not in env:
             env[key] = z3.Real(self.name)
         return env[key]
-
+    
     def to_dreal(self, env):
         key = ("real", self.name)
         if key not in env:
             env[key] = dreal.Variable(self.name)
         return env[key]
-
+    
     def __str__(self):
         return f"real({self.name})"
 
@@ -194,13 +208,13 @@ class BoolVar(BoolExpr):
         if key not in env:
             env[key] = z3.Bool(self.name)
         return env[key]
-
+    
     def to_dreal(self, env):
         key = ("bool", self.name)
         if key not in env:
             env[key] = dreal.Variable(self.name, dreal.Variable.Bool)
         return env[key]
-
+    
     def __str__(self):
         return f"bool({self.name})"
 
@@ -208,7 +222,7 @@ class BoolVar(BoolExpr):
 @dataclass(frozen=True)
 class RealLit(RealExpr):
     value: float | int
-
+    
     def _as_fraction(self) -> Fraction:
         if isinstance(self.value, float):
             if not math.isfinite(self.value):
@@ -219,14 +233,14 @@ class RealLit(RealExpr):
     def to_egglog(self):
         ratio = self._as_fraction()
         return _fraction_to_egglog(ratio)
-            
+    
     def to_z3(self, env):
         ratio = self._as_fraction()
         return z3.RealVal(f"{ratio.numerator}/{ratio.denominator}")
-
+    
     def to_dreal(self, env):
         return dreal.Expression(self.value)
-
+    
     def __str__(self):
         return str(self.value)
 
@@ -240,40 +254,40 @@ class BoolLit(BoolExpr):
     
     def to_z3(self, env):
         return z3.BoolVal(self.value)
-
+    
     def to_dreal(self, env):
         return dreal.Formula.TRUE() if self.value else dreal.Formula.FALSE()
-
+    
     def __str__(self):
         return "true" if self.value else "false"
 
 
 @dataclass(frozen=True)
-class SpecNaN(SpecNode):
+class SpecNaN(SpecialExpr):
     def to_egglog(self):
         raise NotImplementedError("SpecNaN does not lower to egglog")
-
+    
     def to_z3(self, env):
         raise NotImplementedError("SpecNaN does not lower to z3")
-
+    
     def to_dreal(self, env):
         raise NotImplementedError("SpecNaN does not lower to dreal")
-
+    
     def __str__(self):
         return "nan"
 
 
 @dataclass(frozen=True)
-class SpecInf(SpecNode):
+class SpecInf(SpecialExpr):
     def to_egglog(self):
         raise NotImplementedError("SpecInf does not lower to egglog")
-
+    
     def to_z3(self, env):
         raise NotImplementedError("SpecInf does not lower to z3")
-
+    
     def to_dreal(self, env):
         raise NotImplementedError("SpecInf does not lower to dreal")
-
+    
     def __str__(self):
         return "inf"
 
@@ -282,6 +296,10 @@ class SpecInf(SpecNode):
 class Add(RealExpr):
     lhs: RealExpr
     rhs: RealExpr
+
+    def __post_init__(self):
+        RealExpr._coerce_real_expr(self.lhs)
+        RealExpr._coerce_real_expr(self.rhs)
     
     def to_egglog(self):
         return Math.Add(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -303,6 +321,10 @@ class Add(RealExpr):
 class Sub(RealExpr):
     lhs: RealExpr
     rhs: RealExpr
+
+    def __post_init__(self):
+        RealExpr._coerce_real_expr(self.lhs)
+        RealExpr._coerce_real_expr(self.rhs)
     
     def to_egglog(self):
         return Math.Add(self.lhs.to_egglog(), Math.Neg(self.rhs.to_egglog()))
@@ -324,6 +346,10 @@ class Sub(RealExpr):
 class Mul(RealExpr):
     lhs: RealExpr
     rhs: RealExpr
+
+    def __post_init__(self):
+        RealExpr._coerce_real_expr(self.lhs)
+        RealExpr._coerce_real_expr(self.rhs)
     
     def to_egglog(self):
         return Math.Mul(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -344,6 +370,9 @@ class Mul(RealExpr):
 @dataclass(frozen=True)
 class Neg(RealExpr):
     value: RealExpr
+
+    def __post_init__(self):
+        RealExpr._coerce_real_expr(self.value)
     
     def to_egglog(self):
         return Math.Neg(self.value.to_egglog())
@@ -364,6 +393,9 @@ class Neg(RealExpr):
 @dataclass(frozen=True)
 class Abs(RealExpr):
     value: RealExpr
+
+    def __post_init__(self):
+        RealExpr._coerce_real_expr(self.value)
     
     def to_egglog(self):
         return Math.Abs(self.value.to_egglog())
@@ -386,12 +418,15 @@ class Pow(RealExpr):
     base: RealExpr
     exponent: RealExpr
 
+    def __post_init__(self):
+        RealExpr._coerce_real_expr(self.base)
+        RealExpr._coerce_real_expr(self.exponent)
+
     def to_egglog(self):
         return Math.Pow(self.base.to_egglog(), self.exponent.to_egglog())
 
     def to_z3(self, env):
         return self.base.to_z3(env=env) ** self.exponent.to_z3(env=env)
-
 
     def to_dreal(self, env):
         return self.base.to_dreal(env=env) ** self.exponent.to_dreal(env=env)
@@ -407,6 +442,10 @@ class Pow(RealExpr):
 class Max(RealExpr):
     lhs: RealExpr
     rhs: RealExpr
+
+    def __post_init__(self):
+        RealExpr._coerce_real_expr(self.lhs)
+        RealExpr._coerce_real_expr(self.rhs)
     
     def to_egglog(self):
         return Math.Max(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -430,6 +469,10 @@ class Max(RealExpr):
 class Min(RealExpr):
     lhs: RealExpr
     rhs: RealExpr
+
+    def __post_init__(self):
+        RealExpr._coerce_real_expr(self.lhs)
+        RealExpr._coerce_real_expr(self.rhs)
     
     def to_egglog(self):
         return Math.Min(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -454,6 +497,11 @@ class If(RealExpr):
     cond: BoolExpr
     on_true: RealExpr
     on_false: RealExpr
+
+    def __post_init__(self):
+        BoolExpr._coerce_bool_expr(self.cond)
+        RealExpr._coerce_real_like_expr(self.on_true)
+        RealExpr._coerce_real_like_expr(self.on_false)
     
     def to_egglog(self):
         return Math.If(
@@ -487,6 +535,17 @@ class If(RealExpr):
 class Eq(BoolExpr):
     lhs: RealExpr
     rhs: RealExpr
+
+    def __new__(cls, lhs: RealExpr, rhs: RealExpr):
+        RealExpr._coerce_real_like_expr(lhs)
+        RealExpr._coerce_real_like_expr(rhs)
+        if isinstance(lhs, SpecialExpr) or isinstance(rhs, SpecialExpr):
+            return BoolLit(identical_nodes(lhs, rhs))
+        return super().__new__(cls)
+
+    def __post_init__(self):
+        RealExpr._coerce_real_like_expr(self.lhs)
+        RealExpr._coerce_real_like_expr(self.rhs)
     
     def to_egglog(self):
         return Math.Eq(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -508,6 +567,17 @@ class Eq(BoolExpr):
 class NotEq(BoolExpr):
     lhs: RealExpr
     rhs: RealExpr
+
+    def __new__(cls, lhs: RealExpr, rhs: RealExpr):
+        RealExpr._coerce_real_like_expr(lhs)
+        RealExpr._coerce_real_like_expr(rhs)
+        if isinstance(lhs, SpecialExpr) or isinstance(rhs, SpecialExpr):
+            return BoolLit(not identical_nodes(lhs, rhs))
+        return super().__new__(cls)
+
+    def __post_init__(self):
+        RealExpr._coerce_real_like_expr(self.lhs)
+        RealExpr._coerce_real_like_expr(self.rhs)
     
     def to_egglog(self):
         return Math.NotEq(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -529,6 +599,10 @@ class NotEq(BoolExpr):
 class Lt(BoolExpr):
     lhs: RealExpr
     rhs: RealExpr
+
+    def __post_init__(self):
+        RealExpr._coerce_real_expr(self.lhs)
+        RealExpr._coerce_real_expr(self.rhs)
     
     def to_egglog(self):
         return Math.Lt(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -550,6 +624,10 @@ class Lt(BoolExpr):
 class Le(BoolExpr):
     lhs: RealExpr
     rhs: RealExpr
+
+    def __post_init__(self):
+        RealExpr._coerce_real_expr(self.lhs)
+        RealExpr._coerce_real_expr(self.rhs)
     
     def to_egglog(self):
         return Math.Le(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -571,6 +649,10 @@ class Le(BoolExpr):
 class Gt(BoolExpr):
     lhs: RealExpr
     rhs: RealExpr
+
+    def __post_init__(self):
+        RealExpr._coerce_real_expr(self.lhs)
+        RealExpr._coerce_real_expr(self.rhs)
     
     def to_egglog(self):
         return Math.Gt(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -592,6 +674,10 @@ class Gt(BoolExpr):
 class Ge(BoolExpr):
     lhs: RealExpr
     rhs: RealExpr
+
+    def __post_init__(self):
+        RealExpr._coerce_real_expr(self.lhs)
+        RealExpr._coerce_real_expr(self.rhs)
     
     def to_egglog(self):
         return Math.Ge(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -613,6 +699,10 @@ class Ge(BoolExpr):
 class BoolEq(BoolExpr):
     lhs: BoolExpr
     rhs: BoolExpr
+
+    def __post_init__(self):
+        BoolExpr._coerce_bool_expr(self.lhs)
+        BoolExpr._coerce_bool_expr(self.rhs)
     
     def to_egglog(self):
         return MathBool.Eq(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -635,6 +725,9 @@ class BoolEq(BoolExpr):
 @dataclass(frozen=True)
 class Not(BoolExpr):
     value: BoolExpr
+
+    def __post_init__(self):
+        BoolExpr._coerce_bool_expr(self.value)
     
     def to_egglog(self):
         return MathBool.Not(self.value.to_egglog())
@@ -656,6 +749,10 @@ class Not(BoolExpr):
 class Or(BoolExpr):
     lhs: BoolExpr
     rhs: BoolExpr
+
+    def __post_init__(self):
+        BoolExpr._coerce_bool_expr(self.lhs)
+        BoolExpr._coerce_bool_expr(self.rhs)
     
     def to_egglog(self):
         return MathBool.Or(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -677,6 +774,10 @@ class Or(BoolExpr):
 class And(BoolExpr):
     lhs: BoolExpr
     rhs: BoolExpr
+
+    def __post_init__(self):
+        BoolExpr._coerce_bool_expr(self.lhs)
+        BoolExpr._coerce_bool_expr(self.rhs)
     
     def to_egglog(self):
         return MathBool.And(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -692,14 +793,6 @@ class And(BoolExpr):
 
     def __str__(self):
         return f"({self.lhs} and {self.rhs})"
-
-
-def ite(
-    cond: BoolExpr,
-    on_true: RealExpr,
-    on_false: RealExpr,
-) -> RealExpr:
-    return If(cond, RealExpr._coerce(on_true), RealExpr._coerce(on_false))
 
 
 def _folded_pow_value(base: float | int, exponent: float | int):
@@ -826,7 +919,7 @@ def _shortcut_fold(
         if identical_nodes(lhs, rhs):
             return BoolLit(False)
         return None
-
+    
     if isinstance(node, If):
         cond, on_true, on_false = folded_args
         if isinstance(cond, BoolLit):
