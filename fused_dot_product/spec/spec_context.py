@@ -260,6 +260,12 @@ class SpecContext:
 
     def bool_val(self, value: bool):
         return BoolLit(value=value)
+
+    def nan(self) -> SpecNaN:
+        return SpecNaN()
+
+    def inf(self) -> SpecInf:
+        return SpecInf()
     
     def true(self) -> BoolLit:
         return BoolLit(value=True)

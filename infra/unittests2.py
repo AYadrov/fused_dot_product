@@ -856,6 +856,25 @@ class TestSpecAstConstantFolding(unittest.TestCase):
 
         self.assertEqual(expr.constant_fold(), expr)
 
+    def test_spec_context_nan_and_inf_are_opaque_spec_nodes(self):
+        ctx = SpecContext("special-nodes")
+
+        nan_node = ctx.nan()
+        inf_node = ctx.inf()
+
+        self.assertIsInstance(nan_node, SpecNode)
+        self.assertIsInstance(inf_node, SpecNode)
+        self.assertNotIsInstance(nan_node, RealExpr)
+        self.assertNotIsInstance(nan_node, BoolExpr)
+        self.assertNotIsInstance(inf_node, RealExpr)
+        self.assertNotIsInstance(inf_node, BoolExpr)
+        self.assertEqual(children(nan_node), ())
+        self.assertEqual(children(inf_node), ())
+        self.assertEqual(nan_node.constant_fold(), nan_node)
+        self.assertEqual(inf_node.constant_fold(), inf_node)
+        self.assertEqual(str(nan_node), "nan")
+        self.assertEqual(str(inf_node), "inf")
+
 
 class TestRivalTranslation(unittest.TestCase):
     def test_real_expression_translates_to_rival_ir(self):

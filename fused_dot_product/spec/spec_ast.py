@@ -15,21 +15,21 @@ import dreal
 class SpecNode:
     def to_egglog(self):
         raise NotImplementedError
-
+    
     def to_z3(self):
         raise NotImplementedError
-
+    
     def to_dreal(self):
         raise NotImplementedError
-
+    
     def identical(self, other: object) -> bool:
         return identical_nodes(self, other)
-
+    
     def constant_fold(self) -> "SpecNode":
         args = children(self)
         if args == ():
             return self
-
+        
         folded_args = tuple(arg.constant_fold() for arg in args)
         
         # Try shortcut
@@ -45,13 +45,13 @@ class SpecNode:
             if folded_value is not None and _can_constant_fold_literal(output_type, folded_value):
                 # Successfully folded
                 return output_type(folded_value)
-            
+        
         # Nothing got folded
         if all(old is new for old, new in zip(args, folded_args)):
             return self
         # Partially folded
         return type(self)(*folded_args)
-        
+    
     def fold(self):
         raise NotImplementedError
 
@@ -65,19 +65,19 @@ class RealExpr(SpecNode):
     
     def __add__(self, other: "RealExpr") -> "RealExpr":
         return Add(self, self._coerce(other))
-
+    
     def __iadd__(self, other: "RealExpr") -> "RealExpr":
         return self + other
     
     def __sub__(self, other: "RealExpr") -> "RealExpr":
         return Sub(self, self._coerce(other))
-
+    
     def __isub__(self, other: "RealExpr") -> "RealExpr":
         return self - other
     
     def __mul__(self, other: "RealExpr") -> "RealExpr":
         return Mul(self, self._coerce(other))
-
+    
     def __imul__(self, other: "RealExpr") -> "RealExpr":
         return self * other
     
@@ -85,7 +85,7 @@ class RealExpr(SpecNode):
         if modulo is not None:
             raise NotImplementedError("pow(..., modulo) is not supported for spec AST")
         return Pow(self, self._coerce(other))
-
+    
     def __ipow__(self, other: "RealExpr") -> "RealExpr":
         return self ** other
     
@@ -131,31 +131,31 @@ class BoolExpr(SpecNode):
     
     def __bool__(self) -> bool:
         raise TypeError("Spec BoolExpr cannot be used as a Python bool")
-
+    
     def __invert__(self) -> "BoolExpr":
         return Not(self)
-
+    
     def __and__(self, other: "BoolExpr") -> "BoolExpr":
         return self.and_(other)
-
+    
     def __rand__(self, other: "BoolExpr") -> "BoolExpr":
         return self._coerce(other).and_(self)
-
+    
     def __or__(self, other: "BoolExpr") -> "BoolExpr":
         return self.or_(other)
-
+    
     def __ror__(self, other: "BoolExpr") -> "BoolExpr":
         return self._coerce(other).or_(self)
-        
+    
     def eq(self, other: "BoolExpr") -> "BoolExpr":
         return BoolEq(self, self._coerce(other))
     
     def ne(self, other: "BoolExpr") -> "BoolExpr":
-        raise NotImplementedError()
-
+        raise BoolEq(~self, self._coerce(other))
+    
     def or_(self, other: "BoolExpr") -> "BoolExpr":
         return Or(self, self._coerce(other))
-
+    
     def and_(self, other: "BoolExpr") -> "BoolExpr":
         return And(self, self._coerce(other))
 
@@ -246,6 +246,36 @@ class BoolLit(BoolExpr):
 
     def __str__(self):
         return "true" if self.value else "false"
+
+
+@dataclass(frozen=True)
+class SpecNaN(SpecNode):
+    def to_egglog(self):
+        raise NotImplementedError("SpecNaN does not lower to egglog")
+
+    def to_z3(self, env):
+        raise NotImplementedError("SpecNaN does not lower to z3")
+
+    def to_dreal(self, env):
+        raise NotImplementedError("SpecNaN does not lower to dreal")
+
+    def __str__(self):
+        return "nan"
+
+
+@dataclass(frozen=True)
+class SpecInf(SpecNode):
+    def to_egglog(self):
+        raise NotImplementedError("SpecInf does not lower to egglog")
+
+    def to_z3(self, env):
+        raise NotImplementedError("SpecInf does not lower to z3")
+
+    def to_dreal(self, env):
+        raise NotImplementedError("SpecInf does not lower to dreal")
+
+    def __str__(self):
+        return "inf"
 
 
 @dataclass(frozen=True)
@@ -893,7 +923,7 @@ def _literal_type(node: SpecNode):
 
 
 def children(node: SpecNode) -> tuple[SpecNode, ...]:
-    if isinstance(node, (RealVar, BoolVar, RealLit, BoolLit)):
+    if isinstance(node, (RealVar, BoolVar, RealLit, BoolLit, SpecNaN, SpecInf)):
         return ()
     if isinstance(node, (Neg, Abs, Not)):
         return (node.value,)
