@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass
 from fractions import Fraction
 from itertools import product
@@ -24,6 +23,13 @@ class RivalAnalysis:
     status: tuple[bool, bool]
     hints: Any
     converged: bool
+
+
+@dataclass(frozen=True)
+class RivalExprSearch:
+    expr: Any
+    machine: RivalMachine
+    split_indexes: tuple[int, ...]
 
 
 class RivalMachine:
@@ -96,7 +102,7 @@ def get_rival_rects(
 
 def rival_feasibility_check(ctx: "SpecContext", max_depth: int = 1):
     max_depth = int(max_depth)
-    exprs = ctx.assumes
+    exprs = ctx.assumes + ctx.checks
     free_vars = collect_free_vars(exprs)
     
     if not exprs:
@@ -105,38 +111,26 @@ def rival_feasibility_check(ctx: "SpecContext", max_depth: int = 1):
     rects = get_rival_rects(ctx.assumes, free_vars)
     if not rects:
         return "not feasible"
-    
-    machine = build_machine(exprs, free_vars)
-    expr_splitters = _build_rival_expr_splitters(exprs, free_vars)
-    
-    work_queue = deque(
-        (rect, None, 0)
-        for rect in rects
-    )
-    
+
+    # expr_searches:
+    #     x+y>2 | {x, y}
+    #     x+1<1 | {x}
+    expr_searches = _build_rival_expr_searches(exprs, free_vars)
     may_be_feasible = False
-    
-    while work_queue:
-        rect, hints, depth = work_queue.popleft()
-        analysis = machine.apply_with_hints(rect, hints)
-        status = analysis.status
-        
-        if status == (True, True):
-            continue
-        
-        if status == (False, False):
+
+    for rect in rects:
+        is_feasible, is_maybe = _rival_feasibility_dfs(
+            expr_searches,
+            rect,
+            expr_index=0,
+            depth=0,
+            max_depth=max_depth,
+            hints=None,
+        )
+        if is_feasible:
             return "feasible"
-        
-        if status == (False, True) and depth < max_depth:
-            # Split only on variables that are in assumptions/checks that fail
-            split_indexes = _rival_uncertain_split_indexes(expr_splitters, rect)
-            children = _subdivide_rival_rect(rect, split_indexes)
-            if children:
-                for child in children:
-                    work_queue.append((child, analysis.hints, depth + 1))
-                continue
-        
-        may_be_feasible = True
+        may_be_feasible = may_be_feasible or is_maybe
+
     return "unknown" if may_be_feasible else "not feasible"
 
 
@@ -156,37 +150,83 @@ def rival_trim_context(ctx: "SpecContext") -> "SpecContext":
     )
 
 
-def _build_rival_expr_splitters(
+def _build_rival_expr_searches(
     exprs: Sequence[SpecNode],
     free_vars: Sequence[str],
-) -> list[tuple[RivalMachine, set[int]]]:
+) -> list[RivalExprSearch]:
     free_var_indexes = {name: index for index, name in enumerate(free_vars)}
-    splitters: list[tuple[RivalMachine, set[int]]] = []
+    searches: list[RivalExprSearch] = []
     for expr in exprs:
         # free_vars = ["x", "y", "z"]
         # assume x >= 0      # split_indexes = {0}
         # assume z >= 0      # split_indexes = {2}
         # check  x == y      # split_indexes = {0, 1}
-        split_indexes = {
+        split_indexes = tuple(sorted({
             free_var_indexes[name]
             for name in collect_free_vars([expr])
             if name in free_var_indexes
-        }
-        if split_indexes:
-            splitters.append((build_machine([expr], free_vars), split_indexes))
-    return splitters
+        }))
+        searches.append(
+            RivalExprSearch(
+                expr=expr,
+                machine=build_machine([expr], free_vars),
+                split_indexes=split_indexes,
+            )
+        )
+    return searches
 
-
-def _rival_uncertain_split_indexes(
-    expr_splitters: Sequence[tuple[RivalMachine, set[int]]],
+def _rival_feasibility_dfs(
+    expr_searches: Sequence[RivalExprSearch],
     rect: Sequence[tuple[float, float]],
-) -> set[int]:
-    split_indexes: set[int] = set()
-    for machine, machine_split_indexes in expr_splitters:
-        analysis = machine.apply_with_hints(rect, None)
-        if analysis.status == (False, True):
-            split_indexes.update(machine_split_indexes)
-    return split_indexes
+    expr_index: int,
+    depth: int,
+    max_depth: int,
+    hints: Any | None,
+) -> tuple[bool, bool]:
+    # All expressions are gone through - definitely feasible
+    if expr_index >= len(expr_searches):
+        return True, False
+
+    expr_search = expr_searches[expr_index]
+    analysis = expr_search.machine.apply_with_hints(rect, hints)
+    status = analysis.status
+
+    if status == (True, True):
+        return False, False
+
+    # expr[expr_index] has passed - next expr
+    if status == (False, False):
+        return _rival_feasibility_dfs(
+            expr_searches,
+            rect,
+            expr_index=expr_index + 1,
+            depth=depth,
+            max_depth=max_depth,
+            hints=None,
+        )
+
+    # subdivide on children and try again until certain
+    if status == (False, True):
+        if depth < max_depth:
+            children = _subdivide_rival_rect(rect, expr_search.split_indexes)
+            if children:
+                may_be_feasible = False
+                for child in children:
+                    is_feasible, is_maybe = _rival_feasibility_dfs(
+                        expr_searches,
+                        child,
+                        expr_index=expr_index,
+                        depth=depth + 1,
+                        max_depth=max_depth,
+                        hints=analysis.hints,
+                    )
+                    if is_feasible:
+                        return True, False
+                    may_be_feasible = may_be_feasible or is_maybe
+                return False, may_be_feasible
+        return False, True
+
+    raise ValueError(f"Unexpected Rival status: {status!r}")
 
 
 def _subdivide_rival_rect(
