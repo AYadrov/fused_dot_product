@@ -100,9 +100,9 @@ def get_rival_rects(
     return rects
 
 
-def rival_feasibility_check(ctx: "SpecContext", max_depth: int = 1):
+def rival_feasibility_check(ctx: "SpecContext", max_depth: int = 1, checks=False):
     max_depth = int(max_depth)
-    exprs = ctx.assumes + ctx.checks
+    exprs = ctx.assumes + ctx.checks if checks else ctx.assumes
     free_vars = collect_free_vars(exprs)
     
     if not exprs:
@@ -115,17 +115,20 @@ def rival_feasibility_check(ctx: "SpecContext", max_depth: int = 1):
     # expr_searches:
     #     x+y>2 | {x, y}
     #     x+1<1 | {x}
+    combined_machine = build_machine(exprs, free_vars)
     expr_searches = _build_rival_expr_searches(exprs, free_vars)
     may_be_feasible = False
 
     for rect in rects:
         is_feasible, is_maybe = _rival_feasibility_dfs(
+            combined_machine,
             expr_searches,
             rect,
             expr_index=0,
             depth=0,
             max_depth=max_depth,
-            hints=None,
+            combined_hints=None,
+            expr_hints=None,
         )
         if is_feasible:
             return "feasible"
@@ -176,57 +179,73 @@ def _build_rival_expr_searches(
     return searches
 
 def _rival_feasibility_dfs(
+    combined_machine: RivalMachine,
     expr_searches: Sequence[RivalExprSearch],
     rect: Sequence[tuple[float, float]],
     expr_index: int,
     depth: int,
     max_depth: int,
-    hints: Any | None,
+    combined_hints: Any | None,
+    expr_hints: Any | None,
 ) -> tuple[bool, bool]:
-    # All expressions are gone through - definitely feasible
-    if expr_index >= len(expr_searches):
-        return True, False
+    combined_analysis = combined_machine.apply_with_hints(rect, combined_hints)
+    combined_status = combined_analysis.status
 
-    expr_search = expr_searches[expr_index]
-    analysis = expr_search.machine.apply_with_hints(rect, hints)
-    status = analysis.status
-
-    if status == (True, True):
+    # Not Feasible
+    if combined_status == (True, True):
         return False, False
 
-    # expr[expr_index] has passed - next expr
-    if status == (False, False):
-        return _rival_feasibility_dfs(
-            expr_searches,
-            rect,
-            expr_index=expr_index + 1,
-            depth=depth,
-            max_depth=max_depth,
-            hints=None,
-        )
+    # Feasible
+    if combined_status == (False, False):
+        return True, False
 
-    # subdivide on children and try again until certain
-    if status == (False, True):
-        if depth < max_depth:
-            children = _subdivide_rival_rect(rect, expr_search.split_indexes)
-            if children:
-                may_be_feasible = False
-                for child in children:
-                    is_feasible, is_maybe = _rival_feasibility_dfs(
-                        expr_searches,
-                        child,
-                        expr_index=expr_index,
-                        depth=depth + 1,
-                        max_depth=max_depth,
-                        hints=analysis.hints,
-                    )
-                    if is_feasible:
-                        return True, False
-                    may_be_feasible = may_be_feasible or is_maybe
-                return False, may_be_feasible
-        return False, True
+    if combined_status != (False, True):
+        raise ValueError(f"Unexpected Rival status: {combined_status!r}")
 
-    raise ValueError(f"Unexpected Rival status: {status!r}")
+    # The whole expressions is still maybe feasible
+    for index in range(expr_index, len(expr_searches)):
+        expr_search = expr_searches[index]  # expr[i]
+        hints = expr_hints if index == expr_index else None
+        analysis = expr_search.machine.apply_with_hints(rect, hints)
+        status = analysis.status
+
+        # Rect is maybe feasible on expr[i]
+        if status == (False, True):
+            # Split rect and try again
+            if depth < max_depth:
+                children = _subdivide_rival_rect(rect, expr_search.split_indexes)
+                if children:
+                    may_be_feasible = False
+                    for child in children:
+                        is_feasible, is_maybe = _rival_feasibility_dfs(
+                            combined_machine,
+                            expr_searches,
+                            child,
+                            expr_index=index,
+                            depth=depth + 1,
+                            max_depth=max_depth,
+                            combined_hints=combined_analysis.hints,
+                            expr_hints=analysis.hints,
+                        )
+                        if is_feasible:
+                            return True, False
+                        may_be_feasible = may_be_feasible or is_maybe
+                    return False, may_be_feasible
+            # Cannot split anymore
+            return False, True
+
+        # Rect is not feasible on expr[i]
+        if status == (True, True):
+            return False, False
+
+        # Rect is feasible on expr[i]
+        if status == (False, False):
+            continue
+
+        raise ValueError(f"Unexpected Rival status: {status!r}")
+
+    # Combined machine was "maybe" but every individual expression passed being feasible - overall, feasible
+    return True, False
 
 
 def _subdivide_rival_rect(
