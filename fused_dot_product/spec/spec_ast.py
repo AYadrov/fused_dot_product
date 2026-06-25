@@ -35,7 +35,7 @@ class SpecNode:
         # Try shortcut
         shortcut = _shortcut_fold(self, folded_args)
         if shortcut is not None:
-            return shortcut
+            return shortcut.constant_fold()
         
         # Else, general case
         output_type = _literal_type(self)
@@ -913,11 +913,11 @@ def _shortcut_fold(
         # x == True -> x
         # x == False -> ~x
         if isinstance(lhs, BoolLit):
-            return rhs if lhs.value else _negate_bool(rhs)
+            return rhs if lhs.value else Not(rhs)
         # True == x -> x
         # False == x -> ~x
         if isinstance(rhs, BoolLit):
-            return lhs if rhs.value else _negate_bool(lhs)
+            return lhs if rhs.value else Not(lhs)
         return None
 
     if isinstance(node, NotEq):
@@ -947,21 +947,22 @@ def _shortcut_fold(
             return on_true
         return None
 
-    if isinstance(node, Mul):
-        lhs, rhs = folded_args
-        # x * 0 -> 0
-        if isinstance(lhs, RealLit) and lhs.value == 0:
-            return lhs
-        # 0 * x -> 0
-        if isinstance(rhs, RealLit) and rhs.value == 0:
-            return rhs
-        # 1 * x -> x
-        if isinstance(lhs, RealLit) and lhs.value == 1:
-            return rhs
-        # x * 1 -> x
-        if isinstance(rhs, RealLit) and rhs.value == 1:
-            return lhs
-        return None
+    # # This can fire as 0*inf -> 0
+    # if isinstance(node, Mul):
+    #     lhs, rhs = folded_args
+    #     # x * 0 -> 0
+    #     if isinstance(lhs, RealLit) and lhs.value == 0:
+    #         return lhs
+    #     # 0 * x -> 0
+    #     if isinstance(rhs, RealLit) and rhs.value == 0:
+    #         return rhs
+    #     # 1 * x -> x
+    #     if isinstance(lhs, RealLit) and lhs.value == 1:
+    #         return rhs
+    #     # x * 1 -> x
+    #     if isinstance(rhs, RealLit) and rhs.value == 1:
+    #         return lhs
+    #     return None
 
     if isinstance(node, Add):
         lhs, rhs = folded_args
@@ -979,8 +980,8 @@ def _shortcut_fold(
         if isinstance(rhs, RealLit) and rhs.value == 0:
             return lhs
         # 0 - x -> -x
-        if isinstance(lhs, RealLit) and lhs.value == 0:
-            return Neg(rhs).constant_fold()
+        # if isinstance(lhs, RealLit) and lhs.value == 0:
+        #     return Neg(rhs).constant_fold()
         return None
 
     if isinstance(node, And):
