@@ -890,8 +890,10 @@ def _shortcut_fold(
 ) -> SpecNode | None:
     if isinstance(node, Eq):
         lhs, rhs = folded_args
+        # x == x -> True
         if identical_nodes(lhs, rhs):
             return BoolLit(True)
+        # (if cond then 1 else 0) == 1 -> cond == True
         folded = _fold_indicator_equality(lhs, rhs)
         if folded is not None:
             return folded
@@ -902,64 +904,113 @@ def _shortcut_fold(
 
     if isinstance(node, BoolEq):
         lhs, rhs = folded_args
+        # x == x -> True
         if identical_nodes(lhs, rhs):
             return BoolLit(True)
+        # ~x == x -> False
+        if _are_complements(lhs, rhs):
+            return BoolLit(False)
+        # x == True -> x
+        # x == False -> ~x
+        if isinstance(lhs, BoolLit):
+            return rhs if lhs.value else _negate_bool(rhs)
+        # True == x -> x
+        # False == x -> ~x
+        if isinstance(rhs, BoolLit):
+            return lhs if rhs.value else _negate_bool(lhs)
         return None
 
     if isinstance(node, NotEq):
         lhs, rhs = folded_args
+        # x != x -> False
         if identical_nodes(lhs, rhs):
             return BoolLit(False)
+        return None
+
+    if isinstance(node, Not):
+        value, = folded_args
+        # ~(~x) -> x
+        if isinstance(value, Not):
+            return value.value
+        if isinstance(value, BoolLit):
+            return BoolLit(not value.value)
         return None
     
     if isinstance(node, If):
         cond, on_true, on_false = folded_args
+        # if True then x else y -> x
+        # if False then x else y -> y
         if isinstance(cond, BoolLit):
             return on_true if cond.value else on_false
+        # If x then y else y -> y
         if identical_nodes(on_true, on_false):
             return on_true
         return None
 
     if isinstance(node, Mul):
         lhs, rhs = folded_args
+        # x * 0 -> 0
         if isinstance(lhs, RealLit) and lhs.value == 0:
             return lhs
+        # 0 * x -> 0
         if isinstance(rhs, RealLit) and rhs.value == 0:
             return rhs
-
+        # 1 * x -> x
         if isinstance(lhs, RealLit) and lhs.value == 1:
             return rhs
+        # x * 1 -> x
         if isinstance(rhs, RealLit) and rhs.value == 1:
             return lhs
-        
         return None
 
     if isinstance(node, Add):
         lhs, rhs = folded_args
+        # x + 0 -> x
         if isinstance(lhs, RealLit) and lhs.value == 0:
             return rhs
+        # 0 + x -> x
         if isinstance(rhs, RealLit) and rhs.value == 0:
             return lhs
         return None
 
     if isinstance(node, Sub):
         lhs, rhs = folded_args
+        # x - 0 -> x
         if isinstance(rhs, RealLit) and rhs.value == 0:
             return lhs
+        # 0 - x -> -x
         if isinstance(lhs, RealLit) and lhs.value == 0:
-            return Neg(rhs)
+            return Neg(rhs).constant_fold()
         return None
 
     if isinstance(node, And):
         lhs, rhs = folded_args
+        # x and x -> x
+        if identical_nodes(lhs, rhs):
+            return lhs
+        # x and ~x -> False
+        if _are_complements(lhs, rhs):
+            return BoolLit(False)
+        # x and True -> x
+        # x and False -> False
         if isinstance(lhs, BoolLit):
             return rhs if lhs.value else BoolLit(False)
+        # True and x -> x
+        # False and x -> False
         if isinstance(rhs, BoolLit):
             return lhs if rhs.value else BoolLit(False)
         return None
 
     if isinstance(node, Or):
         lhs, rhs = folded_args
+        # x or x -> x
+        if identical_nodes(lhs, rhs):
+            return lhs
+        # x or ~x -> True
+        if _are_complements(lhs, rhs):
+            return BoolLit(True)
+        # x or True -> True
+        # x or False -> x
         if isinstance(lhs, BoolLit):
             return BoolLit(True) if lhs.value else rhs
         if isinstance(rhs, BoolLit):
@@ -967,6 +1018,26 @@ def _shortcut_fold(
         return None
 
     return None
+
+
+def _are_complements(lhs: SpecNode, rhs: SpecNode) -> bool:
+    return (
+        isinstance(lhs, Not)
+        and identical_nodes(lhs.value, rhs)
+    ) or (
+        isinstance(rhs, Not)
+        and identical_nodes(rhs.value, lhs)
+    )
+
+
+def _negate_bool(expr: SpecNode) -> BoolExpr:
+    if isinstance(expr, BoolLit):
+        return BoolLit(not expr.value)
+    if isinstance(expr, Not):
+        return expr.value
+    if isinstance(expr, BoolExpr):
+        return Not(expr)
+    raise TypeError(f"Expected BoolExpr, got {type(expr).__name__}")
 
 
 # Helper to recognize shortcuts like (if cond then 1 else 0) == 1 -> cond == True
