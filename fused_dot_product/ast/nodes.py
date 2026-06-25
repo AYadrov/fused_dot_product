@@ -172,6 +172,7 @@ class composite(Node):
             if solution_can_exist:
                 proved = proved and (_status == "unsat")
                 print(initial_ctx.name, _status)
+            #print(initial_ctx.name, feasiblility, _status)
             full_trace.append(proof_trace)
         
         print(f"{ctx.name} {'has' if proved else 'has not'} been proved")

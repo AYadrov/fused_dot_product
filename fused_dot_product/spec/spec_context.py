@@ -97,10 +97,10 @@ class SpecContext:
             existing = candidates.get(expr)
             if existing is None:
                 candidates[expr] = lit
+
+            # poorly written spec with contradictions
             elif not identical_nodes(existing, lit):
-                raise PoorSpec(
-                    f"Conflicting learned literals for {expr}: {existing} vs {lit}"
-                )
+                raise PoorSpec(f"Conflicting learned literals for {expr}: {existing} vs {lit}")
 
         for assume in self.assumes:
             learned = self._canonical_learned_assumption(assume)
@@ -223,12 +223,6 @@ class SpecContext:
             simplified.assumes = new_assumes
             simplified.checks = new_checks
         
-        simplified.assumes = [x for x in simplified.assumes if not identical_nodes(x, BoolLit(True))]
-        simplified.checks = [x for x in simplified.checks if not identical_nodes(x, BoolLit(True))]
-
-        if any([identical_nodes(x, BoolLit(False)) for x in simplified.assumes + simplified.checks]):
-            raise PoorSpec("One of checks/assumptions folds to False")
-        
         return simplified
     
     def spec_of(self, node: Node):
@@ -323,11 +317,25 @@ class SpecContext:
 class PoorSpec(ValueError):
     pass
 
+
+def _reject_special_exprs(ctx: SpecContext) -> None:
+    def visit(node: SpecNode) -> None:
+        if isinstance(node, SpecialExpr):
+            raise PoorSpec(f"Special value {node} escaped into simplified spec expression")
+        for child in children(node):
+            visit(child)
+
+    for expr in ctx.assumes + ctx.checks:
+        visit(expr)
+
+
 def simplify_ctx(ctx: SpecContext):
     run_started_at = perf_counter()
     
     try:
         simplified_ctx = ctx.simplify()
+        # We may have nonsense like x + nan == y - that's a poor spec
+        _reject_special_exprs(simplified_ctx)
     except PoorSpec as exc:
         return build_proof_report(
             ctx,
@@ -336,22 +344,38 @@ def simplify_ctx(ctx: SpecContext):
             runtime_s=perf_counter() - run_started_at,
             status="sat",
             feasibility_status="not feasible",
+            info=exc,
         )
     
-    trimmed_ctx = rival_trim_context(simplified_ctx)
+    simplified_ctx = rival_trim_context(simplified_ctx)
     
-    feasibility_status = rival_feasibility_check(trimmed_ctx, max_depth=2)
-    
-    if feasibility_status == "not feasible":
-        status = "sat"
+    ############### Feasibility ##################
+    feasibility_status = None
+    if any([identical_nodes(x, BoolLit(False)) for x in simplified_ctx.assumes]):
+        feasibility_status = "not feasible"
     else:
-        status = "unsat" if len(trimmed_ctx.checks) == 0 else "unknown"
+        feasibility_status = rival_feasibility_check(simplified_ctx, max_depth=1, checks=False)
+    ##############################################
+    
+    ############## Satisfiability ################
+    satisfiability_status = None
+    if feasibility_status == "not feasible":
+        satisfiability_status = "sat"
+    else:
+        if any([identical_nodes(x, BoolLit(False)) for x in simplified_ctx.checks]):
+             satisfiability_status = "sat"
+        else:
+            if rival_feasibility_check(simplified_ctx, max_depth=1, checks=True) == "not feasible":
+                satisfiability_status = "sat"
+            else:
+                satisfiability_status = "unsat" if len(simplified_ctx.checks) == 0 else "unknown"
+    ##############################################
     
     return build_proof_report(
         ctx,
-        trimmed_ctx,
+        simplified_ctx,
         tool="simplify",
         runtime_s=perf_counter() - run_started_at,
-        status=status,
+        status=satisfiability_status,
         feasibility_status=feasibility_status,
     )

@@ -98,7 +98,7 @@ def fresh_float(name: str, ctx) -> Float32Spec:
     for i, lhs in enumerate(flags):
         for rhs in flags[i + 1:]:
             ctx.assume((~lhs) | (~rhs))
-
+        
     ctx.assume(_implies(is_norm, exponent >= one))
     ctx.assume(_implies(is_norm, exponent <= (max_exponent - one)))
     ctx.assume(_implies(is_sub | is_zero, exponent.eq(zero)))
@@ -116,7 +116,15 @@ def fresh_float(name: str, ctx) -> Float32Spec:
         If(
             is_sub,
             sub_value,
-            zero,
+            If(
+                is_zero,
+                zero,
+                If(
+                    is_nan,
+                    ctx.nan(),
+                    ctx.inf(),
+                ),
+            ),
         ),
     )
 
@@ -141,6 +149,12 @@ def encode_fp32_real(
     rounding: str,
 ) -> Float32Spec:
     name = f"encoded_fp32_{rounding}"
+
+    ########## Special value? ##########
+    
+    forced_nan = nan
+    forced_inf = (~nan) & inf
+    is_finite = (~forced_nan) & (~forced_inf)
     
     ############# Constants #############
     zero = ctx.real_val(0)
@@ -168,8 +182,19 @@ def encode_fp32_real(
     mantissa = ctx.fresh_real(f"{name}_mantissa")
 
     ctx.assume(sign.eq(zero) | sign.eq(one))
-    ctx.assume(_implies(value < zero, sign.eq(one)))
-    ctx.assume(_implies(value >= zero, sign.eq(zero)))
+    # Statements like this can exist only if value is finite
+    ctx.assume(
+        _implies(
+            is_finite,
+            _implies(value < zero, sign.eq(one)),
+        ),
+    )
+    ctx.assume(
+        _implies(
+            is_finite,
+            _implies(value >= zero, sign.eq(zero)),
+        ),
+    )
     ctx.assume((exponent >= zero) & (exponent <= max_exponent))
     ctx.assume((mantissa >= zero) & (mantissa <= max_mantissa))
     
@@ -177,11 +202,6 @@ def encode_fp32_real(
 
     ############## Flags ###############
     
-    forced_nan = nan
-    forced_inf = (~forced_nan) & inf
-
-    is_finite = (~forced_nan) & (~forced_inf)
-
     magnitude = abs(value)
     
     is_subnormal_range = is_finite & (magnitude < smallest_normal)

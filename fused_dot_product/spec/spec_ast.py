@@ -59,14 +59,6 @@ class SpecNode:
 class RealExpr(SpecNode):
     @staticmethod
     def _coerce_real_expr(value):
-        if isinstance(value, SpecialExpr):
-            raise TypeError("Cannot do an operation over RealExpr and SpecialExpr")
-        if isinstance(value, RealExpr):
-            return value
-        raise TypeError(f"Expected RealExpr, got {type(value).__name__}")
-    
-    @staticmethod
-    def _coerce_real_like_expr(value):
         if isinstance(value, (RealExpr, SpecialExpr)):
             return value
         raise TypeError(f"Expected RealExpr or SpecialExpr, got {type(value).__name__}")
@@ -500,8 +492,8 @@ class If(RealExpr):
 
     def __post_init__(self):
         BoolExpr._coerce_bool_expr(self.cond)
-        RealExpr._coerce_real_like_expr(self.on_true)
-        RealExpr._coerce_real_like_expr(self.on_false)
+        RealExpr._coerce_real_expr(self.on_true)
+        RealExpr._coerce_real_expr(self.on_false)
     
     def to_egglog(self):
         return Math.If(
@@ -537,15 +529,15 @@ class Eq(BoolExpr):
     rhs: RealExpr
 
     def __new__(cls, lhs: RealExpr, rhs: RealExpr):
-        RealExpr._coerce_real_like_expr(lhs)
-        RealExpr._coerce_real_like_expr(rhs)
+        RealExpr._coerce_real_expr(lhs)
+        RealExpr._coerce_real_expr(rhs)
         if isinstance(lhs, SpecialExpr) or isinstance(rhs, SpecialExpr):
             return BoolLit(identical_nodes(lhs, rhs))
         return super().__new__(cls)
 
     def __post_init__(self):
-        RealExpr._coerce_real_like_expr(self.lhs)
-        RealExpr._coerce_real_like_expr(self.rhs)
+        RealExpr._coerce_real_expr(self.lhs)
+        RealExpr._coerce_real_expr(self.rhs)
     
     def to_egglog(self):
         return Math.Eq(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -569,15 +561,15 @@ class NotEq(BoolExpr):
     rhs: RealExpr
 
     def __new__(cls, lhs: RealExpr, rhs: RealExpr):
-        RealExpr._coerce_real_like_expr(lhs)
-        RealExpr._coerce_real_like_expr(rhs)
+        RealExpr._coerce_real_expr(lhs)
+        RealExpr._coerce_real_expr(rhs)
         if isinstance(lhs, SpecialExpr) or isinstance(rhs, SpecialExpr):
             return BoolLit(not identical_nodes(lhs, rhs))
         return super().__new__(cls)
 
     def __post_init__(self):
-        RealExpr._coerce_real_like_expr(self.lhs)
-        RealExpr._coerce_real_like_expr(self.rhs)
+        RealExpr._coerce_real_expr(self.lhs)
+        RealExpr._coerce_real_expr(self.rhs)
     
     def to_egglog(self):
         return Math.NotEq(self.lhs.to_egglog(), self.rhs.to_egglog())
