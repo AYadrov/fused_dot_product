@@ -9,7 +9,7 @@ struct F64Discretization;
 
 impl Discretization for F64Discretization {
     fn target(&self) -> u32 {
-        53
+        128
     }
 
     fn convert(&self, _: usize, value: &Float) -> Float {
