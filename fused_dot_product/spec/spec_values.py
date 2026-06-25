@@ -199,46 +199,46 @@ def encode_fp32_real(
     ctx.assume((mantissa >= zero) & (mantissa <= max_mantissa))
     
     ####################################
-
+    
     ############## Flags ###############
     
     magnitude = abs(value)
     
     is_subnormal_range = is_finite & (magnitude < smallest_normal)
-
+    
     is_norm = ctx.fresh_bool(f"{name}_is_norm")
     is_sub = ctx.fresh_bool(f"{name}_is_sub")
     is_zero = ctx.fresh_bool(f"{name}_is_zero")
     is_inf = ctx.fresh_bool(f"{name}_is_inf")
     is_nan = ctx.fresh_bool(f"{name}_is_nan")
-
+    
     ctx.assume(is_zero.eq(is_finite & (magnitude < smallest_subnormal)))
     ctx.assume(is_sub.eq(is_finite & (magnitude < smallest_normal) & (magnitude >= smallest_subnormal)))
     ctx.assume(is_norm.eq(is_finite & (magnitude >= smallest_normal) & (magnitude <= greatest_normal)))
     ctx.assume(is_inf.eq((is_finite & (magnitude > greatest_normal)) | forced_inf))
     ctx.assume(is_nan.eq(forced_nan))
-
+    
     flags = (is_norm, is_sub, is_zero, is_inf, is_nan)
     ctx.assume(is_norm | is_sub | is_zero | is_inf | is_nan)
     for i, lhs in enumerate(flags):
         for rhs in flags[i + 1:]:
             ctx.assume((~lhs) | (~rhs))
-
+    
     ####################################
-
+    
     ###### Components Constraints ######
-
+    
     ctx.assume(_implies(is_norm, exponent >= one))
     ctx.assume(_implies(is_norm, exponent <= (max_exponent - one)))
     ctx.assume(_implies(is_sub | is_zero, exponent.eq(zero)))
     ctx.assume(_implies(is_zero | is_inf, mantissa.eq(zero)))
     ctx.assume(_implies(is_inf | is_nan, exponent.eq(max_exponent)))
     ctx.assume(_implies(is_sub | is_nan, mantissa >= one))
-
+    
     sign_value = negative_one ** sign
     norm_value = sign_value * (one + mantissa * (two ** (-mantissa_bits))) * (two ** (exponent - exponent_bias))
     sub_value = sign_value * mantissa * (two ** (-mantissa_bits)) * (two ** (one - exponent_bias))
-
+    
     value_from_components = If(
         is_norm,
         norm_value,

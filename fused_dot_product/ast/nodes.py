@@ -19,6 +19,18 @@ def _append_case_name(name: str, case_label: str) -> str:
     return f"{name}[{case_label}]"
 
 
+def _case_labels(name: str) -> dict[str, str]:
+    if not name.endswith("]") or "[" not in name:
+        return {}
+
+    labels = {}
+    for label in name[name.rfind("[") + 1:-1].split(","):
+        key, separator, value = label.partition("=")
+        if separator:
+            labels[key] = value
+    return labels
+
+
 def _split_special_cases(
     ctx: SpecContext,
     inputs: list[tp.Any],
@@ -159,20 +171,31 @@ class composite(Node):
         # Run equivalence checks
         full_trace = []
         proved = True
+        
+        print("case name", max(len(initial_ctxs[0].name) - 8, 0)*" ", "\t| correct?\t| status")
+        
         for initial_ctx in initial_ctxs:
+            # if initial_ctx.name != "FP32_IEEE_adder[arg0=inf,arg1=inf,inner_spec=nan,outer_spec=nan]":
+            #     continue
+            
             _status, proof_trace = check_equivalence(
                 query_inner,
                 query_outer,
                 ctx=initial_ctx,
                 schedule=schedule,
             )
+            
             # hard coded - to be changed
-            feasiblility = proof_trace[-1].get("feasibility_status", "unknown")
+            feasiblility = proof_trace[0].get("feasibility_status", "unknown")
             solution_can_exist = (feasiblility != "not feasible")
             if solution_can_exist:
-                proved = proved and (_status == "unsat")
-                print(initial_ctx.name, _status)
-            #print(initial_ctx.name, feasiblility, _status)
+                case_labels = _case_labels(initial_ctx.name)
+                if case_labels["outer_spec"] != case_labels["inner_spec"]:
+                    case_proved = (_status == "sat")
+                else:
+                    case_proved = (_status == "unsat")
+                proved = proved and case_proved
+                print(initial_ctx.name, "\t|", "correct" if case_proved else "wrong", "\t|",  _status)
             full_trace.append(proof_trace)
         
         print(f"{ctx.name} {'has' if proved else 'has not'} been proved")

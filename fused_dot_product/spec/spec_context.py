@@ -161,6 +161,10 @@ class SpecContext:
         assume: BoolExpr,
     ) -> tuple[SpecNode, RealLit | BoolLit] | None:
         assume = assume.constant_fold()
+        if isinstance(assume, BoolVar):
+            return assume, BoolLit(True)
+        if isinstance(assume, Not) and isinstance(assume.value, BoolVar):
+            return assume.value, BoolLit(False)
         if isinstance(assume, Eq):
             rhs_folded = assume.rhs.constant_fold()
             lhs_folded = assume.lhs.constant_fold()
@@ -223,6 +227,16 @@ class SpecContext:
             simplified.assumes = new_assumes
             simplified.checks = new_checks
         
+        simplified.assumes = [
+            assume
+            for assume in simplified.assumes
+            if not identical_nodes(assume, BoolLit(True))
+        ]
+        simplified.checks = [
+            check
+            for check in simplified.checks
+            if not identical_nodes(check, BoolLit(True))
+        ]
         return simplified
     
     def spec_of(self, node: Node):
@@ -318,24 +332,11 @@ class PoorSpec(ValueError):
     pass
 
 
-def _reject_special_exprs(ctx: SpecContext) -> None:
-    def visit(node: SpecNode) -> None:
-        if isinstance(node, SpecialExpr):
-            raise PoorSpec(f"Special value {node} escaped into simplified spec expression")
-        for child in children(node):
-            visit(child)
-
-    for expr in ctx.assumes + ctx.checks:
-        visit(expr)
-
-
 def simplify_ctx(ctx: SpecContext):
     run_started_at = perf_counter()
     
     try:
         simplified_ctx = ctx.simplify()
-        # We may have nonsense like x + nan == y - that's a poor spec
-        _reject_special_exprs(simplified_ctx)
     except PoorSpec as exc:
         return build_proof_report(
             ctx,
@@ -347,13 +348,12 @@ def simplify_ctx(ctx: SpecContext):
             info=exc,
         )
     
-    simplified_ctx = rival_trim_context(simplified_ctx)
-    
     ############### Feasibility ##################
     feasibility_status = None
     if any([identical_nodes(x, BoolLit(False)) for x in simplified_ctx.assumes]):
         feasibility_status = "not feasible"
     else:
+        simplified_ctx = rival_trim_context(simplified_ctx)
         feasibility_status = rival_feasibility_check(simplified_ctx, max_depth=1, checks=False)
     ##############################################
     
