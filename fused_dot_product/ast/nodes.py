@@ -8,6 +8,7 @@ from ..solver.engine import check_equivalence
 from .node import Node
 from .proofs import SpecRecorder, record_specs
 from ..spec import SpecContext
+from ..spec.spec_context import simplify_ctx
 
 
 CLowering = tp.Callable[[list[str], bool], str]
@@ -53,17 +54,28 @@ def _split_special_cases(
 
         next_ctxs = []
         for base_ctx in split_ctxs:
-            for selected_name, selected_flag in special_flags.items():
+            for selected_name in special_flags:
                 case_ctx = base_ctx.copy()
-                case_ctx.name = _append_case_name(
-                    case_ctx.name,
-                    f"{value_name}={selected_name}",
+                _assume_special_case(
+                    case_ctx,
+                    value_name,
+                    value,
+                    selected_name,
                 )
-                for flag_name, flag in special_flags.items():
-                    case_ctx.assume(flag.eq(case_ctx.bool_val(flag_name == selected_name)))
                 next_ctxs.append(case_ctx)
         split_ctxs = next_ctxs
     return split_ctxs
+
+
+def _assume_special_case(
+    ctx: SpecContext,
+    value_name: str,
+    value: tp.Any,
+    selected_name: str,
+) -> None:
+    ctx.name = _append_case_name(ctx.name, f"{value_name}={selected_name}")
+    for flag_name, flag in value.special_flags().items():
+        ctx.assume(flag.eq(ctx.bool_val(flag_name == selected_name)))
 
 
 def _equivalence_query(spec_value: tp.Any):
@@ -75,6 +87,42 @@ def _equivalence_query(spec_value: tp.Any):
         return _equivalence_query(as_tuple()[0])
 
     return spec_value
+
+
+def _side_case_context(
+    node: "composite",
+    case_labels: dict[str, str],
+    spec_case_name: str,
+) -> SpecContext:
+    ctx = node.ctx.copy()
+    inputs = [ctx.spec_of(arg) for arg in node.inner_args]
+    spec_value = (
+        ctx.spec_of(node.inner_tree)
+        if spec_case_name == "inner_spec"
+        else node.spec(*inputs, ctx=ctx)
+    )
+
+    for idx, value in enumerate(inputs):
+        value_name = f"arg{idx}"
+        special_flags = getattr(value, "special_flags", lambda: None)()
+        if special_flags is None or value_name not in case_labels:
+            continue
+        _assume_special_case(ctx, value_name, value, case_labels[value_name])
+    _assume_special_case(ctx, spec_case_name, spec_value, case_labels[spec_case_name])
+    return ctx
+
+
+def _feasibility_status(ctx: SpecContext) -> str:
+    return simplify_ctx(ctx).get("feasibility_status", "unknown")
+
+
+def _has_confirmed_feasibility_mismatch(
+    node: "composite",
+    case_labels: dict[str, str],
+) -> bool:
+    inner_status = _feasibility_status(_side_case_context(node, case_labels, "inner_spec"))
+    outer_status = _feasibility_status(_side_case_context(node, case_labels, "outer_spec"))
+    return {inner_status, outer_status} == {"feasible", "not feasible"}
 
 
 def Composite(
@@ -151,14 +199,14 @@ class composite(Node):
             ]
         
         # Collecting specification into ctx
-        ctx = self.ctx.copy()
-        spec_inner = ctx.spec_of(self.inner_tree)
-        inputs = [ctx.spec_of(arg) for arg in self.inner_args]
-        spec_outer = self.spec(*inputs, ctx=ctx)
+        combined_ctx = self.ctx.copy()
+        spec_inner = combined_ctx.spec_of(self.inner_tree)
+        inputs = [combined_ctx.spec_of(arg) for arg in self.inner_args]
+        spec_outer = self.spec(*inputs, ctx=combined_ctx)
         
         # Subsplit a general specification into special-value cases (if applicable)
         initial_ctxs = _split_special_cases(
-            ctx,
+            combined_ctx,
             inputs,
             spec_inner,
             spec_outer,
@@ -175,8 +223,7 @@ class composite(Node):
         print("case name", max(len(initial_ctxs[0].name) - 8, 0)*" ", "\t| correct?\t| status")
         
         for initial_ctx in initial_ctxs:
-            # if initial_ctx.name != "FP32_IEEE_adder[arg0=inf,arg1=inf,inner_spec=nan,outer_spec=nan]":
-            #     continue
+            case_labels = _case_labels(initial_ctx.name)
             
             _status, proof_trace = check_equivalence(
                 query_inner,
@@ -184,21 +231,29 @@ class composite(Node):
                 ctx=initial_ctx,
                 schedule=schedule,
             )
+            combined_feasibility = (
+                proof_trace[0].get("feasibility_status", "unknown")
+                if proof_trace
+                else "unknown"
+            )
+            solution_can_exist = (combined_feasibility != "not feasible")
             
-            # hard coded - to be changed
-            feasiblility = proof_trace[0].get("feasibility_status", "unknown")
-            solution_can_exist = (feasiblility != "not feasible")
             if solution_can_exist:
-                case_labels = _case_labels(initial_ctx.name)
                 if case_labels["outer_spec"] != case_labels["inner_spec"]:
                     case_proved = (_status == "sat")
                 else:
                     case_proved = (_status == "unsat")
-                proved = proved and case_proved
-                print(initial_ctx.name, "\t|", "correct" if case_proved else "wrong", "\t|",  _status)
+            else:
+                if case_labels["outer_spec"] == case_labels["inner_spec"]:
+                    case_proved = not _has_confirmed_feasibility_mismatch(self, case_labels)
+                else:
+                    case_proved = True
+
+            proved = proved and case_proved
+            print(initial_ctx.name, "\t|", "correct" if case_proved else "wrong", "\t|",  _status)
             full_trace.append(proof_trace)
         
-        print(f"{ctx.name} {'has' if proved else 'has not'} been proved")
+        print(f"{self.ctx.name} {'has' if proved else 'has not'} been proved")
         
         return full_trace
     
