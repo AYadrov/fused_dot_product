@@ -84,7 +84,7 @@ def _equivalence_query(spec_value: tp.Any):
 
     as_tuple = getattr(spec_value, "as_tuple", None)
     if as_tuple is not None:
-        return _equivalence_query(as_tuple()[0])
+        return _equivalence_query(as_tuple())
 
     return spec_value
 
