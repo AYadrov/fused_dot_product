@@ -15,6 +15,7 @@ RUSTUP_INIT_URL := https://sh.rustup.rs
 CARGO_HOME ?= $(HOME)/.cargo
 RUSTUP_HOME ?= $(HOME)/.rustup
 RUST_PATH := $(CARGO_HOME)/bin:$(PATH)
+RUST_MIN_VERSION ?= 1.85.0
 
 .PHONY: nightly install install-prereqs _check-python unit-tests _venv _install-prereqs _python-deps _install-dreal _install-rust _install-rival _bazelisk clean _download_ac_int
 
@@ -94,10 +95,8 @@ _install-dreal: _venv
 
 _install-rust:
 	@echo "Ensuring Rust/Cargo is available"
-	@if PATH="$(RUST_PATH)" command -v cargo >/dev/null 2>&1; then \
-		cargo_version="$$(PATH="$(RUST_PATH)" cargo --version)"; \
-		echo "Cargo found: $$cargo_version"; \
-	else \
+	@set -e; \
+	install_rustup() { \
 		command -v curl >/dev/null 2>&1 || { \
 			echo "curl not found. Please install curl or Rust/Cargo manually."; \
 			exit 1; \
@@ -105,7 +104,34 @@ _install-rust:
 		echo "Installing Rust/Cargo with rustup into $(RUSTUP_HOME) and $(CARGO_HOME)"; \
 		echo "This user-local install does not require sudo."; \
 		curl --proto '=https' --tlsv1.2 -sSf "$(RUSTUP_INIT_URL)" | CARGO_HOME="$(CARGO_HOME)" RUSTUP_HOME="$(RUSTUP_HOME)" sh -s -- -y --no-modify-path; \
-	fi
+	}; \
+	version_at_least() { \
+		awk -v current="$$1" -v required="$$2" 'BEGIN { \
+			split(current, c, "."); split(required, r, "."); \
+			for (i = 1; i <= 3; i++) { \
+				c[i] += 0; r[i] += 0; \
+				if (c[i] > r[i]) exit 0; \
+				if (c[i] < r[i]) exit 1; \
+			} \
+			exit 0; \
+		}'; \
+	}; \
+	if ! PATH="$(RUST_PATH)" command -v cargo >/dev/null 2>&1 || ! PATH="$(RUST_PATH)" command -v rustc >/dev/null 2>&1; then \
+		install_rustup; \
+	fi; \
+	cargo_version="$$(PATH="$(RUST_PATH)" cargo --version | awk '{print $$2}')"; \
+	rust_version="$$(PATH="$(RUST_PATH)" rustc --version | awk '{print $$2}')"; \
+	if ! version_at_least "$$cargo_version" "$(RUST_MIN_VERSION)" || ! version_at_least "$$rust_version" "$(RUST_MIN_VERSION)"; then \
+		echo "Rust/Cargo must be $(RUST_MIN_VERSION) or newer; found rustc $$rust_version and cargo $$cargo_version"; \
+		if PATH="$(RUST_PATH)" command -v rustup >/dev/null 2>&1; then \
+			CARGO_HOME="$(CARGO_HOME)" RUSTUP_HOME="$(RUSTUP_HOME)" PATH="$(RUST_PATH)" rustup update stable; \
+			CARGO_HOME="$(CARGO_HOME)" RUSTUP_HOME="$(RUSTUP_HOME)" PATH="$(RUST_PATH)" rustup default stable; \
+		else \
+			install_rustup; \
+		fi; \
+	fi; \
+	echo "Rust found: $$(PATH="$(RUST_PATH)" rustc --version)"; \
+	echo "Cargo found: $$(PATH="$(RUST_PATH)" cargo --version)"
 
 _install-rival: _venv _install-rust
 	@echo "Installing Rival3 Python bridge into $(VENV_DIR)"
