@@ -332,11 +332,23 @@ class PoorSpec(ValueError):
     pass
 
 
+def _reject_special_exprs(ctx: SpecContext) -> None:
+    def visit(node: SpecNode) -> None:
+        if isinstance(node, SpecialExpr):
+            raise PoorSpec(f"Special value {node} escaped into simplified spec expression")
+        for child in children(node):
+            visit(child)
+
+    for expr in ctx.assumes + ctx.checks:
+        visit(expr)
+
+
 def simplify_ctx(ctx: SpecContext):
     run_started_at = perf_counter()
     
     try:
         simplified_ctx = ctx.simplify()
+        _reject_special_exprs(simplified_ctx)
     except PoorSpec as exc:
         return build_proof_report(
             ctx,
