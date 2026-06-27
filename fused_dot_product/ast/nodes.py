@@ -111,17 +111,15 @@ def _side_case_context(
     _assume_special_case(ctx, spec_case_name, spec_value, case_labels[spec_case_name])
     return ctx
 
-
-def _feasibility_status(ctx: SpecContext) -> str:
-    return simplify_ctx(ctx).get("feasibility_status", "unknown")
-
-
 def _has_confirmed_feasibility_mismatch(
     node: "composite",
     case_labels: dict[str, str],
 ) -> bool:
-    inner_status = _feasibility_status(_side_case_context(node, case_labels, "inner_spec"))
-    outer_status = _feasibility_status(_side_case_context(node, case_labels, "outer_spec"))
+    inner_ctx = _side_case_context(node, case_labels, "inner_spec")
+    outer_ctx = _side_case_context(node, case_labels, "outer_spec")
+    
+    inner_status = simplify_ctx(inner_ctx).get("feasibility_status", "unknown")
+    outer_status = simplify_ctx(outer_ctx).get("feasibility_status", "unknown")
     return {inner_status, outer_status} == {"feasible", "not feasible"}
 
 
