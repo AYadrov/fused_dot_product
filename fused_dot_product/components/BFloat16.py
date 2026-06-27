@@ -56,13 +56,12 @@ def bf16_decode_spec(x, ctx):
     
     two = ctx.real_val(2)
     one = ctx.real_val(1)
-    minus_one = ctx.real_val(-1)
     m_bits = ctx.real_val(BFloat16.mantissa_bits)
     e_bits = ctx.real_val(BFloat16.exponent_bias)
 
     mantissa_ = one + mantissa * two ** (-m_bits)
     exponent_ = exponent - e_bits
-    sign_ = minus_one ** sign
+    sign_ = sign_multiplier(ctx, sign)
     ctx.assume(x.eq(sign_ * (mantissa_ * (two ** exponent_))))
     ctx.assume(sign.eq(ctx.real_val(1)) | sign.eq(ctx.real_val(0)))
     ctx.assume(sign_.eq(ctx.real_val(1)) | sign_.eq(ctx.real_val(-1)))

@@ -55,12 +55,11 @@ def q_signs_xor_spec(x, y, ctx):
     ctx.assume(x_sign.eq(ctx.real_val(1)) | x_sign.eq(ctx.real_val(0)))
     ctx.assume(y_sign.eq(ctx.real_val(1)) | y_sign.eq(ctx.real_val(0)))
     ctx.assume(res.eq(ctx.real_val(1)) | res.eq(ctx.real_val(0)))
-    x_sign_value = ctx.real_val(-1) ** x_sign
-    y_sign_value = ctx.real_val(-1) ** y_sign
-    res_sign_value = ctx.real_val(-1) ** res
+    x_sign_value = sign_multiplier(ctx, x_sign)
+    y_sign_value = sign_multiplier(ctx, y_sign)
     ctx.assume(x.eq(x_sign_value * abs(x)))
     ctx.assume(y.eq(y_sign_value * abs(y)))
-    ctx.assume(res_sign_value.eq(x_sign_value * y_sign_value))
+    ctx.assume(res.eq(If(x_sign.ne(y_sign), ctx.real_val(1), ctx.real_val(0))))
     return res
 
 @Primitive(name="q_signs_xor", spec=q_signs_xor_spec)
@@ -176,7 +175,7 @@ def q_aligner(x: Node,
 def q_sign_bit_spec(x, ctx):
     sign = ctx.fresh_real("sign")
     ctx.assume(sign.eq(ctx.real_val(0)) | sign.eq(ctx.real_val(1)))
-    ctx.assume(x.eq((ctx.real_val(-1) ** sign) * abs(x)))
+    ctx.assume(x.eq(sign_multiplier(ctx, sign) * abs(x)))
     return sign
 
 @Primitive(name="q_sign_bit", spec=q_sign_bit_spec, c_inline=True)
@@ -293,7 +292,7 @@ def q_rshift(x: Node, n: Node) -> Node:
 
 
 def q_add_sign_spec(x, s, ctx):
-    return (ctx.real_val(-1) ** s) * x
+    return sign_multiplier(ctx, s) * x
 
 @Primitive(name="q_add_sign", spec=q_add_sign_spec)
 def q_add_sign(x: Node, s: Node) -> Node:

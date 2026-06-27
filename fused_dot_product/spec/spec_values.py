@@ -14,6 +14,11 @@ def _flag_as_real(flag: BoolExpr) -> RealExpr:
     return If(flag, RealLit(1), RealLit(0))
 
 
+def sign_multiplier(ctx, sign: RealExpr) -> RealExpr:
+    one = ctx.real_val(1)
+    return If(sign.eq(one), ctx.real_val(-1), one)
+
+
 @dataclass(frozen=True)
 class Float32Spec:
     value: RealExpr
@@ -82,7 +87,6 @@ def fresh_float(name: str, ctx) -> Float32Spec:
 
     zero = ctx.real_val(0)
     one = ctx.real_val(1)
-    negative_one = ctx.real_val(-1)
     two = ctx.real_val(2)
     m_bits = ctx.real_val(Float32.mantissa_bits)
     bias = ctx.real_val(Float32.exponent_bias)
@@ -106,7 +110,7 @@ def fresh_float(name: str, ctx) -> Float32Spec:
     ctx.assume(_implies(is_inf | is_nan, exponent.eq(max_exponent)))
     ctx.assume(_implies(is_sub | is_nan, mantissa >= one))
 
-    sign_value = negative_one ** sign
+    sign_value = sign_multiplier(ctx, sign)
     norm_value = sign_value * (one + mantissa * (two ** (-m_bits))) * (two ** (exponent - bias))
     sub_value = sign_value * mantissa * (two ** (-m_bits)) * (two ** (one - bias))
 
@@ -159,7 +163,6 @@ def encode_fp32_real(
     ############# Constants #############
     zero = ctx.real_val(0)
     one = ctx.real_val(1)
-    negative_one = ctx.real_val(-1)
     two = ctx.real_val(2)
     max_exponent = ctx.real_val((1 << Float32.exponent_bits) - 1)
     max_mantissa = ctx.real_val((1 << Float32.mantissa_bits) - 1)
@@ -235,7 +238,7 @@ def encode_fp32_real(
     ctx.assume(_implies(is_inf | is_nan, exponent.eq(max_exponent)))
     ctx.assume(_implies(is_sub | is_nan, mantissa >= one))
     
-    sign_value = negative_one ** sign
+    sign_value = sign_multiplier(ctx, sign)
     norm_value = sign_value * (one + mantissa * (two ** (-mantissa_bits))) * (two ** (exponent - exponent_bias))
     sub_value = sign_value * mantissa * (two ** (-mantissa_bits)) * (two ** (one - exponent_bias))
     
@@ -296,9 +299,8 @@ def encode_fp32_components(
 
     zero = ctx.real_val(0)
     one = ctx.real_val(1)
-    negative_one = ctx.real_val(-1)
     two = ctx.real_val(2)
-    sign_value = negative_one ** sign
+    sign_value = sign_multiplier(ctx, sign)
 
     ctx.assume(sign.eq(zero) | sign.eq(one))
     ctx.assume(encode_inf.eq(zero) | encode_inf.eq(one))

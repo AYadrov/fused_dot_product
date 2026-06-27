@@ -60,11 +60,6 @@ def bit_and(x: Node, y: Node) -> Node:
 
 def xor_spec(x, y, ctx):
     res = ctx.fresh_real('xor_res')
-    minus_one = ctx.real_val(-1)
-    sign_res = minus_one ** res
-    sign_x = minus_one ** x
-    sign_y = minus_one ** y
-    ctx.assume(sign_res.eq(sign_x * sign_y))
     ctx.assume(res.eq(If(x.ne(y), ctx.real_val(1), ctx.real_val(0))))
     ctx.assume(res.eq(x.max(y) - x * y))
     ctx.assume(res.eq(x + y - ctx.real_val(2) * x * y))

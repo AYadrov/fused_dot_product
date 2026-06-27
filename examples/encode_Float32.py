@@ -275,7 +275,7 @@ def fp32_encodings(m_rounded_uq: Node, e_rounded_uq: Node):
 def fp32_encode_spec(s, e, m, encode_nan, encode_inf, ctx):
     one = ctx.real_val(1)
     
-    sign = ctx.real_val(-1) ** s
+    sign = sign_multiplier(ctx, s)
     finite_value = sign * m * (ctx.real_val(2) ** (e - ctx.real_val(Float32.exponent_bias)))
     
     forced_nan = encode_nan.eq(one)
