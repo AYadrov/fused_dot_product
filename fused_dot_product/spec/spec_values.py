@@ -145,14 +145,13 @@ def fresh_float(name: str, ctx) -> Float32Spec:
     )
 
 
-def encode_fp32_real(
+def encode_fp32(
     ctx,
     value: RealExpr,
     inf: BoolExpr,
     nan: BoolExpr,
-    rounding: str,
 ) -> Float32Spec:
-    name = f"encoded_fp32_{rounding}"
+    name = f"encoded_fp32"
 
     ########## Special value? ##########
     

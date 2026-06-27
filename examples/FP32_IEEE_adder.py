@@ -11,11 +11,10 @@ def spec_FP32_IEEE_adder(x: "FP32", y: "FP32", ctx):
     inf = (~nan) & (x.is_inf | y.is_inf)
     
     # Real -> FP32 encodings
-    return ctx.encode_fp32_real(
+    return ctx.encode_fp32(
         value=x.value + y.value,
         inf=inf,
         nan=nan,
-        rounding="RNE",
     )
 
 

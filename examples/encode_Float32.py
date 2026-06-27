@@ -281,11 +281,10 @@ def fp32_encode_spec(s, e, m, encode_nan, encode_inf, ctx):
     forced_nan = encode_nan.eq(one)
     forced_inf = (~forced_nan) & encode_inf.eq(one)
     
-    return  ctx.encode_fp32_real(
+    return  ctx.encode_fp32(
         value=finite_value,
         inf=forced_inf,
         nan=forced_nan,
-        rounding="RNE",
     )
 
 # Assume that e is biased

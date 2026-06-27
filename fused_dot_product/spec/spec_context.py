@@ -265,9 +265,9 @@ class SpecContext:
         from .spec_values import fresh_float
         return fresh_float(base, self)
 
-    def encode_fp32_real(self, **kwargs):
-        from .spec_values import encode_fp32_real
-        return encode_fp32_real(self, **kwargs)
+    def encode_fp32(self, **kwargs):
+        from .spec_values import encode_fp32
+        return encode_fp32(self, **kwargs)
 
     def bool_val(self, value: bool):
         return BoolLit(value=value)
