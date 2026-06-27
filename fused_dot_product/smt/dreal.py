@@ -14,7 +14,7 @@ def dreal_check_eq(ctx: "SpecContext", precision: float):
     result = dreal.CheckSatisfiability(program, precision)
     runtime_s = perf_counter() - run_started_at
     
-    status = "unsat" if result is None else "unknown"
+    status = "unsat" if result is None else "sat"
     new_ctx = ctx.copy()
     report = build_proof_report(
         ctx,
