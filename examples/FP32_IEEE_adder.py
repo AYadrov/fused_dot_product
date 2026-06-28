@@ -27,6 +27,7 @@ def spec_FP32_IEEE_adder(x: "FP32", y: "FP32", ctx):
     return ctx.encode_fp32(value=result_real, inf=inf, nan=nan)
 
 
+# Implementation of a single-precision IEEE adder.
 @Composite(name="FP32_IEEE_adder", spec=spec_FP32_IEEE_adder)
 def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     # 1. Decode both packed FP32 inputs into sign, exponent, mantissa, and flags.

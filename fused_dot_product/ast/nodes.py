@@ -250,6 +250,8 @@ class composite(Node):
             proved = proved and case_proved
             print(initial_ctx.name, "\t|", "correct" if case_proved else "wrong", "\t|",  _status)
             full_trace.append(proof_trace)
+            if not proved:
+               break
         
         print(f"{self.ctx.name} {'has' if proved else 'has not'} been proved")
         
