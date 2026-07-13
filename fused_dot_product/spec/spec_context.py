@@ -35,7 +35,7 @@ class SpecContext:
                 f"SpecContext.check expects BoolExpr, got {type(condition).__name__}"
             )
         self.checks.append(condition)
-
+    
     def _context_not_empty(self):
         if len(self.checks) == 0:
             raise RuntimeError("Context does not statements to check")
@@ -85,7 +85,7 @@ class SpecContext:
                     f"Only BoolExpr checks are supported, got {type(check).__name__}"
                 )
         return to_check
-
+    
     # Try to learn literal facts from assumes only. Conflicting facts are errors.
     def learned_literals(self) -> dict[SpecNode, RealLit | BoolLit]:
         candidates: dict[SpecNode, RealLit | BoolLit] = {}
@@ -97,11 +97,11 @@ class SpecContext:
             existing = candidates.get(expr)
             if existing is None:
                 candidates[expr] = lit
-
+            
             # poorly written spec with contradictions
             elif not identical_nodes(existing, lit):
                 raise PoorSpec(f"Conflicting learned literals for {expr}: {existing} vs {lit}")
-
+        
         for assume in self.assumes:
             learned = self._canonical_learned_assumption(assume)
             if learned is None:
@@ -109,26 +109,26 @@ class SpecContext:
             record(*learned)
         
         return candidates
-
+    
     # Try to learn non-literal aliases from assumes only. Multiple aliases for
     # one variable are allowed; the remaining assumptions preserve constraints.
     def learned_aliases(self) -> dict[RealVar | BoolVar, SpecNode]:
         aliases: dict[RealVar | BoolVar, SpecNode] = {}
-
+        
         def safe_alias(var, expr, lit_type):
             if isinstance(expr, lit_type) or isinstance(expr, (RealVar, BoolVar)):
                 return None
             if var in variables(expr):
                 return None
             return var, expr
-
+        
         def from_sides(lhs, rhs, var_type, lit_type):
             if isinstance(lhs, var_type):
                 return safe_alias(lhs, rhs, lit_type)
             if isinstance(rhs, var_type):
                 return safe_alias(rhs, lhs, lit_type)
             return None
-
+        
         def learned_from(assume):
             assume = assume.constant_fold()
             if isinstance(assume, Eq):
@@ -146,7 +146,7 @@ class SpecContext:
                     BoolLit,
                 )
             return None
-
+        
         for assume in self.assumes:
             learned = learned_from(assume)
             if learned is None:
@@ -180,7 +180,7 @@ class SpecContext:
                 and isinstance(lhs_folded, RealLit)
             ):
                 return rhs_folded, lhs_folded
-
+        
         elif isinstance(assume, BoolEq):
             rhs_folded = assume.rhs.constant_fold()
             lhs_folded = assume.lhs.constant_fold()
@@ -197,7 +197,7 @@ class SpecContext:
             ):
                 return rhs_folded, lhs_folded
         return None
-
+    
     # LEARNS FROM ASSUMES - APPLIES EVERYWHERE
     def simplify(self) -> "SpecContext":
         simplified = self.copy()
@@ -260,21 +260,21 @@ class SpecContext:
         name = BoolVar(name=f"{base}_{self._sym_counter}")
         self._sym_counter += 1
         return name
-
+    
     def fresh_float(self, base: str):
         from .spec_values import fresh_float
         return fresh_float(base, self)
-
+    
     def encode_fp32(self, **kwargs):
         from .spec_values import encode_fp32
         return encode_fp32(self, **kwargs)
-
+    
     def bool_val(self, value: bool):
         return BoolLit(value=value)
-
+    
     def nan(self) -> SpecNaN:
         return SpecNaN()
-
+    
     def inf(self) -> SpecInf:
         return SpecInf()
     
@@ -289,7 +289,7 @@ class SpecContext:
         self.checks.clear()
         self._sym_counter = 0
         self.spec_cache.clear()
-
+    
     def snapshot(self):
         return {
             "name": self.name,
@@ -299,7 +299,7 @@ class SpecContext:
             "checks": [str(check) for check in self.checks],
             "context": str(self),
         }
-
+    
     def __str__(self) -> str:
         def format_section(title: str, items: list[BoolExpr]) -> list[str]:
             if not items:
@@ -319,7 +319,7 @@ class SpecContext:
             assumes = list(self.assumes)
         if checks is None:
             checks = list(self.checks)
-
+        
         new_ctx = SpecContext(self.name)
         new_ctx.assumes = assumes
         new_ctx.checks = checks
@@ -338,7 +338,7 @@ def _reject_special_exprs(ctx: SpecContext) -> None:
             raise PoorSpec(f"Special value {node} escaped into simplified spec expression")
         for child in children(node):
             visit(child)
-
+    
     for expr in ctx.assumes + ctx.checks:
         visit(expr)
 

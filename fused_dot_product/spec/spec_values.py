@@ -30,7 +30,7 @@ class Float32Spec:
     is_zero: BoolExpr
     is_inf: BoolExpr
     is_nan: BoolExpr
-
+    
     def as_tuple(self) -> tuple[RealExpr, RealExpr, RealExpr, RealExpr, RealExpr, RealExpr]:
         return (
             self.value,
@@ -40,7 +40,7 @@ class Float32Spec:
             self.is_inf,
             self.is_nan,
         )
-
+    
     def as_fields_tuple(self) -> tuple[RealExpr, RealExpr, RealExpr, RealExpr, BoolExpr, BoolExpr, BoolExpr, BoolExpr, BoolExpr]:
         return (
             self.value,
@@ -53,16 +53,16 @@ class Float32Spec:
             self.is_inf,
             self.is_nan,
         )
-
+    
     def __iter__(self):
         yield from self.as_fields_tuple()
-
+    
     def __len__(self):
         return len(self.as_fields_tuple())
-
+    
     def __getitem__(self, idx: int):
         return self.as_fields_tuple()[idx]
-
+    
     def special_flags(self):
         return {
             "norm": self.is_norm,
@@ -80,11 +80,11 @@ def fresh_float(name: str, ctx) -> Float32Spec:
     is_zero = ctx.fresh_bool(f"{name}_is_zero")
     is_inf = ctx.fresh_bool(f"{name}_is_inf")
     is_nan = ctx.fresh_bool(f"{name}_is_nan")
-
+    
     sign = ctx.fresh_real(f"{name}_sign")
     exponent = ctx.fresh_real(f"{name}_exponent")
     mantissa = ctx.fresh_real(f"{name}_mantissa")
-
+    
     zero = ctx.real_val(0)
     one = ctx.real_val(1)
     two = ctx.real_val(2)
@@ -92,28 +92,28 @@ def fresh_float(name: str, ctx) -> Float32Spec:
     bias = ctx.real_val(Float32.exponent_bias)
     max_exponent = ctx.real_val((1 << Float32.exponent_bits) - 1)
     max_mantissa = ctx.real_val((1 << Float32.mantissa_bits) - 1)
-
+    
     ctx.assume(sign.eq(zero) | sign.eq(one))
     ctx.assume((exponent >= zero) & (exponent <= max_exponent))
     ctx.assume((mantissa >= zero) & (mantissa <= max_mantissa))
-
+    
     flags = (is_norm, is_sub, is_zero, is_inf, is_nan)
     ctx.assume(is_norm | is_sub | is_zero | is_inf | is_nan)
     for i, lhs in enumerate(flags):
         for rhs in flags[i + 1:]:
             ctx.assume((~lhs) | (~rhs))
-        
+    
     ctx.assume(_implies(is_norm, exponent >= one))
     ctx.assume(_implies(is_norm, exponent <= (max_exponent - one)))
     ctx.assume(_implies(is_sub | is_zero, exponent.eq(zero)))
     ctx.assume(_implies(is_zero | is_inf, mantissa.eq(zero)))
     ctx.assume(_implies(is_inf | is_nan, exponent.eq(max_exponent)))
     ctx.assume(_implies(is_sub | is_nan, mantissa >= one))
-
+    
     sign_value = sign_multiplier(ctx, sign)
     norm_value = sign_value * (one + mantissa * (two ** (-m_bits))) * (two ** (exponent - bias))
     sub_value = sign_value * mantissa * (two ** (-m_bits)) * (two ** (one - bias))
-
+    
     value = If(
         is_norm,
         norm_value,
@@ -131,7 +131,7 @@ def fresh_float(name: str, ctx) -> Float32Spec:
             ),
         ),
     )
-
+    
     return Float32Spec(
         value=value,
         sign=sign,
@@ -152,7 +152,7 @@ def encode_fp32(
     nan: BoolExpr,
 ) -> Float32Spec:
     name = f"encoded_fp32"
-
+    
     ########## Special value? ##########
     
     forced_nan = nan
@@ -174,15 +174,15 @@ def encode_fp32(
     # Greatest_normal cannot fit in egglog if folded
     greatest_normal = (two - two ** (-mantissa_bits)) * two ** (two ** exponent_bits - two - exponent_bias)
     smallest_subnormal = two ** (one - exponent_bias - mantissa_bits)
-
+    
     ####################################
-
+    
     ########### Components #############
-
+    
     sign = ctx.fresh_real(f"{name}_sign")
     exponent = ctx.fresh_real(f"{name}_exponent")
     mantissa = ctx.fresh_real(f"{name}_mantissa")
-
+    
     ctx.assume(sign.eq(zero) | sign.eq(one))
     # Statements like this can exist only if value is finite
     ctx.assume(

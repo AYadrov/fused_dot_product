@@ -1080,35 +1080,13 @@ def _literal_type(node: SpecNode):
 
 
 def children(node: SpecNode) -> tuple[SpecNode, ...]:
-    if isinstance(node, (RealVar, BoolVar, RealLit, BoolLit, SpecNaN, SpecInf)):
-        return ()
-    if isinstance(node, (Neg, Abs, Not)):
-        return (node.value,)
-    if isinstance(node, Pow):
-        return (node.base, node.exponent)
-    if isinstance(node, If):
-        return (node.cond, node.on_true, node.on_false)
-    if isinstance(
-        node,
-        (
-            Add,
-            Sub,
-            Mul,
-            Max,
-            Min,
-            Eq,
-            NotEq,
-            Lt,
-            Le,
-            Gt,
-            Ge,
-            BoolEq,
-            Or,
-            And
-        ),
-    ):
-        return (node.lhs, node.rhs)
-    raise TypeError(f"Unsupported node type: {type(node).__name__}")
+    if not isinstance(node, SpecNode) or not is_dataclass(node):
+        raise TypeError(f"Unsupported node type: {type(node).__name__}")
+    return tuple(
+        value
+        for field in fields(node)
+        if isinstance(value := getattr(node, field.name), SpecNode)
+    )
 
 
 def variables(node: SpecNode) -> set[RealVar | BoolVar]:
