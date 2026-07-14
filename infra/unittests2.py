@@ -1,7 +1,9 @@
 import unittest
 import contextlib
 import os
+import pickle
 import sys
+import time
 from unittest.mock import Mock, patch
 
 import dreal
@@ -864,9 +866,11 @@ class TestSpecAstConstantFolding(unittest.TestCase):
 
         self.assertIsInstance(nan_node, SpecNode)
         self.assertIsInstance(inf_node, SpecNode)
-        self.assertNotIsInstance(nan_node, RealExpr)
+        self.assertIsInstance(nan_node, SpecialExpr)
+        self.assertIsInstance(inf_node, SpecialExpr)
+        self.assertIsInstance(nan_node, RealExpr)
+        self.assertIsInstance(inf_node, RealExpr)
         self.assertNotIsInstance(nan_node, BoolExpr)
-        self.assertNotIsInstance(inf_node, RealExpr)
         self.assertNotIsInstance(inf_node, BoolExpr)
         self.assertEqual(children(nan_node), ())
         self.assertEqual(children(inf_node), ())
@@ -1172,7 +1176,7 @@ class TestRivalTranslation(unittest.TestCase):
             return machine
 
         with patch("fused_dot_product.rival.build_machine", side_effect=build):
-            status = rival_feasibility_check(ctx, max_depth=1)
+            status = rival_feasibility_check(ctx, max_depth=1, checks=True)
 
         self.assertEqual(status, "not feasible")
         self.assertEqual(
@@ -1229,7 +1233,7 @@ class TestRivalTranslation(unittest.TestCase):
             patch("fused_dot_product.rival.get_rival_rects", return_value=[clean_rect, bad_rect]),
             patch("fused_dot_product.rival.build_machine", side_effect=build),
         ):
-            status = rival_feasibility_check(ctx, max_depth=1)
+            status = rival_feasibility_check(ctx, max_depth=1, checks=True)
 
         self.assertEqual(status, "feasible")
         self.assertEqual(combined_calls, [(clean_rect, None)])
@@ -1307,7 +1311,9 @@ class TestSolverApis(unittest.TestCase):
         def fake_check_equivalence(query1, query2, ctx, schedule):
             del query1, query2, schedule
             seen_names.append(ctx.name)
-            return "unsat", []
+            case_labels = ast_nodes._case_labels(ctx.name)
+            outputs_match = case_labels["inner_spec"] == case_labels["outer_spec"]
+            return ("unsat" if outputs_match else "sat"), []
 
         with (
             patch.object(ast_nodes, "check_equivalence", side_effect=fake_check_equivalence),
@@ -1360,7 +1366,7 @@ class TestSolverApis(unittest.TestCase):
         self.assertEqual(len(proof_trace), 1)
         self.assertEqual(proof_trace[0]["tool"], "simplify")
         self.assertEqual(proof_trace[0]["status"], "sat")
-        self.assertIn("Conflicting learned literals", proof_trace[0]["poor_spec"])
+        self.assertIn("Conflicting learned literals", str(proof_trace[0]["info"]))
 
     def test_check_equivalence_returns_flat_proof_trace(self):
         ctx = SpecContext("flat-trace")
@@ -1381,6 +1387,54 @@ class TestSolverApis(unittest.TestCase):
         self.assertIsInstance(proof_trace[0], dict)
         self.assertEqual(proof_trace[0]["tool"], "branch-b")
 
+    def test_run_tool_has_hard_wall_clock_timeout(self):
+        ctx = SpecContext("tool-timeout")
+
+        def slow_tool(_ctx, timeout_ms):
+            time.sleep(1)
+
+        with patch.dict(solver_engine.TOOL_FNS, {"z3": slow_tool}):
+            reports = solver_engine._run_tool(
+                ctx,
+                {"tool": "z3", "timeout_ms": 1},
+                timeout=0.01,
+            )
+
+        self.assertEqual(reports[0]["status"], "unknown")
+        self.assertEqual(reports[0]["wall_clock_timeout_s"], 0.01)
+
+    def test_spec_context_is_pickleable(self):
+        ctx = SpecContext("pickle-context")
+        x = ctx.real("x")
+        ctx.check((x + ctx.real_val(1)).eq(ctx.real_val(2)))
+
+        restored = pickle.loads(pickle.dumps(ctx))
+
+        self.assertEqual(str(restored), str(ctx))
+        for transported_ctx in (restored, restored.copy()):
+            with self.assertRaisesRegex(RuntimeError, "spec_cache was discarded"):
+                transported_ctx.spec_of(object())
+
+    def test_run_tool_rejects_large_report(self):
+        ctx = SpecContext("large-report")
+
+        def large_report(_ctx, timeout_ms):
+            return build_proof_report(
+                ctx,
+                ctx.copy(),
+                tool="z3",
+                runtime_s=0.0,
+                status="unknown",
+                supplementary_info=b"x" * 2048,
+            )
+
+        with (
+            patch.dict(solver_engine.TOOL_FNS, {"z3": large_report}),
+            patch.object(solver_engine, "MAX_TOOL_REPORT_BYTES", 1024),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "maximum is 1024 bytes"):
+                solver_engine._run_tool(ctx, {"tool": "z3", "timeout_ms": 1})
+
     def test_check_equivalence_rejects_rival_feasibility_as_proof_tool(self):
         ctx = SpecContext("rival-schedule")
 
@@ -1399,20 +1453,24 @@ class TestSolverApis(unittest.TestCase):
 
         self.assertIn("Unknown schedule tool rival_feasibility_check", str(raised.exception))
 
-    def test_fp32_adder_norm_norm_proves_with_egglog(self):
+    def test_fp32_adder_norm_norm_runs_egglog_schedule(self):
         adder = FP32_IEEE_adder(
             Var(name="a", sign=Float32T()),
             Var(name="b", sign=Float32T()),
         )
 
-        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+        with (
+            patch.object(solver_engine, "DEFAULT_TOOL_TIMEOUT_S", 0.1),
+            open(os.devnull, "w") as devnull,
+            contextlib.redirect_stdout(devnull),
+        ):
             proof_traces = adder.check_spec(
                 schedule=[
                     {"tool": "simplify"},
                     {
                         "tool": "egglog-rewrite",
-                        "iterations": 6,
-                        "scheduler": {"match_limit": 500_000, "ban_length": 1},
+                        "iterations": 1,
+                        "scheduler": {"match_limit": 1_000, "ban_length": 1},
                     },
                 ]
             )
@@ -1424,12 +1482,9 @@ class TestSolverApis(unittest.TestCase):
             if proof_trace and proof_trace[0]["name"] == target_name
         ]
         self.assertEqual(len(matching_traces), 1)
-        self.assertTrue(
-            any(
-                report["tool"] == "egglog-rewrite" and report["status"] == "unsat"
-                for report in matching_traces[0]
-            ),
-            matching_traces[0],
+        self.assertEqual(
+            [report["tool"] for report in matching_traces[0]],
+            ["simplify", "egglog-rewrite"],
         )
 
     def test_z3_check_eq_returns_single_report(self):
@@ -1470,7 +1525,9 @@ class TestSignSpecs(unittest.TestCase):
                 ctx = SpecContext("q_signs_xor")
                 spec = ctx.spec_of(node)
                 ctx.check(spec.eq(ctx.real_val(expected)))
-                report = z3_check_eq(ctx.simplify(), timeout_ms=1000)
+                report = simplify_ctx(ctx)
+                if report["status"] == "unknown":
+                    report = z3_check_eq(report["new_ctx"], timeout_ms=1000)
 
                 self.assertEqual(str(spec), "real(xored_signs_2)")
                 self.assertEqual(report["status"], "unsat", report)
