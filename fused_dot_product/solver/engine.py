@@ -20,6 +20,7 @@ DEFAULT_EGGLOG_MATCH_LIMIT = 100000
 DEFAULT_EGGLOG_BAN_LENGTH = 1
 DEFAULT_TOOL_TIMEOUT_S = 60.0
 MAX_TOOL_REPORT_BYTES = 8 * 1024 * 1024
+HARD_TIMEOUT_TOOLS = frozenset({"z3", "dreal"})
 
 
 TOOL_FNS = {
@@ -116,14 +117,21 @@ def _normalize_schedule(
     return normalized
 
 
-def _run_tool_worker(pipe, tool: str, ctx: SpecContext, kwargs: dict[str, Any]):
+def _run_tool_worker(
+    pipe,
+    tool: str,
+    tool_fn,
+    ctx: SpecContext,
+    kwargs: dict[str, Any],
+    max_report_bytes: int,
+):
     try:
-        reports = _normalize_tool_reports(TOOL_FNS[tool](ctx, **kwargs))
+        reports = _normalize_tool_reports(tool_fn(ctx, **kwargs))
         payload = pickle.dumps(("ok", reports), protocol=pickle.HIGHEST_PROTOCOL)
-        if len(payload) > MAX_TOOL_REPORT_BYTES:
+        if len(payload) > max_report_bytes:
             raise ValueError(
                 f"{tool} report is {len(payload)} bytes; "
-                f"maximum is {MAX_TOOL_REPORT_BYTES} bytes"
+                f"maximum is {max_report_bytes} bytes"
             )
         pipe.send_bytes(payload)
     except BaseException as exc:
@@ -134,12 +142,24 @@ def _run_tool_worker(pipe, tool: str, ctx: SpecContext, kwargs: dict[str, Any]):
 
 def _run_tool(ctx: SpecContext, step: dict[str, Any], timeout=DEFAULT_TOOL_TIMEOUT_S):
     tool = step["tool"]
+    tool_fn = TOOL_FNS[tool]
     kwargs = {key: value for key, value in step.items() if key != "tool"}
 
-    parent_pipe, child_pipe = multiprocessing.Pipe(duplex=False)
-    process = multiprocessing.Process(
+    if tool not in HARD_TIMEOUT_TOOLS:
+        return _normalize_tool_reports(tool_fn(ctx, **kwargs))
+
+    process_ctx = multiprocessing.get_context("spawn")
+    parent_pipe, child_pipe = process_ctx.Pipe(duplex=False)
+    process = process_ctx.Process(
         target=_run_tool_worker,
-        args=(child_pipe, tool, ctx, kwargs),
+        args=(
+            child_pipe,
+            tool,
+            tool_fn,
+            ctx,
+            kwargs,
+            MAX_TOOL_REPORT_BYTES,
+        ),
     )
 
     started_at = perf_counter()

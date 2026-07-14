@@ -36,6 +36,42 @@ from examples.optimized import Optimized
 from infra.compile_cpp import jit_compile, nonjit_compile
 
 
+def _flat_trace_tool(ctx, timeout_ms):
+    del timeout_ms
+    report1 = build_proof_report(
+        ctx,
+        ctx.copy(),
+        tool="branch-a",
+        runtime_s=0.0,
+        status="unknown",
+    )
+    report2 = build_proof_report(
+        ctx,
+        ctx.copy(),
+        tool="branch-b",
+        runtime_s=0.0,
+        status="unsat",
+    )
+    return [report1, report2]
+
+
+def _slow_tool(_ctx, timeout_ms):
+    del timeout_ms
+    time.sleep(1)
+
+
+def _large_report_tool(ctx, timeout_ms):
+    del timeout_ms
+    return build_proof_report(
+        ctx,
+        ctx.copy(),
+        tool="z3",
+        runtime_s=0.0,
+        status="unknown",
+        supplementary_info=b"x" * 2048,
+    )
+
+
 class TestConstantFolding(unittest.TestCase):
     def assert_folded_value(self, node, runtime_type, expected_val):
         self.assertIsNotNone(node.node_type.runtime_val)
@@ -1370,10 +1406,8 @@ class TestSolverApis(unittest.TestCase):
 
     def test_check_equivalence_returns_flat_proof_trace(self):
         ctx = SpecContext("flat-trace")
-        report1 = build_proof_report(ctx, ctx.copy(), tool="branch-a", runtime_s=0.0, status="unknown")
-        report2 = build_proof_report(ctx, ctx.copy(), tool="branch-b", runtime_s=0.0, status="unsat")
 
-        with patch.dict(solver_engine.TOOL_FNS, {"z3": lambda _ctx, timeout_ms: [report1, report2]}):
+        with patch.dict(solver_engine.TOOL_FNS, {"z3": _flat_trace_tool}):
             status, proof_trace = solver_engine.check_equivalence(
                 RealLit(1),
                 RealLit(1),
@@ -1390,10 +1424,7 @@ class TestSolverApis(unittest.TestCase):
     def test_run_tool_has_hard_wall_clock_timeout(self):
         ctx = SpecContext("tool-timeout")
 
-        def slow_tool(_ctx, timeout_ms):
-            time.sleep(1)
-
-        with patch.dict(solver_engine.TOOL_FNS, {"z3": slow_tool}):
+        with patch.dict(solver_engine.TOOL_FNS, {"z3": _slow_tool}):
             reports = solver_engine._run_tool(
                 ctx,
                 {"tool": "z3", "timeout_ms": 1},
@@ -1418,18 +1449,8 @@ class TestSolverApis(unittest.TestCase):
     def test_run_tool_rejects_large_report(self):
         ctx = SpecContext("large-report")
 
-        def large_report(_ctx, timeout_ms):
-            return build_proof_report(
-                ctx,
-                ctx.copy(),
-                tool="z3",
-                runtime_s=0.0,
-                status="unknown",
-                supplementary_info=b"x" * 2048,
-            )
-
         with (
-            patch.dict(solver_engine.TOOL_FNS, {"z3": large_report}),
+            patch.dict(solver_engine.TOOL_FNS, {"z3": _large_report_tool}),
             patch.object(solver_engine, "MAX_TOOL_REPORT_BYTES", 1024),
         ):
             with self.assertRaisesRegex(RuntimeError, "maximum is 1024 bytes"):
@@ -1453,14 +1474,24 @@ class TestSolverApis(unittest.TestCase):
 
         self.assertIn("Unknown schedule tool rival_feasibility_check", str(raised.exception))
 
-    def test_fp32_adder_norm_norm_runs_egglog_schedule(self):
+    def test_fp32_adder_norm_norm_proves_with_egglog(self):
         adder = FP32_IEEE_adder(
             Var(name="a", sign=Float32T()),
             Var(name="b", sign=Float32T()),
         )
+        target_name = "FP32_IEEE_adder[arg0=norm,arg1=norm,inner_spec=norm,outer_spec=norm]"
+        split_special_cases = ast_nodes._split_special_cases
+
+        def select_norm_norm_case(*args, **kwargs):
+            cases = split_special_cases(*args, **kwargs)
+            return [next(ctx for ctx in cases if ctx.name == target_name)]
 
         with (
-            patch.object(solver_engine, "DEFAULT_TOOL_TIMEOUT_S", 0.1),
+            patch.object(
+                ast_nodes,
+                "_split_special_cases",
+                side_effect=select_norm_norm_case,
+            ),
             open(os.devnull, "w") as devnull,
             contextlib.redirect_stdout(devnull),
         ):
@@ -1469,22 +1500,24 @@ class TestSolverApis(unittest.TestCase):
                     {"tool": "simplify"},
                     {
                         "tool": "egglog-rewrite",
-                        "iterations": 1,
-                        "scheduler": {"match_limit": 1_000, "ban_length": 1},
+                        "iterations": 6,
+                        "scheduler": {"match_limit": 500_000, "ban_length": 1},
                     },
                 ]
             )
 
-        target_name = "FP32_IEEE_adder[arg0=norm,arg1=norm,inner_spec=norm,outer_spec=norm]"
         matching_traces = [
             proof_trace
             for proof_trace in proof_traces
             if proof_trace and proof_trace[0]["name"] == target_name
         ]
         self.assertEqual(len(matching_traces), 1)
-        self.assertEqual(
-            [report["tool"] for report in matching_traces[0]],
-            ["simplify", "egglog-rewrite"],
+        self.assertTrue(
+            any(
+                report["tool"] == "egglog-rewrite" and report["status"] == "unsat"
+                for report in matching_traces[0]
+            ),
+            matching_traces[0],
         )
 
     def test_z3_check_eq_returns_single_report(self):
