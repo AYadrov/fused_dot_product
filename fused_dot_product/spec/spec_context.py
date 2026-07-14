@@ -366,7 +366,7 @@ def simplify_ctx(ctx: SpecContext):
         feasibility_status = "not feasible"
     else:
         simplified_ctx = rival_trim_context(simplified_ctx)
-        feasibility_status = rival_feasibility_check(simplified_ctx, max_depth=1, checks=False)
+        feasibility_status = rival_feasibility_check(simplified_ctx, max_depth=0, checks=False)
     ##############################################
     
     ############## Satisfiability ################
@@ -377,7 +377,7 @@ def simplify_ctx(ctx: SpecContext):
         if any([identical_nodes(x, BoolLit(False)) for x in simplified_ctx.checks]):
              satisfiability_status = "sat"
         else:
-            if rival_feasibility_check(simplified_ctx, max_depth=1, checks=True) == "not feasible":
+            if rival_feasibility_check(simplified_ctx, max_depth=0, checks=True) == "not feasible":
                 satisfiability_status = "sat"
             else:
                 satisfiability_status = "unsat" if len(simplified_ctx.checks) == 0 else "unknown"

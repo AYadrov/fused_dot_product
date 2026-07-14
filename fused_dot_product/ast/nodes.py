@@ -45,13 +45,13 @@ def _split_special_cases(
         ("inner_spec", spec_inner),
         ("outer_spec", spec_outer),
     ]
-
+    
     split_ctxs = [ctx]
     for value_name, value in values:
         special_flags = getattr(value, "special_flags", lambda: None)()
         if special_flags is None:
             continue
-
+        
         next_ctxs = []
         for base_ctx in split_ctxs:
             for selected_name in special_flags:
@@ -81,11 +81,11 @@ def _assume_special_case(
 def _equivalence_query(spec_value: tp.Any):
     if isinstance(spec_value, tuple):
         return tuple(_equivalence_query(item) for item in spec_value)
-
+    
     as_tuple = getattr(spec_value, "as_tuple", None)
     if as_tuple is not None:
         return _equivalence_query(as_tuple())
-
+    
     return spec_value
 
 
@@ -101,7 +101,7 @@ def _side_case_context(
         if spec_case_name == "inner_spec"
         else node.spec(*inputs, ctx=ctx)
     )
-
+    
     for idx, value in enumerate(inputs):
         value_name = f"arg{idx}"
         special_flags = getattr(value, "special_flags", lambda: None)()
@@ -193,7 +193,7 @@ class composite(Node):
                 {"tool": "simplify"},
                 {"tool": "egglog-rewrite", "iterations": 6, "scheduler": {"match_limit": 500_000, "ban_length": 1}},
                 {"tool": "z3", "timeout_ms": 10000},
-                {"tool": "dreal", "precision": 0.001},
+                # {"tool": "dreal", "precision": 0.001},
             ]
         
         # Collecting specification into ctx
@@ -235,8 +235,12 @@ class composite(Node):
                 else "unknown"
             )
             solution_can_exist = (combined_feasibility != "not feasible")
-            
-            if solution_can_exist:
+
+            # If there is no special flags at output
+            if not ("inner_spec" in case_labels and "outer_spec" in case_labels):
+                case_proved = (_status == "unsat") if solution_can_exist else (_status == "sat")
+            # Output was a special value
+            elif solution_can_exist:
                 if case_labels["outer_spec"] != case_labels["inner_spec"]:
                     case_proved = (_status == "sat")
                 else:
@@ -246,7 +250,7 @@ class composite(Node):
                     case_proved = not _has_confirmed_feasibility_mismatch(self, case_labels)
                 else:
                     case_proved = True
-
+            
             proved = proved and case_proved
             print(initial_ctx.name, "\t|", "correct" if case_proved else "wrong", "\t|",  _status)
             full_trace.append(proof_trace)
@@ -280,7 +284,6 @@ class composite(Node):
         
         visit(self.inner_tree, f"{composite_name}.impl")
     
-    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.node_type}: {self.name} [Composite]")
@@ -294,7 +297,7 @@ class composite(Node):
             for i, arg in enumerate(self.args):
                 is_arg_last = i == len(self.args) - 1
                 arg.print_tree(new_prefix, is_arg_last, depth)
-        
+    
     def __str__(self):
         return f"[Composite] {self.name}: {' -> '.join([str(x) for x in self.args_types])} -> {self.node_type}"
     

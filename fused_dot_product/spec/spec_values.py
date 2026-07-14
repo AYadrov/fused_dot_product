@@ -302,8 +302,8 @@ def encode_fp32_components(
     sign_value = sign_multiplier(ctx, sign)
 
     ctx.assume(sign.eq(zero) | sign.eq(one))
-    ctx.assume(encode_inf.eq(zero) | encode_inf.eq(one))
-    ctx.assume(encode_nan.eq(zero) | encode_nan.eq(one))
+    ctx.assume(forced_inf.eq(zero) | forced_inf.eq(one))
+    ctx.assume(forced_nan.eq(zero) | forced_nan.eq(one))
 
     mantissa_bits = ctx.real_val(Float32.mantissa_bits)
     exponent_bits = ctx.real_val(Float32.exponent_bits)
