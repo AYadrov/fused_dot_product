@@ -21,6 +21,13 @@ class SpecContext:
         self._sym_counter = 0
         self.name = name
         self.spec_cache = {}
+        self._spec_cache_valid = True
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state["spec_cache"] = {}
+        state["_spec_cache_valid"] = False
+        return state
     
     def assume(self, condition: BoolExpr) -> None:
         if not isinstance(condition, BoolExpr):
@@ -240,6 +247,11 @@ class SpecContext:
         return simplified
     
     def spec_of(self, node: Node):
+        if not self._spec_cache_valid:
+            raise RuntimeError(
+                "spec_of() is unavailable because spec_cache was discarded "
+                "during multiprocessing serialization"
+            )
         return node._evaluate_spec(ctx=self, cache=self.spec_cache)
     
     def real_val(self, value: int | float):
@@ -289,6 +301,7 @@ class SpecContext:
         self.checks.clear()
         self._sym_counter = 0
         self.spec_cache.clear()
+        self._spec_cache_valid = True
     
     def snapshot(self):
         return {
@@ -325,6 +338,7 @@ class SpecContext:
         new_ctx.checks = checks
         new_ctx._sym_counter = self._sym_counter
         new_ctx.spec_cache = dict(self.spec_cache)
+        new_ctx._spec_cache_valid = self._spec_cache_valid
         return new_ctx
 
 

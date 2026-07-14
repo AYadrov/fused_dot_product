@@ -121,7 +121,6 @@ def egglog_rewrite(ctx: "SpecContext", iterations: int, scheduler=None):
         status=status,
         rule_application_counts=rule_application_counts,
         iterations_used=iterations_used,
-        egraph=egraph,
         egraph_size=sum(sz for _, sz in egraph.all_function_sizes()),
     )
     return report

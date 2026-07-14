@@ -62,12 +62,12 @@ def z3_check_eq(ctx: "SpecContext", timeout_ms: int):
     )
     
     if result == z3.sat:
-        report["supplementary_info"] = solver.model()
+        report["supplementary_info"] = str(solver.model())
     if result == z3.unknown:
         report["supplementary_info"] = solver.reason_unknown()
     if result == z3.unsat:
         if proof_retry_reason is None:
-            report["supplementary_info"] = solver.proof()
+            report["supplementary_info"] = str(solver.proof())
         else:
             report["supplementary_info"] = {
                 "proof_retry_reason": proof_retry_reason,

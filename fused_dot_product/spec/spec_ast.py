@@ -13,6 +13,9 @@ import dreal
 
 
 class SpecNode:
+    def __reduce__(self):
+        return type(self), tuple(getattr(self, field.name) for field in fields(self))
+
     def to_egglog(self):
         raise NotImplementedError
     
