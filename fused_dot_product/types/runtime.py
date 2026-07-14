@@ -352,11 +352,11 @@ class Float32(RuntimeType):
             frac = 1.0 + self.mantissa / (2 ** self.mantissa_bits)
             exp_val = self.exponent - self.exponent_bias
             return float((-1) ** self.sign * frac * (2 ** exp_val))
-    
+
     def to_spec(self, ctx):
         if self.exponent == self.inf_code and self.mantissa == 0:
             return (
-                ctx.real_val(0),
+                ctx.inf(),
                 ctx.real_val(0),
                 ctx.real_val(0),
                 ctx.real_val(0),
@@ -365,7 +365,7 @@ class Float32(RuntimeType):
             )
         if self.exponent == self.nan_code and self.mantissa != 0:
             return (
-                ctx.real_val(0),
+                ctx.nan(),
                 ctx.real_val(0),
                 ctx.real_val(0),
                 ctx.real_val(0),

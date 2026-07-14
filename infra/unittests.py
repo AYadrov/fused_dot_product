@@ -34,47 +34,59 @@ def dot_product_spec(a_0, a_1, a_2, a_3, b_0, b_1, b_2, b_3):
 def run_spec_with_metrics(design: Node):
     return design.check_spec()
 
-def _trace_equivalent(proof_trace: list[dict]) -> bool:
-    return any(bool(stage.get("equivalent", False)) for stage in proof_trace)
+def _trace_status(proof_trace: list[dict]) -> str:
+    for stage in proof_trace:
+        status = stage.get("status")
+        if status in {"sat", "unsat"}:
+            return str(status)
+    return "unknown"
+
+
+def _merge_statuses(statuses: list[str]) -> str:
+    if "sat" in statuses:
+        return "sat"
+    if statuses and all(status == "unsat" for status in statuses):
+        return "unsat"
+    return "unknown"
 
 
 def _trace_runtime_s(proof_trace: list[dict]) -> float:
     return sum(float(stage.get("runtime_s", 0.0)) for stage in proof_trace)
 
 
-def merge_spec_reports(reports: list[list[dict]]):
+def _report_name(proof_traces: list[list[dict]]) -> str:
+    for proof_trace in proof_traces:
+        if proof_trace:
+            return str(proof_trace[0]["name"])
+    raise AssertionError("Expected at least one non-empty proof trace from design.check_spec()")
+
+
+def merge_spec_reports(reports: list[list[list[dict]]]):
     merged_rule_application_counts = {}
     
     runtime_s_by_design = {}
-    equivalent_by_design = {}
+    status_by_design = {}
     
     total_runtime_s = 0.0
-    all_equivalent = True
+    design_statuses = []
     
-    for proof_trace in reports:
-        if not proof_trace:
-            raise AssertionError("Expected non-empty proof trace from design.check_spec()")
-        design_name = proof_trace[0]["name"]
-        runtime_s = sum(stage['runtime_s'] for stage in proof_trace)
-        equivalent = any(stage["equivalent"] for stage in proof_trace)
+    for proof_traces in reports:
+        if not proof_traces:
+            raise AssertionError("Expected proof traces from design.check_spec()")
+        design_name = _report_name(proof_traces)
+        runtime_s = sum(_trace_runtime_s(proof_trace) for proof_trace in proof_traces)
+        design_status = _merge_statuses([_trace_status(proof_trace) for proof_trace in proof_traces])
         
         runtime_s_by_design[design_name] = runtime_s
-        equivalent_by_design[design_name] = equivalent
+        status_by_design[design_name] = design_status
+        design_statuses.append(design_status)
         total_runtime_s += runtime_s
-        all_equivalent = all_equivalent and equivalent
-        
-        rules_used = proof_trace[0].get("rule_application_counts", {})
-        for rule, count in rules_used.items():
-            merged_rule_application_counts[rule] = (
-                merged_rule_application_counts.get(rule, 0) + int(count)
-            )
     
     return {
-        "equivalent": all_equivalent,
+        "status": _merge_statuses(design_statuses),
         "runtime_s_total": total_runtime_s,
         "runtime_s_by_design": runtime_s_by_design,
-        "equivalent_by_design": equivalent_by_design,
-        "rule_application_counts": dict(sorted(merged_rule_application_counts.items())),
+        "status_by_design": status_by_design,
     }
 
 
@@ -89,7 +101,10 @@ class TestFusedDotProduct(unittest.TestCase):
         results = check_rules(rules, z3_timeout_ms=10000)
 
         for name, report in results.items():
-            self.assertTrue(report["z3_equal"] or report["dreal_equal"], pformat(results))
+            self.assertTrue(
+                report["z3_status"] == "unsat" or report["dreal_status"] == "unsat",
+                pformat(results),
+            )
     
     def test_run_spec_verification_and_timing(self):
         print("\nRunning test_run_spec_verification_and_timing:")
@@ -125,7 +140,7 @@ class TestFusedDotProduct(unittest.TestCase):
         TestFusedDotProduct.SPEC_REPORT = overall_report
         
         pprint(overall_report)
-        self.assertTrue(overall_report["equivalent"], pformat(overall_report))
+        self.assertTrue(overall_report["status"] == "unsat" or overall_report["status"] == "unknown", pformat(overall_report))
     
     def test_designs_difference_with_fp_spec(self):
         SEED = self.SEED

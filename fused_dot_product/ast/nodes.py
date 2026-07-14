@@ -8,9 +8,119 @@ from ..solver.engine import check_equivalence
 from .node import Node
 from .proofs import SpecRecorder, record_specs
 from ..spec import SpecContext
+from ..spec.spec_context import simplify_ctx
 
 
 CLowering = tp.Callable[[list[str], bool], str]
+
+
+def _append_case_name(name: str, case_label: str) -> str:
+    if name.endswith("]") and "[" in name:
+        return f"{name[:-1]},{case_label}]"
+    return f"{name}[{case_label}]"
+
+
+def _case_labels(name: str) -> dict[str, str]:
+    if not name.endswith("]") or "[" not in name:
+        return {}
+
+    labels = {}
+    for label in name[name.rfind("[") + 1:-1].split(","):
+        key, separator, value = label.partition("=")
+        if separator:
+            labels[key] = value
+    return labels
+
+
+def _split_special_cases(
+    ctx: SpecContext,
+    inputs: list[tp.Any],
+    spec_inner: tp.Any,
+    spec_outer: tp.Any,
+) -> list[SpecContext]:
+    values = [
+        (f"arg{idx}", value)
+        for idx, value in enumerate(inputs)
+    ] + [
+        ("inner_spec", spec_inner),
+        ("outer_spec", spec_outer),
+    ]
+    
+    split_ctxs = [ctx]
+    for value_name, value in values:
+        special_flags = getattr(value, "special_flags", lambda: None)()
+        if special_flags is None:
+            continue
+        
+        next_ctxs = []
+        for base_ctx in split_ctxs:
+            for selected_name in special_flags:
+                case_ctx = base_ctx.copy()
+                _assume_special_case(
+                    case_ctx,
+                    value_name,
+                    value,
+                    selected_name,
+                )
+                next_ctxs.append(case_ctx)
+        split_ctxs = next_ctxs
+    return split_ctxs
+
+
+def _assume_special_case(
+    ctx: SpecContext,
+    value_name: str,
+    value: tp.Any,
+    selected_name: str,
+) -> None:
+    ctx.name = _append_case_name(ctx.name, f"{value_name}={selected_name}")
+    for flag_name, flag in value.special_flags().items():
+        ctx.assume(flag.eq(ctx.bool_val(flag_name == selected_name)))
+
+
+def _equivalence_query(spec_value: tp.Any):
+    if isinstance(spec_value, tuple):
+        return tuple(_equivalence_query(item) for item in spec_value)
+    
+    as_tuple = getattr(spec_value, "as_tuple", None)
+    if as_tuple is not None:
+        return _equivalence_query(as_tuple())
+    
+    return spec_value
+
+
+def _side_case_context(
+    node: "composite",
+    case_labels: dict[str, str],
+    spec_case_name: str,
+) -> SpecContext:
+    ctx = node.ctx.copy()
+    inputs = [ctx.spec_of(arg) for arg in node.inner_args]
+    spec_value = (
+        ctx.spec_of(node.inner_tree)
+        if spec_case_name == "inner_spec"
+        else node.spec(*inputs, ctx=ctx)
+    )
+    
+    for idx, value in enumerate(inputs):
+        value_name = f"arg{idx}"
+        special_flags = getattr(value, "special_flags", lambda: None)()
+        if special_flags is None or value_name not in case_labels:
+            continue
+        _assume_special_case(ctx, value_name, value, case_labels[value_name])
+    _assume_special_case(ctx, spec_case_name, spec_value, case_labels[spec_case_name])
+    return ctx
+
+def _has_confirmed_feasibility_mismatch(
+    node: "composite",
+    case_labels: dict[str, str],
+) -> bool:
+    inner_ctx = _side_case_context(node, case_labels, "inner_spec")
+    outer_ctx = _side_case_context(node, case_labels, "outer_spec")
+    
+    inner_status = simplify_ctx(inner_ctx).get("feasibility_status", "unknown")
+    outer_status = simplify_ctx(outer_ctx).get("feasibility_status", "unknown")
+    return {inner_status, outer_status} == {"feasible", "not feasible"}
 
 
 def Composite(
@@ -77,27 +187,80 @@ class composite(Node):
         )
     
     def check_spec(self, schedule: list[str | dict[str, tp.Any]] | None = None):
+        # Scheduler for solver
         if schedule is None:
             schedule = [
                 {"tool": "simplify"},
-                {"tool": "egglog-preprocess", "iterations": 3, "scheduler": {"match_limit": 500_000, "ban_length": 1}},
                 {"tool": "egglog-rewrite", "iterations": 6, "scheduler": {"match_limit": 500_000, "ban_length": 1}},
                 {"tool": "z3", "timeout_ms": 10000},
-                {"tool": "dreal", "precision": 0.001},
+                # {"tool": "dreal", "precision": 0.001},
             ]
-        ctx = self.ctx.copy()
-        spec_inner = ctx.spec_of(self.inner_tree)
-        inputs = [ctx.spec_of(arg) for arg in self.inner_args]
-        spec_outer = self.spec(*inputs, ctx=ctx)
         
-        equivalence, proof_trace = check_equivalence(
+        # Collecting specification into ctx
+        combined_ctx = self.ctx.copy()
+        spec_inner = combined_ctx.spec_of(self.inner_tree)
+        inputs = [combined_ctx.spec_of(arg) for arg in self.inner_args]
+        spec_outer = self.spec(*inputs, ctx=combined_ctx)
+        
+        # Subsplit a general specification into special-value cases (if applicable)
+        initial_ctxs = _split_special_cases(
+            combined_ctx,
+            inputs,
             spec_inner,
             spec_outer,
-            ctx=ctx,
-            schedule=schedule,
         )
-        return proof_trace
+        
+        # Float32Spec -> tuple of values for equivalence check
+        query_inner = _equivalence_query(spec_inner)
+        query_outer = _equivalence_query(spec_outer)
+        
+        # Run equivalence checks
+        full_trace = []
+        proved = True
+        
+        print("case name", max(len(initial_ctxs[0].name) - 8, 0)*" ", "\t| correct?\t| status")
+        
+        for initial_ctx in initial_ctxs:
+            case_labels = _case_labels(initial_ctx.name)
+            
+            _status, proof_trace = check_equivalence(
+                query_inner,
+                query_outer,
+                ctx=initial_ctx,
+                schedule=schedule,
+            )
+            combined_feasibility = (
+                proof_trace[0].get("feasibility_status", "unknown")
+                if proof_trace
+                else "unknown"
+            )
+            solution_can_exist = (combined_feasibility != "not feasible")
 
+            # If there is no special flags at output
+            if not ("inner_spec" in case_labels and "outer_spec" in case_labels):
+                case_proved = (_status == "unsat") if solution_can_exist else (_status == "sat")
+            # Output was a special value
+            elif solution_can_exist:
+                if case_labels["outer_spec"] != case_labels["inner_spec"]:
+                    case_proved = (_status == "sat")
+                else:
+                    case_proved = (_status == "unsat")
+            else:
+                if case_labels["outer_spec"] == case_labels["inner_spec"]:
+                    case_proved = not _has_confirmed_feasibility_mismatch(self, case_labels)
+                else:
+                    case_proved = True
+            
+            proved = proved and case_proved
+            print(initial_ctx.name, "\t|", "correct" if case_proved else "wrong", "\t|",  _status)
+            full_trace.append(proof_trace)
+            if not proved:
+               break
+        
+        print(f"{self.ctx.name} {'has' if proved else 'has not'} been proved")
+        
+        return full_trace
+    
     def _validate_components(self, composite_name: str) -> None:
         visited: set[Node] = set()
         
@@ -121,7 +284,6 @@ class composite(Node):
         
         visit(self.inner_tree, f"{composite_name}.impl")
     
-    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.node_type}: {self.name} [Composite]")
@@ -135,10 +297,10 @@ class composite(Node):
             for i, arg in enumerate(self.args):
                 is_arg_last = i == len(self.args) - 1
                 arg.print_tree(new_prefix, is_arg_last, depth)
-        
+    
     def __str__(self):
         return f"[Composite] {self.name}: {' -> '.join([str(x) for x in self.args_types])} -> {self.node_type}"
-
+    
     def _fingerprint(self, jittable: bool = False):
         def build():
             direct_cpp_lowering = None
@@ -155,7 +317,7 @@ class composite(Node):
                 direct_cpp_lowering,
                 self.inner_tree._fingerprint(jittable) if direct_cpp_lowering is None else None,
             )
-
+        
         return self._cached_fingerprint(jittable, build)
 
 
@@ -235,7 +397,7 @@ class primitive(Node):
     
     def __str__(self):
         return f"[Primitive] {self.name}: {' -> '.join([str(x) for x in self.args_types])} -> {self.node_type}"
-
+    
     def _fingerprint(self, jittable: bool = False):
         def build():
             direct_cpp_lowering = None
@@ -252,7 +414,7 @@ class primitive(Node):
                 direct_cpp_lowering,
                 self.inner_tree._fingerprint(jittable) if direct_cpp_lowering is None else None,
             )
-
+        
         return self._cached_fingerprint(jittable, build)
 
 
@@ -284,7 +446,7 @@ class Op(Node):
     
     def __str__(self):
         return f"{self.node_type}: {self.name} [Op]"
-
+    
     def _fingerprint(self, jittable: bool = False):
         def build():
             lowering_fingerprint = None
@@ -300,7 +462,7 @@ class Op(Node):
                 lowering_fingerprint,
                 tuple(arg._fingerprint(jittable) for arg in self.args),
             )
-
+        
         return self._cached_fingerprint(jittable, build)
 
 
@@ -336,7 +498,7 @@ class Const(Node):
     
     def __str__(self):
         return f"{self.node_type}: {self.name if self.name else str(self.val)} [Const]"
-
+    
     def _fingerprint(self, jittable: bool = False):
         return self._cached_fingerprint(
             jittable,
@@ -366,12 +528,12 @@ class Var(Node):
             args=[],
             name=name,
         )
-
+    
     def load_rand(self, rng: tp.Optional[random.Random] = None):
         if rng is None:
             rng = random.Random()
         self.load_val(self.sign().random_runtime_value(rng))
-        
+    
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + f"{self.node_type}: {self.name} [Var]")
@@ -385,7 +547,7 @@ class Var(Node):
     
     def __str__(self):
         return f"{self.node_type}: {self.name} [Var]"
-
+    
     def _fingerprint(self, jittable: bool = False):
         return self._cached_fingerprint(
             jittable,

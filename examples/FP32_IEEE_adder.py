@@ -2,196 +2,149 @@ from fused_dot_product import *
 from .common import *
 from .encode_Float32 import *
 
-def helper(x, ctx):
-    x_val, x_norm, x_sub, x_zero, x_inf, x_nan = x
-    sign = ctx.fresh_real("sign")
-    exponent = ctx.fresh_real("exponent")
-    mantissa = ctx.fresh_real("mantissa")
 
-    # zero = ctx.real_val(0)
-    # one = ctx.real_val(1)
-    # two = ctx.real_val(2)
-    # minus_one = ctx.real_val(-1)
-    # inf_code = ctx.real_val((1 << Float32.exponent_bits) - 1)
-    # mantissa_limit = ctx.real_val(1 << Float32.mantissa_bits)
-    # bias = ctx.real_val(Float32.exponent_bias)
-    # sub_scale = two ** ctx.real_val(1 - Float32.exponent_bias - Float32.mantissa_bits)
-
-    # is_norm = x_norm.eq(one)
-    # is_sub = x_sub.eq(one)
-    # is_zero = x_zero.eq(one)
-    # is_inf = x_inf.eq(one)
-    # is_nan = x_nan.eq(one)
-
-    # ctx.assume(sign.eq(zero).or_(sign.eq(one)))
-    # ctx.assume((exponent >= zero).and_(exponent < ctx.real_val(1 << Float32.exponent_bits)))
-    # ctx.assume((mantissa >= zero).and_(mantissa < mantissa_limit))
-    # ctx.assume((x_norm + x_sub + x_zero + x_inf + x_nan).eq(one))
-
-    # normal_value = (minus_one ** sign) * (one + mantissa * two ** (-ctx.real_val(Float32.mantissa_bits))) * two ** (exponent - bias)
-    # subnormal_value = (minus_one ** sign) * mantissa * sub_scale
-
-    # ctx.assume(
-    #     (~is_norm).or_(
-    #         (exponent >= one)
-    #         .and_(exponent < inf_code)
-    #         .and_(x_val.eq(normal_value))
-    #     )
-    # )
-    # ctx.assume(
-    #     (~is_sub).or_(
-    #         exponent.eq(zero)
-    #         .and_(mantissa > zero)
-    #         .and_(x_val.eq(subnormal_value))
-    #     )
-    # )
-    # ctx.assume(
-    #     (~is_zero).or_(
-    #         exponent.eq(zero)
-    #         .and_(mantissa.eq(zero))
-    #         .and_(x_val.eq(zero))
-    #     )
-    # )
-    # ctx.assume(
-    #     (~is_inf).or_(
-    #         exponent.eq(inf_code)
-    #         .and_(mantissa.eq(zero))
-    #         .and_(x_val.eq(zero))
-    #     )
-    # )
-    # ctx.assume(
-    #     (~is_nan).or_(
-    #         exponent.eq(inf_code)
-    #         .and_(mantissa > zero)
-    #         .and_(x_val.eq(zero))
-    #     )
-    # )
-
-    return sign, exponent, mantissa
-
-# TODO: NaN payload
-def spec(x, y, ctx):
-    return x[0] + y[0], ctx.real_val(1), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0)
- 
-    # zero = ctx.real_val(0)
-    # one = ctx.real_val(1)
-    # two = ctx.real_val(2)
-    # minus_one = ctx.real_val(-1)
-    # bias = ctx.real_val(Float32.exponent_bias)
-
-    # # x argument
-    # x_val, x_norm, x_sub, x_zero, x_inf, x_nan = x
-    # x_sign, x_exponent, x_mantissa = helper(x, ctx)
-    # x_normal_value = (minus_one ** x_sign) * (one + x_mantissa * two ** (-ctx.real_val(Float32.mantissa_bits))) * two ** (x_exponent - bias)
-    # x_subnormal_value = (minus_one ** x_sign) * x_mantissa * two ** (-ctx.real_val(Float32.mantissa_bits)) * two ** (x_exponent - bias)
-    # ctx.assume(x_val.eq(If(x_norm.eq(one), x_normal_value, x_subnormal_value)))
-
-    # # y argument
-    # y_val, y_norm, y_sub, y_zero, y_inf, y_nan = y
-    # y_sign, y_exponent, y_mantissa = helper(y, ctx)
-    # y_normal_value = (minus_one ** y_sign) * (one + y_mantissa * two ** (-ctx.real_val(Float32.mantissa_bits))) * two ** (y_exponent - bias)
-    # y_subnormal_value = (minus_one ** y_sign) * y_mantissa * two ** (-ctx.real_val(Float32.mantissa_bits)) * two ** (y_exponent - bias)
-    # ctx.assume(y_val.eq(If(y_norm.eq(one), y_normal_value, y_subnormal_value)))
-
-    # r_val, r_norm, r_sub, r_zero, r_inf, r_nan = ctx.fresh_real("r_val"), ctx.fresh_real("r_norm"), ctx.fresh_real("r_sub"), ctx.fresh_real("r_zero"), ctx.fresh_real("r_inf"), ctx.fresh_real("r_nan")
-    
-    
+# Demo navigation map:
+# - FP32 decode helpers: fused_dot_product/components/Float.py
+# - Bit helpers and significand formatting: examples/common.py
+# - Unsigned fixed-point operations: fused_dot_product/components/UQ.py
+# - Signed fixed-point operations: fused_dot_product/components/Q.py
+# - Final FP32 packing and rounding: examples/encode_Float32.py
 
 
-    
-    # sum_val = x_val + y_val
-    # abs_sum_val = abs(sum_val)
-    
-    # invalid_inf_sum = x_inf.eq(one).and_(y_inf.eq(one)).and_(x_sign.ne(y_sign))
-    # res_nan_b = x_nan.eq(one).or_(y_nan.eq(one)).or_(invalid_inf_sum)
-    # finite_overflow = (~res_nan_b).and_(~x_inf.eq(one)).and_(~y_inf.eq(one)).and_(abs_sum_val > max_finite)
-    # res_inf_b = ((x_inf.eq(one).or_(y_inf.eq(one))).and_(~res_nan_b)).or_(finite_overflow)
-    # res_zero_b = (~res_nan_b).and_(~res_inf_b).and_(sum_val.eq(zero))
-    # res_sub_b = (~res_nan_b).and_(~res_inf_b).and_(~res_zero_b).and_(abs_sum_val < min_normal)
-    # res_norm_b = (~res_nan_b).and_(~res_inf_b).and_(~res_zero_b).and_(~res_sub_b)
-    
-    # res_val = If(res_nan_b.or_(res_inf_b), zero, sum_val)
-    
-    # return (
-    #     res_val,
-    #     If(res_norm_b, one, zero),
-    #     If(res_sub_b, one, zero),
-    #     If(res_zero_b, one, zero),
-    #     If(res_inf_b, one, zero),
-    #     If(res_nan_b, one, zero),
-    # )
+# Non-bit-precise concept specification of a single-precision IEEE adder.
+def spec_FP32_IEEE_adder(x: "FP32", y: "FP32", ctx):
+    # Special-value classification.
+    invalid = x.is_inf & y.is_inf & x.sign.ne(y.sign)
+    nan = x.is_nan | y.is_nan | invalid
+    inf = (~nan) & (x.is_inf | y.is_inf)
+
+    # Real-value result for all non-special cases.
+    x_real = x.value
+    y_real = y.value
+    result_real = x_real + y_real
+
+    # encode_fp32 lives in fused_dot_product/spec/spec_values.py.
+    return ctx.encode_fp32(value=result_real, inf=inf, nan=nan)
 
 
-@Composite(name="FP32_IEEE_adder", spec=spec)
+# Implementation of a single-precision IEEE adder.
+@Composite(name="FP32_IEEE_adder", spec=spec_FP32_IEEE_adder)
 def FP32_IEEE_adder(x: Node, y: Node) -> Node:
-    x_s, x_e, x_m, x_norm, x_sub, x_zero, x_inf, x_nan = fp32_decode(x)
-    y_s, y_e, y_m, y_norm, y_sub, y_zero, y_inf, y_nan = fp32_decode(y)
-    
-    # Nan encoding
-    infs_diff_signs = bit_and(bit_and(x_inf, y_inf), bit_xor(x_s, y_s))
-    any_is_nan = bit_or(x_nan, y_nan)
-    encode_nan = bit_or(infs_diff_signs, any_is_nan)
-    
-    # Inf encoding
-    encode_inf = bit_and(bit_neg(encode_nan), bit_or(x_inf, y_inf))
-    
-    # Signed zero encoding
-    both_negative_zeros = bit_and(bit_and(x_zero, y_zero), bit_and(x_s, y_s))
-    
-    # UQ<23, 0> -> UQ<0, 23>
-    x_m_fraction = integer_to_fraction(x_m)
-    y_m_fraction = integer_to_fraction(y_m)
-    
-    # UQ<1, 23>
-    x_m_formatted = if_then_else(x_norm, add_implicit_bit(x_m_fraction), uq_resize(x_m_fraction, 1, Float32.mantissa_bits))
-    y_m_formatted = if_then_else(y_norm, add_implicit_bit(y_m_fraction), uq_resize(y_m_fraction, 1, Float32.mantissa_bits))
-    
-    # Subnormals have exponent field 0 but effective exponent 1-bias.
-    effective_subnormal_e = Const(UQ(1, x_e.node_type.int_bits, x_e.node_type.frac_bits))
-    x_effective_e = if_then_else(x_sub, effective_subnormal_e, x_e)
-    y_effective_e = if_then_else(y_sub, effective_subnormal_e, y_e)
-    
-    max_exp = uq_max(x_effective_e, y_effective_e)
-    x_shift_amount = uq_sub(max_exp, x_effective_e)
-    y_shift_amount = uq_sub(max_exp, y_effective_e)
-    
-    # Make room for latter correct rounding
-    x_m_resized = uq_resize(x_m_formatted, 1, Float32.mantissa_bits + 3)
-    y_m_resized = uq_resize(y_m_formatted, 1, Float32.mantissa_bits + 3)
-    
-    x_m_shifted = uq_rshift_jam(x_m_resized, x_shift_amount)
-    y_m_shifted = uq_rshift_jam(y_m_resized, y_shift_amount)
-    
-    x_m_signed = q_add_sign(uq_to_q(x_m_shifted), x_s)
-    y_m_signed = q_add_sign(uq_to_q(y_m_shifted), y_s)
-    
-    m_sum = q_add(x_m_signed, y_m_signed)
-    
-    sign_bit = q_sign_bit(m_sum)
-    inf_sign_bit = if_then_else(x_inf, x_s, y_s)
-    
-    # Signed zero case
-    sign_bit = if_then_else(both_negative_zeros, Const(UQ(1, 1, 0)), sign_bit)
-    sign_bit = if_then_else(encode_inf, inf_sign_bit, sign_bit)
-    
+    # 1. Decode both packed FP32 inputs into sign, exponent, mantissa, and flags.
+    (
+        x_sign,
+        x_exponent,
+        x_mantissa,
+        x_is_normal,
+        x_is_subnormal,
+        x_is_zero,
+        x_is_inf,
+        x_is_nan,
+    ) = fp32_decode(x)
+    (
+        y_sign,
+        y_exponent,
+        y_mantissa,
+        y_is_normal,
+        y_is_subnormal,
+        y_is_zero,
+        y_is_inf,
+        y_is_nan,
+    ) = fp32_decode(y)
+
+    # 2. Resolve IEEE special-result flags before the finite-number datapath.
+    infinities_with_opposite_signs = bit_and(
+        bit_and(x_is_inf, y_is_inf),
+        bit_xor(x_sign, y_sign),
+    )
+    any_input_is_nan = bit_or(x_is_nan, y_is_nan)
+    encode_nan = bit_or(infinities_with_opposite_signs, any_input_is_nan)
+    encode_inf = bit_and(bit_neg(encode_nan), bit_or(x_is_inf, y_is_inf))
+
+    # IEEE addition preserves -0 only for -0 + -0.
+    both_inputs_are_negative_zero = bit_and(
+        bit_and(x_is_zero, y_is_zero),
+        bit_and(x_sign, y_sign),
+    )
+
+    # 3. Format and align significands.
+    # Decode gives the mantissa as UQ<23, 0>; the adder datapath wants UQ<0, 23>.
+    x_mantissa_fraction = integer_to_fraction(x_mantissa)
+    y_mantissa_fraction = integer_to_fraction(y_mantissa)
+
+    # Normal numbers have an implicit leading 1. Subnormals do not.
+    x_significand = if_then_else(
+        x_is_normal,
+        add_implicit_bit(x_mantissa_fraction),
+        uq_resize(x_mantissa_fraction, 1, Float32.mantissa_bits),
+    )
+    y_significand = if_then_else(
+        y_is_normal,
+        add_implicit_bit(y_mantissa_fraction),
+        uq_resize(y_mantissa_fraction, 1, Float32.mantissa_bits),
+    )
+
+    # Subnormals store exponent 0 but behave as exponent 1-bias.
+    effective_subnormal_exponent = Const(
+        UQ(1, x_exponent.node_type.int_bits, x_exponent.node_type.frac_bits)
+    )
+    x_effective_exponent = if_then_else(
+        x_is_subnormal,
+        effective_subnormal_exponent,
+        x_exponent,
+    )
+    y_effective_exponent = if_then_else(
+        y_is_subnormal,
+        effective_subnormal_exponent,
+        y_exponent,
+    )
+
+    aligned_exponent = uq_max(x_effective_exponent, y_effective_exponent)
+    x_shift_amount = uq_sub(aligned_exponent, x_effective_exponent)
+    y_shift_amount = uq_sub(aligned_exponent, y_effective_exponent)
+
+    # Keep three extra low bits so right-shift-jam can preserve rounding evidence.
+    x_significand_wide = uq_resize(x_significand, 1, Float32.mantissa_bits + 3)
+    y_significand_wide = uq_resize(y_significand, 1, Float32.mantissa_bits + 3)
+
+    x_aligned_significand = uq_rshift_jam(x_significand_wide, x_shift_amount)
+    y_aligned_significand = uq_rshift_jam(y_significand_wide, y_shift_amount)
+
+    # 4. Apply signs, then add the aligned signed significands.
+    x_signed_significand = q_add_sign(uq_to_q(x_aligned_significand), x_sign)
+    y_signed_significand = q_add_sign(uq_to_q(y_aligned_significand), y_sign)
+    significand_sum = q_add(x_signed_significand, y_signed_significand)
+
+    # 5. Choose the result sign.
+    result_sign = q_sign_bit(significand_sum)
+    inf_sign = if_then_else(x_is_inf, x_sign, y_sign)
+    result_sign = if_then_else(
+        both_inputs_are_negative_zero,
+        Const(UQ(1, 1, 0)),
+        result_sign,
+    )
+    result_sign = if_then_else(encode_inf, inf_sign, result_sign)
+
+    # 6. Normalize, round, and pack the final FP32 result.
     return fp32_encode(
-        sign_bit,               # sign: UQ
-        uq_to_q(max_exp),       # exponent: Q
-        q_to_uq(q_abs(m_sum)),  # mantissa: UQ
+        result_sign,                              # sign: UQ
+        uq_to_q(aligned_exponent),                # exponent: Q
+        q_to_uq(q_abs(significand_sum)),          # mantissa: UQ
         encode_nan,
         encode_inf,
     )
 
 
 if __name__ == '__main__':
-    from pprint import pprint
     adder = FP32_IEEE_adder(
         Var(name="a", sign=Float32T()),
         Var(name="b", sign=Float32T()),
     )
-    pprint(adder.check_spec())
+
+    adder.check_spec()
+
     with open("examples/adder_jit.hpp", "w") as file:
         file.write(adder.to_cpp(jittable=True))
-    
+
     with open("examples/adder_no_jit.hpp", "w") as file:
         file.write(adder.to_cpp(jittable=False))

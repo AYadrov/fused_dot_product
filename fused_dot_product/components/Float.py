@@ -1,6 +1,6 @@
 from ..types import *
 from ..ast import *
-from ..spec import If
+from ..spec import If, sign_multiplier
 from .Tuple import make_Tuple
 from .basics import *
 
@@ -73,51 +73,24 @@ def _fp32_alloc(sign_bit: Node,
 
 # Does not track nan/infs/subnormals yet
 def fp32_pack_spec(s, e, m, ctx):
-    ctx.assume(s.eq(ctx.real_val(1)).or_(s.eq(ctx.real_val(0))))
+    ctx.assume(s.eq(ctx.real_val(1)) | s.eq(ctx.real_val(0)))
     mantissa = ctx.real_val(1) + m * ctx.real_val(2) ** (-ctx.real_val(Float32.mantissa_bits))
     exponent = e - ctx.real_val(Float32.exponent_bias)
-    value = ctx.real_val(-1) ** s * mantissa * ctx.real_val(2) ** exponent
+    value = sign_multiplier(ctx, s) * mantissa * ctx.real_val(2) ** exponent
     return (value, ctx.real_val(1), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0))
 
 @Primitive(name="fp32_pack", spec=fp32_pack_spec)
 def fp32_pack(sign: Node, exponent: Node, mantissa: Node) -> Node:
     return _fp32_alloc(sign, exponent, mantissa)
 
-def fp32_decode_spec(x, ctx):
-    value, x_norm, x_sub, x_zero, x_inf, x_nan = x
-    sign = ctx.fresh_real("sign")
-    mantissa = ctx.fresh_real("mantissa")
-    exponent = ctx.fresh_real("exponent")
-    
-    two = ctx.real_val(2)
-    one = ctx.real_val(1)
-    minus_one = ctx.real_val(-1)
-    m_bits = ctx.real_val(Float32.mantissa_bits)
-    e_bits = ctx.real_val(Float32.exponent_bias)
-    
-    mantissa_ = one + mantissa * two ** (-m_bits)
-    exponent_ = exponent - e_bits
-    sign_ = minus_one ** sign
-    
-    ctx.assume(value.eq(sign_ * (mantissa_ * (two ** exponent_))))
-    ctx.assume(sign.eq(ctx.real_val(1)).or_(sign.eq(ctx.real_val(0))))
-    ctx.assume(sign_.eq(ctx.real_val(1)).or_(sign_.eq(ctx.real_val(-1))))
-    ctx.assume((exponent >= ctx.real_val(0)).and_(exponent < ctx.real_val(1 << Float32.exponent_bits)))
-    ctx.assume((mantissa >= ctx.real_val(0)).and_(mantissa < ctx.real_val(1 << Float32.mantissa_bits)))
-    
-    return (
-        sign,
-        exponent,
-        mantissa,
-        x_norm,
-        x_sub,
-        x_zero,
-        x_inf,
-        x_nan,
-    )
 
+def decoder_spec(x, ctx):
+    sign, exponent, mantissa, is_normal, is_subnormal, is_zero, is_inf, is_nan = x.as_fields_tuple()[1:]
+    def bool_to_real(flag):
+        return If(flag, ctx.real_val(1), ctx.real_val(0))
+    return sign, exponent, mantissa, bool_to_real(is_normal), bool_to_real(is_subnormal), bool_to_real(is_zero), bool_to_real(is_inf), bool_to_real(is_nan)
 
-@Primitive(name="fp32_decode", spec=fp32_decode_spec)
+@Primitive(name="fp32_decode", spec=decoder_spec)
 def fp32_decode(x: Node) -> Node:
     sign = _fp32_sign(x)
     exponent = _fp32_exponent(x)
@@ -130,7 +103,7 @@ def fp32_decode(x: Node) -> Node:
     exponent_is_not_all_ones = basic_invert(exponent_is_all_ones, out=Const(UQ(0, 1, 0)))
     exponent_is_nonzero = basic_or_reduce(exponent, out=Const(UQ(0, 1, 0)))
     exponent_is_zero = basic_invert(exponent_is_nonzero, out=Const(UQ(0, 1, 0)))
-
+    
     is_normal = basic_and(exponent_is_nonzero, exponent_is_not_all_ones, Const(UQ(0, 1, 0)),)
     is_subnormal = basic_and(exponent_is_zero, mantissa_is_nonzero, Const(UQ(0, 1, 0)))
     is_zero = basic_and(exponent_is_zero, mantissa_is_zero, Const(UQ(0, 1, 0)))

@@ -94,37 +94,37 @@ def rewrite_rules():
         # Equality
         ("eq_1", (a.eq(a)).eq(true)),
         ("eq_2", (bool_var.eq(bool_var)).eq(true)),
-
+        
         # Boolean simplification
         # Constants
         ("bool_not_1", (~true).eq(false)),
         ("bool_not_2", (~false).eq(true)),
-        ("bool_and_1", (bool_var.and_(true)).eq(bool_var)),
-        ("bool_and_2", (true.and_(bool_var)).eq(bool_var)),
-        ("bool_and_3", (bool_var.and_(false)).eq(false)),
-        ("bool_and_4", (false.and_(bool_var)).eq(false)),
+        ("bool_and_1", (bool_var & true).eq(bool_var)),
+        ("bool_and_2", (true & bool_var).eq(bool_var)),
+        ("bool_and_3", (bool_var & false).eq(false)),
+        ("bool_and_4", (false & bool_var).eq(false)),
         
         ("bool_not_3", (~~bool_var).eq(bool_var)),
-        ("bool_and_5", (bool_var.and_(bool_var)).eq(bool_var)),
-        ("bool_and_6", (bool_var.and_(~bool_var)).eq(false)),
-        ("bool_and_7", ((~bool_var).and_(bool_var)).eq(false)),
+        ("bool_and_5", (bool_var & bool_var).eq(bool_var)),
+        ("bool_and_6", (bool_var & ~bool_var).eq(false)),
+        ("bool_and_7", ((~bool_var) & bool_var).eq(false)),
         
-        ("bool_and_8", (bool_var.and_(bool_var_q)).eq(bool_var_q.and_(bool_var))),
-        ("bool_and_9", (bool_var.and_(bool_var_q.and_(bool_var_r))).eq((bool_var.and_(bool_var_q)).and_(bool_var_r))),
-        ("bool_and_10", ((bool_var.and_(bool_var_q)).and_(bool_var_r)).eq(bool_var.and_(bool_var_q.and_(bool_var_r)))),
+        ("bool_and_8", (bool_var & bool_var_q).eq(bool_var_q & bool_var)),
+        ("bool_and_9", (bool_var & (bool_var_q & bool_var_r)).eq((bool_var & bool_var_q) & bool_var_r)),
+        ("bool_and_10", ((bool_var & bool_var_q) & bool_var_r).eq(bool_var & (bool_var_q & bool_var_r))),
         
-        ("bool_or_1", (bool_var.or_(false)).eq(bool_var)),
-        ("bool_or_2", (false.or_(bool_var)).eq(bool_var)),
-        ("bool_or_3", (bool_var.or_(true)).eq(true)),
-        ("bool_or_4", (true.or_(bool_var)).eq(true)),
+        ("bool_or_1", (bool_var | false).eq(bool_var)),
+        ("bool_or_2", (false | bool_var).eq(bool_var)),
+        ("bool_or_3", (bool_var | true).eq(true)),
+        ("bool_or_4", (true | bool_var).eq(true)),
         
-        ("bool_or_5", (bool_var.or_(bool_var)).eq(bool_var)),
-        ("bool_or_6", (bool_var.or_(~bool_var)).eq(true)),
-        ("bool_or_7", ((~bool_var).or_(bool_var)).eq(true)),
+        ("bool_or_5", (bool_var | bool_var).eq(bool_var)),
+        ("bool_or_6", (bool_var | ~bool_var).eq(true)),
+        ("bool_or_7", ((~bool_var) | bool_var).eq(true)),
         
-        ("bool_or_8", (bool_var.or_(bool_var_q)).eq(bool_var_q.or_(bool_var))),
-        ("bool_or_9", (bool_var.or_(bool_var_q.or_(bool_var_r))).eq((bool_var.or_(bool_var_q)).or_(bool_var_r))),
-        ("bool_or_10", ((bool_var.or_(bool_var_q)).or_(bool_var_r)).eq(bool_var.or_(bool_var_q.or_(bool_var_r)))),
+        ("bool_or_8", (bool_var | bool_var_q).eq(bool_var_q | bool_var)),
+        ("bool_or_9", (bool_var | (bool_var_q | bool_var_r)).eq((bool_var | bool_var_q) | bool_var_r)),
+        ("bool_or_10", ((bool_var | bool_var_q) | bool_var_r).eq(bool_var | (bool_var_q | bool_var_r))),
         
         ("bool_eq_1", (bool_var.eq(true)).eq(bool_var)),
         ("bool_eq_2", (true.eq(bool_var)).eq(bool_var)),
@@ -132,27 +132,33 @@ def rewrite_rules():
         ("bool_eq_4", (false.eq(bool_var)).eq(~bool_var)),
         ("bool_eq_5", ((~bool_var).eq(true)).eq(~bool_var)),
         ("bool_eq_6", ((~bool_var).eq(false)).eq(bool_var)),
-        ("bool_eq_15", (~(bool_var.eq(bool_var_q))).eq((bool_var.and_(~bool_var_q)).or_((~bool_var).and_(bool_var_q)))),
+        ("bool_eq_15", (~(bool_var.eq(bool_var_q))).eq((bool_var & ~bool_var_q) | ((~bool_var) & bool_var_q))),
         
-        ("bool_demorgan_1", (~(bool_var.and_(bool_var_q))).eq((~bool_var).or_(~bool_var_q))),
-        ("bool_demorgan_2", ((~bool_var).or_(~bool_var_q)).eq(~(bool_var.and_(bool_var_q)))),
-        ("bool_demorgan_3", (~(bool_var.or_(bool_var_q))).eq((~bool_var).and_(~bool_var_q))),
-        ("bool_demorgan_4", ((~bool_var).and_(~bool_var_q)).eq(~(bool_var.or_(bool_var_q)))),
+        ("bool_demorgan_1", (~(bool_var & bool_var_q)).eq((~bool_var) | (~bool_var_q))),
+        ("bool_demorgan_2", ((~bool_var) | (~bool_var_q)).eq(~(bool_var & bool_var_q))),
+        ("bool_demorgan_3", (~(bool_var | bool_var_q)).eq((~bool_var) & (~bool_var_q))),
+        ("bool_demorgan_4", ((~bool_var) & (~bool_var_q)).eq(~(bool_var | bool_var_q))),
         
-        ("bool_absorb_1", (bool_var.or_(bool_var.and_(bool_var_q))).eq(bool_var)),
-        ("bool_absorb_2", (bool_var.and_(bool_var.or_(bool_var_q))).eq(bool_var)),
+        ("bool_absorb_1", (bool_var | (bool_var & bool_var_q)).eq(bool_var)),
+        ("bool_absorb_2", (bool_var & (bool_var | bool_var_q)).eq(bool_var)),
         
-        ("bool_imp_1", ((~bool_var).or_(bool_var_q)).eq((bool_var.and_(~bool_var_q)).eq(false))),
-        ("bool_imp_2", ((bool_var.and_(~bool_var_q)).eq(false)).eq((~bool_var).or_(bool_var_q))),
-        ("bool_imp_3", (bool_var.and_((~bool_var).or_(bool_var_q))).eq(bool_var.and_(bool_var_q))),
-        ("bool_imp_4", (((~bool_var).or_(bool_var_q)).and_(bool_var)).eq(bool_var.and_(bool_var_q))),
-        ("bool_case_1", ((bool_var.or_(bool_var_q)).and_(~bool_var)).eq(bool_var_q.and_(~bool_var))),
-        ("bool_case_2", ((bool_var.or_(bool_var_q)).and_(~bool_var_q)).eq(bool_var.and_(~bool_var_q))),
+        ("bool_imp_1", ((~bool_var) | bool_var_q).eq((bool_var & ~bool_var_q).eq(false))),
+        ("bool_imp_2", ((bool_var & ~bool_var_q).eq(false)).eq((~bool_var) | bool_var_q)),
+        ("bool_imp_3", (bool_var & ((~bool_var) | bool_var_q)).eq(bool_var & bool_var_q)),
+        ("bool_imp_4", (((~bool_var) | bool_var_q) & bool_var).eq(bool_var & bool_var_q)),
+        ("bool_case_1", ((bool_var | bool_var_q) & ~bool_var).eq(bool_var_q & ~bool_var)),
+        ("bool_case_2", ((bool_var | bool_var_q) & ~bool_var_q).eq(bool_var & ~bool_var_q)),
         
         # If statements
         ("if_1", If(true, a, b).eq(a)),
         ("if_2", If(false, a, b).eq(b)),
         ("if_3", If(bool_var, a, a).eq(a)),
+        ("if_4", (one - If(bool_var, one, zero)).eq(If(~bool_var, one, zero))),
+        ("if_5", (one - If(bool_var, one, zero)).eq(If(bool_var, zero, one))),
+        ("if_6", (If(bool_var, a, b).eq(a)).eq(bool_var | b.eq(a))),
+        ("if_7", (If(bool_var, a, b).eq(b)).eq((~bool_var) | a.eq(b))),
+        ("if_8", (If(bool_var, a, b).ne(a)).eq((~bool_var) & b.ne(a))),
+        ("if_9", (If(bool_var, a, b).ne(b)).eq(bool_var & a.ne(b))),
     ]
 
 
@@ -174,7 +180,7 @@ def constant_rules():
         rewrite(Math.Mul(Math.Num(m), Math.Num(n))).to(Math.Num(m * n)),
         rewrite(Math.Pow(Math.Num(m), Math.Num(BigRat(2, 1)))).to(Math.Num(m * m)),
         rewrite(Math.Pow(Math.Num(BigRat(-1, 1)), Math.Num(m))).to(Math.Num(BigRat(-1, 1) ** m), eq(m.denom).to(1)),
-        # TODO: possible lose of accuracy due to this rule
+        # TODO: possible lose of accuracy due to this rule: 2^-1024 will be extracted as zero
         rewrite(Math.Pow(Math.Num(BigRat(2, 1)), Math.Num(m))).to(Math.Num(BigRat(2, 1) ** m), eq(m.denom).to(1)),  # power works only with integers in egglog
     ]
 
@@ -295,10 +301,8 @@ def check_rules(rules, z3_timeout_ms: int = 10000):
         report_z3 = z3_check_eq(ctx, timeout_ms=z3_timeout_ms)
         report_dreal = dreal_check_eq(ctx, precision=0.001)
         results[name] = {
-            "z3_equal": report_z3["equivalent"],
-            "z3_status": report_z3['status'],
-            "dreal_equal": report_dreal["equivalent"],
-            "dreal_status": report_dreal['status'],
+            "z3_status": report_z3["status"],
+            "dreal_status": report_dreal["status"],
         }
     return results
 

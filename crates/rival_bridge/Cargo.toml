@@ -1,0 +1,13 @@
+[package]
+name = "fused-dot-product-rival-bridge"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "_rival3"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.20", features = ["extension-module"] }
+rival = { git = "https://github.com/herbie-fp/rival3.git", rev = "d771d8d7c99f4f3ec27f261bd71b7a27aa11aadc", package = "rival3" }
+rug = "1.28"

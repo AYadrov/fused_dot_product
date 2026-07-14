@@ -1,11 +1,24 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any
+from typing import Any, Final, Literal, cast
+
+
+ProofStatus = Literal["sat", "unsat", "unknown"]
+VALID_PROOF_STATUSES: Final = frozenset({"sat", "unsat", "unknown"})
 
 
 class ProofReport(dict[str, Any]):
     pass
+
+
+def validate_proof_status(status: object) -> ProofStatus:
+    if not isinstance(status, str) or status not in VALID_PROOF_STATUSES:
+        raise ValueError(
+            f"Proof report status must be one of {sorted(VALID_PROOF_STATUSES)}, "
+            f"got {status!r}"
+        )
+    return cast(ProofStatus, status)
 
 
 def _count_unchanged_items(before: list[str], after: list[str]) -> int:
@@ -25,10 +38,11 @@ def build_proof_report(
     new_ctx: "SpecContext",
     tool: str,
     runtime_s: float,
-    equivalent: bool,
+    status: str,
     **extra: Any,
 ) -> ProofReport:
     assert old_ctx.name == new_ctx.name, "Trying to build proof report between two different designs"
+    status = validate_proof_status(status)
     name = old_ctx.name
 
     assumes_before = len(old_ctx.assumes)
@@ -58,7 +72,7 @@ def build_proof_report(
         name=old_ctx.name if name is None else name,
         old_ctx=old_ctx,
         new_ctx=new_ctx,
-        equivalent=(checks_after == 0) if equivalent is None else equivalent,
+        status=status,
         runtime_s=float(runtime_s),
         assumes_before=assumes_before,
         assumes_after=assumes_after,

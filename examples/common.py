@@ -48,8 +48,8 @@ def and_spec(x, y, ctx):
     res = ctx.fresh_real('and_res')
     ctx.assume(res.eq(x * y))
     ctx.assume(res.eq(x.min(y)))
-    ctx.assume(res.eq(If(x.eq(ctx.real_val(1)).and_(y.eq(ctx.real_val(1))), ctx.real_val(1), ctx.real_val(0))))
-    ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
+    ctx.assume(res.eq(If(x.eq(ctx.real_val(1)) & y.eq(ctx.real_val(1)), ctx.real_val(1), ctx.real_val(0))))
+    ctx.assume(res.eq(ctx.real_val(0)) | res.eq(ctx.real_val(1)))
     return res
 
 @Primitive(name="bit_and", spec=and_spec, c_inline=True)
@@ -60,12 +60,10 @@ def bit_and(x: Node, y: Node) -> Node:
 
 def xor_spec(x, y, ctx):
     res = ctx.fresh_real('xor_res')
-    minus_one = ctx.real_val(-1)
-    ctx.assume((minus_one ** res).eq((minus_one ** x) * (minus_one ** y)))
     ctx.assume(res.eq(If(x.ne(y), ctx.real_val(1), ctx.real_val(0))))
     ctx.assume(res.eq(x.max(y) - x * y))
     ctx.assume(res.eq(x + y - ctx.real_val(2) * x * y))
-    ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
+    ctx.assume(res.eq(ctx.real_val(0)) | res.eq(ctx.real_val(1)))
     return res
 
 @Primitive(name="bit_xor", spec=xor_spec, c_inline=True)
@@ -78,8 +76,8 @@ def or_spec(x, y, ctx):
     res = ctx.fresh_real('or_res')
     ctx.assume(res.eq(x + y - x * y))
     ctx.assume(res.eq(x.max(y)))
-    ctx.assume(res.eq(If(x.eq(ctx.real_val(1)).or_(y.eq(ctx.real_val(1))), ctx.real_val(1), ctx.real_val(0))))
-    ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
+    ctx.assume(res.eq(If(x.eq(ctx.real_val(1)) | y.eq(ctx.real_val(1)), ctx.real_val(1), ctx.real_val(0))))
+    ctx.assume(res.eq(ctx.real_val(0)) | res.eq(ctx.real_val(1)))
     return res
 
 @Primitive(name="bit_or", spec=or_spec, c_inline=True)
@@ -92,7 +90,7 @@ def neg_spec(x, ctx):
     res = ctx.fresh_real('neg_res')
     ctx.assume(res.eq(ctx.real_val(1) - x))
     ctx.assume(res.eq(If(x.eq(ctx.real_val(1)), ctx.real_val(0), ctx.real_val(1))))
-    ctx.assume(res.eq(ctx.real_val(0)).or_(res.eq(ctx.real_val(1))))
+    ctx.assume(res.eq(ctx.real_val(0)) | res.eq(ctx.real_val(1)))
     return res
 
 @Primitive(name="bit_neg", spec=neg_spec, c_inline=True)
