@@ -280,12 +280,21 @@ def fp32_encode_spec(s, e, m, encode_nan, encode_inf, ctx):
     
     forced_nan = encode_nan.eq(one)
     forced_inf = (~forced_nan) & encode_inf.eq(one)
-    
-    return  ctx.encode_fp32(
-        value=finite_value,
-        inf=forced_inf,
-        nan=forced_nan,
+    value = If(
+        forced_nan,
+        ctx.nan(),
+        If(
+            forced_inf,
+            If(
+                s.eq(one),
+                ctx.ninf(),
+                ctx.inf(),
+            ),
+            finite_value,
+        ),
     )
+
+    return ctx.encode_fp32(value=value)
 
 # Assume that e is biased
 @Composite(name="fp32_encode", spec=fp32_encode_spec)

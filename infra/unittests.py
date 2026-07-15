@@ -414,6 +414,33 @@ class TestFusedDotProduct(unittest.TestCase):
             tempdir_jit.cleanup()
             tempdir_no_jit.cleanup()
 
+    def test_fp32_adder_infinity_handling(self):
+        x = Var(name="x", sign=Float32T())
+        y = Var(name="y", sign=Float32T())
+        design = FP32_IEEE_adder(x, y)
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
+
+        cases = [
+            (Float32.nInf().val, Float32.from_fields(0, 127, 0).val, Float32.nInf().val),
+            (Float32.from_fields(1, 127, 0).val, Float32.nInf().val, Float32.nInf().val),
+            (Float32.nInf().val, Float32.nInf().val, Float32.nInf().val),
+            (Float32.Inf().val, Float32.Inf().val, Float32.Inf().val),
+            (Float32.nInf().val, Float32.Inf().val, Float32.NaN().val),
+        ]
+
+        try:
+            for lhs_bits, rhs_bits, expected_bits in cases:
+                x.load_val(Float32(lhs_bits))
+                y.load_val(Float32(rhs_bits))
+                with self.subTest(lhs=hex(lhs_bits), rhs=hex(rhs_bits)):
+                    self.assertEqual(design.evaluate().val, expected_bits)
+                    self.assertEqual(fn_jit(lhs_bits, rhs_bits), expected_bits)
+                    self.assertEqual(fn_no_jit(lhs_bits, rhs_bits), expected_bits)
+        finally:
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
+
     def test_cpp_lowering_via_jit_conventional(self):
         a = [
             Var(name="a_0", sign=BFloat16T()),

@@ -233,6 +233,9 @@ class SpecContext:
                 break
             simplified.assumes = new_assumes
             simplified.checks = new_checks
+
+        
+        simplified = _fold_ctx_special_equalities(simplified)
         
         simplified.assumes = [
             assume
@@ -289,6 +292,9 @@ class SpecContext:
     
     def inf(self) -> SpecInf:
         return SpecInf()
+
+    def ninf(self) -> SpecNegInf:
+        return SpecNegInf()
     
     def true(self) -> BoolLit:
         return BoolLit(value=True)
@@ -357,12 +363,60 @@ def _reject_special_exprs(ctx: SpecContext) -> None:
         visit(expr)
 
 
+def _contains_identical_node(expr: SpecNode, target: SpecNode) -> bool:
+    if identical_nodes(expr, target):
+        return True
+    return any(_contains_identical_node(child, target) for child in children(expr))
+
+
+def _fold_impossible_special_equalities(node: SpecNode) -> SpecNode:
+    node_children = children(node)
+    folded_children = tuple(
+        _fold_impossible_special_equalities(child) for child in node_children
+    )
+    rebuilt = (
+        node
+        if all(old is new for old, new in zip(node_children, folded_children))
+        else type(node)(*folded_children)
+    )
+
+    if isinstance(rebuilt, Eq):
+        if (
+            isinstance(rebuilt.lhs, SpecialExpr)
+            and not _contains_identical_node(rebuilt.rhs, rebuilt.lhs)
+        ) or (
+            isinstance(rebuilt.rhs, SpecialExpr)
+            and not _contains_identical_node(rebuilt.lhs, rebuilt.rhs)
+        ):
+            return BoolLit(False)
+
+    return rebuilt if rebuilt is node else rebuilt.constant_fold()
+
+
+# Fold special equality to false only when the opposite expression is proven unable to represent that special value.
+# TODO: RealVar can represent special value?
+def _fold_ctx_special_equalities(ctx: SpecContext) -> SpecContext:
+    def fold_exprs(exprs: list[BoolExpr]) -> list[BoolExpr]:
+        folded_exprs = []
+        for expr in exprs:
+            folded = _fold_impossible_special_equalities(expr)
+            if not isinstance(folded, BoolExpr):
+                raise TypeError(
+                    f"Expected folded BoolExpr, got {type(folded).__name__}"
+                )
+            folded_exprs.append(folded)
+        return folded_exprs
+
+    return ctx.copy(assumes=fold_exprs(ctx.assumes), checks=fold_exprs(ctx.checks))
+
+
 def simplify_ctx(ctx: SpecContext):
     run_started_at = perf_counter()
     
     try:
         simplified_ctx = ctx.simplify()
-        _reject_special_exprs(simplified_ctx)
+        print(simplified_ctx)
+        # _reject_special_exprs(simplified_ctx)
     except PoorSpec as exc:
         return build_proof_report(
             ctx,
@@ -379,18 +433,18 @@ def simplify_ctx(ctx: SpecContext):
     if any([identical_nodes(x, BoolLit(False)) for x in simplified_ctx.assumes]):
         feasibility_status = "not feasible"
     else:
-        simplified_ctx = rival_trim_context(simplified_ctx)
         feasibility_status = rival_feasibility_check(simplified_ctx, max_depth=0, checks=False)
     ##############################################
     
     ############## Satisfiability ################
     satisfiability_status = None
-    if feasibility_status == "not feasible":
+    if feasibility_status == "not feasibe":
         satisfiability_status = "sat"
     else:
         if any([identical_nodes(x, BoolLit(False)) for x in simplified_ctx.checks]):
              satisfiability_status = "sat"
         else:
+            simplified_ctx = rival_trim_context(simplified_ctx)
             if rival_feasibility_check(simplified_ctx, max_depth=0, checks=True) == "not feasible":
                 satisfiability_status = "sat"
             else:

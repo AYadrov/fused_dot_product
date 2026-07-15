@@ -15,16 +15,26 @@ from .encode_Float32 import *
 def spec_FP32_IEEE_adder(x: "FP32", y: "FP32", ctx):
     # Special-value classification.
     invalid = x.is_inf & y.is_inf & x.sign.ne(y.sign)
-    nan = x.is_nan | y.is_nan | invalid
-    inf = (~nan) & (x.is_inf | y.is_inf)
+    result_is_nan = x.is_nan | y.is_nan | invalid
+    result_is_inf = x.is_inf | y.is_inf
+    infinity_sign = If(x.is_inf, x.sign, y.sign)
 
-    # Real-value result for all non-special cases.
-    x_real = x.value
-    y_real = y.value
-    result_real = x_real + y_real
+    result = If(
+        result_is_nan,
+        ctx.nan(),
+        If(
+            result_is_inf,
+            If(
+                infinity_sign.eq(ctx.real_val(1)),
+                ctx.ninf(),
+                ctx.inf(),
+            ),
+            x.value + y.value,
+        ),
+    )
 
     # encode_fp32 lives in fused_dot_product/spec/spec_values.py.
-    return ctx.encode_fp32(value=result_real, inf=inf, nan=nan)
+    return ctx.encode_fp32(value=result)
 
 
 # Implementation of a single-precision IEEE adder.

@@ -47,7 +47,7 @@ def _prepend_ones(x: Node) -> Node:
 
 def optimized_spec(a0, a1, a2, a3,
                    b0, b1, b2, b3, ctx):
-    return ctx.encode_fp32(value=a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3, inf=ctx.false(), nan=ctx.false())
+    return ctx.encode_fp32(value=a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3)
 
 @Composite(name="Optimized", spec=optimized_spec)
 def Optimized(a0: Node, a1: Node, a2: Node, a3: Node,

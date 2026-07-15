@@ -356,7 +356,7 @@ class Float32(RuntimeType):
     def to_spec(self, ctx):
         if self.exponent == self.inf_code and self.mantissa == 0:
             return (
-                ctx.inf(),
+                ctx.ninf() if self.sign == 1 else ctx.inf(),
                 ctx.real_val(0),
                 ctx.real_val(0),
                 ctx.real_val(0),

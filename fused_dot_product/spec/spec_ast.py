@@ -96,7 +96,8 @@ class RealExpr(SpecNode):
         return Neg(self)
     
     def __pos__(self) -> "RealExpr":
-        return self  # maybe a copy needed
+        _reject_special_operation("unary plus", self)
+        return self
     
     def __abs__(self) -> "RealExpr":
         return Abs(self)
@@ -130,6 +131,24 @@ class SpecialExpr(RealExpr):
     pass
 
 
+def contains_special(expr: SpecNode) -> bool:
+    if isinstance(expr, SpecialExpr):
+        return True
+    return False
+    # return any(
+    #     contains_special(value)
+    #     for field in fields(expr)
+    #     if isinstance(value := getattr(expr, field.name), SpecNode)
+    # )
+
+
+def _reject_special_operation(operation: str, *operands: SpecNode) -> None:
+    if any(contains_special(operand) for operand in operands):
+        raise TypeError(
+            f"{operation} cannot be applied to an expression containing SpecialExpr; use a finite expression"
+        )
+
+
 class BoolExpr(SpecNode):
     @staticmethod
     def _coerce_bool_expr(value):
@@ -158,7 +177,8 @@ class BoolExpr(SpecNode):
     
     def eq(self, other: "BoolExpr") -> "BoolExpr":
         return BoolEq(self, other)
-    
+
+    # this should be BoolNe
     def ne(self, other: "BoolExpr") -> "BoolExpr":
         return BoolEq(~self, other)
     
@@ -288,6 +308,21 @@ class SpecInf(SpecialExpr):
 
 
 @dataclass(frozen=True)
+class SpecNegInf(SpecialExpr):
+    def to_egglog(self):
+        raise NotImplementedError("SpecNegInf does not lower to egglog")
+
+    def to_z3(self, env):
+        raise NotImplementedError("SpecNegInf does not lower to z3")
+
+    def to_dreal(self, env):
+        raise NotImplementedError("SpecNegInf does not lower to dreal")
+
+    def __str__(self):
+        return "-inf"
+
+
+@dataclass(frozen=True)
 class Add(RealExpr):
     lhs: RealExpr
     rhs: RealExpr
@@ -295,6 +330,7 @@ class Add(RealExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
+        _reject_special_operation("addition", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Add(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -320,6 +356,7 @@ class Sub(RealExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
+        _reject_special_operation("subtraction", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Add(self.lhs.to_egglog(), Math.Neg(self.rhs.to_egglog()))
@@ -345,6 +382,7 @@ class Mul(RealExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
+        _reject_special_operation("multiplication", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Mul(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -368,6 +406,7 @@ class Neg(RealExpr):
 
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.value)
+        _reject_special_operation("negation", self.value)
     
     def to_egglog(self):
         return Math.Neg(self.value.to_egglog())
@@ -391,6 +430,7 @@ class Abs(RealExpr):
 
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.value)
+        _reject_special_operation("absolute value", self.value)
     
     def to_egglog(self):
         return Math.Abs(self.value.to_egglog())
@@ -416,6 +456,7 @@ class Pow(RealExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.base)
         RealExpr._coerce_real_expr(self.exponent)
+        _reject_special_operation("exponentiation", self.base, self.exponent)
 
     def to_egglog(self):
         return Math.Pow(self.base.to_egglog(), self.exponent.to_egglog())
@@ -441,6 +482,7 @@ class Max(RealExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
+        _reject_special_operation("maximum", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Max(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -468,6 +510,7 @@ class Min(RealExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
+        _reject_special_operation("minimum", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Min(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -534,8 +577,7 @@ class Eq(BoolExpr):
     def __new__(cls, lhs: RealExpr, rhs: RealExpr):
         RealExpr._coerce_real_expr(lhs)
         RealExpr._coerce_real_expr(rhs)
-        if isinstance(lhs, SpecialExpr) or isinstance(rhs, SpecialExpr):
-            return BoolLit(identical_nodes(lhs, rhs))
+        # _reject_special_operation("equality comparison", lhs, rhs)
         return super().__new__(cls)
 
     def __post_init__(self):
@@ -566,8 +608,7 @@ class NotEq(BoolExpr):
     def __new__(cls, lhs: RealExpr, rhs: RealExpr):
         RealExpr._coerce_real_expr(lhs)
         RealExpr._coerce_real_expr(rhs)
-        if isinstance(lhs, SpecialExpr) or isinstance(rhs, SpecialExpr):
-            return BoolLit(not identical_nodes(lhs, rhs))
+        # _reject_special_operation("inequality comparison", lhs, rhs)
         return super().__new__(cls)
 
     def __post_init__(self):
@@ -598,6 +639,7 @@ class Lt(BoolExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
+        _reject_special_operation("less-than comparison", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Lt(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -623,6 +665,7 @@ class Le(BoolExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
+        _reject_special_operation("less-than-or-equal comparison", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Le(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -648,6 +691,7 @@ class Gt(BoolExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
+        _reject_special_operation("greater-than comparison", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Gt(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -673,6 +717,7 @@ class Ge(BoolExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
+        _reject_special_operation("greater-than-or-equal comparison", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Ge(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -723,6 +768,7 @@ class Not(BoolExpr):
 
     def __post_init__(self):
         BoolExpr._coerce_bool_expr(self.value)
+        _reject_special_operation("boolean not", self.value)
     
     def to_egglog(self):
         return MathBool.Not(self.value.to_egglog())
@@ -748,7 +794,8 @@ class Or(BoolExpr):
     def __post_init__(self):
         BoolExpr._coerce_bool_expr(self.lhs)
         BoolExpr._coerce_bool_expr(self.rhs)
-    
+        _reject_special_operation("boolean not", self.lhs, self.rhs)
+        
     def to_egglog(self):
         return MathBool.Or(self.lhs.to_egglog(), self.rhs.to_egglog())
     
@@ -773,6 +820,7 @@ class And(BoolExpr):
     def __post_init__(self):
         BoolExpr._coerce_bool_expr(self.lhs)
         BoolExpr._coerce_bool_expr(self.rhs)
+        _reject_special_operation("boolean not", self.lhs, self.rhs)
     
     def to_egglog(self):
         return MathBool.And(self.lhs.to_egglog(), self.rhs.to_egglog())

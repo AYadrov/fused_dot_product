@@ -26,7 +26,10 @@ from fused_dot_product.rival import (
     rival_trim_context,
     to_rival_ir,
 )
-from fused_dot_product.spec.spec_context import simplify_ctx
+from fused_dot_product.spec.spec_context import (
+    _fold_impossible_special_equalities,
+    simplify_ctx,
+)
 from fused_dot_product.spec.spec_utils import from_egglog
 from examples.FP32_IEEE_adder import FP32_IEEE_adder
 from examples.FP32_IEEE_mult import FP32_IEEE_mult
@@ -800,6 +803,39 @@ class TestSpecContextLearning(unittest.TestCase):
 
         self.assertEqual(ctx.assumes, [Eq(x, RealLit(0)), Eq(x, RealLit(1))])
 
+    def test_simplify_ctx_folds_disjoint_special_equality_in_assumption(self):
+        ctx = SpecContext("disjoint-special-assumption")
+        select = ctx.bool("select")
+
+        ctx.assume(ctx.inf().eq(If(select, ctx.nan(), ctx.real_val(1))))
+
+        report = simplify_ctx(ctx)
+
+        self.assertEqual(report["feasibility_status"], "not feasible")
+        self.assertEqual(report["new_ctx"].assumes, [BoolLit(False)])
+
+    def test_simplify_ctx_folds_nested_reversed_special_equality_in_check(self):
+        ctx = SpecContext("disjoint-special-check")
+        select = ctx.bool("select")
+        condition = ctx.bool("condition")
+
+        ctx.check(
+            condition
+            & If(select, ctx.inf(), ctx.real_val(1)).eq(ctx.nan())
+        )
+
+        report = simplify_ctx(ctx)
+
+        self.assertEqual(report["status"], "sat")
+        self.assertEqual(report["new_ctx"].checks, [BoolLit(False)])
+
+    def test_special_equality_is_preserved_when_other_side_contains_target(self):
+        ctx = SpecContext("matching-special")
+        select = ctx.bool("select")
+        equality = ctx.inf().eq(If(select, ctx.inf(), ctx.real_val(1)))
+
+        self.assertIs(_fold_impossible_special_equalities(equality), equality)
+
 
 class TestEgglogFloatLiterals(unittest.TestCase):
     def test_real_lit_round_trips_exact_finite_float_values(self):
@@ -894,26 +930,67 @@ class TestSpecAstConstantFolding(unittest.TestCase):
 
         self.assertEqual(expr.constant_fold(), expr)
 
-    def test_spec_context_nan_and_inf_are_opaque_spec_nodes(self):
+    def test_spec_context_special_values_are_opaque_spec_nodes(self):
         ctx = SpecContext("special-nodes")
 
-        nan_node = ctx.nan()
-        inf_node = ctx.inf()
+        special_nodes = (
+            (ctx.nan(), "nan"),
+            (ctx.inf(), "inf"),
+            (ctx.ninf(), "-inf"),
+        )
 
-        self.assertIsInstance(nan_node, SpecNode)
-        self.assertIsInstance(inf_node, SpecNode)
-        self.assertIsInstance(nan_node, SpecialExpr)
-        self.assertIsInstance(inf_node, SpecialExpr)
-        self.assertIsInstance(nan_node, RealExpr)
-        self.assertIsInstance(inf_node, RealExpr)
-        self.assertNotIsInstance(nan_node, BoolExpr)
-        self.assertNotIsInstance(inf_node, BoolExpr)
-        self.assertEqual(children(nan_node), ())
-        self.assertEqual(children(inf_node), ())
-        self.assertEqual(nan_node.constant_fold(), nan_node)
-        self.assertEqual(inf_node.constant_fold(), inf_node)
-        self.assertEqual(str(nan_node), "nan")
-        self.assertEqual(str(inf_node), "inf")
+        for node, expected_text in special_nodes:
+            with self.subTest(node=expected_text):
+                self.assertIsInstance(node, SpecNode)
+                self.assertIsInstance(node, SpecialExpr)
+                self.assertIsInstance(node, RealExpr)
+                self.assertNotIsInstance(node, BoolExpr)
+                self.assertEqual(children(node), ())
+                self.assertEqual(node.constant_fold(), node)
+                self.assertEqual(str(node), expected_text)
+
+    def test_encode_fp32_lowers_signed_special_values(self):
+        cases = (
+            ("nan", lambda ctx: ctx.nan(), "is_nan"),
+            ("inf", lambda ctx: ctx.inf(), "is_pinf"),
+            ("ninf", lambda ctx: ctx.ninf(), "is_ninf"),
+        )
+
+        for name, make_value, expected_predicate in cases:
+            with self.subTest(value=name):
+                ctx = SpecContext(f"encode-{name}")
+                encoded = ctx.encode_fp32(value=make_value(ctx))
+                ctx.check(getattr(encoded, expected_predicate))
+
+                report = simplify_ctx(ctx)
+                if report["status"] == "unknown":
+                    report = z3_check_eq(report["new_ctx"], timeout_ms=1000)
+
+                self.assertEqual(report["status"], "unsat", report)
+
+    def test_special_values_are_only_allowed_in_if_branches(self):
+        ctx = SpecContext("special-arithmetic")
+        conditional = If(ctx.bool("select_inf"), ctx.inf(), ctx.real_val(1))
+
+        self.assertIsInstance(conditional, If)
+        with self.assertRaisesRegex(TypeError, "select a finite expression first"):
+            conditional + ctx.real_val(1)
+        with self.assertRaisesRegex(TypeError, "select a finite expression first"):
+            ctx.ninf() * ctx.real_val(2)
+        with self.assertRaisesRegex(TypeError, "select a finite expression first"):
+            +conditional
+        with self.assertRaisesRegex(TypeError, "select a finite expression first"):
+            conditional < ctx.real_val(2)
+
+    def test_float32_spec_exposes_separate_semantic_and_finite_values(self):
+        ctx = SpecContext("float32-semantic-value")
+        value = ctx.fresh_float("x")
+
+        self.assertTrue(contains_special(value.value))
+        self.assertFalse(contains_special(value.finite_value))
+        self.assertIsInstance(value.finite_value + ctx.real_val(1), Add)
+        with self.assertRaisesRegex(TypeError, "select a finite expression first"):
+            value.value + ctx.real_val(1)
 
 
 class TestRivalTranslation(unittest.TestCase):
