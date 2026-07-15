@@ -26,10 +26,7 @@ from fused_dot_product.rival import (
     rival_trim_context,
     to_rival_ir,
 )
-from fused_dot_product.spec.spec_context import (
-    _fold_impossible_special_equalities,
-    simplify_ctx,
-)
+from fused_dot_product.spec.spec_context import simplify_ctx
 from fused_dot_product.spec.spec_utils import from_egglog
 from examples.FP32_IEEE_adder import FP32_IEEE_adder
 from examples.FP32_IEEE_mult import FP32_IEEE_mult
@@ -803,41 +800,21 @@ class TestSpecContextLearning(unittest.TestCase):
 
         self.assertEqual(ctx.assumes, [Eq(x, RealLit(0)), Eq(x, RealLit(1))])
 
-    def test_simplify_ctx_folds_disjoint_special_equality_in_assumption(self):
-        ctx = SpecContext("disjoint-special-assumption")
-        select = ctx.bool("select")
-
-        ctx.assume(ctx.inf().eq(If(select, ctx.nan(), ctx.real_val(1))))
-
-        report = simplify_ctx(ctx)
-
-        self.assertEqual(report["feasibility_status"], "not feasible")
-        self.assertEqual(report["new_ctx"].assumes, [BoolLit(False)])
-
-    def test_simplify_ctx_folds_nested_reversed_special_equality_in_check(self):
-        ctx = SpecContext("disjoint-special-check")
-        select = ctx.bool("select")
-        condition = ctx.bool("condition")
-
-        ctx.check(
-            condition
-            & If(select, ctx.inf(), ctx.real_val(1)).eq(ctx.nan())
-        )
-
-        report = simplify_ctx(ctx)
-
-        self.assertEqual(report["status"], "sat")
-        self.assertEqual(report["new_ctx"].checks, [BoolLit(False)])
-
-    def test_special_equality_is_preserved_when_other_side_contains_target(self):
-        ctx = SpecContext("matching-special")
-        select = ctx.bool("select")
-        equality = ctx.inf().eq(If(select, ctx.inf(), ctx.real_val(1)))
-
-        self.assertIs(_fold_impossible_special_equalities(equality), equality)
-
-
 class TestEgglogFloatLiterals(unittest.TestCase):
+    def test_xnor_extracts_as_boolean_equality(self):
+        p = BoolVar("p")
+        q = BoolVar("q")
+        xnor = (p & q) | ((~p) & (~q))
+
+        egraph = EGraph()
+        load_rules(egraph)
+        lowered = xnor.to_egglog()
+
+        egraph.register(lowered)
+        egraph.run(1)
+
+        self.assertEqual(from_egglog(egraph.extract(lowered)), p.eq(q))
+
     def test_real_lit_round_trips_exact_finite_float_values(self):
         values = [
             0.1,
@@ -924,6 +901,95 @@ class TestSpecAstConstantFolding(unittest.TestCase):
         expr = RealLit(2).eq(RealLit(2)) & ~BoolLit(False)
 
         self.assertEqual(expr.constant_fold(), BoolLit(True))
+
+    def test_constant_fold_lowers_special_equality_to_branch_condition(self):
+        select = BoolVar("select")
+        inner = BoolVar("inner")
+        x = RealVar("x")
+
+        cases = (
+            (SpecInf().eq(x), BoolLit(False)),
+            (x.eq(SpecNegInf()), BoolLit(False)),
+            (SpecNaN().eq(SpecNaN()), BoolLit(True)),
+            (SpecInf().eq(SpecNaN()), BoolLit(False)),
+            (
+                SpecNegInf().eq(If(select, SpecNegInf(), x)),
+                select,
+            ),
+            (
+                If(select, SpecInf(), If(inner, SpecNegInf(), RealLit(1))).eq(
+                    SpecNegInf()
+                ),
+                (~select) & inner,
+            ),
+        )
+
+        for equality, expected in cases:
+            with self.subTest(equality=str(equality)):
+                self.assertEqual(equality.constant_fold(), expected.constant_fold())
+
+    def test_constant_fold_lowers_special_equality_on_both_sides(self):
+        p = BoolVar("p")
+        q = BoolVar("q")
+        x = RealVar("x")
+        y = RealVar("y")
+        equality = If(p, SpecInf(), x).eq(If(q, SpecInf(), y))
+        expected = (p & q) | ((~p) & ((~q) & x.eq(y)))
+
+        self.assertEqual(equality.constant_fold(), expected.constant_fold())
+
+    def test_constant_fold_lowers_special_inequality_as_negated_equality(self):
+        p = BoolVar("p")
+        q = BoolVar("q")
+        inequality = If(p, SpecInf(), SpecNaN()).ne(
+            If(q, SpecInf(), SpecNaN())
+        )
+        expected_equality = (p & q) | ((~p) & (~q))
+
+        self.assertEqual(
+            inequality.constant_fold(),
+            (~expected_equality).constant_fold(),
+        )
+
+    def test_constant_fold_leaves_finite_symbolic_equality_unchanged(self):
+        equality = RealVar("x").eq(RealVar("y"))
+
+        self.assertIs(equality.constant_fold(), equality)
+
+    def test_context_simplify_lowers_nested_special_equalities(self):
+        ctx = SpecContext("nested-special-equalities")
+        select = ctx.bool("select")
+        condition = ctx.bool("condition")
+
+        ctx.check(
+            condition
+            & If(select, ctx.inf(), ctx.real_val(1)).eq(ctx.nan())
+        )
+
+        self.assertEqual(ctx.simplify().checks, [BoolLit(False)])
+
+    def test_context_simplify_removes_specials_from_hidden_assignment(self):
+        ctx = SpecContext("hidden-special-assignment")
+        x = ctx.real("x")
+        p = ctx.bool("p")
+        q = ctx.bool("q")
+
+        ctx.assume(p | q)
+        ctx.assume(p | (~q))
+        ctx.assume((~p) | x.eq(If(p, ctx.inf(), ctx.real_val(1))))
+        ctx.check(ctx.inf().eq(x))
+
+        simplified = ctx.simplify()
+
+        def has_special(node):
+            return isinstance(node, SpecialExpr) or any(
+                has_special(child) for child in children(node)
+            )
+
+        self.assertFalse(
+            any(has_special(expr) for expr in simplified.assumes + simplified.checks)
+        )
+        self.assertEqual(simplified.checks, [BoolLit(False)])
 
     def test_constant_fold_leaves_unsupported_literal_pow_unchanged(self):
         expr = Pow(RealLit(-2), RealLit(0.5))

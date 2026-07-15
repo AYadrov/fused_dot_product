@@ -944,6 +944,9 @@ def _shortcut_fold(
         # x == x -> True
         if identical_nodes(lhs, rhs):
             return BoolLit(True)
+        folded = _lower_special_equality(lhs, rhs)
+        if folded is not None:
+            return folded
         # (if cond then 1 else 0) == 1 -> cond == True
         folded = _fold_indicator_equality(lhs, rhs)
         if folded is not None:
@@ -976,6 +979,9 @@ def _shortcut_fold(
         # x != x -> False
         if identical_nodes(lhs, rhs):
             return BoolLit(False)
+        folded = _lower_special_equality(lhs, rhs)
+        if folded is not None:
+            return _negate_bool(folded)
         return None
 
     if isinstance(node, Not):
@@ -1090,6 +1096,72 @@ def _negate_bool(expr: SpecNode) -> BoolExpr:
     if isinstance(expr, BoolExpr):
         return Not(expr)
     raise TypeError(f"Expected BoolExpr, got {type(expr).__name__}")
+
+
+# Special values can exist only inside an If statement
+def _semantic_value_contains_special(expr: RealExpr) -> bool:
+    """Whether a valid semantic real expression can select a special leaf."""
+    if isinstance(expr, SpecialExpr):
+        return True
+    if isinstance(expr, If):
+        return (
+            _semantic_value_contains_special(expr.on_true)
+            or _semantic_value_contains_special(expr.on_false)
+        )
+    return False
+
+
+def _lower_special_equality(lhs: RealExpr, rhs: RealExpr) -> BoolExpr | None:
+    """Lower equality over special-bearing If trees to a finite BoolExpr."""
+    if (
+        not _semantic_value_contains_special(lhs)
+        and not _semantic_value_contains_special(rhs)
+    ):
+        return None
+
+    memo: dict[tuple[RealExpr, RealExpr], BoolExpr] = {}
+
+    def lower_pair(pair_lhs: RealExpr, pair_rhs: RealExpr) -> BoolExpr:
+        key = (pair_lhs, pair_rhs)
+        cached = memo.get(key)
+        if cached is not None:
+            return cached
+
+        if (
+            isinstance(pair_lhs, If)
+            and _semantic_value_contains_special(pair_lhs)
+        ):
+            lowered = Or(
+                And(pair_lhs.cond, lower_pair(pair_lhs.on_true, pair_rhs)),
+                And(
+                    _negate_bool(pair_lhs.cond),
+                    lower_pair(pair_lhs.on_false, pair_rhs),
+                ),
+            )
+        elif (
+            isinstance(pair_rhs, If)
+            and _semantic_value_contains_special(pair_rhs)
+        ):
+            lowered = Or(
+                And(pair_rhs.cond, lower_pair(pair_lhs, pair_rhs.on_true)),
+                And(
+                    _negate_bool(pair_rhs.cond),
+                    lower_pair(pair_lhs, pair_rhs.on_false),
+                ),
+            )
+        elif isinstance(pair_lhs, SpecialExpr) or isinstance(pair_rhs, SpecialExpr):
+            lowered = BoolLit(
+                isinstance(pair_lhs, SpecialExpr)
+                and isinstance(pair_rhs, SpecialExpr)
+                and identical_nodes(pair_lhs, pair_rhs)
+            )
+        else:
+            lowered = Eq(pair_lhs, pair_rhs)
+
+        memo[key] = lowered
+        return lowered
+
+    return lower_pair(lhs, rhs)
 
 
 # Helper to recognize shortcuts like (if cond then 1 else 0) == 1 -> cond == True

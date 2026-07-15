@@ -132,6 +132,7 @@ def rewrite_rules():
         ("bool_eq_4", (false.eq(bool_var)).eq(~bool_var)),
         ("bool_eq_5", ((~bool_var).eq(true)).eq(~bool_var)),
         ("bool_eq_6", ((~bool_var).eq(false)).eq(bool_var)),
+        ("bool_eq_7",  ((bool_var & bool_var_q) | ((~bool_var) & (~bool_var_q))).eq(bool_var.eq(bool_var_q))),
         ("bool_eq_15", (~(bool_var.eq(bool_var_q))).eq((bool_var & ~bool_var_q) | ((~bool_var) & bool_var_q))),
         
         ("bool_demorgan_1", (~(bool_var & bool_var_q)).eq((~bool_var) | (~bool_var_q))),
