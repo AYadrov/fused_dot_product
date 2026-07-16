@@ -204,21 +204,17 @@ def encode_fp32(ctx, value: RealExpr) -> Float32Spec:
     ctx.assume(
         _implies(
             is_finite,
-            _implies(value < zero, sign.eq(one)),
-        ),
+            sign.eq(If(value < zero, one, zero)),
+        )
     )
-    ctx.assume(
-        _implies(
-            is_finite,
-            _implies(value >= zero, sign.eq(zero)),
-        ),
-    )
+
     ctx.assume((exponent >= zero) & (exponent <= max_exponent))
     ctx.assume((mantissa >= zero) & (mantissa <= max_mantissa))
     ####################################
     
     ############## Flags ###############
-    magnitude = abs(value)
+    magnitude = ctx.fresh_real("magnitude")
+    ctx.assume(_implies(is_finite, magnitude.eq(abs(value))))
     
     is_subnormal_range = is_finite & (magnitude < smallest_normal)
     

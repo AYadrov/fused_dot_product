@@ -740,6 +740,28 @@ class TestSpecContextLearning(unittest.TestCase):
         self.assertEqual(simplified.checks, [])
         self.assertEqual(simplified.learned_literals(), {})
 
+    def test_context_preserves_finite_if_after_alias_substitution(self):
+        ctx = SpecContext("simplify-if-alias")
+        selected = ctx.fresh_real("selected")
+        condition = ctx.bool("condition")
+
+        ctx.assume(selected.eq(If(condition, ctx.real_val(1), ctx.real_val(0))))
+        ctx.assume((ctx.real_val(1) - selected).eq(ctx.real_val(1)))
+        ctx.check(condition)
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(
+            simplified.assumes,
+            [
+                (
+                    ctx.real_val(1)
+                    - If(condition, ctx.real_val(1), ctx.real_val(0))
+                ).eq(ctx.real_val(1))
+            ],
+        )
+        self.assertEqual(simplified.checks, [condition])
+
     def test_context_fixpoint_accepts_duplicate_equivalent_bindings(self):
         ctx = SpecContext("simplify-duplicate")
         x = ctx.real("x")
@@ -799,6 +821,23 @@ class TestSpecContextLearning(unittest.TestCase):
             ctx.simplify()
 
         self.assertEqual(ctx.assumes, [Eq(x, RealLit(0)), Eq(x, RealLit(1))])
+
+    def test_simplify_ctx_skips_rival_for_false_assumption(self):
+        ctx = SpecContext("infeasible-shortcut")
+        ctx.assume(BoolLit(False))
+
+        with (
+            patch("fused_dot_product.spec.spec_context.rival_feasibility_check") as feasibility,
+            patch("fused_dot_product.spec.spec_context.rival_trim_context") as trim,
+            open(os.devnull, "w") as devnull,
+            contextlib.redirect_stdout(devnull),
+        ):
+            report = simplify_ctx(ctx)
+
+        feasibility.assert_not_called()
+        trim.assert_not_called()
+        self.assertEqual(report["feasibility_status"], "not feasible")
+        self.assertEqual(report["status"], "sat")
 
 class TestEgglogFloatLiterals(unittest.TestCase):
     def test_xnor_extracts_as_boolean_equality(self):
@@ -865,6 +904,14 @@ class TestEgglogFloatLiterals(unittest.TestCase):
 
 
 class TestSpecAstConstantFolding(unittest.TestCase):
+    def assert_check_simplifies_to(self, expr, expected):
+        ctx = SpecContext("simplify-check-expression")
+        ctx.check(expr)
+
+        expected = expected.constant_fold()
+        expected_checks = [] if expected == BoolLit(True) else [expected]
+        self.assertEqual(ctx.simplify().checks, expected_checks)
+
     def test_constant_fold_method_folds_literal_tree(self):
         expr = (RealLit(2) + RealLit(3)) * RealLit(4)
 
@@ -902,7 +949,33 @@ class TestSpecAstConstantFolding(unittest.TestCase):
 
         self.assertEqual(expr.constant_fold(), BoolLit(True))
 
-    def test_constant_fold_lowers_special_equality_to_branch_condition(self):
+    def test_constant_fold_factors_complementary_boolean_partitions(self):
+        p = BoolVar("p")
+        q = BoolVar("q")
+        r = BoolVar("r")
+
+        cases = (
+            ((p & q) | (p & (~q)), p),
+            ((q & p) | ((~q) & p), p),
+            (((p & q) & r) | ((p & (~q)) & r), r & p),
+        )
+
+        for expr, expected in cases:
+            with self.subTest(expr=str(expr)):
+                self.assertEqual(expr.constant_fold(), expected.constant_fold())
+
+    def test_context_simplify_leaves_finite_if_equality_unchanged(self):
+        select = BoolVar("select")
+        indicator_complement = RealLit(1) - If(
+            select,
+            RealLit(1),
+            RealLit(0),
+        )
+        equality = indicator_complement.eq(RealLit(1))
+
+        self.assert_check_simplifies_to(equality, equality)
+
+    def test_context_simplify_lowers_special_equality_to_branch_condition(self):
         select = BoolVar("select")
         inner = BoolVar("inner")
         x = RealVar("x")
@@ -926,9 +999,112 @@ class TestSpecAstConstantFolding(unittest.TestCase):
 
         for equality, expected in cases:
             with self.subTest(equality=str(equality)):
-                self.assertEqual(equality.constant_fold(), expected.constant_fold())
+                self.assert_check_simplifies_to(equality, expected)
 
-    def test_constant_fold_lowers_special_equality_on_both_sides(self):
+    def test_context_simplify_rejects_special_selected_under_arithmetic(self):
+        select = BoolVar("select")
+        x = RealVar("x")
+        y = RealVar("y")
+        z = RealVar("z")
+        selected = If(select, SpecInf(), x) + y
+
+        self.assert_check_simplifies_to(SpecInf().eq(selected), BoolLit(False))
+        self.assert_check_simplifies_to(
+            selected.eq(z),
+            (~select) & (x + y).eq(z),
+        )
+
+    def test_context_simplify_unrolls_each_special_reachability_condition(self):
+        select_inf = BoolVar("select_inf")
+        select_nan = BoolVar("select_nan")
+        x = RealVar("x")
+        y = RealVar("y")
+        z = RealVar("z")
+        selected = (
+            If(select_inf, SpecInf(), x)
+            + If(select_nan, SpecNaN(), y)
+        )
+
+        self.assert_check_simplifies_to(
+            selected.eq(z),
+            (~select_inf) & ((~select_nan) & (x + y).eq(z)),
+        )
+
+    def test_special_lowering_exhausts_reachability_paths_in_one_pass(self):
+        select_inf = BoolVar("select_inf")
+        select_nan = BoolVar("select_nan")
+        x = RealVar("x")
+        y = RealVar("y")
+        z = RealVar("z")
+        equality = (
+            If(select_inf, SpecInf(), x)
+            + If(select_nan, SpecNaN(), y)
+        ).eq(z)
+
+        lowered = lower_specials(equality).constant_fold()
+
+        def has_special(node):
+            return isinstance(node, SpecialExpr) or any(
+                has_special(child) for child in children(node)
+            )
+
+        self.assertFalse(has_special(lowered))
+        self.assertEqual(
+            lowered,
+            (
+                (~select_inf)
+                & ((~select_nan) & (x + y).eq(z))
+            ).constant_fold(),
+        )
+
+    def test_special_lowering_reaches_special_inside_if_condition(self):
+        select_nan = BoolVar("select_nan")
+        sign = RealVar("sign")
+        x = RealVar("x")
+        value_is_negative = If(select_nan, SpecNaN(), x) < RealLit(0)
+        equality = sign.eq(
+            If(value_is_negative, RealLit(1), RealLit(0))
+        )
+
+        lowered = lower_specials(equality).constant_fold()
+        expected = sign.eq(
+            If(
+                (~select_nan) & (x < RealLit(0)),
+                RealLit(1),
+                RealLit(0),
+            )
+        )
+
+        def has_special(node):
+            return isinstance(node, SpecialExpr) or any(
+                has_special(child) for child in children(node)
+            )
+
+        self.assertFalse(has_special(lowered))
+        self.assertEqual(lowered, expected.constant_fold())
+
+    def test_context_simplify_keeps_equality_when_special_is_unreachable(self):
+        ctx = SpecContext("unreachable-special")
+        select = ctx.bool("select")
+        x = ctx.real("x")
+        y = ctx.real("y")
+        z = ctx.real("z")
+
+        ctx.assume(~select)
+        ctx.check((If(select, ctx.inf(), x) + y).eq(z))
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(simplified.assumes, [])
+        self.assertEqual(simplified.checks, [(x + y).eq(z)])
+
+    def test_context_simplify_rejects_reflexive_invalid_special_arithmetic(self):
+        y = RealVar("y")
+        invalid = SpecInf() + y
+
+        self.assert_check_simplifies_to(invalid.eq(invalid), BoolLit(False))
+
+    def test_context_simplify_lowers_special_equality_on_both_sides(self):
         p = BoolVar("p")
         q = BoolVar("q")
         x = RealVar("x")
@@ -936,23 +1112,25 @@ class TestSpecAstConstantFolding(unittest.TestCase):
         equality = If(p, SpecInf(), x).eq(If(q, SpecInf(), y))
         expected = (p & q) | ((~p) & ((~q) & x.eq(y)))
 
-        self.assertEqual(equality.constant_fold(), expected.constant_fold())
+        self.assert_check_simplifies_to(equality, expected)
 
-    def test_constant_fold_lowers_special_inequality_as_negated_equality(self):
+    def test_context_simplify_lowers_special_inequality_as_negated_equality(self):
         p = BoolVar("p")
         q = BoolVar("q")
         inequality = If(p, SpecInf(), SpecNaN()).ne(
             If(q, SpecInf(), SpecNaN())
         )
-        expected_equality = (p & q) | ((~p) & (~q))
+        expected_inequality = (p & (~q)) | ((~p) & q)
 
-        self.assertEqual(
-            inequality.constant_fold(),
-            (~expected_equality).constant_fold(),
-        )
+        self.assert_check_simplifies_to(inequality, expected_inequality)
 
     def test_constant_fold_leaves_finite_symbolic_equality_unchanged(self):
         equality = RealVar("x").eq(RealVar("y"))
+
+        self.assertIs(equality.constant_fold(), equality)
+
+    def test_constant_fold_leaves_special_equality_for_context_lowering(self):
+        equality = SpecInf().eq(RealVar("x"))
 
         self.assertIs(equality.constant_fold(), equality)
 
@@ -1480,6 +1658,31 @@ class TestRivalTranslation(unittest.TestCase):
         self.assertEqual(trimmed.checks, [check])
 
 class TestSolverApis(unittest.TestCase):
+    def test_fp32_adder_inf_inf_norm_side_case_removes_specials(self):
+        adder = FP32_IEEE_adder(
+            Var(name="a", sign=Float32T()),
+            Var(name="b", sign=Float32T()),
+        )
+        labels = {
+            "arg0": "inf",
+            "arg1": "inf",
+            "inner_spec": "norm",
+            "outer_spec": "norm",
+        }
+
+        simplified = ast_nodes._side_case_context(
+            adder,
+            labels,
+            "inner_spec",
+        ).simplify()
+
+        def has_special(node):
+            return isinstance(node, SpecialExpr) or any(
+                has_special(child) for child in children(node)
+            )
+
+        self.assertFalse(any(has_special(expr) for expr in simplified.assumes))
+
     def test_fp32_adder_check_spec_splits_all_input_class_pairs(self):
         adder = FP32_IEEE_adder(
             Var(name="a", sign=Float32T()),

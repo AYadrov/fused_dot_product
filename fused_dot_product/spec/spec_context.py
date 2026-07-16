@@ -123,7 +123,7 @@ class SpecContext:
         aliases: dict[RealVar | BoolVar, SpecNode] = {}
         
         def safe_alias(var, expr, lit_type):
-            if isinstance(expr, lit_type) or isinstance(expr, (RealVar, BoolVar)):
+            if isinstance(expr, (lit_type, SpecialExpr, RealVar, BoolVar)):
                 return None
             if var in variables(expr):
                 return None
@@ -205,8 +205,8 @@ class SpecContext:
                 return rhs_folded, lhs_folded
         return None
     
-    # LEARNS FROM ASSUMES - APPLIES EVERYWHERE
-    def simplify(self) -> "SpecContext":
+    def _simplify_core(self) -> "SpecContext":
+        """Apply context learning and ordinary constant folding to a fixpoint."""
         simplified = self.copy()
         max_iterations = len(simplified.assumes) + len(simplified.checks) + 1
         for _ in range(max_iterations):
@@ -245,6 +245,37 @@ class SpecContext:
             if not identical_nodes(check, BoolLit(True))
         ]
         return simplified
+
+    # LEARNS FROM ASSUMES - APPLIES EVERYWHERE
+    def simplify(self) -> "SpecContext":
+        simplified = self._simplify_core()
+
+        while True:
+            lowered_assumes = [
+                lower_specials(assume).constant_fold()
+                for assume in simplified.assumes
+            ]
+            lowered_checks = [
+                lower_specials(check).constant_fold()
+                for check in simplified.checks
+            ]
+            if (
+                lowered_assumes == simplified.assumes
+                and lowered_checks == simplified.checks
+            ):
+                return simplified
+
+            lowered = simplified.copy(
+                assumes=lowered_assumes,
+                checks=lowered_checks,
+            )
+            resimplified = lowered._simplify_core()
+            if (
+                resimplified.assumes == simplified.assumes
+                and resimplified.checks == simplified.checks
+            ):
+                return resimplified
+            simplified = resimplified
     
     def spec_of(self, node: Node):
         if not self._spec_cache_valid:
@@ -349,24 +380,12 @@ class PoorSpec(ValueError):
     pass
 
 
-def _detect_special_exprs(ctx: SpecContext) -> None:
-    def visit(node: SpecNode) -> None:
-        if isinstance(node, SpecialExpr):
-            raise ValueError(f"Special value {node} escaped into simplified spec expression")
-        for child in children(node):
-            visit(child)
-    
-    for expr in ctx.assumes + ctx.checks:
-        visit(expr)
-
-
 def simplify_ctx(ctx: SpecContext):
     run_started_at = perf_counter()
     
     try:
         simplified_ctx = ctx.simplify()
         print(simplified_ctx)
-        # _reject_special_exprs(simplified_ctx)
     except PoorSpec as exc:
         return build_proof_report(
             ctx,
@@ -388,7 +407,7 @@ def simplify_ctx(ctx: SpecContext):
     
     ############## Satisfiability ################
     satisfiability_status = None
-    if feasibility_status == "not feasibe":
+    if feasibility_status == "not feasible":
         satisfiability_status = "sat"
     else:
         if any([identical_nodes(x, BoolLit(False)) for x in simplified_ctx.checks]):

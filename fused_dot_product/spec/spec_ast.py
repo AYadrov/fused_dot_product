@@ -330,7 +330,7 @@ class Add(RealExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
-        _reject_special_operation("addition", self.lhs, self.rhs)
+        # _reject_special_operation("addition", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Add(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -356,7 +356,7 @@ class Sub(RealExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
-        _reject_special_operation("subtraction", self.lhs, self.rhs)
+        # _reject_special_operation("subtraction", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Add(self.lhs.to_egglog(), Math.Neg(self.rhs.to_egglog()))
@@ -382,7 +382,7 @@ class Mul(RealExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
-        _reject_special_operation("multiplication", self.lhs, self.rhs)
+        # _reject_special_operation("multiplication", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Mul(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -406,7 +406,7 @@ class Neg(RealExpr):
 
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.value)
-        _reject_special_operation("negation", self.value)
+        # _reject_special_operation("negation", self.value)
     
     def to_egglog(self):
         return Math.Neg(self.value.to_egglog())
@@ -430,7 +430,7 @@ class Abs(RealExpr):
 
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.value)
-        _reject_special_operation("absolute value", self.value)
+        # _reject_special_operation("absolute value", self.value)
     
     def to_egglog(self):
         return Math.Abs(self.value.to_egglog())
@@ -456,7 +456,7 @@ class Pow(RealExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.base)
         RealExpr._coerce_real_expr(self.exponent)
-        _reject_special_operation("exponentiation", self.base, self.exponent)
+        # _reject_special_operation("exponentiation", self.base, self.exponent)
 
     def to_egglog(self):
         return Math.Pow(self.base.to_egglog(), self.exponent.to_egglog())
@@ -482,7 +482,7 @@ class Max(RealExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
-        _reject_special_operation("maximum", self.lhs, self.rhs)
+        # _reject_special_operation("maximum", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Max(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -510,7 +510,7 @@ class Min(RealExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
-        _reject_special_operation("minimum", self.lhs, self.rhs)
+        # _reject_special_operation("minimum", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Min(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -639,7 +639,7 @@ class Lt(BoolExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
-        _reject_special_operation("less-than comparison", self.lhs, self.rhs)
+        # _reject_special_operation("less-than comparison", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Lt(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -665,7 +665,7 @@ class Le(BoolExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
-        _reject_special_operation("less-than-or-equal comparison", self.lhs, self.rhs)
+        # _reject_special_operation("less-than-or-equal comparison", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Le(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -691,7 +691,7 @@ class Gt(BoolExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
-        _reject_special_operation("greater-than comparison", self.lhs, self.rhs)
+        # _reject_special_operation("greater-than comparison", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Gt(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -717,7 +717,7 @@ class Ge(BoolExpr):
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
-        _reject_special_operation("greater-than-or-equal comparison", self.lhs, self.rhs)
+        # _reject_special_operation("greater-than-or-equal comparison", self.lhs, self.rhs)
     
     def to_egglog(self):
         return Math.Ge(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -768,7 +768,7 @@ class Not(BoolExpr):
 
     def __post_init__(self):
         BoolExpr._coerce_bool_expr(self.value)
-        _reject_special_operation("boolean not", self.value)
+        # _reject_special_operation("boolean not", self.value)
     
     def to_egglog(self):
         return MathBool.Not(self.value.to_egglog())
@@ -794,7 +794,7 @@ class Or(BoolExpr):
     def __post_init__(self):
         BoolExpr._coerce_bool_expr(self.lhs)
         BoolExpr._coerce_bool_expr(self.rhs)
-        _reject_special_operation("boolean not", self.lhs, self.rhs)
+        # _reject_special_operation("boolean not", self.lhs, self.rhs)
         
     def to_egglog(self):
         return MathBool.Or(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -820,7 +820,7 @@ class And(BoolExpr):
     def __post_init__(self):
         BoolExpr._coerce_bool_expr(self.lhs)
         BoolExpr._coerce_bool_expr(self.rhs)
-        _reject_special_operation("boolean not", self.lhs, self.rhs)
+        # _reject_special_operation("boolean not", self.lhs, self.rhs)
     
     def to_egglog(self):
         return MathBool.And(self.lhs.to_egglog(), self.rhs.to_egglog())
@@ -942,18 +942,12 @@ def _shortcut_fold(
     if isinstance(node, Eq):
         lhs, rhs = folded_args
         # x == x -> True
-        if identical_nodes(lhs, rhs):
+        if (
+            identical_nodes(lhs, rhs)
+            and not _contains_special(lhs)
+            and not _contains_special(rhs)
+        ):
             return BoolLit(True)
-        folded = _lower_special_equality(lhs, rhs)
-        if folded is not None:
-            return folded
-        # (if cond then 1 else 0) == 1 -> cond == True
-        folded = _fold_indicator_equality(lhs, rhs)
-        if folded is not None:
-            return folded
-        folded = _fold_indicator_equality(rhs, lhs)
-        if folded is not None:
-            return folded
         return None
 
     if isinstance(node, BoolEq):
@@ -977,11 +971,12 @@ def _shortcut_fold(
     if isinstance(node, NotEq):
         lhs, rhs = folded_args
         # x != x -> False
-        if identical_nodes(lhs, rhs):
+        if (
+            identical_nodes(lhs, rhs)
+            and not _contains_special(lhs)
+            and not _contains_special(rhs)
+        ):
             return BoolLit(False)
-        folded = _lower_special_equality(lhs, rhs)
-        if folded is not None:
-            return _negate_bool(folded)
         return None
 
     if isinstance(node, Not):
@@ -1007,6 +1002,8 @@ def _shortcut_fold(
     # TODO: This can fire as 0*inf -> 0
     if isinstance(node, Mul):
         lhs, rhs = folded_args
+        # if _contains_special(lhs) or _contains_special(rhs):
+        #     return None
         # x * 0 -> 0
         if isinstance(lhs, RealLit) and lhs.value == 0:
             return lhs
@@ -1023,6 +1020,8 @@ def _shortcut_fold(
 
     if isinstance(node, Add):
         lhs, rhs = folded_args
+        # if _contains_special(lhs) or _contains_special(rhs):
+        #     return None
         # x + 0 -> x
         if isinstance(lhs, RealLit) and lhs.value == 0:
             return rhs
@@ -1033,6 +1032,8 @@ def _shortcut_fold(
 
     if isinstance(node, Sub):
         lhs, rhs = folded_args
+        # if _contains_special(lhs) or _contains_special(rhs):
+        #     return None
         # x - 0 -> x
         if isinstance(rhs, RealLit) and rhs.value == 0:
             return lhs
@@ -1073,6 +1074,10 @@ def _shortcut_fold(
             return BoolLit(True) if lhs.value else rhs
         if isinstance(rhs, BoolLit):
             return BoolLit(True) if rhs.value else lhs
+        # (common and x) or (common and y) -> common and (x or y)
+        factored = _factor_common_conjunction(lhs, rhs)
+        if factored is not None:
+            return factored
         return None
 
     return None
@@ -1088,6 +1093,20 @@ def _are_complements(lhs: SpecNode, rhs: SpecNode) -> bool:
     )
 
 
+def _factor_common_conjunction(lhs: BoolExpr, rhs: BoolExpr) -> BoolExpr | None:
+    if not isinstance(lhs, And) or not isinstance(rhs, And):
+        return None
+
+    lhs_pairs = ((lhs.lhs, lhs.rhs), (lhs.rhs, lhs.lhs))
+    rhs_pairs = ((rhs.lhs, rhs.rhs), (rhs.rhs, rhs.lhs))
+    for lhs_common, lhs_rest in lhs_pairs:
+        for rhs_common, rhs_rest in rhs_pairs:
+            if identical_nodes(lhs_common, rhs_common):
+                return And(lhs_common, Or(lhs_rest, rhs_rest))
+
+    return None
+
+
 def _negate_bool(expr: SpecNode) -> BoolExpr:
     if isinstance(expr, BoolLit):
         return BoolLit(not expr.value)
@@ -1098,100 +1117,181 @@ def _negate_bool(expr: SpecNode) -> BoolExpr:
     raise TypeError(f"Expected BoolExpr, got {type(expr).__name__}")
 
 
-# Special values can exist only inside an If statement
-def _semantic_value_contains_special(expr: RealExpr) -> bool:
-    """Whether a valid semantic real expression can select a special leaf."""
-    if isinstance(expr, SpecialExpr):
+def _contains_special(node: SpecNode) -> bool:
+    if isinstance(node, SpecialExpr):
         return True
-    if isinstance(expr, If):
-        return (
-            _semantic_value_contains_special(expr.on_true)
-            or _semantic_value_contains_special(expr.on_false)
-        )
-    return False
+    return any(
+        _contains_special(value)
+        for field in fields(node)
+        if isinstance(value := getattr(node, field.name), SpecNode)
+    )
 
 
-def _lower_special_equality(lhs: RealExpr, rhs: RealExpr) -> BoolExpr | None:
-    """Lower equality over special-bearing If trees to a finite BoolExpr."""
-    if (
-        not _semantic_value_contains_special(lhs)
-        and not _semantic_value_contains_special(rhs)
+def _split_special_if(
+    node: SpecNode,
+) -> tuple[BoolExpr, SpecNode, SpecNode] | None:
+    """Split a special-reaching If anywhere inside a spec expression."""
+    if isinstance(node, If) and (
+        _contains_special(node.on_true)
+        or _contains_special(node.on_false)
     ):
+        return node.cond, node.on_true, node.on_false
+
+    node_fields = fields(node)
+    field_values = [getattr(node, field.name) for field in node_fields]
+    for index, value in enumerate(field_values):
+        if not isinstance(value, SpecNode) or not _contains_special(value):
+            continue
+        split = _split_special_if(value)
+        if split is None:
+            continue
+
+        cond, on_true, on_false = split
+        true_values = list(field_values)
+        false_values = list(field_values)
+        true_values[index] = on_true
+        false_values[index] = on_false
+        return cond, type(node)(*true_values), type(node)(*false_values)
+
+    return None
+
+
+def _special_rank(node: RealExpr) -> int | None:
+    if isinstance(node, SpecNegInf):
+        return -1
+    if isinstance(node, SpecInf):
+        return 1
+    if isinstance(node, SpecialExpr):
         return None
+    return 0
 
-    memo: dict[tuple[RealExpr, RealExpr], BoolExpr] = {}
 
-    def lower_pair(pair_lhs: RealExpr, pair_rhs: RealExpr) -> BoolExpr:
-        key = (pair_lhs, pair_rhs)
-        cached = memo.get(key)
+def _lower_terminal_specials(node: SpecNode) -> SpecNode:
+    """Remove unguarded special leaves after reachability was extracted."""
+    args = children(node)
+    if args == ():
+        return node
+
+    lowered_args = tuple(_lower_terminal_specials(arg) for arg in args)
+    rebuilt = (
+        node
+        if all(old is new for old, new in zip(args, lowered_args))
+        else type(node)(*lowered_args)
+    )
+
+    if isinstance(rebuilt, Eq):
+        if _contains_special(rebuilt.lhs) or _contains_special(rebuilt.rhs):
+            return BoolLit(
+                isinstance(rebuilt.lhs, SpecialExpr)
+                and isinstance(rebuilt.rhs, SpecialExpr)
+                and identical_nodes(rebuilt.lhs, rebuilt.rhs)
+            )
+
+    if isinstance(rebuilt, NotEq):
+        if _contains_special(rebuilt.lhs) or _contains_special(rebuilt.rhs):
+            invalid = (
+                _contains_special(rebuilt.lhs)
+                and not isinstance(rebuilt.lhs, SpecialExpr)
+            ) or (
+                _contains_special(rebuilt.rhs)
+                and not isinstance(rebuilt.rhs, SpecialExpr)
+            )
+            if invalid:
+                return BoolLit(False)
+            return BoolLit(
+                not (
+                    isinstance(rebuilt.lhs, SpecialExpr)
+                    and isinstance(rebuilt.rhs, SpecialExpr)
+                    and identical_nodes(rebuilt.lhs, rebuilt.rhs)
+                )
+            )
+
+    if isinstance(rebuilt, (Lt, Le, Gt, Ge)) and (
+        _contains_special(rebuilt.lhs) or _contains_special(rebuilt.rhs)
+    ):
+        if (
+            _contains_special(rebuilt.lhs)
+            and not isinstance(rebuilt.lhs, SpecialExpr)
+        ) or (
+            _contains_special(rebuilt.rhs)
+            and not isinstance(rebuilt.rhs, SpecialExpr)
+        ):
+            return BoolLit(False)
+
+        lhs_rank = _special_rank(rebuilt.lhs)
+        rhs_rank = _special_rank(rebuilt.rhs)
+        if lhs_rank is None or rhs_rank is None:
+            return BoolLit(False)
+        if isinstance(rebuilt, Lt):
+            return BoolLit(lhs_rank < rhs_rank)
+        if isinstance(rebuilt, Le):
+            return BoolLit(lhs_rank <= rhs_rank)
+        if isinstance(rebuilt, Gt):
+            return BoolLit(lhs_rank > rhs_rank)
+        return BoolLit(lhs_rank >= rhs_rank)
+
+    return rebuilt
+
+
+def lower_specials(node: BoolExpr) -> BoolExpr:
+    """Remove specials by splitting within the smallest enclosing predicate."""
+    memo: dict[SpecNode, SpecNode] = {}
+
+    def lower_atom(expr: BoolExpr) -> BoolExpr:
+        split = _split_special_if(expr)
+        if split is None:
+            lowered = _lower_terminal_specials(expr)
+            if not isinstance(lowered, BoolExpr):
+                raise TypeError(
+                    f"Expected BoolExpr after lowering, got {type(lowered).__name__}"
+                )
+            return lowered
+
+        cond, on_true, on_false = split
+        if not isinstance(on_true, BoolExpr) or not isinstance(on_false, BoolExpr):
+            raise TypeError("Boolean special lowering produced non-Boolean branches")
+        lowered_cond = lower_node(cond)
+        lowered_true = lower_node(on_true)
+        lowered_false = lower_node(on_false)
+        if not all(
+            isinstance(value, BoolExpr)
+            for value in (lowered_cond, lowered_true, lowered_false)
+        ):
+            raise TypeError("Boolean special lowering changed expression type")
+        return (
+            lowered_cond & lowered_true
+        ) | (
+            (~lowered_cond) & lowered_false
+        )
+
+    def lower_node(expr: SpecNode) -> SpecNode:
+        cached = memo.get(expr)
         if cached is not None:
             return cached
 
-        if (
-            isinstance(pair_lhs, If)
-            and _semantic_value_contains_special(pair_lhs)
+        args = children(expr)
+        lowered_args = tuple(lower_node(arg) for arg in args)
+        rebuilt = (
+            expr
+            if all(old is new for old, new in zip(args, lowered_args))
+            else type(expr)(*lowered_args)
+        )
+        if isinstance(rebuilt, BoolExpr) and ( # (Eq, NotEq, Lt, Le, Gt, Ge)) and (
+            _contains_special(rebuilt)
         ):
-            lowered = Or(
-                And(pair_lhs.cond, lower_pair(pair_lhs.on_true, pair_rhs)),
-                And(
-                    _negate_bool(pair_lhs.cond),
-                    lower_pair(pair_lhs.on_false, pair_rhs),
-                ),
-            )
-        elif (
-            isinstance(pair_rhs, If)
-            and _semantic_value_contains_special(pair_rhs)
-        ):
-            lowered = Or(
-                And(pair_rhs.cond, lower_pair(pair_lhs, pair_rhs.on_true)),
-                And(
-                    _negate_bool(pair_rhs.cond),
-                    lower_pair(pair_lhs, pair_rhs.on_false),
-                ),
-            )
-        elif isinstance(pair_lhs, SpecialExpr) or isinstance(pair_rhs, SpecialExpr):
-            lowered = BoolLit(
-                isinstance(pair_lhs, SpecialExpr)
-                and isinstance(pair_rhs, SpecialExpr)
-                and identical_nodes(pair_lhs, pair_rhs)
-            )
+            lowered = lower_atom(rebuilt)
         else:
-            lowered = Eq(pair_lhs, pair_rhs)
+            lowered = rebuilt
 
-        memo[key] = lowered
+        memo[expr] = lowered
         return lowered
 
-    return lower_pair(lhs, rhs)
-
-
-# Helper to recognize shortcuts like (if cond then 1 else 0) == 1 -> cond == True
-def _fold_indicator_equality(
-    expr: SpecNode,
-    target: SpecNode,
-) -> BoolExpr | None:
-    if not isinstance(expr, If) or not isinstance(target, RealLit):
-        return None
-
-    cond = expr.cond
-    on_true = expr.on_true
-    on_false = expr.on_false
-    if not isinstance(on_true, RealLit) or not isinstance(on_false, RealLit):
-        return None
-    if on_true.value == on_false.value:
-        return None
-
-    if target.value == on_true.value:
-        cond_value = True
-    elif target.value == on_false.value:
-        cond_value = False
-    else:
-        return BoolLit(False)
-
-    if isinstance(cond, Not):
-        value = cond.value
-        if isinstance(value, BoolVar):
-            return BoolEq(value, BoolLit(not cond_value))
-    return BoolEq(cond, BoolLit(cond_value))
+    lowered = lower_node(node)
+    if not isinstance(lowered, BoolExpr):
+        raise TypeError(
+            f"Expected BoolExpr after lowering, got {type(lowered).__name__}"
+        )
+    return lowered
 
 
 def _literal_type(node: SpecNode):
