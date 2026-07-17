@@ -123,7 +123,7 @@ class SpecContext:
         aliases: dict[RealVar | BoolVar, SpecNode] = {}
         
         def safe_alias(var, expr, lit_type):
-            if isinstance(expr, (lit_type, SpecialExpr, RealVar, BoolVar)):
+            if isinstance(expr, (lit_type, RealVar, BoolVar)):
                 return None
             if var in variables(expr):
                 return None
@@ -248,34 +248,7 @@ class SpecContext:
 
     # LEARNS FROM ASSUMES - APPLIES EVERYWHERE
     def simplify(self) -> "SpecContext":
-        simplified = self._simplify_core()
-
-        while True:
-            lowered_assumes = [
-                lower_specials(assume).constant_fold()
-                for assume in simplified.assumes
-            ]
-            lowered_checks = [
-                lower_specials(check).constant_fold()
-                for check in simplified.checks
-            ]
-            if (
-                lowered_assumes == simplified.assumes
-                and lowered_checks == simplified.checks
-            ):
-                return simplified
-
-            lowered = simplified.copy(
-                assumes=lowered_assumes,
-                checks=lowered_checks,
-            )
-            resimplified = lowered._simplify_core()
-            if (
-                resimplified.assumes == simplified.assumes
-                and resimplified.checks == simplified.checks
-            ):
-                return resimplified
-            simplified = resimplified
+        return self._simplify_core()
     
     def spec_of(self, node: Node):
         if not self._spec_cache_valid:
@@ -314,15 +287,6 @@ class SpecContext:
     
     def bool_val(self, value: bool):
         return BoolLit(value=value)
-    
-    def nan(self) -> SpecNaN:
-        return SpecNaN()
-    
-    def inf(self) -> SpecInf:
-        return SpecInf()
-
-    def ninf(self) -> SpecNegInf:
-        return SpecNegInf()
     
     def true(self) -> BoolLit:
         return BoolLit(value=True)

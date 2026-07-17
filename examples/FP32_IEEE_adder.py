@@ -19,22 +19,12 @@ def spec_FP32_IEEE_adder(x: "FP32", y: "FP32", ctx):
     result_is_inf = x.is_inf | y.is_inf
     infinity_sign = If(x.is_inf, x.sign, y.sign)
 
-    result = If(
-        result_is_nan,
-        ctx.nan(),
-        If(
-            result_is_inf,
-            If(
-                infinity_sign.eq(ctx.real_val(1)),
-                ctx.ninf(),
-                ctx.inf(),
-            ),
-            x.value + y.value,
-        ),
+    return ctx.encode_fp32(
+        value=x.value + y.value,
+        nan=result_is_nan,
+        inf=result_is_inf,
+        inf_sign=infinity_sign,
     )
-
-    # encode_fp32 lives in fused_dot_product/spec/spec_values.py.
-    return ctx.encode_fp32(value=result)
 
 
 # Implementation of a single-precision IEEE adder.

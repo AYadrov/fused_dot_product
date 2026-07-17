@@ -3,7 +3,20 @@ from .common import *
 from .encode_Float32 import *
 
 # TODO: NaN payload
-@Composite(name="FP32_IEEE_mult", spec=lambda x, y, ctx: (x.value * y.value, ctx.real_val(1), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0)))
+def spec_FP32_IEEE_mult(x: "FP32", y: "FP32", ctx):
+    invalid = (x.is_inf & y.is_zero) | (y.is_inf & x.is_zero)
+    result_is_nan = x.is_nan | y.is_nan | invalid
+    result_is_inf = x.is_inf | y.is_inf
+    result_sign = If(x.sign.ne(y.sign), ctx.real_val(1), ctx.real_val(0))
+    return ctx.encode_fp32(
+        value=x.value * y.value,
+        nan=result_is_nan,
+        inf=result_is_inf,
+        inf_sign=result_sign,
+    )
+
+
+@Composite(name="FP32_IEEE_mult", spec=spec_FP32_IEEE_mult)
 def FP32_IEEE_mult(x: Node, y: Node) -> Node:
     x_s, x_e, x_m, x_norm, x_sub, x_zero, x_inf, x_nan = fp32_decode(x)
     y_s, y_e, y_m, y_norm, y_sub, y_zero, y_inf, y_nan = fp32_decode(y)

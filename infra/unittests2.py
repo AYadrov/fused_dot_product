@@ -975,235 +975,52 @@ class TestSpecAstConstantFolding(unittest.TestCase):
 
         self.assert_check_simplifies_to(equality, equality)
 
-    def test_context_simplify_lowers_special_equality_to_branch_condition(self):
-        select = BoolVar("select")
-        inner = BoolVar("inner")
-        x = RealVar("x")
-
-        cases = (
-            (SpecInf().eq(x), BoolLit(False)),
-            (x.eq(SpecNegInf()), BoolLit(False)),
-            (SpecNaN().eq(SpecNaN()), BoolLit(True)),
-            (SpecInf().eq(SpecNaN()), BoolLit(False)),
-            (
-                SpecNegInf().eq(If(select, SpecNegInf(), x)),
-                select,
-            ),
-            (
-                If(select, SpecInf(), If(inner, SpecNegInf(), RealLit(1))).eq(
-                    SpecNegInf()
-                ),
-                (~select) & inner,
-            ),
-        )
-
-        for equality, expected in cases:
-            with self.subTest(equality=str(equality)):
-                self.assert_check_simplifies_to(equality, expected)
-
-    def test_context_simplify_rejects_special_selected_under_arithmetic(self):
-        select = BoolVar("select")
-        x = RealVar("x")
-        y = RealVar("y")
-        z = RealVar("z")
-        selected = If(select, SpecInf(), x) + y
-
-        self.assert_check_simplifies_to(SpecInf().eq(selected), BoolLit(False))
-        self.assert_check_simplifies_to(
-            selected.eq(z),
-            (~select) & (x + y).eq(z),
-        )
-
-    def test_context_simplify_unrolls_each_special_reachability_condition(self):
-        select_inf = BoolVar("select_inf")
-        select_nan = BoolVar("select_nan")
-        x = RealVar("x")
-        y = RealVar("y")
-        z = RealVar("z")
-        selected = (
-            If(select_inf, SpecInf(), x)
-            + If(select_nan, SpecNaN(), y)
-        )
-
-        self.assert_check_simplifies_to(
-            selected.eq(z),
-            (~select_inf) & ((~select_nan) & (x + y).eq(z)),
-        )
-
-    def test_special_lowering_exhausts_reachability_paths_in_one_pass(self):
-        select_inf = BoolVar("select_inf")
-        select_nan = BoolVar("select_nan")
-        x = RealVar("x")
-        y = RealVar("y")
-        z = RealVar("z")
-        equality = (
-            If(select_inf, SpecInf(), x)
-            + If(select_nan, SpecNaN(), y)
-        ).eq(z)
-
-        lowered = lower_specials(equality).constant_fold()
-
-        def has_special(node):
-            return isinstance(node, SpecialExpr) or any(
-                has_special(child) for child in children(node)
-            )
-
-        self.assertFalse(has_special(lowered))
-        self.assertEqual(
-            lowered,
-            (
-                (~select_inf)
-                & ((~select_nan) & (x + y).eq(z))
-            ).constant_fold(),
-        )
-
-    def test_special_lowering_reaches_special_inside_if_condition(self):
-        select_nan = BoolVar("select_nan")
-        sign = RealVar("sign")
-        x = RealVar("x")
-        value_is_negative = If(select_nan, SpecNaN(), x) < RealLit(0)
-        equality = sign.eq(
-            If(value_is_negative, RealLit(1), RealLit(0))
-        )
-
-        lowered = lower_specials(equality).constant_fold()
-        expected = sign.eq(
-            If(
-                (~select_nan) & (x < RealLit(0)),
-                RealLit(1),
-                RealLit(0),
-            )
-        )
-
-        def has_special(node):
-            return isinstance(node, SpecialExpr) or any(
-                has_special(child) for child in children(node)
-            )
-
-        self.assertFalse(has_special(lowered))
-        self.assertEqual(lowered, expected.constant_fold())
-
-    def test_context_simplify_keeps_equality_when_special_is_unreachable(self):
-        ctx = SpecContext("unreachable-special")
-        select = ctx.bool("select")
-        x = ctx.real("x")
-        y = ctx.real("y")
-        z = ctx.real("z")
-
-        ctx.assume(~select)
-        ctx.check((If(select, ctx.inf(), x) + y).eq(z))
-
-        simplified = ctx.simplify()
-
-        self.assertEqual(simplified.assumes, [])
-        self.assertEqual(simplified.checks, [(x + y).eq(z)])
-
-    def test_context_simplify_rejects_reflexive_invalid_special_arithmetic(self):
-        y = RealVar("y")
-        invalid = SpecInf() + y
-
-        self.assert_check_simplifies_to(invalid.eq(invalid), BoolLit(False))
-
-    def test_context_simplify_lowers_special_equality_on_both_sides(self):
-        p = BoolVar("p")
-        q = BoolVar("q")
-        x = RealVar("x")
-        y = RealVar("y")
-        equality = If(p, SpecInf(), x).eq(If(q, SpecInf(), y))
-        expected = (p & q) | ((~p) & ((~q) & x.eq(y)))
-
-        self.assert_check_simplifies_to(equality, expected)
-
-    def test_context_simplify_lowers_special_inequality_as_negated_equality(self):
-        p = BoolVar("p")
-        q = BoolVar("q")
-        inequality = If(p, SpecInf(), SpecNaN()).ne(
-            If(q, SpecInf(), SpecNaN())
-        )
-        expected_inequality = (p & (~q)) | ((~p) & q)
-
-        self.assert_check_simplifies_to(inequality, expected_inequality)
-
     def test_constant_fold_leaves_finite_symbolic_equality_unchanged(self):
         equality = RealVar("x").eq(RealVar("y"))
 
         self.assertIs(equality.constant_fold(), equality)
-
-    def test_constant_fold_leaves_special_equality_for_context_lowering(self):
-        equality = SpecInf().eq(RealVar("x"))
-
-        self.assertIs(equality.constant_fold(), equality)
-
-    def test_context_simplify_lowers_nested_special_equalities(self):
-        ctx = SpecContext("nested-special-equalities")
-        select = ctx.bool("select")
-        condition = ctx.bool("condition")
-
-        ctx.check(
-            condition
-            & If(select, ctx.inf(), ctx.real_val(1)).eq(ctx.nan())
-        )
-
-        self.assertEqual(ctx.simplify().checks, [BoolLit(False)])
-
-    def test_context_simplify_removes_specials_from_hidden_assignment(self):
-        ctx = SpecContext("hidden-special-assignment")
-        x = ctx.real("x")
-        p = ctx.bool("p")
-        q = ctx.bool("q")
-
-        ctx.assume(p | q)
-        ctx.assume(p | (~q))
-        ctx.assume((~p) | x.eq(If(p, ctx.inf(), ctx.real_val(1))))
-        ctx.check(ctx.inf().eq(x))
-
-        simplified = ctx.simplify()
-
-        def has_special(node):
-            return isinstance(node, SpecialExpr) or any(
-                has_special(child) for child in children(node)
-            )
-
-        self.assertFalse(
-            any(has_special(expr) for expr in simplified.assumes + simplified.checks)
-        )
-        self.assertEqual(simplified.checks, [BoolLit(False)])
 
     def test_constant_fold_leaves_unsupported_literal_pow_unchanged(self):
         expr = Pow(RealLit(-2), RealLit(0.5))
 
         self.assertEqual(expr.constant_fold(), expr)
 
-    def test_spec_context_special_values_are_opaque_spec_nodes(self):
-        ctx = SpecContext("special-nodes")
+    def test_non_finite_real_literals_are_rejected_at_construction(self):
+        for value in (float("inf"), float("-inf"), float("nan")):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "non-finite RealLit"):
+                    RealLit(value)
 
-        special_nodes = (
-            (ctx.nan(), "nan"),
-            (ctx.inf(), "inf"),
-            (ctx.ninf(), "-inf"),
+    def test_float32_value_is_a_finite_only_real_variable(self):
+        ctx = SpecContext("float32-finite-value")
+        value = ctx.fresh_float("x")
+
+        self.assertIsInstance(value.value, RealVar)
+        self.assertTrue(
+            any(
+                isinstance(assume, Or)
+                and value.is_zero in variables(assume)
+                and value.value in variables(assume)
+                for assume in ctx.assumes
+            )
         )
 
-        for node, expected_text in special_nodes:
-            with self.subTest(node=expected_text):
-                self.assertIsInstance(node, SpecNode)
-                self.assertIsInstance(node, SpecialExpr)
-                self.assertIsInstance(node, RealExpr)
-                self.assertNotIsInstance(node, BoolExpr)
-                self.assertEqual(children(node), ())
-                self.assertEqual(node.constant_fold(), node)
-                self.assertEqual(str(node), expected_text)
-
-    def test_encode_fp32_lowers_signed_special_values(self):
+    def test_encode_fp32_uses_explicit_non_finite_flags(self):
         cases = (
-            ("nan", lambda ctx: ctx.nan(), "is_nan"),
-            ("inf", lambda ctx: ctx.inf(), "is_pinf"),
-            ("ninf", lambda ctx: ctx.ninf(), "is_ninf"),
+            ("nan", True, False, 0, "is_nan"),
+            ("inf", False, True, 0, "is_pinf"),
+            ("ninf", False, True, 1, "is_ninf"),
         )
 
-        for name, make_value, expected_predicate in cases:
+        for name, nan, inf, sign, expected_predicate in cases:
             with self.subTest(value=name):
                 ctx = SpecContext(f"encode-{name}")
-                encoded = ctx.encode_fp32(value=make_value(ctx))
+                encoded = ctx.encode_fp32(
+                    value=ctx.real("finite_candidate"),
+                    nan=ctx.bool_val(nan),
+                    inf=ctx.bool_val(inf),
+                    inf_sign=ctx.real_val(sign),
+                )
                 ctx.check(getattr(encoded, expected_predicate))
 
                 report = simplify_ctx(ctx)
@@ -1212,29 +1029,35 @@ class TestSpecAstConstantFolding(unittest.TestCase):
 
                 self.assertEqual(report["status"], "unsat", report)
 
-    def test_special_values_are_only_allowed_in_if_branches(self):
-        ctx = SpecContext("special-arithmetic")
-        conditional = If(ctx.bool("select_inf"), ctx.inf(), ctx.real_val(1))
+    def test_encode_fp32_requires_sign_for_possible_explicit_infinity(self):
+        ctx = SpecContext("encode-inf-sign")
+        with self.assertRaisesRegex(ValueError, "requires inf_sign"):
+            ctx.encode_fp32(value=ctx.real("value"), inf=ctx.bool("is_inf"))
 
-        self.assertIsInstance(conditional, If)
-        with self.assertRaisesRegex(TypeError, "select a finite expression first"):
-            conditional + ctx.real_val(1)
-        with self.assertRaisesRegex(TypeError, "select a finite expression first"):
-            ctx.ninf() * ctx.real_val(2)
-        with self.assertRaisesRegex(TypeError, "select a finite expression first"):
-            +conditional
-        with self.assertRaisesRegex(TypeError, "select a finite expression first"):
-            conditional < ctx.real_val(2)
+    def test_float32_semantic_tuple_observes_only_relevant_signs(self):
+        def make_value(*, sign, norm=False, sub=False, zero=False, inf=False, nan=False):
+            return Float32Spec(
+                value=RealVar("value"),
+                sign=RealLit(sign),
+                exponent=RealLit(0),
+                mantissa=RealLit(0),
+                is_norm=BoolLit(norm),
+                is_sub=BoolLit(sub),
+                is_zero=BoolLit(zero),
+                is_inf=BoolLit(inf),
+                is_nan=BoolLit(nan),
+            )
 
-    def test_float32_spec_exposes_separate_semantic_and_finite_values(self):
-        ctx = SpecContext("float32-semantic-value")
-        value = ctx.fresh_float("x")
+        pinf = make_value(sign=0, inf=True).as_tuple()
+        ninf = make_value(sign=1, inf=True).as_tuple()
+        pzero = make_value(sign=0, zero=True).as_tuple()
+        nzero = make_value(sign=1, zero=True).as_tuple()
+        pnan = make_value(sign=0, nan=True).as_tuple()
+        nnan = make_value(sign=1, nan=True).as_tuple()
 
-        self.assertTrue(contains_special(value.value))
-        self.assertFalse(contains_special(value.finite_value))
-        self.assertIsInstance(value.finite_value + ctx.real_val(1), Add)
-        with self.assertRaisesRegex(TypeError, "select a finite expression first"):
-            value.value + ctx.real_val(1)
+        self.assertNotEqual(pinf[1].constant_fold(), ninf[1].constant_fold())
+        self.assertNotEqual(pzero[1].constant_fold(), nzero[1].constant_fold())
+        self.assertEqual(pnan[1].constant_fold(), nnan[1].constant_fold())
 
 
 class TestRivalTranslation(unittest.TestCase):
@@ -1658,7 +1481,7 @@ class TestRivalTranslation(unittest.TestCase):
         self.assertEqual(trimmed.checks, [check])
 
 class TestSolverApis(unittest.TestCase):
-    def test_fp32_adder_inf_inf_norm_side_case_removes_specials(self):
+    def test_fp32_adder_inf_inf_norm_side_case_uses_only_real_and_bool_exprs(self):
         adder = FP32_IEEE_adder(
             Var(name="a", sign=Float32T()),
             Var(name="b", sign=Float32T()),
@@ -1676,12 +1499,29 @@ class TestSolverApis(unittest.TestCase):
             "inner_spec",
         ).simplify()
 
-        def has_special(node):
-            return isinstance(node, SpecialExpr) or any(
-                has_special(child) for child in children(node)
+        def uses_only_supported_exprs(node):
+            return isinstance(node, (RealExpr, BoolExpr)) and all(
+                uses_only_supported_exprs(child) for child in children(node)
             )
 
-        self.assertFalse(any(has_special(expr) for expr in simplified.assumes))
+        self.assertTrue(all(uses_only_supported_exprs(expr) for expr in simplified.assumes))
+
+    def test_fp32_adder_inf_inf_cannot_have_normal_outer_spec(self):
+        adder = FP32_IEEE_adder(
+            Var(name="a", sign=Float32T()),
+            Var(name="b", sign=Float32T()),
+        )
+        simplified = ast_nodes._side_case_context(
+            adder,
+            {
+                "arg0": "inf",
+                "arg1": "inf",
+                "outer_spec": "norm",
+            },
+            "outer_spec",
+        ).simplify()
+
+        self.assertIn(BoolLit(False), simplified.assumes)
 
     def test_fp32_adder_check_spec_splits_all_input_class_pairs(self):
         adder = FP32_IEEE_adder(
@@ -1826,16 +1666,16 @@ class TestSolverApis(unittest.TestCase):
             Var(name="b", sign=Float32T()),
         )
         target_name = "FP32_IEEE_adder[arg0=norm,arg1=norm,inner_spec=norm,outer_spec=norm]"
-        split_special_cases = ast_nodes._split_special_cases
+        split_classification_cases = ast_nodes._split_classification_cases
 
         def select_norm_norm_case(*args, **kwargs):
-            cases = split_special_cases(*args, **kwargs)
+            cases = split_classification_cases(*args, **kwargs)
             return [next(ctx for ctx in cases if ctx.name == target_name)]
 
         with (
             patch.object(
                 ast_nodes,
-                "_split_special_cases",
+                "_split_classification_cases",
                 side_effect=select_norm_norm_case,
             ),
             open(os.devnull, "w") as devnull,

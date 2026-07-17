@@ -3,25 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..types import Float32
-from .spec_ast import (
-    BoolExpr,
-    If,
-    RealExpr,
-    RealLit,
-    SpecialExpr,
-    SpecInf,
-    SpecNaN,
-    SpecNegInf,
-    children,
-)
+from .spec_ast import BoolExpr, BoolLit, If, RealExpr, RealLit
 
 
 def _implies(lhs: BoolExpr, rhs: BoolExpr) -> BoolExpr:
     return (~lhs) | rhs
-
-
-def _flag_as_real(flag: BoolExpr) -> RealExpr:
-    return If(flag, RealLit(1), RealLit(0))
 
 
 def sign_multiplier(ctx, sign: RealExpr) -> RealExpr:
@@ -31,6 +17,13 @@ def sign_multiplier(ctx, sign: RealExpr) -> RealExpr:
 
 @dataclass(frozen=True)
 class Float32Spec:
+    """A decoded FP32 value represented entirely with real and Boolean terms.
+
+    ``value`` is meaningful only when one of ``is_norm``, ``is_sub``, or
+    ``is_zero`` holds. NaN and infinity are represented by classification
+    flags, with the sign field distinguishing the two infinities.
+    """
+
     value: RealExpr
     sign: RealExpr
     exponent: RealExpr
@@ -40,18 +33,41 @@ class Float32Spec:
     is_zero: BoolExpr
     is_inf: BoolExpr
     is_nan: BoolExpr
-    
+
     def as_tuple(self) -> tuple[RealExpr | BoolExpr, ...]:
+        """Return the observable semantic fields used for equivalence.
+
+        The finite value carries the sign of normal and subnormal values.
+        Infinity and signed zero need an explicit sign comparison. NaN sign
+        and payload are intentionally not observable here.
+        """
+
+        zero = RealLit(0)
+        finite_value = If(self.is_norm | self.is_sub, self.value, zero)
+        observable_sign = If(self.is_inf | self.is_zero, self.sign, zero)
         return (
-            self.value,
+            finite_value,
+            observable_sign,
             self.is_norm,
             self.is_sub,
             self.is_zero,
             self.is_inf,
             self.is_nan,
         )
-    
-    def as_fields_tuple(self) -> tuple[RealExpr, RealExpr, RealExpr, RealExpr, BoolExpr, BoolExpr, BoolExpr, BoolExpr, BoolExpr]:
+
+    def as_fields_tuple(
+        self,
+    ) -> tuple[
+        RealExpr,
+        RealExpr,
+        RealExpr,
+        RealExpr,
+        BoolExpr,
+        BoolExpr,
+        BoolExpr,
+        BoolExpr,
+        BoolExpr,
+    ]:
         return (
             self.value,
             self.sign,
@@ -63,17 +79,17 @@ class Float32Spec:
             self.is_inf,
             self.is_nan,
         )
-    
+
     def __iter__(self):
         yield from self.as_fields_tuple()
-    
+
     def __len__(self):
         return len(self.as_fields_tuple())
-    
+
     def __getitem__(self, idx: int):
         return self.as_fields_tuple()[idx]
-    
-    def special_flags(self):
+
+    def classification_flags(self) -> dict[str, BoolExpr]:
         return {
             "norm": self.is_norm,
             "sub": self.is_sub,
@@ -91,69 +107,66 @@ class Float32Spec:
         return self.is_inf & self.sign.eq(RealLit(0))
 
 
-# General case for FP32
+def _assume_exclusive_classification(ctx, flags: tuple[BoolExpr, ...]) -> None:
+    ctx.assume(flags[0] | flags[1] | flags[2] | flags[3] | flags[4])
+    for i, lhs in enumerate(flags):
+        for rhs in flags[i + 1:]:
+            ctx.assume((~lhs) | (~rhs))
+
+
 def fresh_float(name: str, ctx) -> Float32Spec:
+    """Create an unconstrained FP32 input with explicit classification."""
+
     is_norm = ctx.fresh_bool(f"{name}_is_norm")
     is_sub = ctx.fresh_bool(f"{name}_is_sub")
     is_zero = ctx.fresh_bool(f"{name}_is_zero")
     is_inf = ctx.fresh_bool(f"{name}_is_inf")
     is_nan = ctx.fresh_bool(f"{name}_is_nan")
-    
+
+    value = ctx.fresh_real(f"{name}_value")
     sign = ctx.fresh_real(f"{name}_sign")
     exponent = ctx.fresh_real(f"{name}_exponent")
     mantissa = ctx.fresh_real(f"{name}_mantissa")
-    
+
     zero = ctx.real_val(0)
     one = ctx.real_val(1)
     two = ctx.real_val(2)
-    m_bits = ctx.real_val(Float32.mantissa_bits)
-    bias = ctx.real_val(Float32.exponent_bias)
+    mantissa_bits = ctx.real_val(Float32.mantissa_bits)
+    exponent_bias = ctx.real_val(Float32.exponent_bias)
     max_exponent = ctx.real_val((1 << Float32.exponent_bits) - 1)
     max_mantissa = ctx.real_val((1 << Float32.mantissa_bits) - 1)
-    
+
     ctx.assume(sign.eq(zero) | sign.eq(one))
     ctx.assume((exponent >= zero) & (exponent <= max_exponent))
     ctx.assume((mantissa >= zero) & (mantissa <= max_mantissa))
-    
+
     flags = (is_norm, is_sub, is_zero, is_inf, is_nan)
-    ctx.assume(is_norm | is_sub | is_zero | is_inf | is_nan)
-    for i, lhs in enumerate(flags):
-        for rhs in flags[i + 1:]:
-            ctx.assume((~lhs) | (~rhs))
-    
+    _assume_exclusive_classification(ctx, flags)
+
     ctx.assume(_implies(is_norm, exponent >= one))
-    ctx.assume(_implies(is_norm, exponent <= (max_exponent - one)))
+    ctx.assume(_implies(is_norm, exponent <= max_exponent - one))
     ctx.assume(_implies(is_sub | is_zero, exponent.eq(zero)))
     ctx.assume(_implies(is_zero | is_inf, mantissa.eq(zero)))
     ctx.assume(_implies(is_inf | is_nan, exponent.eq(max_exponent)))
     ctx.assume(_implies(is_sub | is_nan, mantissa >= one))
-    
+
     sign_value = sign_multiplier(ctx, sign)
-    norm_value = sign_value * (one + mantissa * (two ** (-m_bits))) * (two ** (exponent - bias))
-    sub_value = sign_value * mantissa * (two ** (-m_bits)) * (two ** (one - bias))
-    
-    finite_value = If(
-        is_norm,
-        norm_value,
-        If(is_sub, sub_value, zero),
+    norm_value = (
+        sign_value
+        * (one + mantissa * (two ** (-mantissa_bits)))
+        * (two ** (exponent - exponent_bias))
+    )
+    sub_value = (
+        sign_value
+        * mantissa
+        * (two ** (-mantissa_bits))
+        * (two ** (one - exponent_bias))
     )
 
-    # The semantic view retains NaN and signed infinity. Arithmetic specs must
-    # use finite_value after handling these cases explicitly.
-    value = If(
-        is_nan,
-        ctx.nan(),
-        If(
-            is_inf,
-            If(
-                sign.eq(one),
-                ctx.ninf(),
-                ctx.inf(),
-            ),
-            finite_value,
-        ),
-    )
-    
+    ctx.assume(_implies(is_norm, value.eq(norm_value)))
+    ctx.assume(_implies(is_sub, value.eq(sub_value)))
+    ctx.assume(_implies(is_zero, value.eq(zero)))
+
     return Float32Spec(
         value=value,
         sign=sign,
@@ -167,169 +180,75 @@ def fresh_float(name: str, ctx) -> Float32Spec:
     )
 
 
-def encode_fp32(ctx, value: RealExpr) -> Float32Spec:
-    name = "encoded_fp32"
+def encode_fp32(
+    ctx,
+    value: RealExpr,
+    *,
+    nan: BoolExpr | None = None,
+    inf: BoolExpr | None = None,
+    inf_sign: RealExpr | None = None,
+) -> Float32Spec:
+    """Encode a finite candidate plus explicit non-finite result conditions.
 
-    forced_nan = value.eq(ctx.nan())
-    forced_pinf = value.eq(ctx.inf())
-    forced_ninf = value.eq(ctx.ninf())
-    
-    forced_inf = forced_pinf | forced_ninf
-    is_finite = (~forced_nan) & (~forced_inf)
-    
-    ############# Constants #############
+    NaN has priority over infinity. ``inf_sign`` is required whenever ``inf``
+    may hold; finite overflow derives its sign directly from ``value``.
+    """
+
+    if not isinstance(value, RealExpr):
+        raise TypeError(f"encode_fp32 value must be RealExpr, got {type(value).__name__}")
+
+    nan = ctx.false() if nan is None else nan
+    inf_was_supplied = inf is not None
+    inf = ctx.false() if inf is None else inf
+    if not isinstance(nan, BoolExpr):
+        raise TypeError(f"encode_fp32 nan must be BoolExpr, got {type(nan).__name__}")
+    if not isinstance(inf, BoolExpr):
+        raise TypeError(f"encode_fp32 inf must be BoolExpr, got {type(inf).__name__}")
+
     zero = ctx.real_val(0)
     one = ctx.real_val(1)
     two = ctx.real_val(2)
-    max_exponent = ctx.real_val((1 << Float32.exponent_bits) - 1)
-    max_mantissa = ctx.real_val((1 << Float32.mantissa_bits) - 1)
-    
-    mantissa_bits = ctx.real_val(Float32.mantissa_bits)
-    exponent_bits = ctx.real_val(Float32.exponent_bits)
-    exponent_bias = ctx.real_val(Float32.exponent_bias)
-    
-    smallest_normal = two ** (one - exponent_bias)
-    # Greatest_normal cannot fit in egglog if folded
-    greatest_normal = (two - two ** (-mantissa_bits)) * two ** (two ** exponent_bits - two - exponent_bias)
-    smallest_subnormal = two ** (one - exponent_bias - mantissa_bits)
-    ####################################
-    
-    ########### Components #############
-    sign = ctx.fresh_real(f"{name}_sign")
-    exponent = ctx.fresh_real(f"{name}_exponent")
-    mantissa = ctx.fresh_real(f"{name}_mantissa")
-    
-    ctx.assume(sign.eq(zero) | sign.eq(one))
-    # Numeric constraints only inspect the finite projection.
-    ctx.assume(
-        _implies(
-            is_finite,
-            sign.eq(If(value < zero, one, zero)),
+    if inf_sign is None:
+        if inf_was_supplied and inf.constant_fold() != BoolLit(False):
+            raise ValueError("encode_fp32 requires inf_sign when inf may be true")
+        inf_sign = zero
+    if not isinstance(inf_sign, RealExpr):
+        raise TypeError(
+            f"encode_fp32 inf_sign must be RealExpr, got {type(inf_sign).__name__}"
         )
-    )
 
-    ctx.assume((exponent >= zero) & (exponent <= max_exponent))
-    ctx.assume((mantissa >= zero) & (mantissa <= max_mantissa))
-    ####################################
-    
-    ############## Flags ###############
-    magnitude = ctx.fresh_real("magnitude")
-    ctx.assume(_implies(is_finite, magnitude.eq(abs(value))))
-    
-    is_subnormal_range = is_finite & (magnitude < smallest_normal)
-    
-    is_norm = ctx.fresh_bool(f"{name}_is_norm")
-    is_sub = ctx.fresh_bool(f"{name}_is_sub")
-    is_zero = ctx.fresh_bool(f"{name}_is_zero")
-    is_inf = ctx.fresh_bool(f"{name}_is_inf")
-    is_nan = ctx.fresh_bool(f"{name}_is_nan")
-    
-    ctx.assume(is_zero.eq(is_finite & (magnitude < smallest_subnormal)))
-    ctx.assume(is_sub.eq(is_finite & (magnitude < smallest_normal) & (magnitude >= smallest_subnormal)))
-    ctx.assume(is_norm.eq(is_finite & (magnitude >= smallest_normal) & (magnitude <= greatest_normal)))
-    ctx.assume(is_inf.eq((is_finite & (magnitude > greatest_normal)) | forced_inf))
-    ctx.assume(is_nan.eq(forced_nan))
-
-    flags = (is_norm, is_sub, is_zero, is_inf, is_nan)
-    ctx.assume(is_norm | is_sub | is_zero | is_inf | is_nan)
-    for i, lhs in enumerate(flags):
-        for rhs in flags[i + 1:]:
-            ctx.assume((~lhs) | (~rhs))
-    ####################################
-    
-    ###### Components Constraints ######
-    ctx.assume(_implies(is_norm, exponent >= one))
-    ctx.assume(_implies(is_norm, exponent <= (max_exponent - one)))
-    ctx.assume(_implies(is_sub | is_zero, exponent.eq(zero)))
-    ctx.assume(_implies(is_zero | is_inf, mantissa.eq(zero)))
-    ctx.assume(_implies(is_inf | is_nan, exponent.eq(max_exponent)))
-    ctx.assume(_implies(is_sub | is_nan, mantissa >= one))
-
-    ctx.assume(_implies(forced_pinf, sign.eq(zero)))
-    ctx.assume(_implies(forced_ninf, sign.eq(one)))
-    ctx.assume(_implies(forced_nan, sign.eq(zero)))
-    ####################################
-    
-    ########### Final value ############
-    sign_value = sign_multiplier(ctx, sign)
-    norm_value = sign_value * (one + mantissa * (two ** (-mantissa_bits))) * (two ** (exponent - exponent_bias))
-    sub_value = sign_value * mantissa * (two ** (-mantissa_bits)) * (two ** (one - exponent_bias))
-    
-    value_from_components = If(
-        is_nan,
-        ctx.nan(),
-        If(
-            is_inf,
-            If(sign.eq(one), ctx.ninf(), ctx.inf()),
-            If(
-                is_norm,
-                norm_value,
-                If(is_sub, sub_value, zero),
-            ),
-        ),
-    )
-
-    ctx.assume(_implies(is_norm, value.eq(value_from_components)))
-    ctx.assume(_implies(is_sub, value.eq(value_from_components)))
-    ####################################
-    
-    return Float32Spec(
-        value=value_from_components,
-        sign=sign,
-        exponent=exponent,
-        mantissa=mantissa,
-        is_norm=is_norm,
-        is_sub=is_sub,
-        is_zero=is_zero,
-        is_inf=is_inf,
-        is_nan=is_nan,
-    )
-
-
-# Priority for flags: NaN -> Inf
-# sign is assumed to be {0, 1}
-# encode_inf is assumed to be {0, 1}
-# encode_nan is assumed to be {0, 1}
-def encode_fp32_components(
-    ctx,
-    sign: RealExpr,
-    exponent: RealExpr,
-    mantissa: RealExpr,
-    inf: BoolExpr,
-    nan: BoolExpr,
-) -> Float32Spec:
-    name = "encoded_fp32_components"
-    
     forced_nan = nan
     forced_inf = (~forced_nan) & inf
+    candidate_is_finite = (~forced_nan) & (~forced_inf)
 
-    is_finite = (~forced_nan) & (~forced_inf)
-
-    zero = ctx.real_val(0)
-    one = ctx.real_val(1)
-    two = ctx.real_val(2)
-    sign_value = sign_multiplier(ctx, sign)
-
-    ctx.assume(sign.eq(zero) | sign.eq(one))
-    ctx.assume(forced_inf.eq(zero) | forced_inf.eq(one))
-    ctx.assume(forced_nan.eq(zero) | forced_nan.eq(one))
-
+    max_exponent = ctx.real_val((1 << Float32.exponent_bits) - 1)
+    max_mantissa = ctx.real_val((1 << Float32.mantissa_bits) - 1)
     mantissa_bits = ctx.real_val(Float32.mantissa_bits)
     exponent_bits = ctx.real_val(Float32.exponent_bits)
     exponent_bias = ctx.real_val(Float32.exponent_bias)
 
-    max_mantissa = ctx.real_val((1 << Float32.mantissa_bits) - 1)
-    max_exponent = ctx.real_val((1 << Float32.exponent_bits) - 1)
-
     smallest_normal = two ** (one - exponent_bias)
-    # Greatest_normal cannot fit in egglog if folded
-    greatest_normal = (two - two ** (-mantissa_bits)) * two ** (two ** exponent_bits - two - exponent_bias)
+    greatest_normal = (
+        (two - two ** (-mantissa_bits))
+        * two ** (two ** exponent_bits - two - exponent_bias)
+    )
     smallest_subnormal = two ** (one - exponent_bias - mantissa_bits)
 
-    normal_magnitude = (one + mantissa * two ** (-mantissa_bits)) * two ** (exponent - exponent_bias)
-    subnormal_magnitude = mantissa * two ** (-mantissa_bits) * two ** (one - exponent_bias)
+    name = "encoded_fp32"
+    sign = ctx.fresh_real(f"{name}_sign")
+    exponent = ctx.fresh_real(f"{name}_exponent")
+    mantissa = ctx.fresh_real(f"{name}_mantissa")
+    output_value = ctx.fresh_real(f"{name}_value")
 
-    is_subnormal_range = is_finite & (normal_magnitude < smallest_normal)
+    ctx.assume(sign.eq(zero) | sign.eq(one))
+    ctx.assume(_implies(candidate_is_finite, sign.eq(If(value < zero, one, zero))))
+    ctx.assume(_implies(forced_inf, inf_sign.eq(zero) | inf_sign.eq(one)))
+    ctx.assume(_implies(forced_inf, sign.eq(inf_sign)))
+    ctx.assume((exponent >= zero) & (exponent <= max_exponent))
+    ctx.assume((mantissa >= zero) & (mantissa <= max_mantissa))
+
+    magnitude = ctx.fresh_real(f"{name}_magnitude")
+    ctx.assume(_implies(candidate_is_finite, magnitude.eq(abs(value))))
 
     is_norm = ctx.fresh_bool(f"{name}_is_norm")
     is_sub = ctx.fresh_bool(f"{name}_is_sub")
@@ -337,65 +256,64 @@ def encode_fp32_components(
     is_inf = ctx.fresh_bool(f"{name}_is_inf")
     is_nan = ctx.fresh_bool(f"{name}_is_nan")
 
-    ctx.assume(is_zero.eq(is_subnormal_range & (subnormal_magnitude < smallest_subnormal)))
-    ctx.assume(is_sub.eq(is_subnormal_range & (~is_zero)))
-    ctx.assume(is_norm.eq(is_finite & (normal_magnitude >= smallest_normal) & (normal_magnitude <= greatest_normal)))
-    ctx.assume(is_inf.eq((is_finite & (normal_magnitude > greatest_normal)) | forced_inf))
+    ctx.assume(
+        is_zero.eq(candidate_is_finite & (magnitude < smallest_subnormal))
+    )
+    ctx.assume(
+        is_sub.eq(
+            candidate_is_finite
+            & (magnitude < smallest_normal)
+            & (magnitude >= smallest_subnormal)
+        )
+    )
+    ctx.assume(
+        is_norm.eq(
+            candidate_is_finite
+            & (magnitude >= smallest_normal)
+            & (magnitude <= greatest_normal)
+        )
+    )
+    ctx.assume(
+        is_inf.eq(
+            (candidate_is_finite & (magnitude > greatest_normal)) | forced_inf
+        )
+    )
     ctx.assume(is_nan.eq(forced_nan))
 
-    # Some constant encodings, such as inf/nan.
-    out_exponent = If(
-        is_nan | is_inf,
-        max_exponent,
-        If(is_zero | is_sub, zero, ctx.fresh_real(f"{name}_exponent")),
-    )
-    out_mantissa = If(
-        is_nan,
-        one,
-        If(is_inf | is_zero, zero, ctx.fresh_real(f"{name}_mantissa")),
-    )
-    ctx.assume(_implies(is_sub | is_norm, (out_mantissa >= zero) & (out_mantissa <= max_mantissa)))
-    ctx.assume(_implies(is_norm, (out_exponent >= one) & (out_exponent <= max_exponent - one)))
-
-    out_subnormal_magnitude = out_mantissa * two ** (-mantissa_bits) * two ** (one - exponent_bias)
-    out_normal_magnitude = (one + out_mantissa * two ** (-mantissa_bits)) * two ** (out_exponent - exponent_bias)
-
-    ctx.assume(_implies(is_norm, out_normal_magnitude.eq(normal_magnitude)))
-    ctx.assume(_implies(is_sub, out_subnormal_magnitude.eq(subnormal_magnitude)))
-
     flags = (is_norm, is_sub, is_zero, is_inf, is_nan)
-    ctx.assume(is_norm | is_sub | is_zero | is_inf | is_nan)
-    for i, lhs in enumerate(flags):
-        for rhs in flags[i + 1:]:
-            ctx.assume((~lhs) | (~rhs))
+    _assume_exclusive_classification(ctx, flags)
 
-    subnormal_val = sign_value * out_subnormal_magnitude
-    normal_val = sign_value * out_normal_magnitude
+    ctx.assume(_implies(is_norm, exponent >= one))
+    ctx.assume(_implies(is_norm, exponent <= max_exponent - one))
+    ctx.assume(_implies(is_sub | is_zero, exponent.eq(zero)))
+    ctx.assume(_implies(is_zero | is_inf, mantissa.eq(zero)))
+    ctx.assume(_implies(is_inf | is_nan, exponent.eq(max_exponent)))
+    ctx.assume(_implies(is_sub | is_nan, mantissa >= one))
 
-    finite_value = If(
-        is_norm,
-        normal_val,
-        If(
-            is_sub,
-            subnormal_val,
-            zero,
-        ),
+    sign_value = sign_multiplier(ctx, sign)
+    norm_value = (
+        sign_value
+        * (one + mantissa * (two ** (-mantissa_bits)))
+        * (two ** (exponent - exponent_bias))
     )
-    value = If(
-        is_nan,
-        ctx.nan(),
-        If(
-            is_inf,
-            If(sign.eq(one), ctx.ninf(), ctx.inf()),
-            finite_value,
-        ),
+    sub_value = (
+        sign_value
+        * mantissa
+        * (two ** (-mantissa_bits))
+        * (two ** (one - exponent_bias))
     )
+
+    ctx.assume(_implies(is_norm, value.eq(norm_value)))
+    ctx.assume(_implies(is_sub, value.eq(sub_value)))
+    ctx.assume(_implies(is_norm, output_value.eq(norm_value)))
+    ctx.assume(_implies(is_sub, output_value.eq(sub_value)))
+    ctx.assume(_implies(is_zero, output_value.eq(zero)))
 
     return Float32Spec(
-        value=value,
+        value=output_value,
         sign=sign,
-        exponent=out_exponent,
-        mantissa=out_mantissa,
+        exponent=exponent,
+        mantissa=mantissa,
         is_norm=is_norm,
         is_sub=is_sub,
         is_zero=is_zero,

@@ -32,7 +32,7 @@ def _case_labels(name: str) -> dict[str, str]:
     return labels
 
 
-def _split_special_cases(
+def _split_classification_cases(
     ctx: SpecContext,
     inputs: list[tp.Any],
     spec_inner: tp.Any,
@@ -48,15 +48,15 @@ def _split_special_cases(
     
     split_ctxs = [ctx]
     for value_name, value in values:
-        special_flags = getattr(value, "special_flags", lambda: None)()
-        if special_flags is None:
+        classification_flags = getattr(value, "classification_flags", lambda: None)()
+        if classification_flags is None:
             continue
         
         next_ctxs = []
         for base_ctx in split_ctxs:
-            for selected_name in special_flags:
+            for selected_name in classification_flags:
                 case_ctx = base_ctx.copy()
-                _assume_special_case(
+                _assume_classification_case(
                     case_ctx,
                     value_name,
                     value,
@@ -67,14 +67,14 @@ def _split_special_cases(
     return split_ctxs
 
 
-def _assume_special_case(
+def _assume_classification_case(
     ctx: SpecContext,
     value_name: str,
     value: tp.Any,
     selected_name: str,
 ) -> None:
     ctx.name = _append_case_name(ctx.name, f"{value_name}={selected_name}")
-    for flag_name, flag in value.special_flags().items():
+    for flag_name, flag in value.classification_flags().items():
         ctx.assume(flag.eq(ctx.bool_val(flag_name == selected_name)))
 
 
@@ -104,11 +104,11 @@ def _side_case_context(
     
     for idx, value in enumerate(inputs):
         value_name = f"arg{idx}"
-        special_flags = getattr(value, "special_flags", lambda: None)()
-        if special_flags is None or value_name not in case_labels:
+        classification_flags = getattr(value, "classification_flags", lambda: None)()
+        if classification_flags is None or value_name not in case_labels:
             continue
-        _assume_special_case(ctx, value_name, value, case_labels[value_name])
-    _assume_special_case(ctx, spec_case_name, spec_value, case_labels[spec_case_name])
+        _assume_classification_case(ctx, value_name, value, case_labels[value_name])
+    _assume_classification_case(ctx, spec_case_name, spec_value, case_labels[spec_case_name])
     return ctx
 
 def _has_confirmed_feasibility_mismatch(
@@ -202,8 +202,8 @@ class composite(Node):
         inputs = [combined_ctx.spec_of(arg) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, ctx=combined_ctx)
         
-        # Subsplit a general specification into special-value cases (if applicable)
-        initial_ctxs = _split_special_cases(
+        # Split a general specification into FP32 classification cases.
+        initial_ctxs = _split_classification_cases(
             combined_ctx,
             inputs,
             spec_inner,
@@ -236,10 +236,10 @@ class composite(Node):
             )
             solution_can_exist = (combined_feasibility != "not feasible")
 
-            # If there is no special flags at output
+            # If the output does not expose classification flags.
             if not ("inner_spec" in case_labels and "outer_spec" in case_labels):
                 case_proved = (_status == "unsat") if solution_can_exist else (_status == "sat")
-            # Output was a special value
+            # Both outputs expose FP32 classifications.
             elif solution_can_exist:
                 if case_labels["outer_spec"] != case_labels["inner_spec"]:
                     case_proved = (_status == "sat")
