@@ -127,7 +127,64 @@ class RealExpr(SpecNode):
 
 
 class FPExpr(SpecNode):
-    pass
+    # Unites two branches into a combined FPExpr
+    @classmethod
+    def select(
+        cls,
+        condition: "BoolExpr",
+        on_true: "FPExpr",
+        on_false: "FPExpr",
+    ) -> "FPExpr":
+        """Select two same-format FP expressions field by field."""
+
+        BoolExpr._coerce_bool_expr(condition)
+        if type(on_true) is not type(on_false):
+            raise TypeError(
+                "FP If branches must have the same type, got "
+                f"{type(on_true).__name__} and {type(on_false).__name__}"
+            )
+        if not isinstance(on_true, cls) or not is_dataclass(on_true):
+            raise TypeError(
+                f"FP If branches must be dataclass {cls.__name__} values"
+            )
+
+        selected_fields: dict[str, object] = {}
+        for field in fields(on_true):
+            if not field.init:
+                continue
+
+            true_value = getattr(on_true, field.name)
+            false_value = getattr(on_false, field.name)
+
+            if isinstance(true_value, RealExpr):
+                if not isinstance(false_value, RealExpr):
+                    raise TypeError(f"Mismatched FP field types for {field.name}")
+                selected_value = If(condition, true_value, false_value)
+            elif isinstance(true_value, BoolExpr):
+                if not isinstance(false_value, BoolExpr):
+                    raise TypeError(f"Mismatched FP field types for {field.name}")
+                selected_value = (
+                    (condition & true_value)
+                    | ((~condition) & false_value)
+                )
+            elif isinstance(true_value, FPExpr):
+                if type(true_value) is not type(false_value):
+                    raise TypeError(f"Mismatched FP field types for {field.name}")
+                selected_value = type(true_value).select(
+                    condition,
+                    true_value,
+                    false_value,
+                )
+            else:
+                if true_value != false_value:
+                    raise TypeError(
+                        f"Cannot select differing FP metadata field {field.name}"
+                    )
+                selected_value = true_value
+
+            selected_fields[field.name] = selected_value
+
+        return type(on_true)(**selected_fields)
     
 
 class BoolExpr(SpecNode):
@@ -468,6 +525,20 @@ class If(RealExpr):
     cond: BoolExpr
     on_true: RealExpr
     on_false: RealExpr
+
+    def __new__(cls, cond, on_true, on_false):
+        BoolExpr._coerce_bool_expr(cond)
+        true_is_fp = isinstance(on_true, FPExpr)
+        false_is_fp = isinstance(on_false, FPExpr)
+        if true_is_fp or false_is_fp:
+            if not (true_is_fp and false_is_fp):
+                raise TypeError(
+                    "If branches must both be RealExpr or matching FPExpr "
+                    f"values, got {type(on_true).__name__} and "
+                    f"{type(on_false).__name__}"
+                )
+            return type(on_true).select(cond, on_true, on_false)
+        return super().__new__(cls)
 
     def __post_init__(self):
         BoolExpr._coerce_bool_expr(self.cond)

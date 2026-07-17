@@ -222,33 +222,6 @@ class fp32(FPExpr):
             is_nan=BoolLit(False),
         )
 
-    # @classmethod
-    # def select(cls, condition: BoolExpr, on_true: fp32, on_false: fp32) -> fp32:
-    #     """Select between two binary32 values field by field."""
-
-    #     if not isinstance(condition, BoolExpr):
-    #         raise TypeError(
-    #             "fp32.select condition must be BoolExpr, "
-    #             f"got {type(condition).__name__}"
-    #         )
-    #     if not isinstance(on_true, cls) or not isinstance(on_false, cls):
-    #         raise TypeError("fp32.select branches must both be fp32 values")
-
-    #     def select_bool(lhs: BoolExpr, rhs: BoolExpr) -> BoolExpr:
-    #         return (condition & lhs) | ((~condition) & rhs)
-
-    #     return cls(
-    #         value=If(condition, on_true.value, on_false.value),
-    #         sign=If(condition, on_true.sign, on_false.sign),
-    #         exponent=If(condition, on_true.exponent, on_false.exponent),
-    #         mantissa=If(condition, on_true.mantissa, on_false.mantissa),
-    #         is_norm=select_bool(on_true.is_norm, on_false.is_norm),
-    #         is_sub=select_bool(on_true.is_sub, on_false.is_sub),
-    #         is_zero=select_bool(on_true.is_zero, on_false.is_zero),
-    #         is_inf=select_bool(on_true.is_inf, on_false.is_inf),
-    #         is_nan=select_bool(on_true.is_nan, on_false.is_nan),
-    #     )
-
     def as_tuple(self) -> tuple[RealExpr | BoolExpr, ...]:
         """Return the observable semantic fields used for equivalence."""
 
