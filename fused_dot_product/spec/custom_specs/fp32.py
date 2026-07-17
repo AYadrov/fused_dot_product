@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
 
-from .spec_ast import BoolExpr, BoolLit, FPExpr, If, RealExpr, RealLit
+from ..spec_ast import BoolExpr, BoolLit, FPExpr, If, RealExpr, RealLit
 
 
 def _implies(lhs: BoolExpr, rhs: BoolExpr) -> BoolExpr:

@@ -191,7 +191,7 @@ class Float32T(StaticType):
         return Float32T()
     
     def to_spec(self, name, ctx):
-        from ..spec.spec_values import fp32
+        from ..spec.custom_specs.fp32 import fp32
 
         return fp32.fresh(name, ctx)
     
