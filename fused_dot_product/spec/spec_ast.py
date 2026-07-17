@@ -126,6 +126,10 @@ class RealExpr(SpecNode):
         return Min(self, other)
 
 
+class FPExpr(SpecNode):
+    pass
+    
+
 class BoolExpr(SpecNode):
     @staticmethod
     def _coerce_bool_expr(value):

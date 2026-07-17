@@ -85,7 +85,7 @@ def fp32_pack(sign: Node, exponent: Node, mantissa: Node) -> Node:
 
 
 def decoder_spec(x, ctx):
-    sign, exponent, mantissa, is_normal, is_subnormal, is_zero, is_inf, is_nan = x.as_fields_tuple()[1:]
+    sign, exponent, mantissa, is_normal, is_subnormal, is_zero, is_inf, is_nan = x.decode()[1:]
     def bool_to_real(flag):
         return If(flag, ctx.real_val(1), ctx.real_val(0))
     return sign, exponent, mantissa, bool_to_real(is_normal), bool_to_real(is_subnormal), bool_to_real(is_zero), bool_to_real(is_inf), bool_to_real(is_nan)

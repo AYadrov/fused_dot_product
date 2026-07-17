@@ -205,7 +205,7 @@ class SpecContext:
                 return rhs_folded, lhs_folded
         return None
     
-    def _simplify_core(self) -> "SpecContext":
+    def simplify(self) -> "SpecContext":
         """Apply context learning and ordinary constant folding to a fixpoint."""
         simplified = self.copy()
         max_iterations = len(simplified.assumes) + len(simplified.checks) + 1
@@ -245,10 +245,6 @@ class SpecContext:
             if not identical_nodes(check, BoolLit(True))
         ]
         return simplified
-
-    # LEARNS FROM ASSUMES - APPLIES EVERYWHERE
-    def simplify(self) -> "SpecContext":
-        return self._simplify_core()
     
     def spec_of(self, node: Node):
         if not self._spec_cache_valid:
@@ -265,7 +261,10 @@ class SpecContext:
         return RealVar(name=name)
     
     def fresh_real(self, base: str) -> RealVar:
-        name = RealVar(name=f"{base}_{self._sym_counter}")
+        return RealVar(self.fresh_name(base))
+
+    def fresh_name(self, base: str):
+        name=f"{base}_{self._sym_counter}"
         self._sym_counter += 1
         return name
     
@@ -273,17 +272,7 @@ class SpecContext:
         return BoolVar(name=name)
     
     def fresh_bool(self, base: str) -> BoolVar:
-        name = BoolVar(name=f"{base}_{self._sym_counter}")
-        self._sym_counter += 1
-        return name
-    
-    def fresh_float(self, base: str):
-        from .spec_values import fresh_float
-        return fresh_float(base, self)
-    
-    def encode_fp32(self, **kwargs):
-        from .spec_values import encode_fp32
-        return encode_fp32(self, **kwargs)
+        return BoolVar(self.fresh_name(base))
     
     def bool_val(self, value: bool):
         return BoolLit(value=value)
@@ -349,7 +338,7 @@ def simplify_ctx(ctx: SpecContext):
     
     try:
         simplified_ctx = ctx.simplify()
-        print(simplified_ctx)
+        simplified_ctx = rival_trim_context(simplified_ctx)
     except PoorSpec as exc:
         return build_proof_report(
             ctx,
@@ -377,7 +366,7 @@ def simplify_ctx(ctx: SpecContext):
         if any([identical_nodes(x, BoolLit(False)) for x in simplified_ctx.checks]):
              satisfiability_status = "sat"
         else:
-            simplified_ctx = rival_trim_context(simplified_ctx)
+            
             if rival_feasibility_check(simplified_ctx, max_depth=0, checks=True) == "not feasible":
                 satisfiability_status = "sat"
             else:

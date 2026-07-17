@@ -354,7 +354,7 @@ class Float32(RuntimeType):
             return float((-1) ** self.sign * frac * (2 ** exp_val))
 
     def to_spec(self, ctx):
-        from ..spec.spec_values import Float32Spec
+        from ..spec.spec_values import fp32
 
         is_inf = self.exponent == self.inf_code and self.mantissa == 0
         is_nan = self.exponent == self.nan_code and self.mantissa != 0
@@ -367,7 +367,7 @@ class Float32(RuntimeType):
             if is_inf or is_nan
             else ctx.real_val(self.to_val())
         )
-        return Float32Spec(
+        return fp32(
             value=value,
             sign=ctx.real_val(self.sign),
             exponent=ctx.real_val(self.exponent),
