@@ -1,13 +1,13 @@
-from fused_dot_product import *
+from zolotone import *
 from .common import *
 from .encode_Float32 import *
 
 
 # Demo navigation map:
-# - FP32 decode helpers: fused_dot_product/components/Float.py
+# - FP32 decode helpers: zolotone/components/Float.py
 # - Bit helpers and significand formatting: examples/common.py
-# - Unsigned fixed-point operations: fused_dot_product/components/UQ.py
-# - Signed fixed-point operations: fused_dot_product/components/Q.py
+# - Unsigned fixed-point operations: zolotone/components/UQ.py
+# - Signed fixed-point operations: zolotone/components/Q.py
 # - Final FP32 packing and rounding: examples/encode_Float32.py
 
 

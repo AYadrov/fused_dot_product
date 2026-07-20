@@ -8,8 +8,8 @@ import numpy as np
 from pprint import pprint, pformat
 from pathlib import Path
 
-from fused_dot_product import *
-from fused_dot_product.egglog.rules import check_rules, rewrite_rules
+from zolotone import *
+from zolotone.egglog.rules import check_rules, rewrite_rules
 from examples.optimized import Optimized
 from examples.conventional import Conventional
 from examples.CSA import CSA_tree4

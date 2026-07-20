@@ -1,4 +1,4 @@
-from fused_dot_product import *
+from zolotone import *
 
 ############## HELPERS #################
 def _aligner(a: Node, b: Node):
@@ -60,4 +60,3 @@ if __name__ == '__main__':
     pprint(report)
     with open("examples/csa.hpp", "w") as file:
         file.write(design.to_cpp())
-

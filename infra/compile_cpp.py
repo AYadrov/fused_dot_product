@@ -5,7 +5,7 @@ import ctypes
 import subprocess
 from pathlib import Path
 
-from fused_dot_product import Node, StaticType, TupleT
+from zolotone import Node, StaticType, TupleT
 
 _INFRA_DIR = Path(__file__).resolve().parent
 _AC_TYPES_INCLUDE_DIR = _INFRA_DIR / "ac_types" / "include"

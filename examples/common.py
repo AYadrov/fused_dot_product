@@ -1,4 +1,4 @@
-from fused_dot_product import *
+from zolotone import *
 
 
 def add_implicit_bit(x: Node) -> Primitive:

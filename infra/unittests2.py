@@ -11,13 +11,13 @@ import math
 import z3
 from egglog import EGraph
 
-from fused_dot_product import *
-from fused_dot_product.ast import nodes as ast_nodes
-from fused_dot_product.egglog.rules import load_rules
-from fused_dot_product.smt import dreal_check_eq, z3_check_eq
-from fused_dot_product.solver import engine as solver_engine
-from fused_dot_product.solver.report import build_proof_report
-from fused_dot_product.rival import (
+from zolotone import *
+from zolotone.ast import nodes as ast_nodes
+from zolotone.egglog.rules import load_rules
+from zolotone.smt import dreal_check_eq, z3_check_eq
+from zolotone.solver import engine as solver_engine
+from zolotone.solver.report import build_proof_report
+from zolotone.rival import (
     RivalAnalysis,
     build_machine,
     collect_free_vars,
@@ -26,8 +26,8 @@ from fused_dot_product.rival import (
     rival_trim_context,
     to_rival_ir,
 )
-from fused_dot_product.spec.spec_context import simplify_ctx
-from fused_dot_product.spec.spec_utils import from_egglog
+from zolotone.spec.spec_context import simplify_ctx
+from zolotone.spec.spec_utils import from_egglog
 from examples.FP32_IEEE_adder import FP32_IEEE_adder
 from examples.FP32_IEEE_mult import FP32_IEEE_mult
 from examples.conventional import Conventional
@@ -827,8 +827,8 @@ class TestSpecContextLearning(unittest.TestCase):
         ctx.assume(BoolLit(False))
 
         with (
-            patch("fused_dot_product.spec.spec_context.rival_feasibility_check") as feasibility,
-            patch("fused_dot_product.spec.spec_context.rival_trim_context") as trim,
+            patch("zolotone.spec.spec_context.rival_feasibility_check") as feasibility,
+            patch("zolotone.spec.spec_context.rival_trim_context") as trim,
             open(os.devnull, "w") as devnull,
             contextlib.redirect_stdout(devnull),
         ):
@@ -1161,7 +1161,7 @@ class TestRivalTranslation(unittest.TestCase):
         native = Mock()
         native.build_machine.return_value = raw_machine
 
-        with patch("fused_dot_product.rival._load_native_module", return_value=native):
+        with patch("zolotone.rival._load_native_module", return_value=native):
             machine = build_machine(
                 [
                     x >= RealLit(0),
@@ -1390,7 +1390,7 @@ class TestRivalTranslation(unittest.TestCase):
                 )
             return machine
 
-        with patch("fused_dot_product.rival.build_machine", side_effect=build):
+        with patch("zolotone.rival.build_machine", side_effect=build):
             status = rival_feasibility_check(ctx, max_depth=1, checks=True)
 
         self.assertEqual(status, "not feasible")
@@ -1445,8 +1445,8 @@ class TestRivalTranslation(unittest.TestCase):
             return machine
 
         with (
-            patch("fused_dot_product.rival.get_rival_rects", return_value=[clean_rect, bad_rect]),
-            patch("fused_dot_product.rival.build_machine", side_effect=build),
+            patch("zolotone.rival.get_rival_rects", return_value=[clean_rect, bad_rect]),
+            patch("zolotone.rival.build_machine", side_effect=build),
         ):
             status = rival_feasibility_check(ctx, max_depth=1, checks=True)
 
@@ -1479,9 +1479,9 @@ class TestRivalTranslation(unittest.TestCase):
             return machine
 
         with (
-            patch("fused_dot_product.rival.build_machine", side_effect=build),
+            patch("zolotone.rival.build_machine", side_effect=build),
             patch(
-                "fused_dot_product.rival.get_rival_rects",
+                "zolotone.rival.get_rival_rects",
                 side_effect=AssertionError("trim must not use assumption-derived rects"),
             ),
         ):
@@ -1509,7 +1509,7 @@ class TestRivalTranslation(unittest.TestCase):
             )
             return machine
 
-        with patch("fused_dot_product.rival.build_machine", side_effect=build):
+        with patch("zolotone.rival.build_machine", side_effect=build):
             trimmed = rival_trim_context(ctx)
 
         self.assertEqual(trimmed.assumes, [assume])

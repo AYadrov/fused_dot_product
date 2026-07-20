@@ -1,4 +1,4 @@
-from fused_dot_product import *
+from zolotone import *
 from .common import *
 from .encode_Float32 import *
 

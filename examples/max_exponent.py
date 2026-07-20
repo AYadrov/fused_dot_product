@@ -1,4 +1,4 @@
-from fused_dot_product import *
+from zolotone import *
 
 def max_exp4_spec(e0, e1, e2, e3, ctx):
     return e0.max(e1).max(e2).max(e3)

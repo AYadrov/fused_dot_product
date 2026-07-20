@@ -39,7 +39,7 @@ fn ordinal_distance_f64(x: f64, y: f64) -> usize {
     to_ordinal(y).wrapping_sub(to_ordinal(x)).unsigned_abs() as usize
 }
 
-#[pyclass(module = "fused_dot_product._rival3")]
+#[pyclass(module = "zolotone._rival3")]
 struct RivalHints {
     hints: Vec<Hint>,
 }
@@ -51,7 +51,7 @@ impl RivalHints {
     }
 }
 
-#[pyclass(module = "fused_dot_product._rival3")]
+#[pyclass(module = "zolotone._rival3")]
 struct RawRivalMachine {
     machine: Machine<F64Discretization>,
 }
@@ -190,6 +190,6 @@ fn _rival3(_py: Python<'_>, module: &PyModule) -> PyResult<()> {
     module.add_class::<RawRivalMachine>()?;
     module.add_class::<RivalHints>()?;
     module.add_function(wrap_pyfunction!(build_machine, module)?)?;
-    module.add("__doc__", "Native Rival3 bridge for fused_dot_product")?;
+    module.add("__doc__", "Native Rival3 bridge for zolotone")?;
     Ok(())
 }

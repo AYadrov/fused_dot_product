@@ -1,9 +1,9 @@
-# Fused Dot Product
+# Zolotone
 Python model of the fused dot product described by Kaul et al. (2019). The project builds a strongly typed AST for fixed-point and floating-point operations, and uses it to compare a conventional BF16 dot product against an optimized, fused implementation.
 
 ## What's here
-- `fused_dot_product/ast/AST.py` – Node definitions with static/dynamic type checking, constant folding, and tree printing.
-- `fused_dot_product/numtypes/` – Runtime and static types for `Q`/`UQ` fixed point, `BF16`, and `Float32`, plus random value generators.
+- `zolotone/ast/AST.py` – Node definitions with static/dynamic type checking, constant folding, and tree printing.
+- `zolotone/numtypes/` – Runtime and static types for `Q`/`UQ` fixed point, `BF16`, and `Float32`, plus random value generators.
 - `examples/conventional.py` and `examples/optimized.py` – Two BF16x4 to FP32 dot-product designs that can be evaluated and inspected as ASTs.
 - `docs/operators.md` – Tables of all basic operators, fixed-point primitives, and composites.
 
@@ -29,7 +29,7 @@ python main.py --seed 0
 ```
 
 ## Optional Rival3 bridge
-The `fused_dot_product.rival` module can translate `SpecNode` expressions into
+The `zolotone.rival` module can translate `SpecNode` expressions into
 Rival3 and build a native Rival machine. The pure-Python translator works
 without extra setup. To enable `build_machine(...)` and
 `RivalMachine.apply_with_hints(...)`, build the PyO3 extension:
