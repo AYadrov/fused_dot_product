@@ -1,6 +1,6 @@
 from ..types import *
 from ..ast import *
-from ..spec import If, sign_multiplier
+from ..spec import If, fp32, sign_multiplier
 from .Tuple import make_Tuple
 from .basics import *
 
@@ -71,13 +71,48 @@ def _fp32_alloc(sign_bit: Node,
 
 ############## Public API ##############
 
-# Does not track nan/infs/subnormals yet
 def fp32_pack_spec(s, e, m, ctx):
-    ctx.assume(s.eq(ctx.real_val(1)) | s.eq(ctx.real_val(0)))
-    mantissa = ctx.real_val(1) + m * ctx.real_val(2) ** (-ctx.real_val(Float32.mantissa_bits))
-    exponent = e - ctx.real_val(Float32.exponent_bias)
-    value = sign_multiplier(ctx, s) * mantissa * ctx.real_val(2) ** exponent
-    return (value, ctx.real_val(1), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0))
+    zero = ctx.real_val(0)
+    one = ctx.real_val(1)
+    two = ctx.real_val(2)
+    max_exponent = ctx.real_val(Float32.inf_code)
+
+    ctx.assume(s.eq(zero) | s.eq(one))
+
+    exponent_is_zero = e.eq(zero)
+    exponent_is_max = e.eq(max_exponent)
+    mantissa_is_zero = m.eq(zero)
+    is_zero = exponent_is_zero & mantissa_is_zero
+    is_sub = exponent_is_zero & (~mantissa_is_zero)
+    is_inf = exponent_is_max & mantissa_is_zero
+    is_nan = exponent_is_max & (~mantissa_is_zero)
+    is_norm = (~exponent_is_zero) & (~exponent_is_max)
+
+    signed = sign_multiplier(ctx, s)
+    normal_value = (
+        signed
+        * (one + m * two ** (-ctx.real_val(Float32.mantissa_bits)))
+        * two ** (e - ctx.real_val(Float32.exponent_bias))
+    )
+    subnormal_value = (
+        signed
+        * m
+        * two ** (-ctx.real_val(Float32.mantissa_bits))
+        * two ** (one - ctx.real_val(Float32.exponent_bias))
+    )
+    value = If(is_norm, normal_value, If(is_sub, subnormal_value, zero))
+
+    return fp32(
+        value=value,
+        sign=s,
+        exponent=e,
+        mantissa=m,
+        is_norm=is_norm,
+        is_sub=is_sub,
+        is_zero=is_zero,
+        is_inf=is_inf,
+        is_nan=is_nan,
+    )
 
 @Primitive(name="fp32_pack", spec=fp32_pack_spec)
 def fp32_pack(sign: Node, exponent: Node, mantissa: Node) -> Node:

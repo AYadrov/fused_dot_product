@@ -1,6 +1,6 @@
 from ..types.runtime import RuntimeType, Tuple
 from ..types.static import StaticType, TupleT
-from ..spec import BoolExpr, If, RealExpr
+from ..spec import BoolExpr, FPExpr, If, RealExpr
 from .node import Node
 from .nodes import Op, Primitive
 
@@ -36,8 +36,17 @@ def Tuple_get_item(x: Node, idx: int) -> Primitive:
     return impl(x)
 
 def if_then_else_spec(sel, in1, in0, ctx):
-    assert isinstance(in1, RealExpr)
-    assert isinstance(in0, RealExpr)
+    branches_are_real = isinstance(in1, RealExpr) and isinstance(in0, RealExpr)
+    branches_are_fp = (
+        isinstance(in1, FPExpr)
+        and isinstance(in0, FPExpr)
+        and type(in1) is type(in0)
+    )
+    if not (branches_are_real or branches_are_fp):
+        raise TypeError(
+            "if_then_else spec branches must be matching real or floating-point "
+            f"expressions, got {type(in1).__name__} and {type(in0).__name__}"
+        )
     
     if isinstance(sel, BoolExpr):
         return If(sel, in1, in0)

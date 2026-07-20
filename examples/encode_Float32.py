@@ -272,38 +272,19 @@ def fp32_encodings(m_rounded_uq: Node, e_rounded_uq: Node):
 
 
 
-def fp32_encode_spec(s, e, m, encode_nan, encode_inf, ctx):
-    zero = ctx.real_val(0)
-    one = ctx.real_val(1)
-    
+def fp32_encode_spec(s, e, m, ctx):
     sign = sign_multiplier(ctx, s)
     finite_value = sign * m * (ctx.real_val(2) ** (e - ctx.real_val(Float32.exponent_bias)))
-    
-    forced_nan = encode_nan.eq(one)
-    forced_inf = encode_inf.eq(one)
-    forced_nzero = s.eq(one) & m.eq(zero)
-    
-    return If(
-        forced_nan,
-        fp32.nan(),
-        If(
-            forced_inf,
-            If(s.eq(one), fp32.ninf(), fp32.inf()),
-            If(
-                forced_nzero,
-                fp32.nzero(),
-                fp32.encode(finite_value, ctx),
-            ),
-        ),
-    )
+    return fp32.encode(finite_value, ctx)
+
 
 # Assume that e is biased
 @Composite(name="fp32_encode", spec=fp32_encode_spec)
-def fp32_encode(s_uq: Node, e_q: Node, m_uq: Node, encode_nan: Node, encode_inf: Node) -> Primitive:
+def fp32_encode(s_uq: Node, e_q: Node, m_uq: Node) -> Primitive:
     assert e_q.node_type.frac_bits == 0
-    
+
     encode_zero = uq_is_zero(m_uq)
-        
+
     normalized_m_uq, normalized_e_q = normalize_to_1_xxx(m_uq, e_q)
     shifted_m_uq, shifted_e_uq = shift_if_subnormal(normalized_m_uq, normalized_e_q)
     shifted_dropped_bit_m_uq = drop_implicit_bit(shifted_m_uq)
@@ -312,21 +293,12 @@ def fp32_encode(s_uq: Node, e_q: Node, m_uq: Node, encode_nan: Node, encode_inf:
         
     final_m_uq, final_e_uq = fp32_encodings(m_rounded_uq, e_rounded_uq)
     
-    # Priority (lowest to highest): normal/subnormal -> zero -> inf -> nan
     packed_fp32 = fp32_pack(s_uq, final_e_uq, final_m_uq)
-    
-    result = if_then_else(
+    return if_then_else(
         encode_zero,
-        if_then_else(s_uq, Const(Float32.nZero()), Const(Float32.Zero())),
+        Const(Float32.Zero()),
         packed_fp32,
     )
-    result = if_then_else(
-        encode_inf,
-        if_then_else(s_uq, Const(Float32.nInf()), Const(Float32.Inf())),
-        result,
-    )
-    result = if_then_else(encode_nan, Const(Float32.NaN()), result)
-    return result
 
 
 if __name__ == '__main__':
@@ -334,9 +306,7 @@ if __name__ == '__main__':
     m = Const(UQ.from_float(4.02923583984375, 5, 28))
     e = Const(Q.from_float(-25.0, 11, 0))
     s = Const(UQ(1, 1, 0))
-    encode_nan = Const(UQ(0, 1, 0))
-    encode_inf = Const(UQ(0, 1, 0))
-    design = fp32_encode(s, e, m, encode_nan, encode_inf)
+    design = fp32_encode(s, e, m)
     design.print_tree(depth=1)
     pprint(design.check_spec())
     print(design.evaluate())
