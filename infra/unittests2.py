@@ -967,6 +967,22 @@ class TestSpecAstConstantFolding(unittest.TestCase):
 
         self.assertEqual(encoded.constant_fold(), fp32.nzero())
 
+    def test_fp32_adder_spec_preserves_single_infinity(self):
+        from examples.FP32_IEEE_adder import spec_FP32_IEEE_adder
+
+        cases = (
+            (fp32.inf(), fp32.zero(), fp32.inf()),
+            (fp32.zero(), fp32.inf(), fp32.inf()),
+            (fp32.ninf(), fp32.zero(), fp32.ninf()),
+            (fp32.zero(), fp32.ninf(), fp32.ninf()),
+        )
+
+        for lhs, rhs, expected in cases:
+            with self.subTest(lhs=lhs, rhs=rhs):
+                ctx = SpecContext("fp32-adder-single-infinity")
+                result = spec_FP32_IEEE_adder(lhs, rhs, ctx)
+                self.assertEqual(result.constant_fold(), expected)
+
     def test_constant_fold_partially_rebuilds_symbolic_real_expr(self):
         x = RealVar("x")
         expr = x + (RealLit(2) + RealLit(3))

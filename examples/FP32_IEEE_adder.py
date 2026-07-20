@@ -18,8 +18,8 @@ def spec_FP32_IEEE_adder(x: "FP32", y: "FP32", ctx):
         | y.is_nan
         | ((x.is_inf & y.is_ninf) | (x.is_ninf & y.is_inf))
     )
-    neg_inf_case = x.is_ninf & y.is_ninf
-    pos_inf_case = x.is_inf & y.is_inf
+    neg_inf_case = x.is_ninf | y.is_ninf
+    pos_inf_case = x.is_pinf | y.is_pinf
     neg_zero_case = x.is_nzero & y.is_nzero
 
     return If(
