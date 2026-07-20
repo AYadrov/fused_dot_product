@@ -952,6 +952,21 @@ class TestSpecAstConstantFolding(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "If branches"):
             If(BoolVar("condition"), fp32.nan(), RealLit(0))
 
+    def test_fp32_encoder_spec_preserves_negative_zero(self):
+        from examples.encode_Float32 import fp32_encode_spec
+
+        ctx = SpecContext("fp32-encode-negative-zero")
+        encoded = fp32_encode_spec(
+            RealLit(1),
+            RealLit(0),
+            RealLit(0),
+            RealLit(0),
+            RealLit(0),
+            ctx,
+        )
+
+        self.assertEqual(encoded.constant_fold(), fp32.nzero())
+
     def test_constant_fold_partially_rebuilds_symbolic_real_expr(self):
         x = RealVar("x")
         expr = x + (RealLit(2) + RealLit(3))
@@ -1541,7 +1556,10 @@ class TestSolverApis(unittest.TestCase):
             "outer_spec",
         ).simplify()
 
-        self.assertIn(BoolLit(False), simplified.assumes)
+        env = {}
+        solver = z3.Solver()
+        solver.add(*(assume.to_z3(env) for assume in simplified.assumes))
+        self.assertEqual(solver.check(), z3.unsat)
 
     def test_fp32_adder_check_spec_splits_all_input_class_pairs(self):
         adder = FP32_IEEE_adder(

@@ -273,18 +273,28 @@ def fp32_encodings(m_rounded_uq: Node, e_rounded_uq: Node):
 
 
 def fp32_encode_spec(s, e, m, encode_nan, encode_inf, ctx):
+    zero = ctx.real_val(0)
     one = ctx.real_val(1)
     
     sign = sign_multiplier(ctx, s)
     finite_value = sign * m * (ctx.real_val(2) ** (e - ctx.real_val(Float32.exponent_bias)))
     
     forced_nan = encode_nan.eq(one)
-    forced_inf = (~forced_nan) & encode_inf.eq(one)
-    return ctx.encode_fp32(
-        value=finite_value,
-        nan=forced_nan,
-        inf=forced_inf,
-        inf_sign=s,
+    forced_inf = encode_inf.eq(one)
+    forced_nzero = s.eq(one) & m.eq(zero)
+    
+    return If(
+        forced_nan,
+        fp32.nan(),
+        If(
+            forced_inf,
+            If(s.eq(one), fp32.ninf(), fp32.inf()),
+            If(
+                forced_nzero,
+                fp32.nzero(),
+                fp32.encode(finite_value, ctx),
+            ),
+        ),
     )
 
 # Assume that e is biased

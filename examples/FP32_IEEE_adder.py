@@ -13,17 +13,31 @@ from .encode_Float32 import *
 
 # Non-bit-precise concept specification of a single-precision IEEE adder.
 def spec_FP32_IEEE_adder(x: "FP32", y: "FP32", ctx):
-    # Special-value classification.
-    invalid = x.is_inf & y.is_inf & x.sign.ne(y.sign)
-    result_is_nan = x.is_nan | y.is_nan | invalid
-    result_is_inf = x.is_inf | y.is_inf
-    infinity_sign = If(x.is_inf, x.sign, y.sign)
+    nan_case = (
+        x.is_nan
+        | y.is_nan
+        | ((x.is_inf & y.is_ninf) | (x.is_ninf & y.is_inf))
+    )
+    neg_inf_case = x.is_ninf & y.is_ninf
+    pos_inf_case = x.is_inf & y.is_inf
+    neg_zero_case = x.is_nzero & y.is_nzero
 
-    return ctx.encode_fp32(
-        value=x.value + y.value,
-        nan=result_is_nan,
-        inf=result_is_inf,
-        inf_sign=infinity_sign,
+    return If(
+        nan_case,
+        fp32.nan(),
+        If(
+            neg_inf_case,
+            fp32.ninf(),
+            If(
+                pos_inf_case,
+                fp32.inf(),
+                If(
+                    neg_zero_case,
+                    fp32.nzero(),
+                    fp32.encode(x.value + y.value, ctx),
+                ),
+            ),
+        ),
     )
 
 
