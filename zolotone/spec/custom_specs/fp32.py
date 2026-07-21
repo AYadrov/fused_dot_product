@@ -222,21 +222,22 @@ class fp32(FPExpr):
             is_nan=BoolLit(False),
         )
 
-    def as_tuple(self) -> tuple[RealExpr | BoolExpr, ...]:
-        """Return the observable semantic fields used for equivalence."""
+    def observables_for_classification(
+        self,
+        classification: str,
+    ) -> tuple[RealExpr | BoolExpr, ...]:
+        """Return only the fields observable for a known classification."""
 
-        zero = RealLit(0)
-        finite_value = If(self.is_norm | self.is_sub, self.value, zero)
-        observable_sign = self.observable_sign
-        return (
-            finite_value,
-            observable_sign,
-            self.is_norm,
-            self.is_sub,
-            self.is_zero,
-            self.is_inf,
-            self.is_nan,
-        )
+        if classification in {"norm", "sub"}:
+            return (self.value,)
+        if classification in {"zero", "inf"}:
+            return (self.sign,)
+        if classification == "nan":
+            # NaN has no observable payload in this model. Keep one trivial
+            # Boolean query so schedules that start with egglog still receive
+            # a non-empty checks list.
+            return (BoolLit(True),)
+        raise ValueError(f"Unknown fp32 classification {classification!r}")
 
     def constant_fold(self) -> fp32:
         """Fold each scalar field of this structured expression."""
@@ -267,10 +268,6 @@ class fp32(FPExpr):
                 (self.is_norm, self.is_sub, self.is_zero, self.is_inf, self.is_nan),
             )
         )
-
-    @property
-    def observable_sign(self) -> RealExpr:
-        return If(self.is_inf | self.is_zero, self.sign, RealLit(0))
 
     @property
     def is_finite(self) -> BoolExpr:

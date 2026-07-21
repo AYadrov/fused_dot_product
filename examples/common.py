@@ -90,6 +90,9 @@ def neg_spec(x, ctx):
     res = ctx.fresh_real('neg_res')
     ctx.assume(res.eq(ctx.real_val(1) - x))
     ctx.assume(res.eq(If(x.eq(ctx.real_val(1)), ctx.real_val(0), ctx.real_val(1))))
+    ctx.assume(res.eq(If(x.eq(ctx.real_val(0)), ctx.real_val(1), ctx.real_val(0))))
+    ctx.assume(res.eq(If(x.ne(ctx.real_val(0)), ctx.real_val(0), ctx.real_val(1))))
+    ctx.assume(res.eq(If(x.ne(ctx.real_val(1)), ctx.real_val(1), ctx.real_val(0))))
     ctx.assume(res.eq(ctx.real_val(0)) | res.eq(ctx.real_val(1)))
     return res
 

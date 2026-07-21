@@ -534,7 +534,7 @@ class TestSpecContextLearning(unittest.TestCase):
         self.assertEqual(learned[p], BoolLit(True))
         self.assertEqual(learned[q], BoolLit(False))
 
-    def test_learned_literals_ignores_non_literal_equalities(self):
+    def test_learned_literals_reads_non_literal_equalities_as_boolean_facts(self):
         ctx = SpecContext("learn-ignore")
         x = ctx.real("x")
         y = ctx.real("y")
@@ -544,7 +544,13 @@ class TestSpecContextLearning(unittest.TestCase):
         ctx.assume(x.eq(y))
         ctx.assume(p.eq(q))
 
-        self.assertEqual(ctx.learned_literals(), {})
+        self.assertEqual(
+            ctx.learned_literals(),
+            {
+                x.eq(y): BoolLit(True),
+                p.eq(q): BoolLit(True),
+            },
+        )
 
     def test_learned_literals_raises_on_conflicting_bindings(self):
         ctx = SpecContext("learn-conflict")
@@ -649,7 +655,7 @@ class TestSpecContextLearning(unittest.TestCase):
         simplified = ctx.simplify()
 
         self.assertEqual(simplified.assumes, [Eq(x, Abs(x))])
-        self.assertEqual(simplified.checks, [Eq(x, Abs(x))])
+        self.assertEqual(simplified.checks, [])
 
     def test_assume_records_alias_loops(self):
         ctx = SpecContext("assume-alias-loop")
@@ -739,6 +745,85 @@ class TestSpecContextLearning(unittest.TestCase):
         self.assertEqual(simplified.assumes, [])
         self.assertEqual(simplified.checks, [])
         self.assertEqual(simplified.learned_literals(), {})
+
+    def test_context_fixpoint_learns_negated_compound_boolean_fact(self):
+        ctx = SpecContext("simplify-negated-compound-bool")
+        x = ctx.real("x")
+        overflow = abs(x) > ctx.real_val(1)
+
+        ctx.assume(overflow.eq(ctx.false()))
+        ctx.check(overflow.eq(ctx.false()))
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(simplified.assumes, [~overflow])
+        self.assertEqual(simplified.checks, [])
+        self.assertEqual(
+            simplified.learned_literals(),
+            {overflow: BoolLit(False)},
+        )
+
+    def test_context_fixpoint_learns_positive_compound_boolean_fact(self):
+        ctx = SpecContext("simplify-positive-compound-bool")
+        x = ctx.real("x")
+        in_range = (x >= ctx.real_val(-1)) & (x <= ctx.real_val(1))
+
+        ctx.assume(in_range.eq(ctx.true()))
+        ctx.check(in_range)
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(simplified.assumes, [in_range])
+        self.assertEqual(simplified.checks, [])
+        self.assertEqual(
+            simplified.learned_literals(),
+            {in_range: BoolLit(True)},
+        )
+
+    def test_context_fixpoint_simplifies_assumptions_from_other_compound_facts(self):
+        ctx = SpecContext("simplify-compound-assumptions")
+        x = ctx.real("x")
+        y = ctx.real("y")
+        positive_x = x > ctx.real_val(0)
+        positive_y = y > ctx.real_val(0)
+
+        ctx.assume(positive_x)
+        ctx.assume(positive_y)
+        ctx.assume(~(positive_x & positive_y))
+
+        with self.assertRaisesRegex(ValueError, "Assumption folds to false"):
+            ctx.simplify()
+
+    def test_context_fixpoint_keeps_one_anchor_for_duplicate_compound_facts(self):
+        ctx = SpecContext("simplify-duplicate-compound")
+        x = ctx.real("x")
+        positive = x > ctx.real_val(0)
+
+        ctx.assume(positive)
+        ctx.assume(positive)
+        ctx.check(positive)
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(simplified.assumes, [positive])
+        self.assertEqual(simplified.checks, [])
+
+    def test_context_fixpoint_discharges_asserted_equalities(self):
+        ctx = SpecContext("simplify-asserted-equalities")
+        x = ctx.real("x")
+        y = ctx.real("y")
+        p = ctx.bool("p")
+        q = ctx.bool("q")
+
+        ctx.assume(x.eq(y))
+        ctx.assume(p.eq(q))
+        ctx.check(x.eq(y))
+        ctx.check(p.eq(q))
+
+        simplified = ctx.simplify()
+
+        self.assertEqual(simplified.assumes, [x.eq(y), p.eq(q)])
+        self.assertEqual(simplified.checks, [])
 
     def test_context_preserves_finite_if_after_alias_substitution(self):
         ctx = SpecContext("simplify-if-alias")
@@ -1085,9 +1170,9 @@ class TestSpecAstConstantFolding(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "requires inf_sign"):
             ctx.encode_fp32(value=ctx.real("value"), inf=ctx.bool("is_inf"))
 
-    def test_float32_semantic_tuple_observes_only_relevant_signs(self):
+    def test_float32_classification_observes_only_relevant_signs(self):
         def make_value(*, sign, norm=False, sub=False, zero=False, inf=False, nan=False):
-            return Float32Spec(
+            return fp32(
                 value=RealVar("value"),
                 sign=RealLit(sign),
                 exponent=RealLit(0),
@@ -1099,16 +1184,88 @@ class TestSpecAstConstantFolding(unittest.TestCase):
                 is_nan=BoolLit(nan),
             )
 
-        pinf = make_value(sign=0, inf=True).as_tuple()
-        ninf = make_value(sign=1, inf=True).as_tuple()
-        pzero = make_value(sign=0, zero=True).as_tuple()
-        nzero = make_value(sign=1, zero=True).as_tuple()
-        pnan = make_value(sign=0, nan=True).as_tuple()
-        nnan = make_value(sign=1, nan=True).as_tuple()
+        pinf = make_value(sign=0, inf=True).observables_for_classification("inf")
+        ninf = make_value(sign=1, inf=True).observables_for_classification("inf")
+        pzero = make_value(sign=0, zero=True).observables_for_classification("zero")
+        nzero = make_value(sign=1, zero=True).observables_for_classification("zero")
+        pnan = make_value(sign=0, nan=True).observables_for_classification("nan")
+        nnan = make_value(sign=1, nan=True).observables_for_classification("nan")
 
-        self.assertNotEqual(pinf[1].constant_fold(), ninf[1].constant_fold())
-        self.assertNotEqual(pzero[1].constant_fold(), nzero[1].constant_fold())
-        self.assertEqual(pnan[1].constant_fold(), nnan[1].constant_fold())
+        self.assertNotEqual(pinf[0].constant_fold(), ninf[0].constant_fold())
+        self.assertNotEqual(pzero[0].constant_fold(), nzero[0].constant_fold())
+        self.assertEqual(pnan[0].constant_fold(), nnan[0].constant_fold())
+
+    def test_fp32_known_classification_exposes_only_relevant_fields(self):
+        value = fp32(
+            value=RealVar("value"),
+            sign=RealVar("sign"),
+            exponent=RealVar("exponent"),
+            mantissa=RealVar("mantissa"),
+            is_norm=BoolVar("is_norm"),
+            is_sub=BoolVar("is_sub"),
+            is_zero=BoolVar("is_zero"),
+            is_inf=BoolVar("is_inf"),
+            is_nan=BoolVar("is_nan"),
+        )
+
+        self.assertEqual(value.observables_for_classification("norm"), (value.value,))
+        self.assertEqual(value.observables_for_classification("sub"), (value.value,))
+        self.assertEqual(value.observables_for_classification("zero"), (value.sign,))
+        self.assertEqual(value.observables_for_classification("inf"), (value.sign,))
+        self.assertEqual(
+            value.observables_for_classification("nan"),
+            (BoolLit(True),),
+        )
+        with self.assertRaisesRegex(ValueError, "Unknown fp32 classification"):
+            value.observables_for_classification("finite")
+
+        self.assertEqual(
+            ast_nodes._queries_for_classification_case(
+                value,
+                value,
+                {"inner_spec": "inf", "outer_spec": "nan"},
+            ),
+            (
+                tuple(value.classification_flags().values()),
+                tuple(value.classification_flags().values()),
+            ),
+        )
+
+    def test_nested_fp32_outputs_are_split_and_lowered_to_scalar_queries(self):
+        inner = fp32.zero()
+        outer = fp32.zero()
+        ctx = SpecContext("nested-fp32")
+
+        cases = ast_nodes._split_classification_cases(
+            ctx,
+            [],
+            ((inner,), RealLit(7)),
+            ((outer,), RealLit(7)),
+        )
+        case = next(
+            case
+            for case in cases
+            if case.labels
+            == {
+                "inner_spec.0.0": "zero",
+                "outer_spec.0.0": "zero",
+            }
+        )
+
+        inner_query = tuple(inner.classification_flags().values()) + (inner.sign,)
+        outer_query = tuple(outer.classification_flags().values()) + (outer.sign,)
+        self.assertEqual(
+            case.queries,
+            (((inner_query,), RealLit(7)), ((outer_query,), RealLit(7))),
+        )
+        self.assertTrue(ast_nodes._output_classifications_match(case.labels))
+
+        status, _ = solver_engine.check_equivalence(
+            *case.queries,
+            ctx=case.ctx,
+            schedule=[{"tool": "simplify"}],
+        )
+        self.assertEqual(status, "unsat")
 
 
 class TestRivalTranslation(unittest.TestCase):
@@ -1532,6 +1689,56 @@ class TestRivalTranslation(unittest.TestCase):
         self.assertEqual(trimmed.checks, [check])
 
 class TestSolverApis(unittest.TestCase):
+    def test_fp32_adder_inf_inf_case_compares_flags_and_output_signs(self):
+        adder = FP32_IEEE_adder(
+            Var(name="a", sign=Float32T()),
+            Var(name="b", sign=Float32T()),
+        )
+        target_name = "FP32_IEEE_adder[arg0=norm,arg1=inf,inner_spec=inf,outer_spec=inf]"
+        split_classification_cases = ast_nodes._split_classification_cases
+        captured_queries = []
+        expected_queries = []
+
+        def select_case(ctx, inputs, spec_inner, spec_outer):
+            expected_queries.append(
+                (
+                    tuple(spec_inner.classification_flags().values())
+                    + (spec_inner.sign,),
+                    tuple(spec_outer.classification_flags().values())
+                    + (spec_outer.sign,),
+                )
+            )
+            cases = split_classification_cases(
+                ctx,
+                inputs,
+                spec_inner,
+                spec_outer,
+            )
+            return [next(case for case in cases if case.ctx.name == target_name)]
+
+        def capture_check_equivalence(query1, query2, ctx, schedule):
+            del ctx, schedule
+            captured_queries.append((query1, query2))
+            return "unsat", []
+
+        with (
+            patch.object(
+                ast_nodes,
+                "_split_classification_cases",
+                side_effect=select_case,
+            ),
+            patch.object(
+                ast_nodes,
+                "check_equivalence",
+                side_effect=capture_check_equivalence,
+            ),
+            open(os.devnull, "w") as devnull,
+            contextlib.redirect_stdout(devnull),
+        ):
+            adder.check_spec(schedule=[{"tool": "simplify"}])
+
+        self.assertEqual(captured_queries, expected_queries)
+
     def test_fp32_adder_inf_inf_norm_side_case_uses_only_real_and_bool_exprs(self):
         adder = FP32_IEEE_adder(
             Var(name="a", sign=Float32T()),
@@ -1585,10 +1792,15 @@ class TestSolverApis(unittest.TestCase):
         seen_names = []
 
         def fake_check_equivalence(query1, query2, ctx, schedule):
-            del query1, query2, schedule
+            del schedule
             seen_names.append(ctx.name)
             case_labels = ast_nodes._case_labels(ctx.name)
             outputs_match = case_labels["inner_spec"] == case_labels["outer_spec"]
+            if not outputs_match:
+                self.assertEqual(len(query1), 5)
+                self.assertEqual(len(query2), 5)
+                self.assertTrue(all(isinstance(flag, BoolExpr) for flag in query1))
+                self.assertTrue(all(isinstance(flag, BoolExpr) for flag in query2))
             return ("unsat" if outputs_match else "sat"), []
 
         with (
@@ -1724,7 +1936,7 @@ class TestSolverApis(unittest.TestCase):
 
         def select_norm_norm_case(*args, **kwargs):
             cases = split_classification_cases(*args, **kwargs)
-            return [next(ctx for ctx in cases if ctx.name == target_name)]
+            return [next(case for case in cases if case.ctx.name == target_name)]
 
         with (
             patch.object(

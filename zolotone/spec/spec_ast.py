@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields, is_dataclass
 from fractions import Fraction
 import math
@@ -126,7 +127,18 @@ class RealExpr(SpecNode):
         return Min(self, other)
 
 
-class FPExpr(SpecNode):
+class FPExpr(SpecNode, ABC):
+    @abstractmethod
+    def classification_flags(self) -> dict[str, "BoolExpr"]:
+        """Return the mutually exclusive classification predicates."""
+
+    @abstractmethod
+    def observables_for_classification(
+        self,
+        classification: str,
+    ) -> tuple[SpecNode, ...]:
+        """Return observables when the classification is already known."""
+
     # Unites two branches into a combined FPExpr
     @classmethod
     def select(
