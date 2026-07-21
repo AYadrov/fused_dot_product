@@ -31,16 +31,12 @@ class SpecContext:
     
     def assume(self, condition: BoolExpr) -> None:
         if not isinstance(condition, BoolExpr):
-            raise TypeError(
-                f"SpecContext.assume expects BoolExpr, got {type(condition).__name__}"
-            )
+            raise TypeError(f"SpecContext.assume expects BoolExpr, got {type(condition).__name__}")
         self.assumes.append(condition)
     
     def check(self, condition: BoolExpr) -> None:
         if not isinstance(condition, BoolExpr):
-            raise TypeError(
-                f"SpecContext.check expects BoolExpr, got {type(condition).__name__}"
-            )
+            raise TypeError(f"SpecContext.check expects BoolExpr, got {type(condition).__name__}")
         self.checks.append(condition)
     
     def _context_not_empty(self):
@@ -52,7 +48,6 @@ class SpecContext:
         env = {}
         assume_terms = [assume.to_z3(env=env) for assume in self.assumes] + [z3.BoolVal(True)]  # make sure it is not empty
         check_terms = [check.to_z3(env=env) for check in self.checks]
-        
         return z3.And(z3.And(*assume_terms), z3.Not(z3.And(*check_terms)))
     
     def to_dreal(self):
@@ -60,20 +55,15 @@ class SpecContext:
         env: dict[tuple[str, str], dreal.Variable] = {}
         assume_terms = [assume.to_dreal(env) for assume in self.assumes] + [dreal.Formula.TRUE()]  # make sure it is not empty
         check_terms = [check.to_dreal(env) for check in self.checks]
-        
         return dreal.And(dreal.And(*assume_terms), dreal.Not(dreal.And(*check_terms)))
     
     def to_egglog(self, egraph):
         self._context_not_empty()
         for assume in self.assumes:
             if isinstance(assume, Eq) or isinstance(assume, BoolEq):
-                egraph.register(
-                    union(assume.lhs.to_egglog()).with_(assume.rhs.to_egglog())
-                )
+                egraph.register(union(assume.lhs.to_egglog()).with_(assume.rhs.to_egglog()))
             else:
-                egraph.register(
-                    union(assume.to_egglog()).with_(MathBool.True_())
-                )
+                egraph.register(union(assume.to_egglog()).with_(MathBool.True_()))
         
         to_check = []
         for check in self.checks:
@@ -88,34 +78,37 @@ class SpecContext:
                 egraph.register(expr)
                 to_check.append(eq(expr).to(MathBool.True_()))
             else:
-                raise NotImplementedError(
-                    f"Only BoolExpr checks are supported, got {type(check).__name__}"
-                )
+                raise NotImplementedError(f"Only BoolExpr checks are supported, got {type(check).__name__}")
         return to_check
     
-    # Try to learn literal facts from assumes only. Conflicting facts are errors.
-    def learned_literals(self) -> dict[SpecNode, RealLit | BoolLit]:
-        candidates: dict[SpecNode, RealLit | BoolLit] = {}
+    def _learned_literals_with_anchors(self) -> dict[SpecNode, tuple[RealLit | BoolLit, int]]:
+        """Learn literal facts and retain one assumption that justifies each."""
+
+        candidates: dict[SpecNode, tuple[RealLit | BoolLit, int]] = {}
         
-        def record(
-            expr: SpecNode,
-            lit: RealLit | BoolLit,
-        ) -> None:
+        def record(expr: SpecNode, lit: RealLit | BoolLit, anchor: int) -> None:
             existing = candidates.get(expr)
             if existing is None:
-                candidates[expr] = lit
+                candidates[expr] = (lit, anchor)
             
             # poorly written spec with contradictions
-            elif not identical_nodes(existing, lit):
-                raise PoorSpec(f"Conflicting learned literals for {expr}: {existing} vs {lit}")
+            elif not identical_nodes(existing[0], lit):
+                raise PoorSpec(f"Conflicting learned literals for {expr}: {existing[0]} vs {lit}")
         
-        for assume in self.assumes:
+        for anchor, assume in enumerate(self.assumes):
             learned = self._canonical_learned_assumption(assume)
             if learned is None:
                 continue
-            record(*learned)
+            record(*learned, anchor)
         
         return candidates
+
+    # Try to learn literal facts from assumes only. Conflicting facts are errors.
+    def learned_literals(self) -> dict[SpecNode, RealLit | BoolLit]:
+        return {
+            expr: value
+            for expr, (value, _anchor) in self._learned_literals_with_anchors().items()
+        }
     
     # Try to learn non-literal aliases from assumes only. Multiple aliases for
     # one variable are allowed; the remaining assumptions preserve constraints.
@@ -139,19 +132,9 @@ class SpecContext:
         def learned_from(assume):
             assume = assume.constant_fold()
             if isinstance(assume, Eq):
-                return from_sides(
-                    assume.lhs,
-                    assume.rhs,
-                    RealVar,
-                    RealLit,
-                )
+                return from_sides(assume.lhs, assume.rhs, RealVar, RealLit)
             if isinstance(assume, BoolEq):
-                return from_sides(
-                    assume.lhs,
-                    assume.rhs,
-                    BoolVar,
-                    BoolLit,
-                )
+                return from_sides(assume.lhs, assume.rhs, BoolVar, BoolLit)
             return None
         
         for assume in self.assumes:
@@ -161,13 +144,16 @@ class SpecContext:
             var, expr = learned
             aliases.setdefault(var, expr)
         return aliases
+
+    @staticmethod
+    def _reject_false_assumption(assume: BoolExpr) -> BoolExpr:
+        if identical_nodes(assume, BoolLit(False)):
+            raise PoorSpec(f"Assumption folds to false: {assume}")
+        return assume
     
     # learning facts like: RealExpr == RealLit
-    def _canonical_learned_assumption(
-        self,
-        assume: BoolExpr,
-    ) -> tuple[SpecNode, RealLit | BoolLit] | None:
-        assume = assume.constant_fold()
+    def _canonical_learned_assumption(self, assume: BoolExpr) -> tuple[SpecNode, RealLit | BoolLit] | None:
+        assume = self._reject_false_assumption(assume.constant_fold())
         if isinstance(assume, BoolVar):
             return assume, BoolLit(True)
         # ``predicate == false`` folds to ``not predicate``. Preserve the
@@ -205,8 +191,10 @@ class SpecContext:
                 and isinstance(lhs_folded, BoolLit)
             ):
                 return rhs_folded, lhs_folded
-        # A compound Boolean in the assumptions list is asserted true.
-        elif isinstance(assume, BoolExpr) and not isinstance(assume, BoolLit):
+        # Any remaining Boolean in the assumptions list is asserted true.
+        # Keep this independent of the Eq/BoolEq branches so equalities that
+        # do not expose a literal binding are still learned as Boolean facts.
+        if isinstance(assume, BoolExpr) and not isinstance(assume, BoolLit):
             return assume, BoolLit(True)
         return None
     
@@ -215,21 +203,36 @@ class SpecContext:
         simplified = self.copy()
         max_iterations = len(simplified.assumes) + len(simplified.checks) + 1
         for _ in range(max_iterations):
-            literal_replacements = simplified.learned_literals()
+            anchored_literals = simplified._learned_literals_with_anchors()
+            literal_replacements = {
+                expr: value
+                for expr, (value, _anchor) in anchored_literals.items()
+            }
             alias_replacements = simplified.learned_aliases()
             
-            assumption_replacements = {
+            variable_replacements = {
                 expr: lit
                 for expr, lit in literal_replacements.items()
                 if isinstance(expr, (RealVar, BoolVar))  # get rid only of assigned vars
             }
-            assumption_replacements = alias_replacements | assumption_replacements
             check_replacements = alias_replacements | literal_replacements
             
-            new_assumes = [
-                substitute_literals(assume, assumption_replacements)
-                for assume in simplified.assumes
-            ]
+            new_assumes = []
+            for assume_idx, assume in enumerate(simplified.assumes):
+                new_assume = substitute_literals(
+                    assume,
+                    alias_replacements
+                    | variable_replacements
+                    | {
+                        expr: value
+                        for expr, (value, anchor) in anchored_literals.items()
+                        if anchor != assume_idx
+                        and not isinstance(expr, (RealVar, BoolVar))
+                    },
+                )
+                new_assumes.append(
+                    simplified._reject_false_assumption(new_assume)
+                )
             new_checks = [
                 substitute_literals(check, check_replacements)
                 for check in simplified.checks
@@ -343,7 +346,6 @@ def simplify_ctx(ctx: SpecContext):
     
     try:
         simplified_ctx = ctx.simplify()
-        # print(simplified_ctx)
         simplified_ctx = rival_trim_context(simplified_ctx)
     except PoorSpec as exc:
         return build_proof_report(
