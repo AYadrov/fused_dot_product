@@ -170,7 +170,9 @@ class SpecContext:
         assume = assume.constant_fold()
         if isinstance(assume, BoolVar):
             return assume, BoolLit(True)
-        if isinstance(assume, Not) and isinstance(assume.value, BoolVar):
+        # ``predicate == false`` folds to ``not predicate``. Preserve the
+        # contextual fact even when predicate is a compound BoolExpr.
+        if isinstance(assume, Not):
             return assume.value, BoolLit(False)
         if isinstance(assume, Eq):
             rhs_folded = assume.rhs.constant_fold()
@@ -203,6 +205,9 @@ class SpecContext:
                 and isinstance(lhs_folded, BoolLit)
             ):
                 return rhs_folded, lhs_folded
+        # A compound Boolean in the assumptions list is asserted true.
+        elif isinstance(assume, BoolExpr) and not isinstance(assume, BoolLit):
+            return assume, BoolLit(True)
         return None
     
     def simplify(self) -> "SpecContext":
@@ -338,6 +343,7 @@ def simplify_ctx(ctx: SpecContext):
     
     try:
         simplified_ctx = ctx.simplify()
+        # print(simplified_ctx)
         simplified_ctx = rival_trim_context(simplified_ctx)
     except PoorSpec as exc:
         return build_proof_report(
