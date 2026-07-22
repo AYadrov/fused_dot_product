@@ -30,6 +30,7 @@ from zolotone.spec.spec_context import simplify_ctx
 from zolotone.spec.spec_utils import from_egglog
 from examples.FP32_IEEE_adder import FP32_IEEE_adder
 from examples.FP32_IEEE_mult import FP32_IEEE_mult
+from examples.common import xor_spec
 from examples.conventional import Conventional
 from examples.optimized import Optimized
 
@@ -2059,6 +2060,46 @@ class TestSolverApis(unittest.TestCase):
             matching_traces[0],
         )
 
+    def test_conventional_zero_zero_proves_with_xor_sign_fact(self):
+        a = [Var(name=f"a_{idx}", sign=BFloat16T()) for idx in range(4)]
+        b = [Var(name=f"b_{idx}", sign=BFloat16T()) for idx in range(4)]
+        conventional = Conventional(*a, *b)
+        target_name = "Conventional[inner_spec=zero,outer_spec=zero]"
+        split_classification_cases = ast_nodes._split_classification_cases
+
+        def select_zero_zero_case(*args, **kwargs):
+            cases = split_classification_cases(*args, **kwargs)
+            return [next(case for case in cases if case.ctx.name == target_name)]
+
+        with (
+            patch.object(
+                ast_nodes,
+                "_split_classification_cases",
+                side_effect=select_zero_zero_case,
+            ),
+            open(os.devnull, "w") as devnull,
+            contextlib.redirect_stdout(devnull),
+        ):
+            proof_traces = conventional.check_spec(
+                schedule=[
+                    {"tool": "simplify"},
+                    {
+                        "tool": "egglog-rewrite",
+                        "iterations": 6,
+                        "scheduler": {"match_limit": 500_000, "ban_length": 1},
+                    },
+                ]
+            )
+
+        self.assertEqual(len(proof_traces), 1)
+        self.assertTrue(
+            any(
+                report["tool"] == "egglog-rewrite" and report["status"] == "unsat"
+                for report in proof_traces[0]
+            ),
+            proof_traces[0],
+        )
+
     def test_z3_check_eq_returns_single_report(self):
         ctx = SpecContext("z3-api")
         ctx.check(RealLit(1).eq(RealLit(1)))
@@ -2081,6 +2122,23 @@ class TestSolverApis(unittest.TestCase):
 
 
 class TestSignSpecs(unittest.TestCase):
+    def test_xor_sign_multiplier_fact_follows_from_existing_xor_constraints(self):
+        ctx = SpecContext("xor-sign-multiplier")
+        x = ctx.real("x")
+        y = ctx.real("y")
+
+        result = xor_spec(x, y, ctx)
+        derived_fact = sign_multiplier(ctx, result).eq(
+            sign_multiplier(ctx, x) * sign_multiplier(ctx, y)
+        )
+        self.assertEqual(ctx.assumes[-1], derived_fact)
+        ctx.assumes.pop()
+        ctx.check(derived_fact)
+
+        report = z3_check_eq(ctx, timeout_ms=10000)
+
+        self.assertEqual(report["status"], "unsat", report)
+
     def test_q_signs_xor_spec_matches_constant_sign_combinations(self):
         cases = [
             (-1, -1, 0),
