@@ -1038,6 +1038,75 @@ class TestSpecAstConstantFolding(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "If branches"):
             If(BoolVar("condition"), fp32.nan(), RealLit(0))
 
+    def test_cases_lower_to_ordered_nested_ifs(self):
+        first = BoolVar("first")
+        second = BoolVar("second")
+
+        expr = Cases([
+            case(first, RealLit(1)),
+            case(second, RealLit(2)),
+            default(RealLit(3)),
+        ])
+
+        self.assertEqual(
+            expr,
+            If(first, RealLit(1), If(second, RealLit(2), RealLit(3))),
+        )
+
+    def test_cases_select_the_first_matching_case(self):
+        expr = Cases([
+            case(BoolLit(True), RealLit(1)),
+            case(BoolLit(True), RealLit(2)),
+            default(RealLit(3)),
+        ])
+
+        self.assertEqual(expr.constant_fold(), RealLit(1))
+
+    def test_cases_support_fp_values(self):
+        expr = Cases([
+            case(BoolLit(False), fp32.nan()),
+            case(BoolLit(True), fp32.ninf()),
+            default(fp32.inf()),
+        ])
+
+        self.assertIsInstance(expr, fp32)
+        self.assertEqual(expr.constant_fold(), fp32.ninf())
+
+    def test_cases_allow_only_a_default(self):
+        fallback = RealVar("fallback")
+
+        self.assertIs(Cases([default(fallback)]), fallback)
+
+    def test_cases_require_exactly_one_final_default(self):
+        condition = BoolVar("condition")
+        value = RealLit(1)
+
+        with self.assertRaisesRegex(ValueError, "requires a default"):
+            Cases([])
+        with self.assertRaisesRegex(ValueError, "requires a default"):
+            Cases([case(condition, value)])
+        with self.assertRaisesRegex(ValueError, "exactly one default"):
+            Cases([default(value), default(value)])
+        with self.assertRaisesRegex(ValueError, "final entry"):
+            Cases([default(value), case(condition, value)])
+
+    def test_cases_validate_entries_conditions_and_values(self):
+        with self.assertRaisesRegex(TypeError, "expects a list"):
+            Cases((default(RealLit(1)),))
+        with self.assertRaisesRegex(TypeError, "created by case.*or default"):
+            Cases([object()])
+        with self.assertRaisesRegex(TypeError, "Expected BoolExpr"):
+            case(RealLit(1), RealLit(2))
+        with self.assertRaisesRegex(TypeError, "Cases values"):
+            default(BoolLit(True))
+
+    def test_cases_reject_mismatched_branch_types(self):
+        with self.assertRaisesRegex(TypeError, "If branches"):
+            Cases([
+                case(BoolVar("condition"), fp32.nan()),
+                default(RealLit(0)),
+            ])
+
     def test_fp32_encoder_spec_canonicalizes_zero(self):
         from examples.encode_Float32 import fp32_encode_spec
 
