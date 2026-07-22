@@ -1,6 +1,5 @@
 import typing as tp
 import random
-from dataclasses import dataclass
 from itertools import product
 
 from ..types.runtime import RuntimeType
@@ -45,13 +44,6 @@ def _assume_classification_case(
         ctx.assume(flag.eq(ctx.bool_val(flag_name == selected_name)))
 
 
-@dataclass(frozen=True)
-class _ClassificationCase:
-    ctx: SpecContext
-    labels: dict[str, str]
-    queries: tuple[tp.Any, tp.Any]
-
-
 def _named_fp_items(value_name: str, value: tp.Any):
     if isinstance(value, FPExpr):
         yield value_name, value
@@ -61,12 +53,13 @@ def _named_fp_items(value_name: str, value: tp.Any):
             yield from _named_fp_items(f"{value_name}.{idx}", item)
 
 
-def _queries_for_classification_case(
+def _add_classification_case_checks(
+    ctx: SpecContext,
     spec_inner: tp.Any,
     spec_outer: tp.Any,
     labels: dict[str, str],
-) -> tuple[tp.Any, tp.Any]:
-    def build_queries(inner, outer, inner_name, outer_name):
+) -> None:
+    def add_checks(inner, outer, inner_name, outer_name):
         inner_is_tuple = isinstance(inner, tuple)
         outer_is_tuple = isinstance(outer, tuple)
         if inner_is_tuple or outer_is_tuple:
@@ -75,14 +68,14 @@ def _queries_for_classification_case(
             if len(inner) != len(outer):
                 raise TypeError(f"Spec tuple arity mismatch: {len(inner)} != {len(outer)}")
 
-            item_queries = [
-                build_queries(inner_item, outer_item, f"{inner_name}.{idx}", f"{outer_name}.{idx}")
-                for idx, (inner_item, outer_item) in enumerate(zip(inner, outer))
-            ]
-            return (
-                tuple(query_inner for query_inner, _ in item_queries),
-                tuple(query_outer for _, query_outer in item_queries),
-            )
+            for idx, (inner_item, outer_item) in enumerate(zip(inner, outer)):
+                add_checks(
+                    inner_item,
+                    outer_item,
+                    f"{inner_name}.{idx}",
+                    f"{outer_name}.{idx}",
+                )
+            return
 
         inner_is_fp = isinstance(inner, FPExpr)
         outer_is_fp = isinstance(outer, FPExpr)
@@ -90,7 +83,8 @@ def _queries_for_classification_case(
             raise TypeError("Spec shape mismatch: one output is FPExpr and the other is not")
         # RealExpr/BoolExpr
         if not inner_is_fp:
-            return inner, outer
+            ctx.check(inner.eq(outer))
+            return
         if type(inner) is not type(outer):
             raise TypeError("Different FPExprs are provided")
 
@@ -100,14 +94,14 @@ def _queries_for_classification_case(
         inner_flags = tuple(inner.classification_flags().values())
         outer_flags = tuple(outer.classification_flags().values())
 
-        if inner_class != outer_class:
-            return inner_flags, outer_flags
-        return (
-            inner_flags + inner.observables_for_classification(inner_class),
-            outer_flags + outer.observables_for_classification(outer_class),
-        )
+        if inner_class == outer_class:
+            inner_flags += inner.observables_for_classification(inner_class)
+            outer_flags += outer.observables_for_classification(outer_class)
 
-    return build_queries(spec_inner, spec_outer, "inner_spec", "outer_spec")
+        for inner_value, outer_value in zip(inner_flags, outer_flags, strict=True):
+            ctx.check(inner_value.eq(outer_value))
+
+    add_checks(spec_inner, spec_outer, "inner_spec", "outer_spec")
 
 
 def _split_classification_cases(
@@ -115,7 +109,7 @@ def _split_classification_cases(
     inputs: list[tp.Any],
     spec_inner: tp.Any,
     spec_outer: tp.Any,
-) -> list[_ClassificationCase]:
+) -> list[SpecContext]:
     classified_values = [(f"arg{idx}", value) for idx, value in enumerate(inputs)] \
         + [("inner_spec", spec_inner), ("outer_spec", spec_outer)]
     
@@ -135,9 +129,8 @@ def _split_classification_cases(
             _assume_classification_case(case_ctx, value_name, value, selected_name)
             labels[value_name] = selected_name
         
-        queries = _queries_for_classification_case(spec_inner, spec_outer, labels)
-        classification_case = _ClassificationCase(case_ctx, labels, queries)
-        cases.append(classification_case)
+        _add_classification_case_checks(case_ctx, spec_inner, spec_outer, labels)
+        cases.append(case_ctx)
     
     return cases
 
@@ -317,16 +310,17 @@ class composite(Node):
         full_trace = []
         proved = True
         
-        header_padding = " " * max(len(cases[0].ctx.name) - 8, 0)
+        header_padding = " " * max(len(cases[0].name) - 8, 0)
         print("case name", header_padding, "\t| correct?\t| status")
         
-        for case in cases:
-            status, proof_trace = check_equivalence(*case.queries, ctx=case.ctx, schedule=schedule)
-            case_proved = _classification_case_is_proved(self, case.labels, status, proof_trace)
+        for case_ctx in cases:
+            status, proof_trace = check_equivalence(case_ctx, schedule=schedule)
+            case_labels = _case_labels(case_ctx.name)
+            case_proved = _classification_case_is_proved(self, case_labels, status, proof_trace)
             
             proved = proved and case_proved
             result = "correct" if case_proved else "wrong"
-            print(case.ctx.name, "\t|", result, "\t|", status)
+            print(case_ctx.name, "\t|", result, "\t|", status)
             full_trace.append(proof_trace)
             if not proved:
                 break

@@ -1226,16 +1226,16 @@ class TestSpecAstConstantFolding(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unknown fp32 classification"):
             value.observables_for_classification("finite")
 
+        ctx = SpecContext("different-output-classifications")
+        ast_nodes._add_classification_case_checks(
+            ctx,
+            value,
+            value,
+            {"inner_spec": "inf", "outer_spec": "nan"},
+        )
         self.assertEqual(
-            ast_nodes._queries_for_classification_case(
-                value,
-                value,
-                {"inner_spec": "inf", "outer_spec": "nan"},
-            ),
-            (
-                tuple(value.classification_flags().values()),
-                tuple(value.classification_flags().values()),
-            ),
+            ctx.checks,
+            [flag.eq(flag) for flag in value.classification_flags().values()],
         )
 
     def test_nested_fp32_outputs_are_split_and_lowered_to_scalar_queries(self):
@@ -1252,7 +1252,7 @@ class TestSpecAstConstantFolding(unittest.TestCase):
         case = next(
             case
             for case in cases
-            if case.labels
+            if ast_nodes._case_labels(case.name)
             == {
                 "inner_spec.0.0": "zero",
                 "outer_spec.0.0": "zero",
@@ -1262,14 +1262,18 @@ class TestSpecAstConstantFolding(unittest.TestCase):
         inner_query = tuple(inner.classification_flags().values()) + (inner.sign,)
         outer_query = tuple(outer.classification_flags().values()) + (outer.sign,)
         self.assertEqual(
-            case.queries,
-            (((inner_query,), RealLit(7)), ((outer_query,), RealLit(7))),
+            case.checks,
+            [
+                *(lhs.eq(rhs) for lhs, rhs in zip(inner_query, outer_query)),
+                RealLit(7).eq(RealLit(7)),
+            ],
         )
-        self.assertTrue(ast_nodes._output_classifications_match(case.labels))
+        self.assertTrue(
+            ast_nodes._output_classifications_match(ast_nodes._case_labels(case.name))
+        )
 
         status, _ = solver_engine.check_equivalence(
-            *case.queries,
-            ctx=case.ctx,
+            case,
             schedule=[{"tool": "simplify"}],
         )
         self.assertEqual(status, "unsat")
@@ -1770,13 +1774,12 @@ class TestSolverApis(unittest.TestCase):
                 spec_inner,
                 spec_outer,
             )
-            if case.ctx.name == target_name
+            if case.name == target_name
         )
 
         with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
             status, trace = solver_engine.check_equivalence(
-                *case.queries,
-                ctx=case.ctx,
+                case,
                 schedule=[{"tool": "simplify"}],
             )
 
@@ -1790,17 +1793,14 @@ class TestSolverApis(unittest.TestCase):
         )
         target_name = "FP32_IEEE_adder[arg0=norm,arg1=inf,inner_spec=inf,outer_spec=inf]"
         split_classification_cases = ast_nodes._split_classification_cases
-        captured_queries = []
-        expected_queries = []
+        captured_checks = []
+        expected_checks = []
 
         def select_case(ctx, inputs, spec_inner, spec_outer):
-            expected_queries.append(
-                (
-                    tuple(spec_inner.classification_flags().values())
-                    + (spec_inner.sign,),
-                    tuple(spec_outer.classification_flags().values())
-                    + (spec_outer.sign,),
-                )
+            inner_query = tuple(spec_inner.classification_flags().values()) + (spec_inner.sign,)
+            outer_query = tuple(spec_outer.classification_flags().values()) + (spec_outer.sign,)
+            expected_checks.append(
+                [lhs.eq(rhs) for lhs, rhs in zip(inner_query, outer_query)]
             )
             cases = split_classification_cases(
                 ctx,
@@ -1808,11 +1808,11 @@ class TestSolverApis(unittest.TestCase):
                 spec_inner,
                 spec_outer,
             )
-            return [next(case for case in cases if case.ctx.name == target_name)]
+            return [next(case for case in cases if case.name == target_name)]
 
-        def capture_check_equivalence(query1, query2, ctx, schedule):
-            del ctx, schedule
-            captured_queries.append((query1, query2))
+        def capture_check_equivalence(ctx, schedule):
+            del schedule
+            captured_checks.append(ctx.checks)
             return "unsat", []
 
         with (
@@ -1831,7 +1831,7 @@ class TestSolverApis(unittest.TestCase):
         ):
             adder.check_spec(schedule=[{"tool": "simplify"}])
 
-        self.assertEqual(captured_queries, expected_queries)
+        self.assertEqual(captured_checks, expected_checks)
 
     def test_fp32_adder_inf_inf_norm_side_case_uses_only_real_and_bool_exprs(self):
         adder = FP32_IEEE_adder(
@@ -1885,16 +1885,14 @@ class TestSolverApis(unittest.TestCase):
         )
         seen_names = []
 
-        def fake_check_equivalence(query1, query2, ctx, schedule):
+        def fake_check_equivalence(ctx, schedule):
             del schedule
             seen_names.append(ctx.name)
             case_labels = ast_nodes._case_labels(ctx.name)
             outputs_match = case_labels["inner_spec"] == case_labels["outer_spec"]
             if not outputs_match:
-                self.assertEqual(len(query1), 5)
-                self.assertEqual(len(query2), 5)
-                self.assertTrue(all(isinstance(flag, BoolExpr) for flag in query1))
-                self.assertTrue(all(isinstance(flag, BoolExpr) for flag in query2))
+                self.assertEqual(len(ctx.checks), 5)
+                self.assertTrue(all(isinstance(check, BoolExpr) for check in ctx.checks))
             return ("unsat" if outputs_match else "sat"), []
 
         with (
@@ -1919,11 +1917,10 @@ class TestSolverApis(unittest.TestCase):
 
     def test_check_equivalence_with_simplify_schedule_short_circuits(self):
         ctx = SpecContext("simplify-schedule")
+        ctx.check((RealLit(1) + RealLit(2)).eq(RealLit(3)))
 
         status, proof_trace = solver_engine.check_equivalence(
-            RealLit(1) + RealLit(2),
-            RealLit(3),
-            ctx=ctx,
+            ctx,
             schedule=[{"tool": "simplify"}],
         )
 
@@ -1937,11 +1934,10 @@ class TestSolverApis(unittest.TestCase):
 
         ctx.assume(x.eq(ctx.real_val(0)))
         ctx.assume(x.eq(ctx.real_val(1)))
+        ctx.check(x.eq(ctx.real_val(0)))
 
         status, proof_trace = solver_engine.check_equivalence(
-            x,
-            ctx.real_val(0),
-            ctx=ctx,
+            ctx,
             schedule=[{"tool": "simplify"}],
         )
 
@@ -1953,12 +1949,11 @@ class TestSolverApis(unittest.TestCase):
 
     def test_check_equivalence_returns_flat_proof_trace(self):
         ctx = SpecContext("flat-trace")
+        ctx.check(RealLit(1).eq(RealLit(1)))
 
         with patch.dict(solver_engine.TOOL_FNS, {"z3": _flat_trace_tool}):
             status, proof_trace = solver_engine.check_equivalence(
-                RealLit(1),
-                RealLit(1),
-                ctx=ctx,
+                ctx,
                 schedule=[{"tool": "z3", "timeout_ms": 1}],
             )
 
@@ -2005,12 +2000,11 @@ class TestSolverApis(unittest.TestCase):
 
     def test_check_equivalence_rejects_rival_feasibility_as_proof_tool(self):
         ctx = SpecContext("rival-schedule")
+        ctx.check(RealLit(1).eq(RealLit(1)))
 
         with self.assertRaises(ValueError) as raised:
             solver_engine.check_equivalence(
-                RealLit(1),
-                RealLit(1),
-                ctx=ctx,
+                ctx,
                 schedule=[
                     {
                         "tool": "rival_feasibility_check",
@@ -2031,7 +2025,7 @@ class TestSolverApis(unittest.TestCase):
 
         def select_norm_norm_case(*args, **kwargs):
             cases = split_classification_cases(*args, **kwargs)
-            return [next(case for case in cases if case.ctx.name == target_name)]
+            return [next(case for case in cases if case.name == target_name)]
 
         with (
             patch.object(
@@ -2077,7 +2071,7 @@ class TestSolverApis(unittest.TestCase):
 
         def select_zero_zero_case(*args, **kwargs):
             cases = split_classification_cases(*args, **kwargs)
-            return [next(case for case in cases if case.ctx.name == target_name)]
+            return [next(case for case in cases if case.name == target_name)]
 
         with (
             patch.object(
