@@ -630,11 +630,8 @@ def default(value: _CaseValue) -> _DefaultEntry:
     return _DefaultEntry(_coerce_case_value(value))
 
 
-def Cases(entries: list[_CaseEntry | _DefaultEntry]) -> _CaseValue:
+def Cases(*entries: _CaseEntry | _DefaultEntry) -> _CaseValue:
     """Lower ordered cases with a final default to nested ``If`` expressions."""
-    if not isinstance(entries, list):
-        raise TypeError(f"Cases expects a list, got {type(entries).__name__}")
-
     for entry in entries:
         if not isinstance(entry, (_CaseEntry, _DefaultEntry)):
             raise TypeError(
