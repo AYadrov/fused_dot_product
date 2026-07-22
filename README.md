@@ -1,333 +1,127 @@
 # Zolotone
-Python model of the fused dot product described by Kaul et al. (2019). The project builds a strongly typed AST for fixed-point and floating-point operations, and uses it to compare a conventional BF16 dot product against an optimized, fused implementation.
 
-## What's here
-- `zolotone/ast/AST.py` – Node definitions with static/dynamic type checking, constant folding, and tree printing.
-- `zolotone/numtypes/` – Runtime and static types for `Q`/`UQ` fixed point, `BF16`, and `Float32`, plus random value generators.
-- `examples/conventional.py` and `examples/optimized.py` – Two BF16x4 to FP32 dot-product designs that can be evaluated and inspected as ASTs.
-- `docs/operators.md` – Tables of all basic operators, fixed-point primitives, and composites.
+Zolotone is a specification language for floating-point computation. It lets a
+model describe arithmetic at the level of mathematical intent while making
+floating-point behavior—such as encoding, representable ranges, signed zero,
+infinities, and NaNs—explicit.
+
+Models written in the specification language are the **golden models**. A
+lower-level implementation can use fixed-point arithmetic, bit manipulation,
+decomposed floating-point fields, or optimized datapaths; Zolotone checks that
+the implementation refines its golden model.
+
+## Specification model
+
+The specification language builds an immutable symbolic AST with:
+
+- real and Boolean expressions for mathematical relationships;
+- explicit assumptions and properties to check;
+- floating-point values with observable classifications and format behavior;
+- translation to simplification, e-graph, SMT, and nonlinear-real backends.
+
+For example, the golden model for the FP32 IEEE adder states the finite
+computation directly while making the special-value behavior explicit:
+
+```python
+from zolotone import If, fp32
+
+
+def spec_FP32_IEEE_adder(x: "FP32", y: "FP32", ctx):
+    nan_case = (
+        x.is_nan
+        | y.is_nan
+        | (x.is_pinf & y.is_ninf)
+        | (x.is_ninf & y.is_pinf)
+    )
+    neg_inf_case = (x.is_ninf | y.is_ninf) & (~nan_case)
+    pos_inf_case = (x.is_pinf | y.is_pinf) & (~nan_case)
+    neg_zero_case = x.is_nzero & y.is_nzero
+
+    return If(
+        nan_case,
+        fp32.nan(),
+        If(
+            neg_inf_case,
+            fp32.ninf(),
+            If(
+                pos_inf_case,
+                fp32.inf(),
+                If(
+                    neg_zero_case,
+                    fp32.nzero(),
+                    fp32.encode(x.value + y.value, ctx),
+                ),
+            ),
+        ),
+    )
+```
+
+This model says what the result means. It does not prescribe exponent
+alignment, significand formatting, rounding logic, or other implementation
+choices. Those belong in `FP32_IEEE_adder`, the implementation model, and are
+verified against this golden specification.
+
+## Verification workflow
+
+Zolotone connects golden specifications to typed implementation models:
+
+1. Define math-level intent using `RealExpr`, `BoolExpr`, `FPExpr`, and formats
+   such as `fp32`.
+2. Build an implementation from typed `Primitive` and `Composite` nodes.
+3. Attach a specification to each operation or composite.
+4. Call `check_spec()` to compare the implementation with its golden model.
+
+Proof obligations can be simplified, rewritten with egglog, discharged with
+Z3, and checked with dReal. Floating-point results are split into observable
+classification cases so finite values, zeros, infinities, and NaNs are compared
+with the appropriate semantics.
+
+## Repository layout
+
+- `zolotone/spec/` — the math-level specification AST, `SpecContext`, and
+  floating-point specifications.
+- `zolotone/ast/` — typed implementation nodes, composites, and specification
+  checking.
+- `zolotone/components/` and `zolotone/types/` — fixed-point, floating-point,
+  Boolean, tuple, and bit-level building blocks.
+- `zolotone/solver/`, `zolotone/smt/`, and `zolotone/egglog/` — proof scheduling
+  and solver integrations.
+- `zolotone/codegen/` — C++ generation for implementation models.
+- `examples/` — FP32 arithmetic and conventional/optimized BF16 dot-product
+  implementations with golden specifications.
+- `docs/operators.md` — available implementation operators and primitives.
 
 ## Quick start
-1) Ensure Python 3.11+ is available.
-2) Install deps:
-```
+
+The development environment uses Python 3.11 because of the dReal bindings.
+
+```sh
 make install
-```
-   `make install` also ensures Rust/Cargo is available for the Rival3 bridge.
-   If Cargo is missing, it uses the recommended `rustup` installer, which does
-   not require sudo and installs into your home directory:
-```
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-. "$HOME/.cargo/env"
-```
-   If your environment does not allow user-local toolchains, install Rust/Cargo
-   with your system's approved package manager instead; that path may require
-   sudo.
-3) Run the sample check (compares optimized vs conventional on random BF16 vectors):
-```
-python main.py --seed 0
-```
-
-## Optional Rival3 bridge
-The `zolotone.rival` module can translate `SpecNode` expressions into
-Rival3 and build a native Rival machine. The pure-Python translator works
-without extra setup. To enable `build_machine(...)` and
-`RivalMachine.apply_with_hints(...)`, build the PyO3 extension:
-```
-pip install maturin
-maturin develop -m crates/rival_bridge/Cargo.toml
-```
-`make install` runs this bridge build automatically.
-
-## Testing
-```
 make unit-tests
 ```
 
-## Inspecting the AST
-Both designs can print their internal trees; for example, to see the conventional design structure, run:
-```
-a = [Var(f"a_{i}", BFloat16T()) for i in range(4)]
-b = [Var(f"b_{i}", BFloat16T()) for i in range(4)]
-Conventional(*a, *b).print_tree(depth=1)
-```
-Which outputs a high-level tree:
-```
-└── Float<32>: Conventional [Composite]
-    └── Impl:
-        └── Float<32>: encode_Float32 [Primitive]
-            ├── Q<5,28>: q_add [Primitive]
-            │   ├── Q<4,28>: q_add [Primitive]
-            │   │   ├── Q<3,28>: q_add_sign [Primitive]
-            │   │   │   ├── Q<3,28>: uq_to_q [Primitive]
-            │   │   │   │   └── UQ<2,28>: uq_rshift [Primitive]
-            │   │   │   │       ├── UQ<2,28>: uq_resize [Primitive]
-            │   │   │   │       │   └── UQ<2,14>: uq_mul [Primitive]
-            │   │   │   │       │       ├── UQ<1,7>: mantissa_add_implicit_bit [Composite]
-            │   │   │   │       │       │   └── UQ<7,0>: Tuple_get_item_1 [Op]
-            │   │   │   │       │       │       └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │   │   │       │       │           └── BFloat<16>: a_0 [Var]
-            │   │   │   │       │       └── UQ<1,7>: mantissa_add_implicit_bit [Composite]
-            │   │   │   │       │           └── UQ<7,0>: Tuple_get_item_1 [Op]
-            │   │   │   │       │               └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │   │   │       │                   └── BFloat<16>: b_0 [Var]
-            │   │   │   │       └── UQ<10,0>: uq_sub [Primitive]
-            │   │   │   │           ├── UQ<9,0>: uq_max [Primitive]
-            │   │   │   │           │   ├── UQ<9,0>: uq_max [Primitive]
-            │   │   │   │           │   │   ├── UQ<9,0>: uq_add [Primitive]
-            │   │   │   │           │   │   │   ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │   │   │           │   │   │   │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │   │   │           │   │   │   │       └── BFloat<16>: a_0 [Var]
-            │   │   │   │           │   │   │   └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │   │   │           │   │   │       └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │   │   │           │   │   │           └── BFloat<16>: b_0 [Var]
-            │   │   │   │           │   │   └── UQ<9,0>: uq_add [Primitive]
-            │   │   │   │           │   │       ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │   │   │           │   │       │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │   │   │           │   │       │       └── BFloat<16>: a_1 [Var]
-            │   │   │   │           │   │       └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │   │   │           │   │           └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │   │   │           │   │               └── BFloat<16>: b_1 [Var]
-            │   │   │   │           │   └── UQ<9,0>: uq_max [Primitive]
-            │   │   │   │           │       ├── UQ<9,0>: uq_add [Primitive]
-            │   │   │   │           │       │   ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │   │   │           │       │   │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │   │   │           │       │   │       └── BFloat<16>: a_2 [Var]
-            │   │   │   │           │       │   └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │   │   │           │       │       └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │   │   │           │       │           └── BFloat<16>: b_2 [Var]
-            │   │   │   │           │       └── UQ<9,0>: uq_add [Primitive]
-            │   │   │   │           │           ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │   │   │           │           │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │   │   │           │           │       └── BFloat<16>: a_3 [Var]
-            │   │   │   │           │           └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │   │   │           │               └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │   │   │           │                   └── BFloat<16>: b_3 [Var]
-            │   │   │   │           └── UQ<9,0>: uq_add [Primitive]
-            │   │   │   │               ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │   │   │               │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │   │   │               │       └── BFloat<16>: a_0 [Var]
-            │   │   │   │               └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │   │   │                   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │   │   │                       └── BFloat<16>: b_0 [Var]
-            │   │   │   └── UQ<1,0>: sign_xor [Primitive]
-            │   │   │       ├── UQ<1,0>: Tuple_get_item_0 [Op]
-            │   │   │       │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │   │       │       └── BFloat<16>: a_0 [Var]
-            │   │   │       └── UQ<1,0>: Tuple_get_item_0 [Op]
-            │   │   │           └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │   │               └── BFloat<16>: b_0 [Var]
-            │   │   └── Q<3,28>: q_add_sign [Primitive]
-            │   │       ├── Q<3,28>: uq_to_q [Primitive]
-            │   │       │   └── UQ<2,28>: uq_rshift [Primitive]
-            │   │       │       ├── UQ<2,28>: uq_resize [Primitive]
-            │   │       │       │   └── UQ<2,14>: uq_mul [Primitive]
-            │   │       │       │       ├── UQ<1,7>: mantissa_add_implicit_bit [Composite]
-            │   │       │       │       │   └── UQ<7,0>: Tuple_get_item_1 [Op]
-            │   │       │       │       │       └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │       │       │       │           └── BFloat<16>: a_1 [Var]
-            │   │       │       │       └── UQ<1,7>: mantissa_add_implicit_bit [Composite]
-            │   │       │       │           └── UQ<7,0>: Tuple_get_item_1 [Op]
-            │   │       │       │               └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │       │       │                   └── BFloat<16>: b_1 [Var]
-            │   │       │       └── UQ<10,0>: uq_sub [Primitive]
-            │   │       │           ├── UQ<9,0>: uq_max [Primitive]
-            │   │       │           │   ├── UQ<9,0>: uq_max [Primitive]
-            │   │       │           │   │   ├── UQ<9,0>: uq_add [Primitive]
-            │   │       │           │   │   │   ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │       │           │   │   │   │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │       │           │   │   │   │       └── BFloat<16>: a_0 [Var]
-            │   │       │           │   │   │   └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │       │           │   │   │       └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │       │           │   │   │           └── BFloat<16>: b_0 [Var]
-            │   │       │           │   │   └── UQ<9,0>: uq_add [Primitive]
-            │   │       │           │   │       ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │       │           │   │       │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │       │           │   │       │       └── BFloat<16>: a_1 [Var]
-            │   │       │           │   │       └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │       │           │   │           └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │       │           │   │               └── BFloat<16>: b_1 [Var]
-            │   │       │           │   └── UQ<9,0>: uq_max [Primitive]
-            │   │       │           │       ├── UQ<9,0>: uq_add [Primitive]
-            │   │       │           │       │   ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │       │           │       │   │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │       │           │       │   │       └── BFloat<16>: a_2 [Var]
-            │   │       │           │       │   └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │       │           │       │       └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │       │           │       │           └── BFloat<16>: b_2 [Var]
-            │   │       │           │       └── UQ<9,0>: uq_add [Primitive]
-            │   │       │           │           ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │       │           │           │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │       │           │           │       └── BFloat<16>: a_3 [Var]
-            │   │       │           │           └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │       │           │               └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │       │           │                   └── BFloat<16>: b_3 [Var]
-            │   │       │           └── UQ<9,0>: uq_add [Primitive]
-            │   │       │               ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │       │               │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │       │               │       └── BFloat<16>: a_1 [Var]
-            │   │       │               └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │   │       │                   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │       │                       └── BFloat<16>: b_1 [Var]
-            │   │       └── UQ<1,0>: sign_xor [Primitive]
-            │   │           ├── UQ<1,0>: Tuple_get_item_0 [Op]
-            │   │           │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │           │       └── BFloat<16>: a_1 [Var]
-            │   │           └── UQ<1,0>: Tuple_get_item_0 [Op]
-            │   │               └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │   │                   └── BFloat<16>: b_1 [Var]
-            │   └── Q<4,28>: q_add [Primitive]
-            │       ├── Q<3,28>: q_add_sign [Primitive]
-            │       │   ├── Q<3,28>: uq_to_q [Primitive]
-            │       │   │   └── UQ<2,28>: uq_rshift [Primitive]
-            │       │   │       ├── UQ<2,28>: uq_resize [Primitive]
-            │       │   │       │   └── UQ<2,14>: uq_mul [Primitive]
-            │       │   │       │       ├── UQ<1,7>: mantissa_add_implicit_bit [Composite]
-            │       │   │       │       │   └── UQ<7,0>: Tuple_get_item_1 [Op]
-            │       │   │       │       │       └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │       │   │       │       │           └── BFloat<16>: a_2 [Var]
-            │       │   │       │       └── UQ<1,7>: mantissa_add_implicit_bit [Composite]
-            │       │   │       │           └── UQ<7,0>: Tuple_get_item_1 [Op]
-            │       │   │       │               └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │       │   │       │                   └── BFloat<16>: b_2 [Var]
-            │       │   │       └── UQ<10,0>: uq_sub [Primitive]
-            │       │   │           ├── UQ<9,0>: uq_max [Primitive]
-            │       │   │           │   ├── UQ<9,0>: uq_max [Primitive]
-            │       │   │           │   │   ├── UQ<9,0>: uq_add [Primitive]
-            │       │   │           │   │   │   ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │       │   │           │   │   │   │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │       │   │           │   │   │   │       └── BFloat<16>: a_0 [Var]
-            │       │   │           │   │   │   └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │       │   │           │   │   │       └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │       │   │           │   │   │           └── BFloat<16>: b_0 [Var]
-            │       │   │           │   │   └── UQ<9,0>: uq_add [Primitive]
-            │       │   │           │   │       ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │       │   │           │   │       │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │       │   │           │   │       │       └── BFloat<16>: a_1 [Var]
-            │       │   │           │   │       └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │       │   │           │   │           └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │       │   │           │   │               └── BFloat<16>: b_1 [Var]
-            │       │   │           │   └── UQ<9,0>: uq_max [Primitive]
-            │       │   │           │       ├── UQ<9,0>: uq_add [Primitive]
-            │       │   │           │       │   ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │       │   │           │       │   │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │       │   │           │       │   │       └── BFloat<16>: a_2 [Var]
-            │       │   │           │       │   └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │       │   │           │       │       └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │       │   │           │       │           └── BFloat<16>: b_2 [Var]
-            │       │   │           │       └── UQ<9,0>: uq_add [Primitive]
-            │       │   │           │           ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │       │   │           │           │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │       │   │           │           │       └── BFloat<16>: a_3 [Var]
-            │       │   │           │           └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │       │   │           │               └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │       │   │           │                   └── BFloat<16>: b_3 [Var]
-            │       │   │           └── UQ<9,0>: uq_add [Primitive]
-            │       │   │               ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │       │   │               │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │       │   │               │       └── BFloat<16>: a_2 [Var]
-            │       │   │               └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │       │   │                   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │       │   │                       └── BFloat<16>: b_2 [Var]
-            │       │   └── UQ<1,0>: sign_xor [Primitive]
-            │       │       ├── UQ<1,0>: Tuple_get_item_0 [Op]
-            │       │       │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │       │       │       └── BFloat<16>: a_2 [Var]
-            │       │       └── UQ<1,0>: Tuple_get_item_0 [Op]
-            │       │           └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │       │               └── BFloat<16>: b_2 [Var]
-            │       └── Q<3,28>: q_add_sign [Primitive]
-            │           ├── Q<3,28>: uq_to_q [Primitive]
-            │           │   └── UQ<2,28>: uq_rshift [Primitive]
-            │           │       ├── UQ<2,28>: uq_resize [Primitive]
-            │           │       │   └── UQ<2,14>: uq_mul [Primitive]
-            │           │       │       ├── UQ<1,7>: mantissa_add_implicit_bit [Composite]
-            │           │       │       │   └── UQ<7,0>: Tuple_get_item_1 [Op]
-            │           │       │       │       └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │           │       │       │           └── BFloat<16>: a_3 [Var]
-            │           │       │       └── UQ<1,7>: mantissa_add_implicit_bit [Composite]
-            │           │       │           └── UQ<7,0>: Tuple_get_item_1 [Op]
-            │           │       │               └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │           │       │                   └── BFloat<16>: b_3 [Var]
-            │           │       └── UQ<10,0>: uq_sub [Primitive]
-            │           │           ├── UQ<9,0>: uq_max [Primitive]
-            │           │           │   ├── UQ<9,0>: uq_max [Primitive]
-            │           │           │   │   ├── UQ<9,0>: uq_add [Primitive]
-            │           │           │   │   │   ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │           │           │   │   │   │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │           │           │   │   │   │       └── BFloat<16>: a_0 [Var]
-            │           │           │   │   │   └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │           │           │   │   │       └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │           │           │   │   │           └── BFloat<16>: b_0 [Var]
-            │           │           │   │   └── UQ<9,0>: uq_add [Primitive]
-            │           │           │   │       ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │           │           │   │       │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │           │           │   │       │       └── BFloat<16>: a_1 [Var]
-            │           │           │   │       └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │           │           │   │           └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │           │           │   │               └── BFloat<16>: b_1 [Var]
-            │           │           │   └── UQ<9,0>: uq_max [Primitive]
-            │           │           │       ├── UQ<9,0>: uq_add [Primitive]
-            │           │           │       │   ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │           │           │       │   │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │           │           │       │   │       └── BFloat<16>: a_2 [Var]
-            │           │           │       │   └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │           │           │       │       └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │           │           │       │           └── BFloat<16>: b_2 [Var]
-            │           │           │       └── UQ<9,0>: uq_add [Primitive]
-            │           │           │           ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │           │           │           │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │           │           │           │       └── BFloat<16>: a_3 [Var]
-            │           │           │           └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │           │           │               └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │           │           │                   └── BFloat<16>: b_3 [Var]
-            │           │           └── UQ<9,0>: uq_add [Primitive]
-            │           │               ├── UQ<8,0>: Tuple_get_item_2 [Op]
-            │           │               │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │           │               │       └── BFloat<16>: a_3 [Var]
-            │           │               └── UQ<8,0>: Tuple_get_item_2 [Op]
-            │           │                   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │           │                       └── BFloat<16>: b_3 [Var]
-            │           └── UQ<1,0>: sign_xor [Primitive]
-            │               ├── UQ<1,0>: Tuple_get_item_0 [Op]
-            │               │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │               │       └── BFloat<16>: a_3 [Var]
-            │               └── UQ<1,0>: Tuple_get_item_0 [Op]
-            │                   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-            │                       └── BFloat<16>: b_3 [Var]
-            └── Q<11,0>: q_sub [Primitive]
-                ├── Q<10,0>: uq_to_q [Primitive]
-                │   └── UQ<9,0>: uq_max [Primitive]
-                │       ├── UQ<9,0>: uq_max [Primitive]
-                │       │   ├── UQ<9,0>: uq_add [Primitive]
-                │       │   │   ├── UQ<8,0>: Tuple_get_item_2 [Op]
-                │       │   │   │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-                │       │   │   │       └── BFloat<16>: a_0 [Var]
-                │       │   │   └── UQ<8,0>: Tuple_get_item_2 [Op]
-                │       │   │       └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-                │       │   │           └── BFloat<16>: b_0 [Var]
-                │       │   └── UQ<9,0>: uq_add [Primitive]
-                │       │       ├── UQ<8,0>: Tuple_get_item_2 [Op]
-                │       │       │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-                │       │       │       └── BFloat<16>: a_1 [Var]
-                │       │       └── UQ<8,0>: Tuple_get_item_2 [Op]
-                │       │           └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-                │       │               └── BFloat<16>: b_1 [Var]
-                │       └── UQ<9,0>: uq_max [Primitive]
-                │           ├── UQ<9,0>: uq_add [Primitive]
-                │           │   ├── UQ<8,0>: Tuple_get_item_2 [Op]
-                │           │   │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-                │           │   │       └── BFloat<16>: a_2 [Var]
-                │           │   └── UQ<8,0>: Tuple_get_item_2 [Op]
-                │           │       └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-                │           │           └── BFloat<16>: b_2 [Var]
-                │           └── UQ<9,0>: uq_add [Primitive]
-                │               ├── UQ<8,0>: Tuple_get_item_2 [Op]
-                │               │   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-                │               │       └── BFloat<16>: a_3 [Var]
-                │               └── UQ<8,0>: Tuple_get_item_2 [Op]
-                │                   └── Tuple<UQ<1,0>, UQ<7,0>, UQ<8,0>>: bf16_decode [Primitive]
-                │                       └── BFloat<16>: b_3 [Var]
-                └── Q<8,0>: BFloat16.exponent_bias [Const]
+`make install` creates `.venv`, installs the Python dependencies and dReal,
+builds the Rival3 bridge, and downloads the `ac_int` headers used for generated
+C++ tests. It may install a user-local Rust toolchain through rustup when a
+suitable Cargo installation is not available.
 
+To inspect and verify the example designs directly:
+
+```sh
+.venv/bin/python -m examples.conventional
+.venv/bin/python -m examples.optimized
+```
+
+Each command builds the typed implementation model, prints its structure,
+checks it against the golden specification, and emits a C++ header.
+
+## Rival3 bridge
+
+`zolotone.rival` translates specification expressions into Rival3 for
+interval-based feasibility checks. `make install` builds the PyO3 extension;
+to rebuild it manually in an activated development environment:
+
+```sh
+python -m pip install maturin
+python -m maturin develop -m crates/rival_bridge/Cargo.toml
 ```
