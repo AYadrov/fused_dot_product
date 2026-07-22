@@ -10,18 +10,20 @@ def spec_FP32_IEEE_mult(x: fp32, y: fp32, ctx):
     inf_case = (x.is_inf | y.is_inf) & (~nan_case)
     neg_inf_case = inf_case & negative_sign
     pos_inf_case = inf_case & (~negative_sign)
-    neg_zero_case = (
+    zero_case = (
         (x.is_zero | y.is_zero)
         & (~nan_case)
         & (~inf_case)
-        & negative_sign
     )
+    neg_zero_case = zero_case & negative_sign
+    pos_zero_case = zero_case & (~negative_sign)
     
     return Cases(
         case(nan_case, fp32.nan()),
         case(neg_inf_case, fp32.ninf()),
         case(pos_inf_case, fp32.inf()),
         case(neg_zero_case, fp32.nzero()),
+        case(pos_zero_case, fp32.zero()),
         default(fp32.encode(x.value * y.value, ctx)),
     )
 

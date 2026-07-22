@@ -271,11 +271,13 @@ def fp32_encodings(m_rounded_uq: Node, e_rounded_uq: Node):
     return make_Tuple(final_m_uq, final_e_uq)
 
 
-
 def fp32_encode_spec(s, e, m, ctx):
     sign = sign_multiplier(ctx, s)
     finite_value = sign * m * (ctx.real_val(2) ** (e - ctx.real_val(Float32.exponent_bias)))
-    return fp32.encode(finite_value, ctx)
+    return Cases(
+        case(s.eq(ctx.real_val(1)) & m.eq(ctx.real_val(0)), fp32.nzero()),
+        default(fp32.encode(finite_value, ctx)),
+    )
 
 
 # Assume that e is biased
