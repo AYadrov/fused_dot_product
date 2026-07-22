@@ -540,13 +540,24 @@ class If(RealExpr):
 
     def __new__(cls, cond, on_true, on_false):
         BoolExpr._coerce_bool_expr(cond)
+        true_is_bool = isinstance(on_true, BoolExpr)
+        false_is_bool = isinstance(on_false, BoolExpr)
+        if true_is_bool or false_is_bool:
+            if not (true_is_bool and false_is_bool):
+                raise TypeError(
+                    "If branches must both be BoolExpr, RealExpr, or matching "
+                    f"FPExpr values, got {type(on_true).__name__} and "
+                    f"{type(on_false).__name__}"
+                )
+            return (cond & on_true) | ((~cond) & on_false)
+
         true_is_fp = isinstance(on_true, FPExpr)
         false_is_fp = isinstance(on_false, FPExpr)
         if true_is_fp or false_is_fp:
             if not (true_is_fp and false_is_fp):
                 raise TypeError(
-                    "If branches must both be RealExpr or matching FPExpr "
-                    f"values, got {type(on_true).__name__} and "
+                    "If branches must both be BoolExpr, RealExpr, or matching "
+                    f"FPExpr values, got {type(on_true).__name__} and "
                     f"{type(on_false).__name__}"
                 )
             return type(on_true).select(cond, on_true, on_false)
@@ -585,14 +596,14 @@ class If(RealExpr):
         return f"(if {self.cond} then {self.on_true} else {self.on_false})"
 
 
-_CaseValue = RealExpr | FPExpr
+_CaseValue = BoolExpr | RealExpr | FPExpr
 
 
 def _coerce_case_value(value: object) -> _CaseValue:
-    if isinstance(value, (RealExpr, FPExpr)):
+    if isinstance(value, (BoolExpr, RealExpr, FPExpr)):
         return value
     raise TypeError(
-        "Cases values must be RealExpr or FPExpr, got "
+        "Cases values must be BoolExpr, RealExpr, or FPExpr, got "
         f"{type(value).__name__}"
     )
 

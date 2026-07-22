@@ -1023,6 +1023,33 @@ class TestSpecAstConstantFolding(unittest.TestCase):
 
         self.assertIsInstance(expr, If)
 
+    def test_if_lowers_bool_branches_to_boolean_logic(self):
+        condition = BoolVar("condition")
+        on_true = BoolVar("on_true")
+        on_false = BoolVar("on_false")
+
+        expr = If(condition, on_true, on_false)
+
+        self.assertIsInstance(expr, BoolExpr)
+        self.assertEqual(
+            expr,
+            (condition & on_true) | ((~condition) & on_false),
+        )
+
+    def test_if_constant_folds_bool_branches(self):
+        self.assertEqual(
+            If(BoolLit(True), BoolLit(False), BoolLit(True)).constant_fold(),
+            BoolLit(False),
+        )
+        self.assertEqual(
+            If(BoolLit(False), BoolLit(False), BoolLit(True)).constant_fold(),
+            BoolLit(True),
+        )
+
+    def test_if_rejects_mixed_bool_and_real_branches(self):
+        with self.assertRaisesRegex(TypeError, "If branches"):
+            If(BoolVar("condition"), BoolVar("on_true"), RealLit(0))
+
     def test_if_selects_fp_fields_generically(self):
         condition = BoolVar("condition")
         selected = If(condition, fp32.nan(), fp32.ninf())
@@ -1072,6 +1099,22 @@ class TestSpecAstConstantFolding(unittest.TestCase):
         self.assertIsInstance(expr, fp32)
         self.assertEqual(expr.constant_fold(), fp32.ninf())
 
+    def test_cases_support_bool_values(self):
+        condition = BoolVar("condition")
+        on_true = BoolVar("on_true")
+        on_false = BoolVar("on_false")
+
+        expr = Cases([
+            case(condition, on_true),
+            default(on_false),
+        ])
+
+        self.assertIsInstance(expr, BoolExpr)
+        self.assertEqual(
+            expr,
+            (condition & on_true) | ((~condition) & on_false),
+        )
+
     def test_cases_allow_only_a_default(self):
         fallback = RealVar("fallback")
 
@@ -1098,7 +1141,7 @@ class TestSpecAstConstantFolding(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "Expected BoolExpr"):
             case(RealLit(1), RealLit(2))
         with self.assertRaisesRegex(TypeError, "Cases values"):
-            default(BoolLit(True))
+            default(object())
 
     def test_cases_reject_mismatched_branch_types(self):
         with self.assertRaisesRegex(TypeError, "If branches"):
