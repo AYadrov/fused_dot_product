@@ -1150,23 +1150,75 @@ class TestSpecAstConstantFolding(unittest.TestCase):
                 default(RealLit(0)),
             )
 
-    def test_fp32_encoder_spec_canonicalizes_zero(self):
+    def test_fp32_encoder_spec_preserves_exact_zero_sign(self):
         from examples.encode_Float32 import fp32_encode_spec
 
-        ctx = SpecContext("fp32-encode-zero")
-        encoded = fp32_encode_spec(
-            RealLit(1),
-            RealLit(0),
-            RealLit(0),
-            ctx,
+        for sign, predicate in ((0, "is_pzero"), (1, "is_nzero")):
+            with self.subTest(sign=sign):
+                ctx = SpecContext(f"fp32-encode-zero-sign-{sign}")
+                encoded = fp32_encode_spec(
+                    RealLit(sign),
+                    RealLit(0),
+                    RealLit(0),
+                    ctx,
+                )
+                ctx.check(getattr(encoded, predicate))
+
+                report = simplify_ctx(ctx)
+                if report["status"] == "unknown":
+                    report = z3_check_eq(report["new_ctx"], timeout_ms=1000)
+
+                self.assertEqual(report["status"], "unsat", report)
+
+    def test_fp32_encode_design_preserves_exact_zero_sign(self):
+        from examples.encode_Float32 import fp32_encode
+
+        for sign, expected in ((0, Float32.Zero()), (1, Float32.nZero())):
+            with self.subTest(sign=sign):
+                design = fp32_encode(
+                    Const(UQ(sign, 1, 0)),
+                    Const(Q.from_int(127)),
+                    Const(UQ.from_float(0, 1, Float32.mantissa_bits)),
+                )
+                self.assertEqual(design.evaluate(), expected)
+
+    def test_fp32_encode_spec_rounds_negative_underflow_to_negative_zero(self):
+        # 2^-150 is exactly halfway between zero and the smallest binary32
+        # subnormal. RNE selects the even encoding, zero, and keeps the sign.
+        for name, value in (
+            ("below-midpoint", -(2.0 ** -151)),
+            ("midpoint", -(2.0 ** -150)),
+        ):
+            with self.subTest(name=name):
+                ctx = SpecContext(f"fp32-encode-{name}")
+                encoded = fp32.encode(RealLit(value), ctx)
+                ctx.check(encoded.is_nzero)
+
+                report = simplify_ctx(ctx)
+                if report["status"] == "unknown":
+                    report = z3_check_eq(report["new_ctx"], timeout_ms=1000)
+
+                self.assertEqual(report["status"], "unsat", report)
+
+    def test_fp32_encode_design_preserves_negative_underflow_sign(self):
+        from examples.encode_Float32 import fp32_encode
+
+        sign = Const(UQ(1, 1, 0))
+        exponent = Const(Q.from_int(-22))
+
+        cases = (
+            (0.25, Float32.nZero()),
+            (0.5, Float32.nZero()),
+            (0.75, Float32.from_fields(1, 0, 1)),
         )
-        ctx.check(encoded.is_zero & encoded.sign.eq(RealLit(0)))
-
-        report = simplify_ctx(ctx)
-        if report["status"] == "unknown":
-            report = z3_check_eq(report["new_ctx"], timeout_ms=1000)
-
-        self.assertEqual(report["status"], "unsat", report)
+        for mantissa, expected in cases:
+            with self.subTest(mantissa=mantissa):
+                design = fp32_encode(
+                    sign,
+                    exponent,
+                    Const(UQ.from_float(mantissa, 1, Float32.mantissa_bits)),
+                )
+                self.assertEqual(design.evaluate(), expected)
 
     def test_fp32_adder_spec_preserves_single_infinity(self):
         from examples.FP32_IEEE_adder import spec_FP32_IEEE_adder

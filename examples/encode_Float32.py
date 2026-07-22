@@ -283,7 +283,7 @@ def fp32_encode_spec(s, e, m, ctx):
 def fp32_encode(s_uq: Node, e_q: Node, m_uq: Node) -> Primitive:
     assert e_q.node_type.frac_bits == 0
 
-    encode_zero = uq_is_zero(m_uq)
+    encode_exact_zero = uq_is_zero(m_uq)
 
     normalized_m_uq, normalized_e_q = normalize_to_1_xxx(m_uq, e_q)
     shifted_m_uq, shifted_e_uq = shift_if_subnormal(normalized_m_uq, normalized_e_q)
@@ -294,9 +294,14 @@ def fp32_encode(s_uq: Node, e_q: Node, m_uq: Node) -> Primitive:
     final_m_uq, final_e_uq = fp32_encodings(m_rounded_uq, e_rounded_uq)
     
     packed_fp32 = fp32_pack(s_uq, final_e_uq, final_m_uq)
-    return if_then_else(
-        encode_zero,
+    signed_zero = if_then_else(
+        s_uq,
+        Const(Float32.nZero()),
         Const(Float32.Zero()),
+    )
+    return if_then_else(
+        encode_exact_zero,
+        signed_zero,
         packed_fp32,
     )
 

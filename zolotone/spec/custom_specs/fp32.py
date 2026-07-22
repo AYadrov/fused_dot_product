@@ -123,6 +123,7 @@ class fp32(FPExpr):
             * two ** (two ** exponent_bits - two - exponent_bias)
         )
         smallest_subnormal = two ** (one - exponent_bias - mantissa_bits)
+        zero_rounding_boundary = smallest_subnormal * (two ** ctx.real_val(-1))
         
         out = cls.fresh("encoded_fp32", ctx)
         
@@ -130,11 +131,14 @@ class fp32(FPExpr):
         ctx.assume(magnitude.eq(abs(value)))
         ctx.assume(out.sign.eq(If(value < zero, one, zero)))
         
-        ctx.assume(out.is_zero.eq(magnitude < smallest_subnormal))
+        # Under RNE, values at the midpoint between zero and the smallest
+        # subnormal tie to the even encoding (zero). The sign still comes
+        # from the nonzero input, so negative underflow produces -0.
+        ctx.assume(out.is_zero.eq(magnitude <= zero_rounding_boundary))
         ctx.assume(
             out.is_sub.eq(
                 (magnitude < smallest_normal)
-                & (magnitude >= smallest_subnormal)
+                & (magnitude > zero_rounding_boundary)
             )
         )
         ctx.assume(
