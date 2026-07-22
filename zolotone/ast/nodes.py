@@ -1,5 +1,6 @@
 import typing as tp
 import random
+from itertools import product
 
 from ..types.runtime import RuntimeType
 from ..types.static import StaticType
@@ -7,7 +8,7 @@ from ..utils import make_fixed_arguments
 from ..solver.engine import check_equivalence
 from .node import Node
 from .proofs import SpecRecorder, record_specs
-from ..spec import SpecContext
+from ..spec import FPExpr, SpecContext
 from ..spec.spec_context import simplify_ctx
 
 
@@ -32,61 +33,106 @@ def _case_labels(name: str) -> dict[str, str]:
     return labels
 
 
-def _split_special_cases(
+def _assume_classification_case(
+    ctx: SpecContext,
+    value_name: str,
+    value: FPExpr,
+    selected_name: str,
+) -> None:
+    ctx.name = _append_case_name(ctx.name, f"{value_name}={selected_name}")
+    for flag_name, flag in value.classification_flags().items():
+        ctx.assume(flag.eq(ctx.bool_val(flag_name == selected_name)))
+
+
+def _named_fp_items(value_name: str, value: tp.Any):
+    if isinstance(value, FPExpr):
+        yield value_name, value
+        return
+    if isinstance(value, tuple):
+        for idx, item in enumerate(value):
+            yield from _named_fp_items(f"{value_name}.{idx}", item)
+
+
+def _add_classification_case_checks(
+    ctx: SpecContext,
+    spec_inner: tp.Any,
+    spec_outer: tp.Any,
+    labels: dict[str, str],
+) -> None:
+    def add_checks(inner, outer, inner_name, outer_name):
+        inner_is_tuple = isinstance(inner, tuple)
+        outer_is_tuple = isinstance(outer, tuple)
+        if inner_is_tuple or outer_is_tuple:
+            if not (inner_is_tuple and outer_is_tuple):
+                raise TypeError("Spec shape mismatch: one output is a tuple and the other is not")
+            if len(inner) != len(outer):
+                raise TypeError(f"Spec tuple arity mismatch: {len(inner)} != {len(outer)}")
+
+            for idx, (inner_item, outer_item) in enumerate(zip(inner, outer)):
+                add_checks(
+                    inner_item,
+                    outer_item,
+                    f"{inner_name}.{idx}",
+                    f"{outer_name}.{idx}",
+                )
+            return
+
+        inner_is_fp = isinstance(inner, FPExpr)
+        outer_is_fp = isinstance(outer, FPExpr)
+        if inner_is_fp != outer_is_fp:
+            raise TypeError("Spec shape mismatch: one output is FPExpr and the other is not")
+        # RealExpr/BoolExpr
+        if not inner_is_fp:
+            ctx.check(inner.eq(outer))
+            return
+        if type(inner) is not type(outer):
+            raise TypeError("Different FPExprs are provided")
+
+        # Simply unroll flags + values for inner/outer FPExpr
+        inner_class = labels[inner_name]
+        outer_class = labels[outer_name]
+        inner_flags = tuple(inner.classification_flags().values())
+        outer_flags = tuple(outer.classification_flags().values())
+
+        if inner_class == outer_class:
+            inner_flags += inner.observables_for_classification(inner_class)
+            outer_flags += outer.observables_for_classification(outer_class)
+
+        for inner_value, outer_value in zip(inner_flags, outer_flags, strict=True):
+            ctx.check(inner_value.eq(outer_value))
+
+    add_checks(spec_inner, spec_outer, "inner_spec", "outer_spec")
+
+
+def _split_classification_cases(
     ctx: SpecContext,
     inputs: list[tp.Any],
     spec_inner: tp.Any,
     spec_outer: tp.Any,
 ) -> list[SpecContext]:
-    values = [
-        (f"arg{idx}", value)
-        for idx, value in enumerate(inputs)
-    ] + [
-        ("inner_spec", spec_inner),
-        ("outer_spec", spec_outer),
+    classified_values = [(f"arg{idx}", value) for idx, value in enumerate(inputs)] \
+        + [("inner_spec", spec_inner), ("outer_spec", spec_outer)]
+    
+    fp_items = [
+        fp_item
+        for value_name, value in classified_values
+        for fp_item in _named_fp_items(value_name, value)
     ]
+    flag_lists = [value.classification_flags() for _, value in fp_items]
     
-    split_ctxs = [ctx]
-    for value_name, value in values:
-        special_flags = getattr(value, "special_flags", lambda: None)()
-        if special_flags is None:
-            continue
+    cases = []
+    for selected_flags in product(*flag_lists):
+        case_ctx = ctx.copy()
+        labels = {}
         
-        next_ctxs = []
-        for base_ctx in split_ctxs:
-            for selected_name in special_flags:
-                case_ctx = base_ctx.copy()
-                _assume_special_case(
-                    case_ctx,
-                    value_name,
-                    value,
-                    selected_name,
-                )
-                next_ctxs.append(case_ctx)
-        split_ctxs = next_ctxs
-    return split_ctxs
-
-
-def _assume_special_case(
-    ctx: SpecContext,
-    value_name: str,
-    value: tp.Any,
-    selected_name: str,
-) -> None:
-    ctx.name = _append_case_name(ctx.name, f"{value_name}={selected_name}")
-    for flag_name, flag in value.special_flags().items():
-        ctx.assume(flag.eq(ctx.bool_val(flag_name == selected_name)))
-
-
-def _equivalence_query(spec_value: tp.Any):
-    if isinstance(spec_value, tuple):
-        return tuple(_equivalence_query(item) for item in spec_value)
+        for (value_name, value), selected_name in zip(fp_items, selected_flags):
+            _assume_classification_case(case_ctx, value_name, value, selected_name)
+            labels[value_name] = selected_name
+        
+        _add_classification_case_checks(case_ctx, spec_inner, spec_outer, labels)
+        cases.append(case_ctx)
     
-    as_tuple = getattr(spec_value, "as_tuple", None)
-    if as_tuple is not None:
-        return _equivalence_query(as_tuple())
-    
-    return spec_value
+    return cases
 
 
 def _side_case_context(
@@ -96,20 +142,28 @@ def _side_case_context(
 ) -> SpecContext:
     ctx = node.ctx.copy()
     inputs = [ctx.spec_of(arg) for arg in node.inner_args]
-    spec_value = (
-        ctx.spec_of(node.inner_tree)
-        if spec_case_name == "inner_spec"
-        else node.spec(*inputs, ctx=ctx)
-    )
+    if spec_case_name == "inner_spec":
+        spec_value = ctx.spec_of(node.inner_tree)
+    elif spec_case_name == "outer_spec":
+        spec_value = node.spec(*inputs, ctx=ctx)
+    else:
+        raise ValueError(f"Unknown specification side {spec_case_name!r}")
     
     for idx, value in enumerate(inputs):
-        value_name = f"arg{idx}"
-        special_flags = getattr(value, "special_flags", lambda: None)()
-        if special_flags is None or value_name not in case_labels:
-            continue
-        _assume_special_case(ctx, value_name, value, case_labels[value_name])
-    _assume_special_case(ctx, spec_case_name, spec_value, case_labels[spec_case_name])
+        for value_name, fp_value in _named_fp_items(f"arg{idx}", value):
+            selected_name = case_labels.get(value_name)
+            if selected_name is not None:
+                _assume_classification_case(ctx, value_name, fp_value, selected_name)
+    
+    output_items = list(_named_fp_items(spec_case_name, spec_value))
+    if not output_items:
+        raise TypeError("Classification case requires an FPExpr output, got {type(spec_value).__name__}")
+    for value_name, fp_value in output_items:
+        selected_name = case_labels.get(value_name)
+        if selected_name is not None:
+            _assume_classification_case(ctx, value_name, fp_value, selected_name)
     return ctx
+
 
 def _has_confirmed_feasibility_mismatch(
     node: "composite",
@@ -117,10 +171,57 @@ def _has_confirmed_feasibility_mismatch(
 ) -> bool:
     inner_ctx = _side_case_context(node, case_labels, "inner_spec")
     outer_ctx = _side_case_context(node, case_labels, "outer_spec")
-    
+
     inner_status = simplify_ctx(inner_ctx).get("feasibility_status", "unknown")
     outer_status = simplify_ctx(outer_ctx).get("feasibility_status", "unknown")
     return {inner_status, outer_status} == {"feasible", "not feasible"}
+
+
+def _output_classifications_match(labels: dict[str, str]) -> bool | None:
+    def output_labels(prefix: str) -> dict[str, str]:
+        nested_prefix = f"{prefix}."
+        return {
+            name[len(prefix):]: classification
+            for name, classification in labels.items()
+            if name == prefix or name.startswith(nested_prefix)
+        }
+
+    inner_labels = output_labels("inner_spec")
+    outer_labels = output_labels("outer_spec")
+    if not inner_labels and not outer_labels:
+        return None
+    if inner_labels.keys() != outer_labels.keys():
+        raise TypeError("Spec shape mismatch between FPExpr outputs")
+    return all(
+        inner_labels[path] == outer_labels[path]
+        for path in inner_labels
+    )
+
+
+def _classification_case_is_proved(
+    node: "composite",
+    labels: dict[str, str],
+    status: str,
+    proof_trace,
+) -> bool:
+    combined_feasibility = (
+        proof_trace[0].get("feasibility_status", "unknown")
+        if proof_trace
+        else "unknown"
+    )
+    solution_can_exist = (combined_feasibility != "not feasible")
+
+    outputs_match = _output_classifications_match(labels)
+    if outputs_match is None:
+        expected_status = "unsat" if solution_can_exist else "sat"
+        return status == expected_status
+
+    if solution_can_exist:
+        expected_status = "unsat" if outputs_match else "sat"
+        return status == expected_status
+    if not outputs_match:
+        return True
+    return not _has_confirmed_feasibility_mismatch(node, labels)
 
 
 def Composite(
@@ -202,64 +303,34 @@ class composite(Node):
         inputs = [combined_ctx.spec_of(arg) for arg in self.inner_args]
         spec_outer = self.spec(*inputs, ctx=combined_ctx)
         
-        # Subsplit a general specification into special-value cases (if applicable)
-        initial_ctxs = _split_special_cases(
-            combined_ctx,
-            inputs,
-            spec_inner,
-            spec_outer,
-        )
-        
-        # Float32Spec -> tuple of values for equivalence check
-        query_inner = _equivalence_query(spec_inner)
-        query_outer = _equivalence_query(spec_outer)
-        
+        # Split a general specification into FP32 classification cases.
+        cases = _split_classification_cases(combined_ctx, inputs, spec_inner, spec_outer)
+
         # Run equivalence checks
         full_trace = []
         proved = True
         
-        print("case name", max(len(initial_ctxs[0].name) - 8, 0)*" ", "\t| correct?\t| status")
+        header_padding = " " * max(len(cases[0].name) - 8, 0)
+        print("case name", header_padding, "\t| correct?\t| status")
         
-        for initial_ctx in initial_ctxs:
-            case_labels = _case_labels(initial_ctx.name)
-            
-            _status, proof_trace = check_equivalence(
-                query_inner,
-                query_outer,
-                ctx=initial_ctx,
-                schedule=schedule,
-            )
-            combined_feasibility = (
-                proof_trace[0].get("feasibility_status", "unknown")
-                if proof_trace
-                else "unknown"
-            )
-            solution_can_exist = (combined_feasibility != "not feasible")
-
-            # If there is no special flags at output
-            if not ("inner_spec" in case_labels and "outer_spec" in case_labels):
-                case_proved = (_status == "unsat") if solution_can_exist else (_status == "sat")
-            # Output was a special value
-            elif solution_can_exist:
-                if case_labels["outer_spec"] != case_labels["inner_spec"]:
-                    case_proved = (_status == "sat")
-                else:
-                    case_proved = (_status == "unsat")
-            else:
-                if case_labels["outer_spec"] == case_labels["inner_spec"]:
-                    case_proved = not _has_confirmed_feasibility_mismatch(self, case_labels)
-                else:
-                    case_proved = True
+        for case_ctx in cases:
+            status, proof_trace = check_equivalence(case_ctx, schedule=schedule)
+            case_labels = _case_labels(case_ctx.name)
+            case_proved = _classification_case_is_proved(self, case_labels, status, proof_trace)
             
             proved = proved and case_proved
-            print(initial_ctx.name, "\t|", "correct" if case_proved else "wrong", "\t|",  _status)
+            result = "correct" if case_proved else "wrong"
+            print(case_ctx.name, "\t|", result, "\t|", status)
             full_trace.append(proof_trace)
             if not proved:
-               break
+                break
         
         print(f"{self.ctx.name} {'has' if proved else 'has not'} been proved")
         
-        return full_trace
+        return {
+            "proved": proved,
+            "proof_traces": full_trace,
+        }
     
     def _validate_components(self, composite_name: str) -> None:
         visited: set[Node] = set()

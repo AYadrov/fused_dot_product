@@ -6,7 +6,7 @@ from multiprocessing.connection import wait
 from time import perf_counter
 from typing import Any
 
-from ..spec import SpecContext, SpecNode
+from ..spec import SpecContext
 from ..spec.spec_context import simplify_ctx
 from .report import ProofReport, build_proof_report, validate_proof_status
 from ..egglog import egglog_rewrite
@@ -50,29 +50,6 @@ def _normalize_egglog_scheduler(step: dict[str, Any]) -> dict[str, int | None]:
         "match_limit": match_limit,
         "ban_length": ban_length,
     }
-
-
-# Unrolls tuples
-def _enqueue_equivalence(
-    lhs: SpecNode | tuple,
-    rhs: SpecNode | tuple,
-    ctx: SpecContext,
-):
-    lhs_is_tuple = isinstance(lhs, tuple)
-    rhs_is_tuple = isinstance(rhs, tuple)
-    if lhs_is_tuple or rhs_is_tuple:
-        if not (lhs_is_tuple and rhs_is_tuple):
-            raise TypeError(
-                "Spec shape mismatch: one side is a tuple and the other is not"
-            )
-        if len(lhs) != len(rhs):
-            raise TypeError(
-                f"Spec tuple arity mismatch: {len(lhs)} != {len(rhs)}"
-            )
-        for lhs_item, rhs_item in zip(lhs, rhs):
-            _enqueue_equivalence(lhs_item, rhs_item, ctx=ctx)
-        return
-    ctx.check(lhs.eq(rhs))
 
 
 def _normalize_schedule(
@@ -220,12 +197,9 @@ def _normalize_tool_reports(
 
 
 def check_equivalence(
-    query1: SpecNode | tuple,
-    query2: SpecNode | tuple,
     ctx: SpecContext,
     schedule: list[str | dict[str, Any]],
 ):
-    _enqueue_equivalence(query1, query2, ctx=ctx)
     current_tracks: list[list[ProofReport]] = [[]]
     current_ctxs = [ctx.copy()]
 

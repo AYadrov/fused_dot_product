@@ -71,11 +71,12 @@ def build_html(report: dict, source_path: Path) -> str:
     impl_report = report.get("impl_report") or {}
 
     seed = report.get("seed", "n/a")
+    proved = run_spec.get("proved")
     status = run_spec.get("status")
-    if status == "unsat":
+    if proved is True or (proved is None and status == "unsat"):
         status_text = "PASS"
         status_class = "status-pass"
-    elif status == "sat":
+    elif proved is False or (proved is None and status == "sat"):
         status_text = "FAIL"
         status_class = "status-fail"
     elif status == "unknown":

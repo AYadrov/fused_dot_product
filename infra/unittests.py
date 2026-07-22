@@ -8,8 +8,8 @@ import numpy as np
 from pprint import pprint, pformat
 from pathlib import Path
 
-from fused_dot_product import *
-from fused_dot_product.egglog.rules import check_rules, rewrite_rules
+from zolotone import *
+from zolotone.egglog.rules import check_rules, rewrite_rules
 from examples.optimized import Optimized
 from examples.conventional import Conventional
 from examples.CSA import CSA_tree4
@@ -34,22 +34,6 @@ def dot_product_spec(a_0, a_1, a_2, a_3, b_0, b_1, b_2, b_3):
 def run_spec_with_metrics(design: Node):
     return design.check_spec()
 
-def _trace_status(proof_trace: list[dict]) -> str:
-    for stage in proof_trace:
-        status = stage.get("status")
-        if status in {"sat", "unsat"}:
-            return str(status)
-    return "unknown"
-
-
-def _merge_statuses(statuses: list[str]) -> str:
-    if "sat" in statuses:
-        return "sat"
-    if statuses and all(status == "unsat" for status in statuses):
-        return "unsat"
-    return "unknown"
-
-
 def _trace_runtime_s(proof_trace: list[dict]) -> float:
     return sum(float(stage.get("runtime_s", 0.0)) for stage in proof_trace)
 
@@ -61,32 +45,31 @@ def _report_name(proof_traces: list[list[dict]]) -> str:
     raise AssertionError("Expected at least one non-empty proof trace from design.check_spec()")
 
 
-def merge_spec_reports(reports: list[list[list[dict]]]):
-    merged_rule_application_counts = {}
-    
+def merge_spec_reports(reports: list[dict]):
     runtime_s_by_design = {}
-    status_by_design = {}
-    
+    proved_by_design = {}
+
     total_runtime_s = 0.0
-    design_statuses = []
-    
-    for proof_traces in reports:
+    design_verdicts = []
+
+    for check_result in reports:
+        proved = check_result["proved"]
+        proof_traces = check_result["proof_traces"]
         if not proof_traces:
             raise AssertionError("Expected proof traces from design.check_spec()")
         design_name = _report_name(proof_traces)
         runtime_s = sum(_trace_runtime_s(proof_trace) for proof_trace in proof_traces)
-        design_status = _merge_statuses([_trace_status(proof_trace) for proof_trace in proof_traces])
-        
+
         runtime_s_by_design[design_name] = runtime_s
-        status_by_design[design_name] = design_status
-        design_statuses.append(design_status)
+        proved_by_design[design_name] = proved
+        design_verdicts.append(proved)
         total_runtime_s += runtime_s
-    
+
     return {
-        "status": _merge_statuses(design_statuses),
+        "proved": all(design_verdicts),
         "runtime_s_total": total_runtime_s,
         "runtime_s_by_design": runtime_s_by_design,
-        "status_by_design": status_by_design,
+        "proved_by_design": proved_by_design,
     }
 
 
@@ -140,7 +123,7 @@ class TestFusedDotProduct(unittest.TestCase):
         TestFusedDotProduct.SPEC_REPORT = overall_report
         
         pprint(overall_report)
-        self.assertTrue(overall_report["status"] == "unsat" or overall_report["status"] == "unknown", pformat(overall_report))
+        self.assertTrue(overall_report["proved"], pformat(overall_report))
     
     def test_designs_difference_with_fp_spec(self):
         SEED = self.SEED
@@ -400,6 +383,33 @@ class TestFusedDotProduct(unittest.TestCase):
         cases = [
             (0x7f800000, 0xff800000, 0x7fc00000),
             (0x7fc00000, 0x3f800000, 0x7fc00000),
+        ]
+
+        try:
+            for lhs_bits, rhs_bits, expected_bits in cases:
+                x.load_val(Float32(lhs_bits))
+                y.load_val(Float32(rhs_bits))
+                with self.subTest(lhs=hex(lhs_bits), rhs=hex(rhs_bits)):
+                    self.assertEqual(design.evaluate().val, expected_bits)
+                    self.assertEqual(fn_jit(lhs_bits, rhs_bits), expected_bits)
+                    self.assertEqual(fn_no_jit(lhs_bits, rhs_bits), expected_bits)
+        finally:
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
+
+    def test_fp32_adder_infinity_handling(self):
+        x = Var(name="x", sign=Float32T())
+        y = Var(name="y", sign=Float32T())
+        design = FP32_IEEE_adder(x, y)
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
+
+        cases = [
+            (Float32.nInf().val, Float32.from_fields(0, 127, 0).val, Float32.nInf().val),
+            (Float32.from_fields(1, 127, 0).val, Float32.nInf().val, Float32.nInf().val),
+            (Float32.nInf().val, Float32.nInf().val, Float32.nInf().val),
+            (Float32.Inf().val, Float32.Inf().val, Float32.Inf().val),
+            (Float32.nInf().val, Float32.Inf().val, Float32.NaN().val),
         ]
 
         try:

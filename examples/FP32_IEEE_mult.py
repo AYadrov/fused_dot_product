@@ -1,9 +1,41 @@
-from fused_dot_product import *
+from zolotone import *
 from .common import *
 from .encode_Float32 import *
 
 # TODO: NaN payload
-@Composite(name="FP32_IEEE_mult", spec=lambda x, y, ctx: (x[0] * y[0], ctx.real_val(1), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0), ctx.real_val(0)))
+def spec_FP32_IEEE_mult(x: "FP32", y: "FP32", ctx):
+    invalid = (x.is_inf & y.is_zero) | (y.is_inf & x.is_zero)
+    nan_case = x.is_nan | y.is_nan | invalid
+    negative_sign = x.sign.ne(y.sign)
+    inf_case = (x.is_inf | y.is_inf) & (~nan_case)
+    neg_inf_case = inf_case & negative_sign
+    pos_inf_case = inf_case & (~negative_sign)
+    neg_zero_case = (
+        (x.is_zero | y.is_zero)
+        & (~nan_case)
+        & (~inf_case)
+        & negative_sign
+    )
+    return If(
+        nan_case,
+        fp32.nan(),
+        If(
+            neg_inf_case,
+            fp32.ninf(),
+            If(
+                pos_inf_case,
+                fp32.inf(),
+                If(
+                    neg_zero_case,
+                    fp32.nzero(),
+                    fp32.encode(x.value * y.value, ctx),
+                ),
+            ),
+        ),
+    )
+
+
+@Composite(name="FP32_IEEE_mult", spec=spec_FP32_IEEE_mult)
 def FP32_IEEE_mult(x: Node, y: Node) -> Node:
     x_s, x_e, x_m, x_norm, x_sub, x_zero, x_inf, x_nan = fp32_decode(x)
     y_s, y_e, y_m, y_norm, y_sub, y_zero, y_inf, y_nan = fp32_decode(y)
@@ -18,6 +50,15 @@ def FP32_IEEE_mult(x: Node, y: Node) -> Node:
     any_is_nan = bit_or(x_nan, y_nan)
     encode_nan = bit_or(inf_times_zero, any_is_nan)
     encode_inf = bit_and(bit_neg(encode_nan), bit_or(x_inf, y_inf))
+    encode_ninf = bit_and(encode_inf, sign_bit)
+    encode_pinf = bit_and(encode_inf, bit_neg(sign_bit))
+    encode_nzero = bit_and(
+        bit_and(
+            bit_neg(encode_nan),
+            bit_neg(encode_inf),
+        ),
+        bit_and(bit_or(x_zero, y_zero), sign_bit),
+    )
     
     # UQ<23, 0> -> UQ<0, 23>
     x_m_fraction = integer_to_fraction(x_m)
@@ -46,12 +87,27 @@ def FP32_IEEE_mult(x: Node, y: Node) -> Node:
         Const(Q.from_int(Float32.exponent_bias)),
     )
 
-    return fp32_encode(
+    finite_result = fp32_encode(
         sign_bit,               # sign: UQ
         e_prod,                 # exponent: Q, biased
         m_prod,                 # mantissa: exact UQ product
+    )
+    return if_then_else(
         encode_nan,
-        encode_inf,
+        Const(Float32.NaN()),
+        if_then_else(
+            encode_ninf,
+            Const(Float32.nInf()),
+            if_then_else(
+                encode_pinf,
+                Const(Float32.Inf()),
+                if_then_else(
+                    encode_nzero,
+                    Const(Float32.nZero()),
+                    finite_result,
+                ),
+            ),
+        ),
     )
 
 

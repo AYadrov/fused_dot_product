@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields, is_dataclass
 from fractions import Fraction
 import math
@@ -62,9 +63,9 @@ class SpecNode:
 class RealExpr(SpecNode):
     @staticmethod
     def _coerce_real_expr(value):
-        if isinstance(value, (RealExpr, SpecialExpr)):
+        if isinstance(value, RealExpr):
             return value
-        raise TypeError(f"Expected RealExpr or SpecialExpr, got {type(value).__name__}")
+        raise TypeError(f"Expected RealExpr, got {type(value).__name__}")
     
     def __add__(self, other: "RealExpr") -> "RealExpr":
         return Add(self, other)
@@ -96,7 +97,7 @@ class RealExpr(SpecNode):
         return Neg(self)
     
     def __pos__(self) -> "RealExpr":
-        return self  # maybe a copy needed
+        return self
     
     def __abs__(self) -> "RealExpr":
         return Abs(self)
@@ -126,9 +127,77 @@ class RealExpr(SpecNode):
         return Min(self, other)
 
 
-class SpecialExpr(RealExpr):
-    pass
+class FPExpr(SpecNode, ABC):
+    @abstractmethod
+    def classification_flags(self) -> dict[str, "BoolExpr"]:
+        """Return the mutually exclusive classification predicates."""
 
+    @abstractmethod
+    def observables_for_classification(
+        self,
+        classification: str,
+    ) -> tuple[SpecNode, ...]:
+        """Return observables when the classification is already known."""
+
+    # Unites two branches into a combined FPExpr
+    @classmethod
+    def select(
+        cls,
+        condition: "BoolExpr",
+        on_true: "FPExpr",
+        on_false: "FPExpr",
+    ) -> "FPExpr":
+        """Select two same-format FP expressions field by field."""
+
+        BoolExpr._coerce_bool_expr(condition)
+        if type(on_true) is not type(on_false):
+            raise TypeError(
+                "FP If branches must have the same type, got "
+                f"{type(on_true).__name__} and {type(on_false).__name__}"
+            )
+        if not isinstance(on_true, cls) or not is_dataclass(on_true):
+            raise TypeError(
+                f"FP If branches must be dataclass {cls.__name__} values"
+            )
+
+        selected_fields: dict[str, object] = {}
+        for field in fields(on_true):
+            if not field.init:
+                continue
+
+            true_value = getattr(on_true, field.name)
+            false_value = getattr(on_false, field.name)
+
+            if isinstance(true_value, RealExpr):
+                if not isinstance(false_value, RealExpr):
+                    raise TypeError(f"Mismatched FP field types for {field.name}")
+                selected_value = If(condition, true_value, false_value)
+            elif isinstance(true_value, BoolExpr):
+                if not isinstance(false_value, BoolExpr):
+                    raise TypeError(f"Mismatched FP field types for {field.name}")
+                selected_value = (
+                    (condition & true_value)
+                    | ((~condition) & false_value)
+                )
+            elif isinstance(true_value, FPExpr):
+                if type(true_value) is not type(false_value):
+                    raise TypeError(f"Mismatched FP field types for {field.name}")
+                selected_value = type(true_value).select(
+                    condition,
+                    true_value,
+                    false_value,
+                )
+            else:
+                if true_value != false_value:
+                    raise TypeError(
+                        f"Cannot select differing FP metadata field {field.name}"
+                    )
+                selected_value = true_value
+
+            selected_fields[field.name] = selected_value
+
+        return type(on_true)(**selected_fields)
+    
 
 class BoolExpr(SpecNode):
     @staticmethod
@@ -158,7 +227,8 @@ class BoolExpr(SpecNode):
     
     def eq(self, other: "BoolExpr") -> "BoolExpr":
         return BoolEq(self, other)
-    
+
+    # this should be BoolNe
     def ne(self, other: "BoolExpr") -> "BoolExpr":
         return BoolEq(~self, other)
     
@@ -167,6 +237,7 @@ class BoolExpr(SpecNode):
     
     def and_(self, other: "BoolExpr") -> "BoolExpr":
         return And(self, other)
+
 
 @dataclass(frozen=True)
 class RealVar(RealExpr):
@@ -217,6 +288,10 @@ class BoolVar(BoolExpr):
 @dataclass(frozen=True)
 class RealLit(RealExpr):
     value: float | int
+
+    def __post_init__(self):
+        if isinstance(self.value, float) and not math.isfinite(self.value):
+            raise ValueError("non-finite RealLit is not supported")
     
     def _as_fraction(self) -> Fraction:
         if isinstance(self.value, float):
@@ -255,36 +330,6 @@ class BoolLit(BoolExpr):
     
     def __str__(self):
         return "true" if self.value else "false"
-
-
-@dataclass(frozen=True)
-class SpecNaN(SpecialExpr):
-    def to_egglog(self):
-        raise NotImplementedError("SpecNaN does not lower to egglog")
-    
-    def to_z3(self, env):
-        raise NotImplementedError("SpecNaN does not lower to z3")
-    
-    def to_dreal(self, env):
-        raise NotImplementedError("SpecNaN does not lower to dreal")
-    
-    def __str__(self):
-        return "nan"
-
-
-@dataclass(frozen=True)
-class SpecInf(SpecialExpr):
-    def to_egglog(self):
-        raise NotImplementedError("SpecInf does not lower to egglog")
-    
-    def to_z3(self, env):
-        raise NotImplementedError("SpecInf does not lower to z3")
-    
-    def to_dreal(self, env):
-        raise NotImplementedError("SpecInf does not lower to dreal")
-    
-    def __str__(self):
-        return "inf"
 
 
 @dataclass(frozen=True)
@@ -493,6 +538,20 @@ class If(RealExpr):
     on_true: RealExpr
     on_false: RealExpr
 
+    def __new__(cls, cond, on_true, on_false):
+        BoolExpr._coerce_bool_expr(cond)
+        true_is_fp = isinstance(on_true, FPExpr)
+        false_is_fp = isinstance(on_false, FPExpr)
+        if true_is_fp or false_is_fp:
+            if not (true_is_fp and false_is_fp):
+                raise TypeError(
+                    "If branches must both be RealExpr or matching FPExpr "
+                    f"values, got {type(on_true).__name__} and "
+                    f"{type(on_false).__name__}"
+                )
+            return type(on_true).select(cond, on_true, on_false)
+        return super().__new__(cls)
+
     def __post_init__(self):
         BoolExpr._coerce_bool_expr(self.cond)
         RealExpr._coerce_real_expr(self.on_true)
@@ -531,13 +590,6 @@ class Eq(BoolExpr):
     lhs: RealExpr
     rhs: RealExpr
 
-    def __new__(cls, lhs: RealExpr, rhs: RealExpr):
-        RealExpr._coerce_real_expr(lhs)
-        RealExpr._coerce_real_expr(rhs)
-        if isinstance(lhs, SpecialExpr) or isinstance(rhs, SpecialExpr):
-            return BoolLit(identical_nodes(lhs, rhs))
-        return super().__new__(cls)
-
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
         RealExpr._coerce_real_expr(self.rhs)
@@ -562,13 +614,6 @@ class Eq(BoolExpr):
 class NotEq(BoolExpr):
     lhs: RealExpr
     rhs: RealExpr
-
-    def __new__(cls, lhs: RealExpr, rhs: RealExpr):
-        RealExpr._coerce_real_expr(lhs)
-        RealExpr._coerce_real_expr(rhs)
-        if isinstance(lhs, SpecialExpr) or isinstance(rhs, SpecialExpr):
-            return BoolLit(not identical_nodes(lhs, rhs))
-        return super().__new__(cls)
 
     def __post_init__(self):
         RealExpr._coerce_real_expr(self.lhs)
@@ -748,7 +793,7 @@ class Or(BoolExpr):
     def __post_init__(self):
         BoolExpr._coerce_bool_expr(self.lhs)
         BoolExpr._coerce_bool_expr(self.rhs)
-    
+        
     def to_egglog(self):
         return MathBool.Or(self.lhs.to_egglog(), self.rhs.to_egglog())
     
@@ -896,13 +941,6 @@ def _shortcut_fold(
         # x == x -> True
         if identical_nodes(lhs, rhs):
             return BoolLit(True)
-        # (if cond then 1 else 0) == 1 -> cond == True
-        folded = _fold_indicator_equality(lhs, rhs)
-        if folded is not None:
-            return folded
-        folded = _fold_indicator_equality(rhs, lhs)
-        if folded is not None:
-            return folded
         return None
 
     if isinstance(node, BoolEq):
@@ -950,7 +988,6 @@ def _shortcut_fold(
             return on_true
         return None
 
-    # TODO: This can fire as 0*inf -> 0
     if isinstance(node, Mul):
         lhs, rhs = folded_args
         # x * 0 -> 0
@@ -1019,6 +1056,10 @@ def _shortcut_fold(
             return BoolLit(True) if lhs.value else rhs
         if isinstance(rhs, BoolLit):
             return BoolLit(True) if rhs.value else lhs
+        # (common and x) or (common and y) -> common and (x or y)
+        factored = _factor_common_conjunction(lhs, rhs)
+        if factored is not None:
+            return factored
         return None
 
     return None
@@ -1034,6 +1075,20 @@ def _are_complements(lhs: SpecNode, rhs: SpecNode) -> bool:
     )
 
 
+def _factor_common_conjunction(lhs: BoolExpr, rhs: BoolExpr) -> BoolExpr | None:
+    if not isinstance(lhs, And) or not isinstance(rhs, And):
+        return None
+
+    lhs_pairs = ((lhs.lhs, lhs.rhs), (lhs.rhs, lhs.lhs))
+    rhs_pairs = ((rhs.lhs, rhs.rhs), (rhs.rhs, rhs.lhs))
+    for lhs_common, lhs_rest in lhs_pairs:
+        for rhs_common, rhs_rest in rhs_pairs:
+            if identical_nodes(lhs_common, rhs_common):
+                return And(lhs_common, Or(lhs_rest, rhs_rest))
+
+    return None
+
+
 def _negate_bool(expr: SpecNode) -> BoolExpr:
     if isinstance(expr, BoolLit):
         return BoolLit(not expr.value)
@@ -1042,36 +1097,6 @@ def _negate_bool(expr: SpecNode) -> BoolExpr:
     if isinstance(expr, BoolExpr):
         return Not(expr)
     raise TypeError(f"Expected BoolExpr, got {type(expr).__name__}")
-
-
-# Helper to recognize shortcuts like (if cond then 1 else 0) == 1 -> cond == True
-def _fold_indicator_equality(
-    expr: SpecNode,
-    target: SpecNode,
-) -> BoolExpr | None:
-    if not isinstance(expr, If) or not isinstance(target, RealLit):
-        return None
-
-    cond = expr.cond
-    on_true = expr.on_true
-    on_false = expr.on_false
-    if not isinstance(on_true, RealLit) or not isinstance(on_false, RealLit):
-        return None
-    if on_true.value == on_false.value:
-        return None
-
-    if target.value == on_true.value:
-        cond_value = True
-    elif target.value == on_false.value:
-        cond_value = False
-    else:
-        return BoolLit(False)
-
-    if isinstance(cond, Not):
-        value = cond.value
-        if isinstance(value, BoolVar):
-            return BoolEq(value, BoolLit(not cond_value))
-    return BoolEq(cond, BoolLit(cond_value))
 
 
 def _literal_type(node: SpecNode):

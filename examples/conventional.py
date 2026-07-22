@@ -1,4 +1,4 @@
-from fused_dot_product import *
+from zolotone import *
 from .encode_Float32 import *
 from .common import *
 
@@ -7,7 +7,7 @@ Wf = 30
 
 def conventional_spec(a0, a1, a2, a3,
                       b0, b1, b2, b3, ctx):
-    return ctx.encode_fp32(value=a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3, inf=ctx.false(), nan=ctx.false())
+    return fp32.encode(a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3, ctx)
 
 @Composite(name="Conventional", spec=conventional_spec)
 def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
@@ -93,9 +93,7 @@ def Conventional(a0: Node, a1: Node, a2: Node, a3: Node,
     sign_bit = q_sign_bit(M_sum)
     M_sum_uq = q_to_uq(q_abs(M_sum))
     
-    encode_nan = Const(UQ(0, 1, 0))
-    encode_inf = Const(UQ(0, 1, 0))
-    return fp32_encode(sign_bit, E_m_q_biased, M_sum_uq, encode_nan, encode_inf)
+    return fp32_encode(sign_bit, E_m_q_biased, M_sum_uq)
 
 
 if __name__ == '__main__':

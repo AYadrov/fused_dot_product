@@ -191,7 +191,9 @@ class Float32T(StaticType):
         return Float32T()
     
     def to_spec(self, name, ctx):
-        return ctx.fresh_float(name)
+        from ..spec.custom_specs.fp32 import fp32
+
+        return fp32.fresh(name, ctx)
     
     def random_runtime_value(self, rng: random.Random):
         from .runtime import Float32

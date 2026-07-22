@@ -132,6 +132,7 @@ def rewrite_rules():
         ("bool_eq_4", (false.eq(bool_var)).eq(~bool_var)),
         ("bool_eq_5", ((~bool_var).eq(true)).eq(~bool_var)),
         ("bool_eq_6", ((~bool_var).eq(false)).eq(bool_var)),
+        ("bool_eq_7",  ((bool_var & bool_var_q) | ((~bool_var) & (~bool_var_q))).eq(bool_var.eq(bool_var_q))),
         ("bool_eq_15", (~(bool_var.eq(bool_var_q))).eq((bool_var & ~bool_var_q) | ((~bool_var) & bool_var_q))),
         
         ("bool_demorgan_1", (~(bool_var & bool_var_q)).eq((~bool_var) | (~bool_var_q))),
@@ -164,10 +165,16 @@ def rewrite_rules():
 
 def constant_rules():
     m, n = vars_("m n", BigRat)
+    a, b = vars_("a b", Math)
     cond = var("cond", MathBool)
     tru = var("tru", Math)
     fls = var("fls", Math)
     return [
+        # Reflect a proven object-language equality into egglog's native
+        # equality so conditional assumptions can merge their operands.
+        rule(eq(Math.Eq(a, b)).to(MathBool.True_())).then(
+            union(a).with_(b)
+        ),
         # boolean
         rewrite(Math.Eq(Math.Num(m), Math.Num(n))).to(MathBool.True_(), eq(m).to(n)),
         rewrite(Math.Eq(Math.Num(m), Math.Num(n))).to(MathBool.False_(), ne(m).to(n)),

@@ -1,4 +1,4 @@
-from fused_dot_product import *
+from zolotone import *
 
 
 def add_implicit_bit(x: Node) -> Primitive:
@@ -64,6 +64,14 @@ def xor_spec(x, y, ctx):
     ctx.assume(res.eq(x.max(y) - x * y))
     ctx.assume(res.eq(x + y - ctx.real_val(2) * x * y))
     ctx.assume(res.eq(ctx.real_val(0)) | res.eq(ctx.real_val(1)))
+    # For bit-valued signs, applying XOR is equivalent to multiplying their
+    # {-1, +1} sign encodings. Record this local consequence instead of using
+    # an unconditional rewrite, which would be unsound for arbitrary reals.
+    ctx.assume(
+        sign_multiplier(ctx, res).eq(
+            sign_multiplier(ctx, x) * sign_multiplier(ctx, y)
+        )
+    )
     return res
 
 @Primitive(name="bit_xor", spec=xor_spec, c_inline=True)
@@ -90,6 +98,9 @@ def neg_spec(x, ctx):
     res = ctx.fresh_real('neg_res')
     ctx.assume(res.eq(ctx.real_val(1) - x))
     ctx.assume(res.eq(If(x.eq(ctx.real_val(1)), ctx.real_val(0), ctx.real_val(1))))
+    ctx.assume(res.eq(If(x.eq(ctx.real_val(0)), ctx.real_val(1), ctx.real_val(0))))
+    ctx.assume(res.eq(If(x.ne(ctx.real_val(0)), ctx.real_val(0), ctx.real_val(1))))
+    ctx.assume(res.eq(If(x.ne(ctx.real_val(1)), ctx.real_val(1), ctx.real_val(0))))
     ctx.assume(res.eq(ctx.real_val(0)) | res.eq(ctx.real_val(1)))
     return res
 

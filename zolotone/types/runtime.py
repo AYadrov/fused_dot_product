@@ -354,50 +354,43 @@ class Float32(RuntimeType):
             return float((-1) ** self.sign * frac * (2 ** exp_val))
 
     def to_spec(self, ctx):
-        if self.exponent == self.inf_code and self.mantissa == 0:
-            return (
-                ctx.inf(),
-                ctx.real_val(0),
-                ctx.real_val(0),
-                ctx.real_val(0),
-                ctx.real_val(1),
-                ctx.real_val(0),
-            )
-        if self.exponent == self.nan_code and self.mantissa != 0:
-            return (
-                ctx.nan(),
-                ctx.real_val(0),
-                ctx.real_val(0),
-                ctx.real_val(0),
-                ctx.real_val(0),
-                ctx.real_val(1),
-            )
-        if self.exponent == 0 and self.mantissa == 0:
-            return (
-                ctx.real_val(self.to_val()),
-                ctx.real_val(0),
-                ctx.real_val(0),
-                ctx.real_val(1),
-                ctx.real_val(0),
-                ctx.real_val(0),
-            )
-        if self.exponent == 0:
-            return (
-                ctx.real_val(self.to_val()),
-                ctx.real_val(0),
-                ctx.real_val(1),
-                ctx.real_val(0),
-                ctx.real_val(0),
-                ctx.real_val(0),
-            )
-        return (
-            ctx.real_val(self.to_val()),
-            ctx.real_val(1),
-            ctx.real_val(0),
-            ctx.real_val(0),
-            ctx.real_val(0),
-            ctx.real_val(0),
-        )
+        from ..spec.custom_specs.fp32 import fp32
+
+        if self.exponent == self.inf_code and self.mantissa == 0 and self.sign == 0:
+            return fp32.inf()
+        elif self.exponent == self.inf_code and self.mantissa == 0 and self.sign == 1:
+            return fp32.ninf()
+        elif self.exponent == self.nan_code and self.mantissa != 0:
+            return fp32.nan()
+        elif self.exponent == 0 and self.mantissa == 0 and self.sign == 1:
+            return fp32.nzero()
+        elif self.exponent == 0 and self.mantissa == 0 and self.sign == 0:
+            return fp32.zero()
+        elif self.exponent == 0 and self.mantissa != 0:
+             return fp32(
+                 value=ctx.real_val(self.to_val()),
+                 sign=ctx.real_val(self.sign),
+                 exponent=ctx.real_val(self.exponent),
+                 mantissa=ctx.real_val(self.mantissa),
+                 is_norm=ctx.bool_val(False),
+                 is_sub=ctx.bool_val(True),
+                 is_zero=ctx.bool_val(False),
+                 is_inf=ctx.bool_val(False),
+                 is_nan=ctx.bool_val(False),
+             )
+        else:
+             return fp32(
+                 value=ctx.real_val(self.to_val()),
+                 sign=ctx.real_val(self.sign),
+                 exponent=ctx.real_val(self.exponent),
+                 mantissa=ctx.real_val(self.mantissa),
+                 is_norm=ctx.bool_val(True),
+                 is_sub=ctx.bool_val(False),
+                 is_zero=ctx.bool_val(False),
+                 is_inf=ctx.bool_val(False),
+                 is_nan=ctx.bool_val(False),
+             )
+       
     
     def static_type(self):
         return Float32T()

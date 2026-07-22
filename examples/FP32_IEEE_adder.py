@@ -1,30 +1,45 @@
-from fused_dot_product import *
+from zolotone import *
 from .common import *
 from .encode_Float32 import *
 
 
 # Demo navigation map:
-# - FP32 decode helpers: fused_dot_product/components/Float.py
+# - FP32 decode helpers: zolotone/components/Float.py
 # - Bit helpers and significand formatting: examples/common.py
-# - Unsigned fixed-point operations: fused_dot_product/components/UQ.py
-# - Signed fixed-point operations: fused_dot_product/components/Q.py
+# - Unsigned fixed-point operations: zolotone/components/UQ.py
+# - Signed fixed-point operations: zolotone/components/Q.py
 # - Final FP32 packing and rounding: examples/encode_Float32.py
 
 
 # Non-bit-precise concept specification of a single-precision IEEE adder.
 def spec_FP32_IEEE_adder(x: "FP32", y: "FP32", ctx):
-    # Special-value classification.
-    invalid = x.is_inf & y.is_inf & x.sign.ne(y.sign)
-    nan = x.is_nan | y.is_nan | invalid
-    inf = (~nan) & (x.is_inf | y.is_inf)
+    nan_case = (
+        x.is_nan
+        | y.is_nan
+        | (x.is_pinf & y.is_ninf)
+        | (x.is_ninf & y.is_pinf)
+    )
+    neg_inf_case = (x.is_ninf | y.is_ninf) & (~nan_case)
+    pos_inf_case = (x.is_pinf | y.is_pinf) & (~nan_case)
+    neg_zero_case = x.is_nzero & y.is_nzero
 
-    # Real-value result for all non-special cases.
-    x_real = x.value
-    y_real = y.value
-    result_real = x_real + y_real
-
-    # encode_fp32 lives in fused_dot_product/spec/spec_values.py.
-    return ctx.encode_fp32(value=result_real, inf=inf, nan=nan)
+    return If(
+        nan_case,
+        fp32.nan(),
+        If(
+            neg_inf_case,
+            fp32.ninf(),
+            If(
+                pos_inf_case,
+                fp32.inf(),
+                If(
+                    neg_zero_case,
+                    fp32.nzero(),
+                    fp32.encode(x.value + y.value, ctx),
+                ),
+            ),
+        ),
+    )
 
 
 # Implementation of a single-precision IEEE adder.
@@ -53,16 +68,23 @@ def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     ) = fp32_decode(y)
 
     # 2. Resolve IEEE special-result flags before the finite-number datapath.
-    infinities_with_opposite_signs = bit_and(
-        bit_and(x_is_inf, y_is_inf),
-        bit_xor(x_sign, y_sign),
+    x_is_ninf = bit_and(x_is_inf, x_sign)
+    y_is_ninf = bit_and(y_is_inf, y_sign)
+    x_is_pinf = bit_and(x_is_inf, bit_neg(x_sign))
+    y_is_pinf = bit_and(y_is_inf, bit_neg(y_sign))
+    
+    infinities_with_opposite_signs = bit_or(
+        bit_and(x_is_ninf, y_is_pinf),
+        bit_and(x_is_pinf, y_is_ninf),
     )
+    
     any_input_is_nan = bit_or(x_is_nan, y_is_nan)
     encode_nan = bit_or(infinities_with_opposite_signs, any_input_is_nan)
-    encode_inf = bit_and(bit_neg(encode_nan), bit_or(x_is_inf, y_is_inf))
-
-    # IEEE addition preserves -0 only for -0 + -0.
-    both_inputs_are_negative_zero = bit_and(
+    not_encode_nan = bit_neg(encode_nan)
+    
+    encode_ninf = bit_and(not_encode_nan, bit_or(x_is_ninf, y_is_ninf))
+    encode_pinf = bit_and(not_encode_nan, bit_or(x_is_pinf, y_is_pinf))
+    encode_nzero = bit_and(
         bit_and(x_is_zero, y_is_zero),
         bit_and(x_sign, y_sign),
     )
@@ -115,23 +137,33 @@ def FP32_IEEE_adder(x: Node, y: Node) -> Node:
     y_signed_significand = q_add_sign(uq_to_q(y_aligned_significand), y_sign)
     significand_sum = q_add(x_signed_significand, y_signed_significand)
 
-    # 5. Choose the result sign.
-    result_sign = q_sign_bit(significand_sum)
-    inf_sign = if_then_else(x_is_inf, x_sign, y_sign)
-    result_sign = if_then_else(
-        both_inputs_are_negative_zero,
-        Const(UQ(1, 1, 0)),
-        result_sign,
-    )
-    result_sign = if_then_else(encode_inf, inf_sign, result_sign)
+    # 5. Encode FP32.
+    finite_sign = q_sign_bit(significand_sum)
+    finite_mantissa = q_to_uq(q_abs(significand_sum))
+    finite_exponent = uq_to_q(aligned_exponent)
 
     # 6. Normalize, round, and pack the final FP32 result.
-    return fp32_encode(
-        result_sign,                              # sign: UQ
-        uq_to_q(aligned_exponent),                # exponent: Q
-        q_to_uq(q_abs(significand_sum)),          # mantissa: UQ
+    finite_result = fp32_encode(
+        finite_sign,
+        finite_exponent,
+        finite_mantissa,
+    )
+    return if_then_else(
         encode_nan,
-        encode_inf,
+        Const(Float32.NaN()),
+        if_then_else(
+            encode_ninf,
+            Const(Float32.nInf()),
+            if_then_else(
+                encode_pinf,
+                Const(Float32.Inf()),
+                if_then_else(
+                    encode_nzero,
+                    Const(Float32.nZero()),
+                    finite_result,
+                ),
+            ),
+        ),
     )
 
 
