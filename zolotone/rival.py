@@ -137,19 +137,39 @@ def rival_feasibility_check(ctx: "SpecContext", max_depth: int = 1, checks=False
     return "unknown" if may_be_feasible else "not feasible"
 
 
-# Drop expressions that are certainly known to be True/True
+# Drop expressions that are certainly true. Assumptions must hold without
+# relying on themselves; checks may use a conservative rectangular enclosure
+# of the assumption domain.
 def rival_trim_context(ctx: "SpecContext") -> "SpecContext":
     exprs = ctx.assumes + ctx.checks
     free_vars = collect_free_vars(exprs)
-    rect = _rival_unbounded_rect(len(free_vars))
-    
-    def is_always_true(expr: BoolExpr) -> bool:
+    unbounded_rects = [_rival_unbounded_rect(len(free_vars))]
+    check_rects = get_rival_rects(
+        ctx.assumes,
+        free_vars,
+    )
+
+    def is_always_true(
+        expr: BoolExpr,
+        rects: Sequence[Sequence[tuple[float, float]]],
+    ) -> bool:
         machine = build_machine([expr], free_vars)
-        return machine.apply_with_hints(rect, None).status == (False, False)
-    
+        return all(
+            machine.apply_with_hints(rect, None).status == (False, False)
+            for rect in rects
+        )
+
     return ctx.copy(
-        assumes=[assume for assume in ctx.assumes if not is_always_true(assume)],
-        checks=[check for check in ctx.checks if not is_always_true(check)],
+        assumes=[
+            assume
+            for assume in ctx.assumes
+            if not is_always_true(assume, unbounded_rects)
+        ],
+        checks=[
+            check
+            for check in ctx.checks
+            if not is_always_true(check, check_rects)
+        ],
     )
 
 
@@ -349,9 +369,10 @@ def _rival_comparison_rect(
     else:
         return None
     
-    value = _rival_literal_value(literal)
-    if value is None:
+    literal_enclosure = _rival_literal_enclosure(literal)
+    if literal_enclosure is None:
         return None
+    literal_lower, literal_upper = literal_enclosure
     
     var_index = var_indexes.get(var.name)
     if var_index is None:
@@ -360,42 +381,53 @@ def _rival_comparison_rect(
     lower = -math.inf
     upper = math.inf
     if isinstance(expr, Eq):
-        lower = value
-        upper = value
+        lower = literal_lower
+        upper = literal_upper
     elif isinstance(expr, Gt):
         if var_on_lhs:
-            lower = math.nextafter(value, math.inf)
+            lower = literal_lower
         else:
-            upper = math.nextafter(value, -math.inf)
+            upper = literal_upper
     elif isinstance(expr, Ge):
         if var_on_lhs:
-            lower = value
+            lower = literal_lower
         else:
-            upper = value
+            upper = literal_upper
     elif isinstance(expr, Lt):
         if var_on_lhs:
-            upper = math.nextafter(value, -math.inf)
+            upper = literal_upper
         else:
-            lower = math.nextafter(value, math.inf)
+            lower = literal_lower
     elif isinstance(expr, Le):
         if var_on_lhs:
-            upper = value
+            upper = literal_upper
         else:
-            lower = value
+            lower = literal_lower
     
     rect = _rival_unbounded_rect(dimensions)
     rect[var_index] = (lower, upper)
     return [] if lower > upper else [rect]
 
 
-def _rival_literal_value(literal: RealLit) -> float | None:
+def _rival_literal_enclosure(
+    literal: RealLit,
+) -> tuple[float, float] | None:
     try:
-        value = float(literal.value)
-    except (OverflowError, TypeError, ValueError):
+        exact = Fraction(literal.value)
+        value = float(exact)
+    except (OverflowError, TypeError, ValueError, ZeroDivisionError):
         return None
     if not math.isfinite(value):
         return None
-    return value
+
+    lower = value
+    upper = value
+    represented = Fraction.from_float(value)
+    if represented > exact:
+        lower = math.nextafter(value, -math.inf)
+    elif represented < exact:
+        upper = math.nextafter(value, math.inf)
+    return lower, upper
 
 
 def _intersect_rival_rect_sets(

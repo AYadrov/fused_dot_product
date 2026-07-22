@@ -1399,7 +1399,7 @@ class TestRivalTranslation(unittest.TestCase):
 
         self.assertEqual(get_rival_rects(ctx.assumes, ["x"]), [[(1.0, 254.0)]])
 
-    def test_rival_rects_offset_strict_bounds_by_one_ulp(self):
+    def test_rival_rects_conservatively_close_strict_bounds(self):
         ctx = SpecContext("rival-rects-strict")
         x = ctx.real("x")
 
@@ -1407,10 +1407,10 @@ class TestRivalTranslation(unittest.TestCase):
 
         self.assertEqual(
             get_rival_rects(ctx.assumes, ["x"]),
-            [[(math.nextafter(1.0, math.inf), math.nextafter(254.0, -math.inf))]],
+            [[(1.0, 254.0)]],
         )
 
-    def test_rival_rects_offset_reversed_strict_bounds_by_one_ulp(self):
+    def test_rival_rects_conservatively_close_reversed_strict_bounds(self):
         ctx = SpecContext("rival-rects-reversed-strict")
         x = ctx.real("x")
 
@@ -1418,7 +1418,21 @@ class TestRivalTranslation(unittest.TestCase):
 
         self.assertEqual(
             get_rival_rects(ctx.assumes, ["x"]),
-            [[(math.nextafter(1.0, math.inf), math.nextafter(254.0, -math.inf))]],
+            [[(1.0, 254.0)]],
+        )
+
+    def test_rival_rects_enclose_nonrepresentable_literals(self):
+        ctx = SpecContext("rival-rects-rounded-literal")
+        x = ctx.real("x")
+        exact = (1 << 53) + 1
+
+        ctx.assume(x.eq(ctx.real_val(exact)))
+
+        rounded_down = float(1 << 53)
+        rounded_up = math.nextafter(rounded_down, math.inf)
+        self.assertEqual(
+            get_rival_rects(ctx.assumes, ["x"]),
+            [[(rounded_down, rounded_up)]],
         )
 
     def test_rival_rects_extract_point_disjunction(self):
@@ -1626,24 +1640,29 @@ class TestRivalTranslation(unittest.TestCase):
         self.assertEqual(status, "feasible")
         self.assertEqual(combined_calls, [(clean_rect, None)])
 
-    def test_rival_trim_context_uses_unbounded_rects(self):
-        ctx = SpecContext("rival-trim-unbounded")
+    def test_rival_trim_context_uses_assumption_rects_only_for_checks(self):
+        ctx = SpecContext("rival-trim-assumption-rects")
         x = ctx.real("x")
         bounded = x >= ctx.real_val(0)
-        tautology = x.eq(x)
         ctx.assume(bounded)
-        ctx.check(tautology)
+        ctx.check(bounded)
+
+        unbounded = [(-math.inf, math.inf)]
+        assumption_rect = [(0.0, math.inf)]
+        seen_rects = []
 
         def build(exprs, free_vars):
             self.assertEqual(free_vars, ["x"])
-            expr = exprs[0]
+            self.assertEqual(exprs, [bounded])
             machine = Mock()
 
             def apply(rect, hints=None):
-                self.assertEqual(rect, [(-math.inf, math.inf)])
                 self.assertIsNone(hints)
+                seen_rects.append(rect)
                 return RivalAnalysis(
-                    status=(False, False) if expr == tautology else (False, True),
+                    status=(False, False)
+                    if rect == assumption_rect
+                    else (False, True),
                     hints=None,
                     converged=True,
                 )
@@ -1651,17 +1670,12 @@ class TestRivalTranslation(unittest.TestCase):
             machine.apply_with_hints.side_effect = apply
             return machine
 
-        with (
-            patch("zolotone.rival.build_machine", side_effect=build),
-            patch(
-                "zolotone.rival.get_rival_rects",
-                side_effect=AssertionError("trim must not use assumption-derived rects"),
-            ),
-        ):
+        with patch("zolotone.rival.build_machine", side_effect=build):
             trimmed = rival_trim_context(ctx)
 
         self.assertEqual(trimmed.assumes, [bounded])
         self.assertEqual(trimmed.checks, [])
+        self.assertEqual(seen_rects, [unbounded, assumption_rect])
 
     def test_rival_trim_context_keeps_maybe_exprs(self):
         ctx = SpecContext("rival-trim-maybe")
@@ -1688,7 +1702,80 @@ class TestRivalTranslation(unittest.TestCase):
         self.assertEqual(trimmed.assumes, [assume])
         self.assertEqual(trimmed.checks, [check])
 
+    def test_rival_trim_context_requires_every_assumption_rect(self):
+        ctx = SpecContext("rival-trim-all-rects")
+        sign = ctx.real("sign")
+        bit_domain = sign.eq(ctx.real_val(0)) | sign.eq(ctx.real_val(1))
+        check = sign.eq(ctx.real_val(0))
+        ctx.assume(bit_domain)
+        ctx.check(check)
+
+        def build(exprs, free_vars):
+            self.assertEqual(free_vars, ["sign"])
+            machine = Mock()
+            if exprs == [bit_domain]:
+                machine.apply_with_hints.return_value = RivalAnalysis(
+                    status=(False, True),
+                    hints=None,
+                    converged=True,
+                )
+            else:
+                self.assertEqual(exprs, [check])
+
+                def apply(rect, hints=None):
+                    self.assertIsNone(hints)
+                    return RivalAnalysis(
+                        status=(False, False)
+                        if rect == [(0.0, 0.0)]
+                        else (True, True),
+                        hints=None,
+                        converged=True,
+                    )
+
+                machine.apply_with_hints.side_effect = apply
+            return machine
+
+        with patch("zolotone.rival.build_machine", side_effect=build):
+            trimmed = rival_trim_context(ctx)
+
+        self.assertEqual(trimmed.assumes, [bit_domain])
+        self.assertEqual(trimmed.checks, [check])
+
 class TestSolverApis(unittest.TestCase):
+    def test_fp32_adder_norm_inf_inf_inf_is_trimmed_before_egglog(self):
+        adder = FP32_IEEE_adder(
+            Var(name="a", sign=Float32T()),
+            Var(name="b", sign=Float32T()),
+        )
+        ctx = adder.ctx.copy()
+        spec_inner = ctx.spec_of(adder.inner_tree)
+        inputs = [ctx.spec_of(arg) for arg in adder.inner_args]
+        spec_outer = adder.spec(*inputs, ctx=ctx)
+        target_name = (
+            "FP32_IEEE_adder["
+            "arg0=norm,arg1=inf,inner_spec=inf,outer_spec=inf]"
+        )
+        case = next(
+            case
+            for case in ast_nodes._split_classification_cases(
+                ctx,
+                inputs,
+                spec_inner,
+                spec_outer,
+            )
+            if case.ctx.name == target_name
+        )
+
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            status, trace = solver_engine.check_equivalence(
+                *case.queries,
+                ctx=case.ctx,
+                schedule=[{"tool": "simplify"}],
+            )
+
+        self.assertEqual(status, "unsat")
+        self.assertEqual(trace[-1]["new_ctx"].checks, [])
+
     def test_fp32_adder_inf_inf_case_compares_flags_and_output_signs(self):
         adder = FP32_IEEE_adder(
             Var(name="a", sign=Float32T()),
