@@ -1896,7 +1896,7 @@ class TestSolverApis(unittest.TestCase):
             open(os.devnull, "w") as devnull,
             contextlib.redirect_stdout(devnull),
         ):
-            proof_trace = adder.check_spec(schedule=[{"tool": "z3", "timeout_ms": 1}])
+            check_result = adder.check_spec(schedule=[{"tool": "z3", "timeout_ms": 1}])
 
         fp32_cases = ("norm", "sub", "zero", "inf", "nan")
         expected_names = {
@@ -1906,7 +1906,8 @@ class TestSolverApis(unittest.TestCase):
             for inner_case in fp32_cases
             for outer_case in fp32_cases
         }
-        self.assertEqual(proof_trace, [[] for _ in expected_names])
+        self.assertTrue(check_result["proved"])
+        self.assertEqual(check_result["proof_traces"], [[] for _ in expected_names])
         self.assertEqual(len(seen_names), len(expected_names))
         self.assertEqual(set(seen_names), expected_names)
 
@@ -2035,7 +2036,7 @@ class TestSolverApis(unittest.TestCase):
             open(os.devnull, "w") as devnull,
             contextlib.redirect_stdout(devnull),
         ):
-            proof_traces = adder.check_spec(
+            check_result = adder.check_spec(
                 schedule=[
                     {"tool": "simplify"},
                     {
@@ -2046,9 +2047,10 @@ class TestSolverApis(unittest.TestCase):
                 ]
             )
 
+        self.assertTrue(check_result["proved"])
         matching_traces = [
             proof_trace
-            for proof_trace in proof_traces
+            for proof_trace in check_result["proof_traces"]
             if proof_trace and proof_trace[0]["name"] == target_name
         ]
         self.assertEqual(len(matching_traces), 1)
@@ -2080,7 +2082,7 @@ class TestSolverApis(unittest.TestCase):
             open(os.devnull, "w") as devnull,
             contextlib.redirect_stdout(devnull),
         ):
-            proof_traces = conventional.check_spec(
+            check_result = conventional.check_spec(
                 schedule=[
                     {"tool": "simplify"},
                     {
@@ -2091,6 +2093,8 @@ class TestSolverApis(unittest.TestCase):
                 ]
             )
 
+        self.assertTrue(check_result["proved"])
+        proof_traces = check_result["proof_traces"]
         self.assertEqual(len(proof_traces), 1)
         self.assertTrue(
             any(

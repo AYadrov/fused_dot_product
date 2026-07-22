@@ -333,7 +333,10 @@ class composite(Node):
         
         print(f"{self.ctx.name} {'has' if proved else 'has not'} been proved")
         
-        return full_trace
+        return {
+            "proved": proved,
+            "proof_traces": full_trace,
+        }
     
     def _validate_components(self, composite_name: str) -> None:
         visited: set[Node] = set()

@@ -34,22 +34,6 @@ def dot_product_spec(a_0, a_1, a_2, a_3, b_0, b_1, b_2, b_3):
 def run_spec_with_metrics(design: Node):
     return design.check_spec()
 
-def _trace_status(proof_trace: list[dict]) -> str:
-    for stage in proof_trace:
-        status = stage.get("status")
-        if status in {"sat", "unsat"}:
-            return str(status)
-    return "unknown"
-
-
-def _merge_statuses(statuses: list[str]) -> str:
-    if "sat" in statuses:
-        return "sat"
-    if statuses and all(status == "unsat" for status in statuses):
-        return "unsat"
-    return "unknown"
-
-
 def _trace_runtime_s(proof_trace: list[dict]) -> float:
     return sum(float(stage.get("runtime_s", 0.0)) for stage in proof_trace)
 
@@ -61,32 +45,31 @@ def _report_name(proof_traces: list[list[dict]]) -> str:
     raise AssertionError("Expected at least one non-empty proof trace from design.check_spec()")
 
 
-def merge_spec_reports(reports: list[list[list[dict]]]):
-    merged_rule_application_counts = {}
-    
+def merge_spec_reports(reports: list[dict]):
     runtime_s_by_design = {}
-    status_by_design = {}
-    
+    proved_by_design = {}
+
     total_runtime_s = 0.0
-    design_statuses = []
-    
-    for proof_traces in reports:
+    design_verdicts = []
+
+    for check_result in reports:
+        proved = check_result["proved"]
+        proof_traces = check_result["proof_traces"]
         if not proof_traces:
             raise AssertionError("Expected proof traces from design.check_spec()")
         design_name = _report_name(proof_traces)
         runtime_s = sum(_trace_runtime_s(proof_trace) for proof_trace in proof_traces)
-        design_status = _merge_statuses([_trace_status(proof_trace) for proof_trace in proof_traces])
-        
+
         runtime_s_by_design[design_name] = runtime_s
-        status_by_design[design_name] = design_status
-        design_statuses.append(design_status)
+        proved_by_design[design_name] = proved
+        design_verdicts.append(proved)
         total_runtime_s += runtime_s
-    
+
     return {
-        "status": _merge_statuses(design_statuses),
+        "proved": all(design_verdicts),
         "runtime_s_total": total_runtime_s,
         "runtime_s_by_design": runtime_s_by_design,
-        "status_by_design": status_by_design,
+        "proved_by_design": proved_by_design,
     }
 
 
@@ -140,7 +123,7 @@ class TestFusedDotProduct(unittest.TestCase):
         TestFusedDotProduct.SPEC_REPORT = overall_report
         
         pprint(overall_report)
-        self.assertTrue(overall_report["status"] == "unsat" or overall_report["status"] == "unknown", pformat(overall_report))
+        self.assertTrue(overall_report["proved"], pformat(overall_report))
     
     def test_designs_difference_with_fp_spec(self):
         SEED = self.SEED
