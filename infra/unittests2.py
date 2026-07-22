@@ -1038,20 +1038,23 @@ class TestSpecAstConstantFolding(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "If branches"):
             If(BoolVar("condition"), fp32.nan(), RealLit(0))
 
-    def test_fp32_encoder_spec_preserves_negative_zero(self):
+    def test_fp32_encoder_spec_canonicalizes_zero(self):
         from examples.encode_Float32 import fp32_encode_spec
 
-        ctx = SpecContext("fp32-encode-negative-zero")
+        ctx = SpecContext("fp32-encode-zero")
         encoded = fp32_encode_spec(
             RealLit(1),
             RealLit(0),
             RealLit(0),
-            RealLit(0),
-            RealLit(0),
             ctx,
         )
+        ctx.check(encoded.is_zero & encoded.sign.eq(RealLit(0)))
 
-        self.assertEqual(encoded.constant_fold(), fp32.nzero())
+        report = simplify_ctx(ctx)
+        if report["status"] == "unknown":
+            report = z3_check_eq(report["new_ctx"], timeout_ms=1000)
+
+        self.assertEqual(report["status"], "unsat", report)
 
     def test_fp32_adder_spec_preserves_single_infinity(self):
         from examples.FP32_IEEE_adder import spec_FP32_IEEE_adder
@@ -1130,7 +1133,7 @@ class TestSpecAstConstantFolding(unittest.TestCase):
 
     def test_float32_value_is_a_finite_only_real_variable(self):
         ctx = SpecContext("float32-finite-value")
-        value = ctx.fresh_float("x")
+        value = fp32.fresh("x", ctx)
 
         self.assertIsInstance(value.value, RealVar)
         self.assertTrue(
@@ -1142,22 +1145,30 @@ class TestSpecAstConstantFolding(unittest.TestCase):
             )
         )
 
-    def test_encode_fp32_uses_explicit_non_finite_flags(self):
+    def test_fp32_uses_explicit_non_finite_constructors(self):
         cases = (
-            ("nan", True, False, 0, "is_nan"),
-            ("inf", False, True, 0, "is_pinf"),
-            ("ninf", False, True, 1, "is_ninf"),
+            ("nan", fp32.nan(), "is_nan"),
+            ("inf", fp32.inf(), "is_pinf"),
+            ("ninf", fp32.ninf(), "is_ninf"),
         )
 
-        for name, nan, inf, sign, expected_predicate in cases:
+        for name, encoded, expected_predicate in cases:
             with self.subTest(value=name):
-                ctx = SpecContext(f"encode-{name}")
-                encoded = ctx.encode_fp32(
-                    value=ctx.real("finite_candidate"),
-                    nan=ctx.bool_val(nan),
-                    inf=ctx.bool_val(inf),
-                    inf_sign=ctx.real_val(sign),
+                self.assertEqual(
+                    getattr(encoded, expected_predicate).constant_fold(),
+                    BoolLit(True),
                 )
+
+    def test_encode_fp32_infers_infinity_sign_from_value(self):
+        cases = (
+            ("positive", RealLit(1e300), "is_pinf"),
+            ("negative", RealLit(-1e300), "is_ninf"),
+        )
+
+        for name, value, expected_predicate in cases:
+            with self.subTest(value=name):
+                ctx = SpecContext(f"encode-{name}-infinity")
+                encoded = fp32.encode(value=value, ctx=ctx)
                 ctx.check(getattr(encoded, expected_predicate))
 
                 report = simplify_ctx(ctx)
@@ -1165,11 +1176,6 @@ class TestSpecAstConstantFolding(unittest.TestCase):
                     report = z3_check_eq(report["new_ctx"], timeout_ms=1000)
 
                 self.assertEqual(report["status"], "unsat", report)
-
-    def test_encode_fp32_requires_sign_for_possible_explicit_infinity(self):
-        ctx = SpecContext("encode-inf-sign")
-        with self.assertRaisesRegex(ValueError, "requires inf_sign"):
-            ctx.encode_fp32(value=ctx.real("value"), inf=ctx.bool("is_inf"))
 
     def test_float32_classification_observes_only_relevant_signs(self):
         def make_value(*, sign, norm=False, sub=False, zero=False, inf=False, nan=False):
