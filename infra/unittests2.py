@@ -2035,6 +2035,163 @@ class TestRivalTranslation(unittest.TestCase):
         self.assertEqual(trimmed.assumes, [bit_domain])
         self.assertEqual(trimmed.checks, [check])
 
+class TestSpecificationDeterminism(unittest.TestCase):
+    def test_deterministic_primitive_uses_same_inputs_for_both_spec_runs(self):
+        seen_inputs = []
+
+        def deterministic_spec(x, ctx):
+            seen_inputs.append(x)
+            out = ctx.fresh_real("out")
+            ctx.assume(out.eq(x + ctx.real_val(1)))
+            return out
+
+        @Primitive(name="deterministic_primitive", spec=deterministic_spec)
+        def deterministic_primitive(x):
+            return x.copy()
+
+        node = deterministic_primitive(Var(name="x", sign=UQT(2, 0)))
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            result = node.check_determinism(
+                schedule=[
+                    {"tool": "simplify"},
+                    {"tool": "z3", "timeout_ms": 1000},
+                ]
+            )
+
+        self.assertTrue(result["proved"])
+        self.assertEqual(len(result["proof_traces"]), 1)
+        self.assertEqual(len(seen_inputs), 2)
+        self.assertIs(seen_inputs[0], seen_inputs[1])
+
+    def test_underconstrained_primitive_is_not_deterministic(self):
+        def nondeterministic_spec(_x, ctx):
+            out = ctx.fresh_real("out")
+            zero = ctx.real_val(0)
+            one = ctx.real_val(1)
+            ctx.assume(out.eq(zero) | out.eq(one))
+            return out
+
+        @Primitive(name="nondeterministic_primitive", spec=nondeterministic_spec)
+        def nondeterministic_primitive(x):
+            return x.copy()
+
+        node = nondeterministic_primitive(Var(name="x", sign=UQT(2, 0)))
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            result = node.check_determinism(
+                schedule=[
+                    {"tool": "simplify"},
+                    {"tool": "z3", "timeout_ms": 1000},
+                ]
+            )
+
+        self.assertFalse(result["proved"])
+        self.assertEqual(result["proof_traces"][-1][-1]["status"], "sat")
+
+    def test_composite_determinism_ignores_inner_proof_context(self):
+        def identity_spec(x, ctx):
+            del ctx
+            return x
+
+        @Composite(name="deterministic_composite", spec=identity_spec)
+        def deterministic_composite(x):
+            with context() as ctx:
+                ctx.check(ctx.false())
+            return x.copy()
+
+        node = deterministic_composite(Var(name="x", sign=UQT(2, 0)))
+        self.assertEqual(len(node.ctx.checks), 1)
+
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            result = node.check_determinism(schedule=[{"tool": "simplify"}])
+
+        self.assertTrue(result["proved"])
+
+    def test_nested_tuple_outputs_are_compared_recursively(self):
+        def identity_spec(x, ctx):
+            del ctx
+            return x
+
+        @Primitive(name="tuple_identity", spec=identity_spec)
+        def tuple_identity(x):
+            return x.copy()
+
+        node = tuple_identity(
+            Var(
+                name="x",
+                sign=TupleT(
+                    UQT(2, 0),
+                    TupleT(BoolT(), UQT(1, 1)),
+                ),
+            )
+        )
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            result = node.check_determinism(schedule=[{"tool": "simplify"}])
+
+        self.assertTrue(result["proved"])
+
+    def test_output_shape_mismatch_raises_type_error(self):
+        call_count = 0
+
+        def unstable_shape_spec(x, ctx):
+            del ctx
+            nonlocal call_count
+            call_count += 1
+            return x if call_count == 1 else (x, x)
+
+        @Primitive(name="unstable_shape", spec=unstable_shape_spec)
+        def unstable_shape(x):
+            return x.copy()
+
+        node = unstable_shape(Var(name="x", sign=UQT(2, 0)))
+        with self.assertRaisesRegex(TypeError, "Spec shape mismatch"):
+            node.check_determinism(schedule=[{"tool": "simplify"}])
+
+    def test_unobservable_nan_fields_do_not_make_spec_nondeterministic(self):
+        def nan_spec(ctx):
+            out = fp32.fresh("out", ctx)
+            ctx.assume(out.is_nan.eq(ctx.true()))
+            return out
+
+        @Primitive(name="nan_primitive", spec=nan_spec)
+        def nan_primitive():
+            return Const(Float32.NaN())
+
+        node = nan_primitive()
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            result = node.check_determinism(schedule=[{"tool": "simplify"}])
+
+        self.assertTrue(result["proved"])
+        self.assertEqual(len(result["proof_traces"]), 25)
+
+    def test_different_feasible_fp_classifications_are_nondeterministic(self):
+        def classification_spec(ctx):
+            out = fp32.fresh("out", ctx)
+            ctx.assume(out.value.eq(ctx.real_val(0)))
+            ctx.assume(out.sign.eq(ctx.real_val(0)))
+            return out
+
+        @Primitive(name="classification_primitive", spec=classification_spec)
+        def classification_primitive():
+            return Const(Float32.Zero())
+
+        node = classification_primitive()
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            result = node.check_determinism(
+                schedule=[
+                    {"tool": "simplify"},
+                    {"tool": "z3", "timeout_ms": 1000},
+                ]
+            )
+
+        self.assertFalse(result["proved"])
+        failed_ctx = result["proof_traces"][-1][-1]["old_ctx"]
+        failed_labels = ast_nodes._case_labels(failed_ctx.name)
+        self.assertNotEqual(
+            failed_labels["first_spec"],
+            failed_labels["second_spec"],
+        )
+
+
 class TestSolverApis(unittest.TestCase):
     def test_fp32_multiplier_check_spec_proves_zero_input_cases(self):
         multiplier = FP32_IEEE_mult(
@@ -2054,8 +2211,20 @@ class TestSolverApis(unittest.TestCase):
         }
         split_classification_cases = ast_nodes._split_classification_cases
 
-        def select_zero_input_cases(ctx, inputs, spec_inner, spec_outer):
-            cases = split_classification_cases(ctx, inputs, spec_inner, spec_outer)
+        def select_zero_input_cases(
+            ctx,
+            inputs,
+            spec_inner,
+            spec_outer,
+            output_names=("inner_spec", "outer_spec"),
+        ):
+            cases = split_classification_cases(
+                ctx,
+                inputs,
+                spec_inner,
+                spec_outer,
+                output_names=output_names,
+            )
             selected = [
                 case
                 for case in cases
@@ -2127,7 +2296,13 @@ class TestSolverApis(unittest.TestCase):
         captured_checks = []
         expected_checks = []
 
-        def select_case(ctx, inputs, spec_inner, spec_outer):
+        def select_case(
+            ctx,
+            inputs,
+            spec_inner,
+            spec_outer,
+            output_names=("inner_spec", "outer_spec"),
+        ):
             inner_query = tuple(spec_inner.classification_flags().values()) + (spec_inner.sign,)
             outer_query = tuple(spec_outer.classification_flags().values()) + (spec_outer.sign,)
             expected_checks.append(
@@ -2138,6 +2313,7 @@ class TestSolverApis(unittest.TestCase):
                 inputs,
                 spec_inner,
                 spec_outer,
+                output_names=output_names,
             )
             return [next(case for case in cases if case.name == target_name)]
 
