@@ -5,7 +5,7 @@ from itertools import product
 from ..types.runtime import RuntimeType
 from ..types.static import StaticType
 from ..utils import make_fixed_arguments
-from ..solver.engine import check_equivalence
+from ..solver.engine import check_equivalence as _solver_check_equivalence
 from .node import Node
 from .proofs import SpecRecorder, record_specs
 from ..spec import FPExpr, SpecContext
@@ -13,6 +13,24 @@ from ..spec.spec_context import simplify_ctx
 
 
 CLowering = tp.Callable[[list[str], bool], str]
+
+
+class _Spec(tp.NamedTuple):
+    name: str
+    collect: tp.Callable[[SpecContext], tp.Any]
+
+
+def _default_equivalence_schedule() -> list[dict[str, tp.Any]]:
+    return [
+        {"tool": "simplify"},
+        {
+            "tool": "egglog-rewrite",
+            "iterations": 6,
+            "scheduler": {"match_limit": 500_000, "ban_length": 1},
+        },
+        {"tool": "z3", "timeout_ms": 10000},
+        # {"tool": "dreal", "precision": 0.001},
+    ]
 
 
 def _append_case_name(name: str, case_label: str) -> str:
@@ -58,6 +76,7 @@ def _add_classification_case_checks(
     spec_inner: tp.Any,
     spec_outer: tp.Any,
     labels: dict[str, str],
+    output_names: tuple[str, str] = ("inner_spec", "outer_spec"),
 ) -> None:
     def add_checks(inner, outer, inner_name, outer_name):
         inner_is_tuple = isinstance(inner, tuple)
@@ -101,7 +120,7 @@ def _add_classification_case_checks(
         for inner_value, outer_value in zip(inner_flags, outer_flags, strict=True):
             ctx.check(inner_value.eq(outer_value))
 
-    add_checks(spec_inner, spec_outer, "inner_spec", "outer_spec")
+    add_checks(spec_inner, spec_outer, *output_names)
 
 
 def _split_classification_cases(
@@ -109,9 +128,10 @@ def _split_classification_cases(
     inputs: list[tp.Any],
     spec_inner: tp.Any,
     spec_outer: tp.Any,
+    output_names: tuple[str, str] = ("inner_spec", "outer_spec"),
 ) -> list[SpecContext]:
     classified_values = [(f"arg{idx}", value) for idx, value in enumerate(inputs)] \
-        + [("inner_spec", spec_inner), ("outer_spec", spec_outer)]
+        + list(zip(output_names, (spec_inner, spec_outer), strict=True))
     
     fp_items = [
         fp_item
@@ -129,55 +149,45 @@ def _split_classification_cases(
             _assume_classification_case(case_ctx, value_name, value, selected_name)
             labels[value_name] = selected_name
         
-        _add_classification_case_checks(case_ctx, spec_inner, spec_outer, labels)
+        _add_classification_case_checks(
+            case_ctx,
+            spec_inner,
+            spec_outer,
+            labels,
+            output_names=output_names,
+        )
         cases.append(case_ctx)
     
     return cases
 
 
-def _side_case_context(
-    node: "composite",
+def _collect_classified_spec(
+    spec: _Spec,
+    *,
+    base_ctx: SpecContext,
+    inputs: list[tp.Any],
     case_labels: dict[str, str],
-    spec_case_name: str,
 ) -> SpecContext:
-    ctx = node.ctx.copy()
-    inputs = [ctx.spec_of(arg) for arg in node.inner_args]
-    if spec_case_name == "inner_spec":
-        spec_value = ctx.spec_of(node.inner_tree)
-    elif spec_case_name == "outer_spec":
-        spec_value = node.spec(*inputs, ctx=ctx)
-    else:
-        raise ValueError(f"Unknown specification side {spec_case_name!r}")
-    
+    ctx = base_ctx.copy()
+    output = spec.collect(ctx)
+
     for idx, value in enumerate(inputs):
         for value_name, fp_value in _named_fp_items(f"arg{idx}", value):
             selected_name = case_labels.get(value_name)
             if selected_name is not None:
                 _assume_classification_case(ctx, value_name, fp_value, selected_name)
     
-    output_items = list(_named_fp_items(spec_case_name, spec_value))
-    if not output_items:
-        raise TypeError("Classification case requires an FPExpr output, got {type(spec_value).__name__}")
-    for value_name, fp_value in output_items:
+    for value_name, fp_value in _named_fp_items(spec.name, output):
         selected_name = case_labels.get(value_name)
         if selected_name is not None:
             _assume_classification_case(ctx, value_name, fp_value, selected_name)
     return ctx
 
 
-def _has_confirmed_feasibility_mismatch(
-    node: "composite",
-    case_labels: dict[str, str],
-) -> bool:
-    inner_ctx = _side_case_context(node, case_labels, "inner_spec")
-    outer_ctx = _side_case_context(node, case_labels, "outer_spec")
-
-    inner_status = simplify_ctx(inner_ctx).get("feasibility_status", "unknown")
-    outer_status = simplify_ctx(outer_ctx).get("feasibility_status", "unknown")
-    return {inner_status, outer_status} == {"feasible", "not feasible"}
-
-
-def _output_classifications_match(labels: dict[str, str]) -> bool | None:
+def _output_classifications_match(
+    labels: dict[str, str],
+    output_names: tuple[str, str] = ("inner_spec", "outer_spec"),
+) -> bool | None:
     def output_labels(prefix: str) -> dict[str, str]:
         nested_prefix = f"{prefix}."
         return {
@@ -185,9 +195,9 @@ def _output_classifications_match(labels: dict[str, str]) -> bool | None:
             for name, classification in labels.items()
             if name == prefix or name.startswith(nested_prefix)
         }
-
-    inner_labels = output_labels("inner_spec")
-    outer_labels = output_labels("outer_spec")
+    
+    inner_labels = output_labels(output_names[0])
+    outer_labels = output_labels(output_names[1])
     if not inner_labels and not outer_labels:
         return None
     if inner_labels.keys() != outer_labels.keys():
@@ -198,30 +208,120 @@ def _output_classifications_match(labels: dict[str, str]) -> bool | None:
     )
 
 
-def _classification_case_is_proved(
-    node: "composite",
+def _infeasible_case_is_proved(
+    first: _Spec,
+    second: _Spec,
+    *,
+    base_ctx: SpecContext,
+    inputs: list[tp.Any],
     labels: dict[str, str],
-    status: str,
-    proof_trace,
 ) -> bool:
-    combined_feasibility = (
-        proof_trace[0].get("feasibility_status", "unknown")
-        if proof_trace
-        else "unknown"
-    )
-    solution_can_exist = (combined_feasibility != "not feasible")
-
-    outputs_match = _output_classifications_match(labels)
-    if outputs_match is None:
-        expected_status = "unsat" if solution_can_exist else "sat"
-        return status == expected_status
-
-    if solution_can_exist:
-        expected_status = "unsat" if outputs_match else "sat"
-        return status == expected_status
-    if not outputs_match:
+    output_names = (first.name, second.name)
+    if _output_classifications_match(labels, output_names) is False:
         return True
-    return not _has_confirmed_feasibility_mismatch(node, labels)
+    
+    feasibility_statuses = [
+        simplify_ctx(
+            _collect_classified_spec(
+                spec,
+                base_ctx=base_ctx,
+                inputs=inputs,
+                case_labels=labels,
+            )
+        ).get("feasibility_status", "unknown")
+        for spec in (first, second)
+    ]
+    if any(
+        status not in {"feasible", "not feasible"}
+        for status in feasibility_statuses
+    ):
+        return False
+    return feasibility_statuses[0] == feasibility_statuses[1]
+
+
+def check_equivalence(
+    first: _Spec,
+    second: _Spec,
+    base_ctx: SpecContext,
+    inputs: list[tp.Any],
+    schedule: list[str | dict[str, tp.Any]] | None = None,
+):
+    if first.name == second.name:
+        raise ValueError("Equivalent specification sides must have distinct names")
+    if schedule is None:
+        schedule = _default_equivalence_schedule()
+
+    combined_ctx = base_ctx.copy()
+    first_output = first.collect(combined_ctx)
+    second_output = second.collect(combined_ctx)
+    output_names = (first.name, second.name)
+    cases = _split_classification_cases(
+        combined_ctx,
+        inputs,
+        first_output,
+        second_output,
+        output_names=output_names,
+    )
+
+    full_trace = []
+    proved = True
+
+    header_padding = " " * max(len(cases[0].name) - 8, 0)
+    print("case name", header_padding, f"\t| correct?\t| status")
+
+    for case_ctx in cases:
+        status, proof_trace = _solver_check_equivalence(case_ctx, schedule=schedule)
+        combined_feasibility = proof_trace[0].get("feasibility_status", "unknown")
+
+        if combined_feasibility == "not feasible":
+            labels = _case_labels(case_ctx.name)
+            case_proved = _infeasible_case_is_proved(
+                first,
+                second,
+                base_ctx=base_ctx,
+                inputs=inputs,
+                labels=labels,
+            )
+        else:
+            # This is loose as no real feasibility is provided at this point
+            labels = _case_labels(case_ctx.name)
+            classifications_match = _output_classifications_match(labels, output_names)
+            expected_status = "sat" if classifications_match is False  else "unsat"
+            case_proved = status == expected_status
+
+        proved = proved and case_proved
+        result = "correct" if case_proved else "wrong"
+        print(case_ctx.name, "\t|", result, "\t|", status)
+        full_trace.append(proof_trace)
+        if not proved:
+            break
+
+    return {
+        "proved": proved,
+        "proof_traces": full_trace,
+    }
+
+
+def _check_determinism(
+    node: "composite | primitive",
+    schedule: list[str | dict[str, tp.Any]] | None = None,
+):
+    base_ctx = SpecContext(f"{node.name}_determinism")
+    inputs = [base_ctx.spec_of(arg) for arg in node.inner_args]
+    first_spec = _Spec("first_spec", lambda ctx: node.spec(*inputs, ctx=ctx))
+    second_spec = _Spec("second_spec", lambda ctx: node.spec(*inputs, ctx=ctx))
+
+    result = check_equivalence(
+        first_spec,
+        second_spec,
+        base_ctx=base_ctx,
+        inputs=inputs,
+        schedule=schedule,
+    )
+
+    print(f"{node.name} specification {'is' if result['proved'] else 'is not'} deterministic")
+
+    return result
 
 
 def Composite(
@@ -287,50 +387,29 @@ class composite(Node):
             name=name,
         )
     
-    def check_spec(self, schedule: list[str | dict[str, tp.Any]] | None = None):
-        # Scheduler for solver
-        if schedule is None:
-            schedule = [
-                {"tool": "simplify"},
-                {"tool": "egglog-rewrite", "iterations": 6, "scheduler": {"match_limit": 500_000, "ban_length": 1}},
-                {"tool": "z3", "timeout_ms": 10000},
-                # {"tool": "dreal", "precision": 0.001},
-            ]
+    def check_spec(
+        self,
+        schedule: list[str | dict[str, tp.Any]] | None = None,
+    ):
+        base_ctx = self.ctx.copy()
+        inputs = [base_ctx.spec_of(arg) for arg in self.inner_args]
+        result = check_equivalence(
+            _Spec("inner_spec", lambda ctx: ctx.spec_of(self.inner_tree)),
+            _Spec("outer_spec", lambda ctx: self.spec(*inputs, ctx=ctx)),
+            base_ctx=base_ctx,
+            inputs=inputs,
+            schedule=schedule,
+        )
         
-        # Collecting specification into ctx
-        combined_ctx = self.ctx.copy()
-        spec_inner = combined_ctx.spec_of(self.inner_tree)
-        inputs = [combined_ctx.spec_of(arg) for arg in self.inner_args]
-        spec_outer = self.spec(*inputs, ctx=combined_ctx)
+        print(f"{self.ctx.name} {'has' if result['proved'] else 'has not'} been proved")
         
-        # Split a general specification into FP32 classification cases.
-        cases = _split_classification_cases(combined_ctx, inputs, spec_inner, spec_outer)
+        return result
 
-        # Run equivalence checks
-        full_trace = []
-        proved = True
-        
-        header_padding = " " * max(len(cases[0].name) - 8, 0)
-        print("case name", header_padding, "\t| correct?\t| status")
-        
-        for case_ctx in cases:
-            status, proof_trace = check_equivalence(case_ctx, schedule=schedule)
-            case_labels = _case_labels(case_ctx.name)
-            case_proved = _classification_case_is_proved(self, case_labels, status, proof_trace)
-            
-            proved = proved and case_proved
-            result = "correct" if case_proved else "wrong"
-            print(case_ctx.name, "\t|", result, "\t|", status)
-            full_trace.append(proof_trace)
-            if not proved:
-                break
-        
-        print(f"{self.ctx.name} {'has' if proved else 'has not'} been proved")
-        
-        return {
-            "proved": proved,
-            "proof_traces": full_trace,
-        }
+    def check_determinism(
+        self,
+        schedule: list[str | dict[str, tp.Any]] | None = None,
+    ):
+        return _check_determinism(self, schedule=schedule)
     
     def _validate_components(self, composite_name: str) -> None:
         visited: set[Node] = set()
@@ -451,6 +530,12 @@ class primitive(Node):
             args=args,
             name=name,
         )
+
+    def check_determinism(
+        self,
+        schedule: list[str | dict[str, tp.Any]] | None = None,
+    ):
+        return _check_determinism(self, schedule=schedule)
     
     def print_tree(self, prefix: str = "", is_last: bool = True, depth: int = 0):
         connector = "└── " if is_last else "├── "

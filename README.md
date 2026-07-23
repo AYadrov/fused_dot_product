@@ -62,12 +62,15 @@ Zolotone connects golden specifications to typed implementation models:
    such as `fp32`.
 2. Build an implementation from typed `Primitive` and `Composite` nodes.
 3. Attach a specification to each operation or composite.
-4. Call `check_spec()` to compare the implementation with its golden model.
+4. Call `check_determinism()` to prove that repeated evaluations of the
+   specification produce equivalent results for the same symbolic inputs.
+5. Call `check_spec()` to compare the implementation with its golden model.
 
 Proof obligations can be simplified, rewritten with egglog, discharged with
 Z3, and checked with dReal. Floating-point results are split into observable
 classification cases so finite values, zeros, infinities, and NaNs are compared
-with the appropriate semantics.
+with the appropriate semantics. Both checks accept an optional solver schedule
+and return `{"proved": bool, "proof_traces": [...]}`.
 
 ## Repository layout
 

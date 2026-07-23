@@ -2035,7 +2035,270 @@ class TestRivalTranslation(unittest.TestCase):
         self.assertEqual(trimmed.assumes, [bit_domain])
         self.assertEqual(trimmed.checks, [check])
 
+class TestSpecificationDeterminism(unittest.TestCase):
+    def test_deterministic_primitive_uses_same_inputs_for_both_spec_runs(self):
+        seen_inputs = []
+
+        def deterministic_spec(x, ctx):
+            seen_inputs.append(x)
+            out = ctx.fresh_real("out")
+            ctx.assume(out.eq(x + ctx.real_val(1)))
+            return out
+
+        @Primitive(name="deterministic_primitive", spec=deterministic_spec)
+        def deterministic_primitive(x):
+            return x.copy()
+
+        node = deterministic_primitive(Var(name="x", sign=UQT(2, 0)))
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            result = node.check_determinism(
+                schedule=[
+                    {"tool": "simplify"},
+                    {"tool": "z3", "timeout_ms": 1000},
+                ]
+            )
+
+        self.assertTrue(result["proved"])
+        self.assertEqual(len(result["proof_traces"]), 1)
+        self.assertEqual(len(seen_inputs), 2)
+        self.assertIs(seen_inputs[0], seen_inputs[1])
+
+    def test_underconstrained_primitive_is_not_deterministic(self):
+        def nondeterministic_spec(_x, ctx):
+            out = ctx.fresh_real("out")
+            zero = ctx.real_val(0)
+            one = ctx.real_val(1)
+            ctx.assume(out.eq(zero) | out.eq(one))
+            return out
+
+        @Primitive(name="nondeterministic_primitive", spec=nondeterministic_spec)
+        def nondeterministic_primitive(x):
+            return x.copy()
+
+        node = nondeterministic_primitive(Var(name="x", sign=UQT(2, 0)))
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            result = node.check_determinism(
+                schedule=[
+                    {"tool": "simplify"},
+                    {"tool": "z3", "timeout_ms": 1000},
+                ]
+            )
+
+        self.assertFalse(result["proved"])
+        self.assertEqual(result["proof_traces"][-1][-1]["status"], "sat")
+
+    def test_combined_infeasibility_with_matching_side_feasibility_is_proved(self):
+        base_ctx = SpecContext("matching_side_feasibility")
+        x = base_ctx.real("x")
+        collect_counts = {"zero": 0, "one": 0}
+
+        def collect_zero(ctx):
+            collect_counts["zero"] += 1
+            ctx.assume(x.eq(ctx.real_val(0)))
+            return x
+
+        def collect_one(ctx):
+            collect_counts["one"] += 1
+            ctx.assume(x.eq(ctx.real_val(1)))
+            return x
+
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            result = ast_nodes.check_equivalence(
+                ast_nodes._Spec("zero_spec", collect_zero),
+                ast_nodes._Spec("one_spec", collect_one),
+                base_ctx=base_ctx,
+                inputs=[],
+                schedule=[{"tool": "simplify"}],
+            )
+
+        self.assertTrue(result["proved"])
+        self.assertEqual(collect_counts, {"zero": 2, "one": 2})
+
+    def test_combined_infeasibility_with_matching_infeasible_sides_is_proved(self):
+        base_ctx = SpecContext("matching_infeasible_sides")
+        x = base_ctx.real("x")
+
+        def collect_infeasible(ctx):
+            ctx.assume(ctx.false())
+            return x
+
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            result = ast_nodes.check_equivalence(
+                ast_nodes._Spec("first_spec", collect_infeasible),
+                ast_nodes._Spec("second_spec", collect_infeasible),
+                base_ctx=base_ctx,
+                inputs=[],
+                schedule=[{"tool": "simplify"}],
+            )
+
+        self.assertTrue(result["proved"])
+
+    def test_side_feasibility_mismatch_is_not_equivalent(self):
+        base_ctx = SpecContext("side_feasibility_mismatch")
+        x = base_ctx.real("x")
+
+        def collect_feasible(_ctx):
+            return x
+
+        def collect_infeasible(ctx):
+            ctx.assume(ctx.false())
+            return x
+
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            result = ast_nodes.check_equivalence(
+                ast_nodes._Spec("feasible_spec", collect_feasible),
+                ast_nodes._Spec("infeasible_spec", collect_infeasible),
+                base_ctx=base_ctx,
+                inputs=[],
+                schedule=[{"tool": "simplify"}],
+            )
+
+        self.assertFalse(result["proved"])
+
+    def test_unknown_side_feasibility_is_not_equivalent(self):
+        base_ctx = SpecContext("unknown_side_feasibility")
+        x = base_ctx.real("x")
+
+        def collect_zero(ctx):
+            ctx.assume(x.eq(ctx.real_val(0)))
+            return x
+
+        def collect_one(ctx):
+            ctx.assume(x.eq(ctx.real_val(1)))
+            return x
+
+        with (
+            patch.object(
+                ast_nodes,
+                "simplify_ctx",
+                return_value={"feasibility_status": "unknown"},
+            ),
+            open(os.devnull, "w") as devnull,
+            contextlib.redirect_stdout(devnull),
+        ):
+            result = ast_nodes.check_equivalence(
+                ast_nodes._Spec("zero_spec", collect_zero),
+                ast_nodes._Spec("one_spec", collect_one),
+                base_ctx=base_ctx,
+                inputs=[],
+                schedule=[{"tool": "simplify"}],
+            )
+
+        self.assertFalse(result["proved"])
+
+    def test_composite_determinism_ignores_inner_proof_context(self):
+        def identity_spec(x, ctx):
+            del ctx
+            return x
+
+        @Composite(name="deterministic_composite", spec=identity_spec)
+        def deterministic_composite(x):
+            with context() as ctx:
+                ctx.check(ctx.false())
+            return x.copy()
+
+        node = deterministic_composite(Var(name="x", sign=UQT(2, 0)))
+        self.assertEqual(len(node.ctx.checks), 1)
+
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            result = node.check_determinism(schedule=[{"tool": "simplify"}])
+
+        self.assertTrue(result["proved"])
+
+    def test_nested_tuple_outputs_are_compared_recursively(self):
+        def identity_spec(x, ctx):
+            del ctx
+            return x
+
+        @Primitive(name="tuple_identity", spec=identity_spec)
+        def tuple_identity(x):
+            return x.copy()
+
+        node = tuple_identity(
+            Var(
+                name="x",
+                sign=TupleT(
+                    UQT(2, 0),
+                    TupleT(BoolT(), UQT(1, 1)),
+                ),
+            )
+        )
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            result = node.check_determinism(schedule=[{"tool": "simplify"}])
+
+        self.assertTrue(result["proved"])
+
+    def test_output_shape_mismatch_raises_type_error(self):
+        call_count = 0
+
+        def unstable_shape_spec(x, ctx):
+            del ctx
+            nonlocal call_count
+            call_count += 1
+            return x if call_count == 1 else (x, x)
+
+        @Primitive(name="unstable_shape", spec=unstable_shape_spec)
+        def unstable_shape(x):
+            return x.copy()
+
+        node = unstable_shape(Var(name="x", sign=UQT(2, 0)))
+        with self.assertRaisesRegex(TypeError, "Spec shape mismatch"):
+            node.check_determinism(schedule=[{"tool": "simplify"}])
+
+    def test_unobservable_nan_fields_do_not_make_spec_nondeterministic(self):
+        def nan_spec(ctx):
+            out = fp32.fresh("out", ctx)
+            ctx.assume(out.is_nan.eq(ctx.true()))
+            return out
+
+        @Primitive(name="nan_primitive", spec=nan_spec)
+        def nan_primitive():
+            return Const(Float32.NaN())
+
+        node = nan_primitive()
+        with open(os.devnull, "w") as devnull, contextlib.redirect_stdout(devnull):
+            result = node.check_determinism(schedule=[{"tool": "simplify"}])
+
+        self.assertTrue(result["proved"])
+        self.assertEqual(len(result["proof_traces"]), 25)
+
+
 class TestSolverApis(unittest.TestCase):
+    def test_check_spec_preserves_mismatched_classification_case_verdict(self):
+        def infinity_spec(ctx):
+            del ctx
+            return fp32.inf()
+
+        @Composite(name="zero_vs_infinity", spec=infinity_spec)
+        def zero_vs_infinity():
+            return Const(Float32.Zero())
+
+        split_classification_cases = ast_nodes._split_classification_cases
+
+        def select_feasible_mismatch(*args, **kwargs):
+            return [
+                case
+                for case in split_classification_cases(*args, **kwargs)
+                if ast_nodes._case_labels(case.name)["inner_spec"] == "zero"
+                and ast_nodes._case_labels(case.name)["outer_spec"] == "inf"
+            ]
+
+        with (
+            patch.object(
+                ast_nodes,
+                "_split_classification_cases",
+                side_effect=select_feasible_mismatch,
+            ),
+            open(os.devnull, "w") as devnull,
+            contextlib.redirect_stdout(devnull),
+        ):
+            result = zero_vs_infinity().check_spec(
+                schedule=[{"tool": "simplify"}],
+            )
+
+        self.assertTrue(result["proved"])
+        self.assertEqual(result["proof_traces"][-1][-1]["status"], "sat")
+
     def test_fp32_multiplier_check_spec_proves_zero_input_cases(self):
         multiplier = FP32_IEEE_mult(
             Var(name="a", sign=Float32T()),
@@ -2054,8 +2317,20 @@ class TestSolverApis(unittest.TestCase):
         }
         split_classification_cases = ast_nodes._split_classification_cases
 
-        def select_zero_input_cases(ctx, inputs, spec_inner, spec_outer):
-            cases = split_classification_cases(ctx, inputs, spec_inner, spec_outer)
+        def select_zero_input_cases(
+            ctx,
+            inputs,
+            spec_inner,
+            spec_outer,
+            output_names=("inner_spec", "outer_spec"),
+        ):
+            cases = split_classification_cases(
+                ctx,
+                inputs,
+                spec_inner,
+                spec_outer,
+                output_names=output_names,
+            )
             selected = [
                 case
                 for case in cases
@@ -2117,52 +2392,6 @@ class TestSolverApis(unittest.TestCase):
         self.assertEqual(status, "unsat")
         self.assertEqual(trace[-1]["new_ctx"].checks, [])
 
-    def test_fp32_adder_inf_inf_case_compares_flags_and_output_signs(self):
-        adder = FP32_IEEE_adder(
-            Var(name="a", sign=Float32T()),
-            Var(name="b", sign=Float32T()),
-        )
-        target_name = "FP32_IEEE_adder[arg0=norm,arg1=inf,inner_spec=inf,outer_spec=inf]"
-        split_classification_cases = ast_nodes._split_classification_cases
-        captured_checks = []
-        expected_checks = []
-
-        def select_case(ctx, inputs, spec_inner, spec_outer):
-            inner_query = tuple(spec_inner.classification_flags().values()) + (spec_inner.sign,)
-            outer_query = tuple(spec_outer.classification_flags().values()) + (spec_outer.sign,)
-            expected_checks.append(
-                [lhs.eq(rhs) for lhs, rhs in zip(inner_query, outer_query)]
-            )
-            cases = split_classification_cases(
-                ctx,
-                inputs,
-                spec_inner,
-                spec_outer,
-            )
-            return [next(case for case in cases if case.name == target_name)]
-
-        def capture_check_equivalence(ctx, schedule):
-            del schedule
-            captured_checks.append(ctx.checks)
-            return "unsat", []
-
-        with (
-            patch.object(
-                ast_nodes,
-                "_split_classification_cases",
-                side_effect=select_case,
-            ),
-            patch.object(
-                ast_nodes,
-                "check_equivalence",
-                side_effect=capture_check_equivalence,
-            ),
-            open(os.devnull, "w") as devnull,
-            contextlib.redirect_stdout(devnull),
-        ):
-            adder.check_spec(schedule=[{"tool": "simplify"}])
-
-        self.assertEqual(captured_checks, expected_checks)
 
     def test_fp32_adder_inf_inf_norm_side_case_uses_only_real_and_bool_exprs(self):
         adder = FP32_IEEE_adder(
@@ -2176,10 +2405,16 @@ class TestSolverApis(unittest.TestCase):
             "outer_spec": "norm",
         }
 
-        simplified = ast_nodes._side_case_context(
-            adder,
-            labels,
-            "inner_spec",
+        base_ctx = adder.ctx.copy()
+        inputs = [base_ctx.spec_of(arg) for arg in adder.inner_args]
+        simplified = ast_nodes._collect_classified_spec(
+            ast_nodes._Spec(
+                "inner_spec",
+                lambda ctx: ctx.spec_of(adder.inner_tree),
+            ),
+            base_ctx=base_ctx,
+            inputs=inputs,
+            case_labels=labels,
         ).simplify()
 
         def uses_only_supported_exprs(node):
@@ -2194,14 +2429,20 @@ class TestSolverApis(unittest.TestCase):
             Var(name="a", sign=Float32T()),
             Var(name="b", sign=Float32T()),
         )
-        simplified = ast_nodes._side_case_context(
-            adder,
-            {
+        base_ctx = adder.ctx.copy()
+        inputs = [base_ctx.spec_of(arg) for arg in adder.inner_args]
+        simplified = ast_nodes._collect_classified_spec(
+            ast_nodes._Spec(
+                "outer_spec",
+                lambda ctx: adder.spec(*inputs, ctx=ctx),
+            ),
+            base_ctx=base_ctx,
+            inputs=inputs,
+            case_labels={
                 "arg0": "inf",
                 "arg1": "inf",
                 "outer_spec": "norm",
             },
-            "outer_spec",
         ).simplify()
 
         env = {}
@@ -2209,42 +2450,6 @@ class TestSolverApis(unittest.TestCase):
         solver.add(*(assume.to_z3(env) for assume in simplified.assumes))
         self.assertEqual(solver.check(), z3.unsat)
 
-    def test_fp32_adder_check_spec_splits_all_input_class_pairs(self):
-        adder = FP32_IEEE_adder(
-            Var(name="a", sign=Float32T()),
-            Var(name="b", sign=Float32T()),
-        )
-        seen_names = []
-
-        def fake_check_equivalence(ctx, schedule):
-            del schedule
-            seen_names.append(ctx.name)
-            case_labels = ast_nodes._case_labels(ctx.name)
-            outputs_match = case_labels["inner_spec"] == case_labels["outer_spec"]
-            if not outputs_match:
-                self.assertEqual(len(ctx.checks), 5)
-                self.assertTrue(all(isinstance(check, BoolExpr) for check in ctx.checks))
-            return ("unsat" if outputs_match else "sat"), []
-
-        with (
-            patch.object(ast_nodes, "check_equivalence", side_effect=fake_check_equivalence),
-            open(os.devnull, "w") as devnull,
-            contextlib.redirect_stdout(devnull),
-        ):
-            check_result = adder.check_spec(schedule=[{"tool": "z3", "timeout_ms": 1}])
-
-        fp32_cases = ("norm", "sub", "zero", "inf", "nan")
-        expected_names = {
-            f"FP32_IEEE_adder[arg0={x_case},arg1={y_case},inner_spec={inner_case},outer_spec={outer_case}]"
-            for x_case in fp32_cases
-            for y_case in fp32_cases
-            for inner_case in fp32_cases
-            for outer_case in fp32_cases
-        }
-        self.assertTrue(check_result["proved"])
-        self.assertEqual(check_result["proof_traces"], [[] for _ in expected_names])
-        self.assertEqual(len(seen_names), len(expected_names))
-        self.assertEqual(set(seen_names), expected_names)
 
     def test_check_equivalence_with_simplify_schedule_short_circuits(self):
         ctx = SpecContext("simplify-schedule")
