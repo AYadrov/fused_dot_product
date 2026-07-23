@@ -195,7 +195,7 @@ def _output_classifications_match(
             for name, classification in labels.items()
             if name == prefix or name.startswith(nested_prefix)
         }
-
+    
     inner_labels = output_labels(output_names[0])
     outer_labels = output_labels(output_names[1])
     if not inner_labels and not outer_labels:
@@ -219,7 +219,7 @@ def _infeasible_case_is_proved(
     output_names = (first.name, second.name)
     if _output_classifications_match(labels, output_names) is False:
         return True
-
+    
     feasibility_statuses = [
         simplify_ctx(
             _collect_classified_spec(
@@ -228,8 +228,7 @@ def _infeasible_case_is_proved(
                 inputs=inputs,
                 case_labels=labels,
             )
-        ).get("feasibility_status")
-        or "unknown"
+        ).get("feasibility_status", "unknown")
         for spec in (first, second)
     ]
     if any(
@@ -243,7 +242,6 @@ def _infeasible_case_is_proved(
 def check_equivalence(
     first: _Spec,
     second: _Spec,
-    *,
     base_ctx: SpecContext,
     inputs: list[tp.Any],
     schedule: list[str | dict[str, tp.Any]] | None = None,
@@ -272,15 +270,8 @@ def check_equivalence(
     print("case name", header_padding, f"\t| correct?\t| status")
 
     for case_ctx in cases:
-        status, proof_trace = _solver_check_equivalence(
-            case_ctx,
-            schedule=schedule,
-        )
-        combined_feasibility = (
-            proof_trace[0].get("feasibility_status")
-            if proof_trace
-            else None
-        )
+        status, proof_trace = _solver_check_equivalence(case_ctx, schedule=schedule)
+        combined_feasibility = proof_trace[0].get("feasibility_status", "unknown")
 
         if combined_feasibility == "not feasible":
             labels = _case_labels(case_ctx.name)
@@ -292,7 +283,10 @@ def check_equivalence(
                 labels=labels,
             )
         else:
-            case_proved = status == "unsat"
+            labels = _case_labels(case_ctx.name)
+            classifications_match = _output_classifications_match(labels, output_names)
+            expected_status = "sat" if classifications_match is False  else "unsat"
+            case_proved = status == expected_status
 
         proved = proved and case_proved
         result = "correct" if case_proved else "wrong"
@@ -324,10 +318,7 @@ def _check_determinism(
         schedule=schedule,
     )
 
-    print(
-        f"{node.name} specification "
-        f"{'is' if result['proved'] else 'is not'} deterministic"
-    )
+    print(f"{node.name} specification {'is' if result['proved'] else 'is not'} deterministic")
 
     return result
 
@@ -409,10 +400,7 @@ class composite(Node):
             schedule=schedule,
         )
         
-        print(
-            f"{self.ctx.name} "
-            f"{'has' if result['proved'] else 'has not'} been proved"
-        )
+        print(f"{self.ctx.name} {'has' if result['proved'] else 'has not'} been proved")
         
         return result
 

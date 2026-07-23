@@ -172,9 +172,7 @@ def constant_rules():
     return [
         # Reflect a proven object-language equality into egglog's native
         # equality so conditional assumptions can merge their operands.
-        rule(eq(Math.Eq(a, b)).to(MathBool.True_())).then(
-            union(a).with_(b)
-        ),
+        rule(eq(Math.Eq(a, b)).to(MathBool.True_())).then(union(a).with_(b)),
         # boolean
         rewrite(Math.Eq(Math.Num(m), Math.Num(n))).to(MathBool.True_(), eq(m).to(n)),
         rewrite(Math.Eq(Math.Num(m), Math.Num(n))).to(MathBool.False_(), ne(m).to(n)),
