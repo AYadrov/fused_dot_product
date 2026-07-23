@@ -274,10 +274,7 @@ def fp32_encodings(m_rounded_uq: Node, e_rounded_uq: Node):
 def fp32_encode_spec(s, e, m, ctx):
     sign = sign_multiplier(ctx, s)
     finite_value = sign * m * (ctx.real_val(2) ** (e - ctx.real_val(Float32.exponent_bias)))
-    return Cases(
-        case(s.eq(ctx.real_val(1)) & m.eq(ctx.real_val(0)), fp32.nzero()),
-        default(fp32.encode(finite_value, ctx)),
-    )
+    return fp32.encode(finite_value, ctx)
 
 
 # Assume that e is biased
@@ -296,14 +293,9 @@ def fp32_encode(s_uq: Node, e_q: Node, m_uq: Node) -> Primitive:
     final_m_uq, final_e_uq = fp32_encodings(m_rounded_uq, e_rounded_uq)
     
     packed_fp32 = fp32_pack(s_uq, final_e_uq, final_m_uq)
-    signed_zero = if_then_else(
-        s_uq,
-        Const(Float32.nZero()),
-        Const(Float32.Zero()),
-    )
     return if_then_else(
         encode_exact_zero,
-        signed_zero,
+        Const(Float32.Zero()),
         packed_fp32,
     )
 
