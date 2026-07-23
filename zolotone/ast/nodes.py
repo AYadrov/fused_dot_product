@@ -283,6 +283,7 @@ def check_equivalence(
                 labels=labels,
             )
         else:
+            # This is loose as no real feasibility is provided at this point
             labels = _case_labels(case_ctx.name)
             classifications_match = _output_classifications_match(labels, output_names)
             expected_status = "sat" if classifications_match is False  else "unsat"
