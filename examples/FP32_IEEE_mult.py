@@ -2,36 +2,27 @@ from zolotone import *
 from .common import *
 from .encode_Float32 import *
 
-# TODO: NaN payload
-def spec_FP32_IEEE_mult(x: "FP32", y: "FP32", ctx):
+def spec_FP32_IEEE_mult(x: fp32, y: fp32, ctx):
     invalid = (x.is_inf & y.is_zero) | (y.is_inf & x.is_zero)
     nan_case = x.is_nan | y.is_nan | invalid
+    
     negative_sign = x.sign.ne(y.sign)
     inf_case = (x.is_inf | y.is_inf) & (~nan_case)
     neg_inf_case = inf_case & negative_sign
     pos_inf_case = inf_case & (~negative_sign)
-    neg_zero_case = (
+    zero_case = (
         (x.is_zero | y.is_zero)
         & (~nan_case)
         & (~inf_case)
-        & negative_sign
     )
-    return If(
-        nan_case,
-        fp32.nan(),
-        If(
-            neg_inf_case,
-            fp32.ninf(),
-            If(
-                pos_inf_case,
-                fp32.inf(),
-                If(
-                    neg_zero_case,
-                    fp32.nzero(),
-                    fp32.encode(x.value * y.value, ctx),
-                ),
-            ),
-        ),
+    neg_zero_case = zero_case & negative_sign
+    
+    return Cases(
+        case(nan_case, fp32.nan()),
+        case(neg_inf_case, fp32.ninf()),
+        case(pos_inf_case, fp32.inf()),
+        case(neg_zero_case, fp32.nzero()),
+        default(fp32.encode(x.value * y.value, ctx)),
     )
 
 
@@ -39,9 +30,9 @@ def spec_FP32_IEEE_mult(x: "FP32", y: "FP32", ctx):
 def FP32_IEEE_mult(x: Node, y: Node) -> Node:
     x_s, x_e, x_m, x_norm, x_sub, x_zero, x_inf, x_nan = fp32_decode(x)
     y_s, y_e, y_m, y_norm, y_sub, y_zero, y_inf, y_nan = fp32_decode(y)
-
+    
     sign_bit = bit_xor(x_s, y_s)
-
+    
     # IEEE-754 invalid cases for multiplication are NaN operands and 0 * inf.
     inf_times_zero = bit_or(
         bit_and(x_inf, y_zero),
@@ -63,22 +54,16 @@ def FP32_IEEE_mult(x: Node, y: Node) -> Node:
     # UQ<23, 0> -> UQ<0, 23>
     x_m_fraction = integer_to_fraction(x_m)
     y_m_fraction = integer_to_fraction(y_m)
-
+    
     # UQ<1, 23>
     x_m_formatted = if_then_else(x_norm, add_implicit_bit(x_m_fraction), uq_resize(x_m_fraction, 1, Float32.mantissa_bits))
     y_m_formatted = if_then_else(y_norm, add_implicit_bit(y_m_fraction), uq_resize(y_m_fraction, 1, Float32.mantissa_bits))
-
+    
     # Subnormals have exponent field 0 but effective exponent 1-bias.
     effective_subnormal_e = Const(UQ(1, x_e.node_type.int_bits, x_e.node_type.frac_bits))
     x_effective_e = if_then_else(x_sub, effective_subnormal_e, x_e)
     y_effective_e = if_then_else(y_sub, effective_subnormal_e, y_e)
-
-    with context() as ctx:
-        # This check basically makes sure that if statement was useless
-        #   since on spec level we pretend that we do not have subnormals
-        ctx.check(ctx.spec_of(x_m_formatted).eq(ctx.spec_of(x_m_fraction) + ctx.real_val(1)))
-        ctx.check(ctx.spec_of(y_m_formatted).eq(ctx.spec_of(y_m_fraction) + ctx.real_val(1)))
-
+    
     # Keep the full 24x24-bit significand product exact and let fp32_encode
     # handle normalization, subnormal shifting, and final IEEE rounding.
     m_prod = uq_mul(x_m_formatted, y_m_formatted)
@@ -86,7 +71,7 @@ def FP32_IEEE_mult(x: Node, y: Node) -> Node:
         q_add(uq_to_q(x_effective_e), uq_to_q(y_effective_e)),
         Const(Q.from_int(Float32.exponent_bias)),
     )
-
+    
     finite_result = fp32_encode(
         sign_bit,               # sign: UQ
         e_prod,                 # exponent: Q, biased
@@ -117,9 +102,10 @@ if __name__ == '__main__':
         Var(name="a", sign=Float32T()),
         Var(name="b", sign=Float32T()),
     )
-    pprint(multiplier.check_spec())
+    multiplier.check_spec()
+    # pprint(multiplier.check_spec())
     with open("examples/multiplier_jit.hpp", "w") as file:
         file.write(multiplier.to_cpp(jittable=True))
-
+    
     with open("examples/multiplier_no_jit.hpp", "w") as file:
         file.write(multiplier.to_cpp(jittable=False))

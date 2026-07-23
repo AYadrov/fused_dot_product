@@ -23,7 +23,7 @@ For example, the golden model for the FP32 IEEE adder states the finite
 computation directly while making the special-value behavior explicit:
 
 ```python
-from zolotone import If, fp32
+from zolotone import Cases, case, default, fp32
 
 
 def spec_FP32_IEEE_adder(x: "FP32", y: "FP32", ctx):
@@ -37,24 +37,17 @@ def spec_FP32_IEEE_adder(x: "FP32", y: "FP32", ctx):
     pos_inf_case = (x.is_pinf | y.is_pinf) & (~nan_case)
     neg_zero_case = x.is_nzero & y.is_nzero
 
-    return If(
-        nan_case,
-        fp32.nan(),
-        If(
-            neg_inf_case,
-            fp32.ninf(),
-            If(
-                pos_inf_case,
-                fp32.inf(),
-                If(
-                    neg_zero_case,
-                    fp32.nzero(),
-                    fp32.encode(x.value + y.value, ctx),
-                ),
-            ),
-        ),
+    return Cases(
+        case(nan_case, fp32.nan()),
+        case(neg_inf_case, fp32.ninf()),
+        case(pos_inf_case, fp32.inf()),
+        case(neg_zero_case, fp32.nzero()),
+        default(fp32.encode(value=x.value + y.value, ctx=ctx)),
     )
 ```
+
+`Cases` selects the first matching `case` in source order and requires exactly
+one `default` as its final entry.
 
 This model says what the result means. It does not prescribe exponent
 alignment, significand formatting, rounding logic, or other implementation

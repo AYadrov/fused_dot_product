@@ -163,6 +163,65 @@ class TestConstantFolding(unittest.TestCase):
             tempdir_jit.cleanup()
             tempdir_no_jit.cleanup()
 
+    def test_fp32_multiplier_zero_handling(self):
+        x = Var(name="x", sign=Float32T())
+        y = Var(name="y", sign=Float32T())
+        design = FP32_IEEE_mult(x, y)
+
+        tempdir_jit, fn_jit = jit_compile(design)
+        tempdir_no_jit, fn_no_jit = nonjit_compile(design)
+
+        cases = [
+            # Zero products use the XOR of the operand signs.
+            ("+0 * +0", 0x00000000, 0x00000000, 0x00000000),
+            ("+0 * -0", 0x00000000, 0x80000000, 0x80000000),
+            ("-0 * +0", 0x80000000, 0x00000000, 0x80000000),
+            ("-0 * -0", 0x80000000, 0x80000000, 0x00000000),
+            ("+0 * +1", 0x00000000, 0x3f800000, 0x00000000),
+            ("+0 * -1", 0x00000000, 0xbf800000, 0x80000000),
+            ("-0 * +1", 0x80000000, 0x3f800000, 0x80000000),
+            ("-0 * -1", 0x80000000, 0xbf800000, 0x00000000),
+            ("+1 * -0", 0x3f800000, 0x80000000, 0x80000000),
+            ("-1 * -0", 0xbf800000, 0x80000000, 0x00000000),
+            ("+0 * min-subnormal", 0x00000000, 0x00000001, 0x00000000),
+            ("-0 * min-subnormal", 0x80000000, 0x00000001, 0x80000000),
+            ("-0 * -min-subnormal", 0x80000000, 0x80000001, 0x00000000),
+            # Exact and rounded results at the bottom of the subnormal range.
+            ("min-subnormal * +1", 0x00000001, 0x3f800000, 0x00000001),
+            ("min-subnormal * -1", 0x00000001, 0xbf800000, 0x80000001),
+            ("positive half-minimum tie", 0x00000001, 0x3f000000, 0x00000000),
+            ("negative half-minimum tie", 0x80000001, 0x3f000000, 0x80000000),
+            ("positive above-half minimum", 0x00000001, 0x3f400000, 0x00000001),
+            ("negative above-half minimum", 0x80000001, 0x3f400000, 0x80000001),
+            ("min-subnormal times 1.5 tie-to-even", 0x00000001, 0x3fc00000, 0x00000002),
+            # Results around the subnormal/normal boundary.
+            ("min-normal halved", 0x00800000, 0x3f000000, 0x00400000),
+            ("min-normal times 2^-23", 0x00800000, 0x34000000, 0x00000001),
+            ("min-normal times 2^-24 tie", 0x00800000, 0x33800000, 0x00000000),
+            ("negative min-normal times 2^-24 tie", 0x80800000, 0x33800000, 0x80000000),
+            ("normal-boundary tie-to-even", 0x00800000, 0x3f7fffff, 0x00800000),
+            ("largest-subnormal doubled", 0x007fffff, 0x40000000, 0x00fffffe),
+            # Zero times infinity is invalid regardless of either sign or order.
+            ("+0 * +inf", 0x00000000, 0x7f800000, 0x7fc00000),
+            ("-0 * +inf", 0x80000000, 0x7f800000, 0x7fc00000),
+            ("+0 * -inf", 0x00000000, 0xff800000, 0x7fc00000),
+            ("-0 * -inf", 0x80000000, 0xff800000, 0x7fc00000),
+            ("+inf * -0", 0x7f800000, 0x80000000, 0x7fc00000),
+            ("-inf * +0", 0xff800000, 0x00000000, 0x7fc00000),
+        ]
+
+        try:
+            for name, lhs_bits, rhs_bits, expected_bits in cases:
+                x.load_val(Float32(lhs_bits))
+                y.load_val(Float32(rhs_bits))
+                with self.subTest(name=name, lhs=hex(lhs_bits), rhs=hex(rhs_bits)):
+                    self.assertEqual(design.evaluate().val, expected_bits)
+                    self.assertEqual(fn_jit(lhs_bits, rhs_bits), expected_bits)
+                    self.assertEqual(fn_no_jit(lhs_bits, rhs_bits), expected_bits)
+        finally:
+            tempdir_jit.cleanup()
+            tempdir_no_jit.cleanup()
+
     def test_basic_add_folds_for_float_bit_types(self):
         cases = [
             ("float32", Float32),
@@ -1023,6 +1082,33 @@ class TestSpecAstConstantFolding(unittest.TestCase):
 
         self.assertIsInstance(expr, If)
 
+    def test_if_lowers_bool_branches_to_boolean_logic(self):
+        condition = BoolVar("condition")
+        on_true = BoolVar("on_true")
+        on_false = BoolVar("on_false")
+
+        expr = If(condition, on_true, on_false)
+
+        self.assertIsInstance(expr, BoolExpr)
+        self.assertEqual(
+            expr,
+            (condition & on_true) | ((~condition) & on_false),
+        )
+
+    def test_if_constant_folds_bool_branches(self):
+        self.assertEqual(
+            If(BoolLit(True), BoolLit(False), BoolLit(True)).constant_fold(),
+            BoolLit(False),
+        )
+        self.assertEqual(
+            If(BoolLit(False), BoolLit(False), BoolLit(True)).constant_fold(),
+            BoolLit(True),
+        )
+
+    def test_if_rejects_mixed_bool_and_real_branches(self):
+        with self.assertRaisesRegex(TypeError, "If branches"):
+            If(BoolVar("condition"), BoolVar("on_true"), RealLit(0))
+
     def test_if_selects_fp_fields_generically(self):
         condition = BoolVar("condition")
         selected = If(condition, fp32.nan(), fp32.ninf())
@@ -1038,23 +1124,220 @@ class TestSpecAstConstantFolding(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "If branches"):
             If(BoolVar("condition"), fp32.nan(), RealLit(0))
 
-    def test_fp32_encoder_spec_canonicalizes_zero(self):
+    def test_cases_lower_to_ordered_nested_ifs(self):
+        first = BoolVar("first")
+        second = BoolVar("second")
+
+        expr = Cases(
+            case(first, RealLit(1)),
+            case(second, RealLit(2)),
+            default(RealLit(3)),
+        )
+
+        self.assertEqual(
+            expr,
+            If(first, RealLit(1), If(second, RealLit(2), RealLit(3))),
+        )
+
+    def test_cases_select_the_first_matching_case(self):
+        expr = Cases(
+            case(BoolLit(True), RealLit(1)),
+            case(BoolLit(True), RealLit(2)),
+            default(RealLit(3)),
+        )
+
+        self.assertEqual(expr.constant_fold(), RealLit(1))
+
+    def test_cases_support_fp_values(self):
+        expr = Cases(
+            case(BoolLit(False), fp32.nan()),
+            case(BoolLit(True), fp32.ninf()),
+            default(fp32.inf()),
+        )
+
+        self.assertIsInstance(expr, fp32)
+        self.assertEqual(expr.constant_fold(), fp32.ninf())
+
+    def test_cases_support_bool_values(self):
+        condition = BoolVar("condition")
+        on_true = BoolVar("on_true")
+        on_false = BoolVar("on_false")
+
+        expr = Cases(
+            case(condition, on_true),
+            default(on_false),
+        )
+
+        self.assertIsInstance(expr, BoolExpr)
+        self.assertEqual(
+            expr,
+            (condition & on_true) | ((~condition) & on_false),
+        )
+
+    def test_cases_allow_only_a_default(self):
+        fallback = RealVar("fallback")
+
+        self.assertIs(Cases(default(fallback)), fallback)
+
+    def test_cases_require_exactly_one_final_default(self):
+        condition = BoolVar("condition")
+        value = RealLit(1)
+
+        with self.assertRaisesRegex(ValueError, "requires a default"):
+            Cases()
+        with self.assertRaisesRegex(ValueError, "requires a default"):
+            Cases(case(condition, value))
+        with self.assertRaisesRegex(ValueError, "exactly one default"):
+            Cases(default(value), default(value))
+        with self.assertRaisesRegex(ValueError, "final entry"):
+            Cases(default(value), case(condition, value))
+
+    def test_cases_validate_entries_conditions_and_values(self):
+        with self.assertRaisesRegex(TypeError, "created by case.*or default"):
+            Cases([default(RealLit(1))])
+        with self.assertRaisesRegex(TypeError, "created by case.*or default"):
+            Cases(object())
+        with self.assertRaisesRegex(TypeError, "Expected BoolExpr"):
+            case(RealLit(1), RealLit(2))
+        with self.assertRaisesRegex(TypeError, "Cases values"):
+            default(object())
+
+    def test_cases_reject_mismatched_branch_types(self):
+        with self.assertRaisesRegex(TypeError, "If branches"):
+            Cases(
+                case(BoolVar("condition"), fp32.nan()),
+                default(RealLit(0)),
+            )
+
+    def test_fp32_encoder_spec_canonicalizes_exact_zero(self):
         from examples.encode_Float32 import fp32_encode_spec
 
-        ctx = SpecContext("fp32-encode-zero")
-        encoded = fp32_encode_spec(
-            RealLit(1),
-            RealLit(0),
-            RealLit(0),
-            ctx,
+        for sign in (0, 1):
+            with self.subTest(sign=sign):
+                ctx = SpecContext(f"fp32-encode-zero-sign-{sign}")
+                encoded = fp32_encode_spec(
+                    RealLit(sign),
+                    RealLit(0),
+                    RealLit(0),
+                    ctx,
+                )
+                ctx.check(encoded.is_pzero)
+
+                report = simplify_ctx(ctx)
+                if report["status"] == "unknown":
+                    report = z3_check_eq(report["new_ctx"], timeout_ms=1000)
+
+                self.assertEqual(report["status"], "unsat", report)
+
+    def test_fp32_encode_design_canonicalizes_exact_zero(self):
+        from examples.encode_Float32 import fp32_encode
+
+        for sign in (0, 1):
+            with self.subTest(sign=sign):
+                design = fp32_encode(
+                    Const(UQ(sign, 1, 0)),
+                    Const(Q.from_int(127)),
+                    Const(UQ.from_float(0, 1, Float32.mantissa_bits)),
+                )
+                self.assertEqual(design.evaluate(), Float32.Zero())
+
+    def test_fp32_encode_spec_rounds_negative_underflow_to_negative_zero(self):
+        # 2^-150 is exactly halfway between zero and the smallest binary32
+        # subnormal. RNE selects the even encoding, zero, and keeps the sign.
+        for name, value in (
+            ("below-midpoint", -(2.0 ** -151)),
+            ("midpoint", -(2.0 ** -150)),
+        ):
+            with self.subTest(name=name):
+                ctx = SpecContext(f"fp32-encode-{name}")
+                encoded = fp32.encode(RealLit(value), ctx)
+                ctx.check(encoded.is_nzero)
+
+                report = simplify_ctx(ctx)
+                if report["status"] == "unknown":
+                    report = z3_check_eq(report["new_ctx"], timeout_ms=1000)
+
+                self.assertEqual(report["status"], "unsat", report)
+
+    def test_fp32_encode_design_preserves_negative_underflow_sign(self):
+        from examples.encode_Float32 import fp32_encode
+
+        sign = Const(UQ(1, 1, 0))
+        exponent = Const(Q.from_int(-22))
+
+        cases = (
+            (0.25, Float32.nZero()),
+            (0.5, Float32.nZero()),
+            (0.75, Float32.from_fields(1, 0, 1)),
         )
-        ctx.check(encoded.is_zero & encoded.sign.eq(RealLit(0)))
+        for mantissa, expected in cases:
+            with self.subTest(mantissa=mantissa):
+                design = fp32_encode(
+                    sign,
+                    exponent,
+                    Const(UQ.from_float(mantissa, 1, Float32.mantissa_bits)),
+                )
+                self.assertEqual(design.evaluate(), expected)
 
-        report = simplify_ctx(ctx)
-        if report["status"] == "unknown":
-            report = z3_check_eq(report["new_ctx"], timeout_ms=1000)
+    def test_fp32_multiplier_spec_zero_handling(self):
+        from examples.FP32_IEEE_mult import spec_FP32_IEEE_mult
 
-        self.assertEqual(report["status"], "unsat", report)
+        cases = (
+            ("+0 * +0", 0x00000000, 0x00000000, "is_pzero"),
+            ("+0 * -0", 0x00000000, 0x80000000, "is_nzero"),
+            ("-0 * +0", 0x80000000, 0x00000000, "is_nzero"),
+            ("-0 * -0", 0x80000000, 0x80000000, "is_pzero"),
+            ("+0 * -1", 0x00000000, 0xbf800000, "is_nzero"),
+            ("-0 * +1", 0x80000000, 0x3f800000, "is_nzero"),
+            ("-1 * +0", 0xbf800000, 0x00000000, "is_nzero"),
+            ("+1 * -0", 0x3f800000, 0x80000000, "is_nzero"),
+            ("+0 * +inf", 0x00000000, 0x7f800000, "is_nan"),
+            ("-0 * -inf", 0x80000000, 0xff800000, "is_nan"),
+            ("+inf * -0", 0x7f800000, 0x80000000, "is_nan"),
+            ("-inf * +0", 0xff800000, 0x00000000, "is_nan"),
+        )
+
+        for name, lhs_bits, rhs_bits, predicate in cases:
+            with self.subTest(name=name):
+                ctx = SpecContext(f"fp32-mult-{name}")
+                result = spec_FP32_IEEE_mult(
+                    Float32(lhs_bits).to_spec(ctx),
+                    Float32(rhs_bits).to_spec(ctx),
+                    ctx,
+                )
+                ctx.check(getattr(result, predicate))
+
+                report = simplify_ctx(ctx)
+                if report["status"] == "unknown":
+                    report = z3_check_eq(report["new_ctx"], timeout_ms=1000)
+
+                self.assertEqual(report["status"], "unsat", report)
+
+    def test_fp32_multiplier_spec_preserves_underflow_zero_sign(self):
+        from examples.FP32_IEEE_mult import spec_FP32_IEEE_mult
+
+        cases = (
+            ("positive half-minimum tie", 0x00000001, 0x3f000000, "is_pzero"),
+            ("negative half-minimum tie", 0x80000001, 0x3f000000, "is_nzero"),
+            ("negative min-normal underflow", 0x80800000, 0x33800000, "is_nzero"),
+            ("two negatives underflow", 0x80800000, 0xb3800000, "is_pzero"),
+        )
+
+        for name, lhs_bits, rhs_bits, predicate in cases:
+            with self.subTest(name=name):
+                ctx = SpecContext(f"fp32-mult-{name}")
+                result = spec_FP32_IEEE_mult(
+                    Float32(lhs_bits).to_spec(ctx),
+                    Float32(rhs_bits).to_spec(ctx),
+                    ctx,
+                )
+                ctx.check(getattr(result, predicate))
+
+                report = simplify_ctx(ctx)
+                if report["status"] == "unknown":
+                    report = z3_check_eq(report["new_ctx"], timeout_ms=1000)
+
+                self.assertEqual(report["status"], "unsat", report)
 
     def test_fp32_adder_spec_preserves_single_infinity(self):
         from examples.FP32_IEEE_adder import spec_FP32_IEEE_adder
@@ -1753,6 +2036,54 @@ class TestRivalTranslation(unittest.TestCase):
         self.assertEqual(trimmed.checks, [check])
 
 class TestSolverApis(unittest.TestCase):
+    def test_fp32_multiplier_check_spec_proves_zero_input_cases(self):
+        multiplier = FP32_IEEE_mult(
+            Var(name="a", sign=Float32T()),
+            Var(name="b", sign=Float32T()),
+        )
+        zero_input_pairs = {
+            ("zero", "zero"),
+            ("zero", "norm"),
+            ("norm", "zero"),
+            ("zero", "sub"),
+            ("sub", "zero"),
+            ("zero", "inf"),
+            ("inf", "zero"),
+            ("zero", "nan"),
+            ("nan", "zero"),
+        }
+        split_classification_cases = ast_nodes._split_classification_cases
+
+        def select_zero_input_cases(ctx, inputs, spec_inner, spec_outer):
+            cases = split_classification_cases(ctx, inputs, spec_inner, spec_outer)
+            selected = [
+                case
+                for case in cases
+                if (
+                    ast_nodes._case_labels(case.name)["arg0"],
+                    ast_nodes._case_labels(case.name)["arg1"],
+                ) in zero_input_pairs
+            ]
+            self.assertEqual(len(selected), len(zero_input_pairs) * 25)
+            return selected
+
+        with (
+            patch.object(
+                ast_nodes,
+                "_split_classification_cases",
+                side_effect=select_zero_input_cases,
+            ),
+            open(os.devnull, "w") as devnull,
+            contextlib.redirect_stdout(devnull),
+        ):
+            check_result = multiplier.check_spec(schedule=[{"tool": "simplify"}])
+
+        self.assertTrue(check_result["proved"])
+        self.assertEqual(
+            len(check_result["proof_traces"]),
+            len(zero_input_pairs) * 25,
+        )
+
     def test_fp32_adder_norm_inf_inf_inf_is_trimmed_before_egglog(self):
         adder = FP32_IEEE_adder(
             Var(name="a", sign=Float32T()),

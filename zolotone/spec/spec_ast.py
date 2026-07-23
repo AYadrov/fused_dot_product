@@ -540,13 +540,24 @@ class If(RealExpr):
 
     def __new__(cls, cond, on_true, on_false):
         BoolExpr._coerce_bool_expr(cond)
+        true_is_bool = isinstance(on_true, BoolExpr)
+        false_is_bool = isinstance(on_false, BoolExpr)
+        if true_is_bool or false_is_bool:
+            if not (true_is_bool and false_is_bool):
+                raise TypeError(
+                    "If branches must both be BoolExpr, RealExpr, or matching "
+                    f"FPExpr values, got {type(on_true).__name__} and "
+                    f"{type(on_false).__name__}"
+                )
+            return (cond & on_true) | ((~cond) & on_false)
+
         true_is_fp = isinstance(on_true, FPExpr)
         false_is_fp = isinstance(on_false, FPExpr)
         if true_is_fp or false_is_fp:
             if not (true_is_fp and false_is_fp):
                 raise TypeError(
-                    "If branches must both be RealExpr or matching FPExpr "
-                    f"values, got {type(on_true).__name__} and "
+                    "If branches must both be BoolExpr, RealExpr, or matching "
+                    f"FPExpr values, got {type(on_true).__name__} and "
                     f"{type(on_false).__name__}"
                 )
             return type(on_true).select(cond, on_true, on_false)
@@ -583,6 +594,65 @@ class If(RealExpr):
 
     def __str__(self):
         return f"(if {self.cond} then {self.on_true} else {self.on_false})"
+
+
+_CaseValue = BoolExpr | RealExpr | FPExpr
+
+
+def _coerce_case_value(value: object) -> _CaseValue:
+    if isinstance(value, (BoolExpr, RealExpr, FPExpr)):
+        return value
+    raise TypeError(
+        "Cases values must be BoolExpr, RealExpr, or FPExpr, got "
+        f"{type(value).__name__}"
+    )
+
+
+@dataclass(frozen=True)
+class _CaseEntry:
+    condition: BoolExpr
+    value: _CaseValue
+
+
+@dataclass(frozen=True)
+class _DefaultEntry:
+    value: _CaseValue
+
+
+def case(condition: BoolExpr, value: _CaseValue) -> _CaseEntry:
+    """Create an ordered conditional entry for :func:`Cases`."""
+    BoolExpr._coerce_bool_expr(condition)
+    return _CaseEntry(condition, _coerce_case_value(value))
+
+
+def default(value: _CaseValue) -> _DefaultEntry:
+    """Create the required fallback entry for :func:`Cases`."""
+    return _DefaultEntry(_coerce_case_value(value))
+
+
+def Cases(*entries: _CaseEntry | _DefaultEntry) -> _CaseValue:
+    """Lower ordered cases with a final default to nested ``If`` expressions."""
+    for entry in entries:
+        if not isinstance(entry, (_CaseEntry, _DefaultEntry)):
+            raise TypeError(
+                "Cases entries must be created by case() or default(), got "
+                f"{type(entry).__name__}"
+            )
+
+    default_positions = [
+        idx for idx, entry in enumerate(entries) if isinstance(entry, _DefaultEntry)
+    ]
+    if not default_positions:
+        raise ValueError("Cases requires a default() entry")
+    if len(default_positions) != 1:
+        raise ValueError("Cases requires exactly one default() entry")
+    if default_positions[0] != len(entries) - 1:
+        raise ValueError("Cases requires default() to be the final entry")
+
+    result = entries[-1].value
+    for entry in reversed(entries[:-1]):
+        result = If(entry.condition, entry.value, result)
+    return result
 
 
 @dataclass(frozen=True)

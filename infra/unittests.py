@@ -328,20 +328,39 @@ class TestFusedDotProduct(unittest.TestCase):
         tempdir_no_jit, fn_no_jit = nonjit_compile(design)
 
         cases = [
-            (0x00000000, 0xbf800000, 0xbf800000),
-            (0x80000000, 0xbf800000, 0xbf800000),
-            (0x00000000, 0x3f800000, 0x3f800000),
-            (0x80000000, 0x3f800000, 0x3f800000),
-            (0x00000000, 0x00000000, 0x00000000),
-            (0x80000000, 0x00000000, 0x00000000),
-            (0x80000000, 0x80000000, 0x80000000),
+            # IEEE round-to-nearest produces -0 only when both zero inputs are -0.
+            ("+0 + +0", 0x00000000, 0x00000000, 0x00000000),
+            ("+0 + -0", 0x00000000, 0x80000000, 0x00000000),
+            ("-0 + +0", 0x80000000, 0x00000000, 0x00000000),
+            ("-0 + -0", 0x80000000, 0x80000000, 0x80000000),
+            # Either zero sign must act as an identity for nonzero finite values.
+            ("+0 + -1", 0x00000000, 0xbf800000, 0xbf800000),
+            ("-0 + -1", 0x80000000, 0xbf800000, 0xbf800000),
+            ("+0 + +1", 0x00000000, 0x3f800000, 0x3f800000),
+            ("-0 + +1", 0x80000000, 0x3f800000, 0x3f800000),
+            ("+0 + min-subnormal", 0x00000000, 0x00000001, 0x00000001),
+            ("-0 + min-subnormal", 0x80000000, 0x00000001, 0x00000001),
+            ("+0 + -min-subnormal", 0x00000000, 0x80000001, 0x80000001),
+            ("-0 + -min-subnormal", 0x80000000, 0x80000001, 0x80000001),
+            # Exact cancellation must pass an exact zero through fp32_encode as +0.
+            ("min-subnormal cancellation", 0x00000001, 0x80000001, 0x00000000),
+            ("reversed min-subnormal cancellation", 0x80000001, 0x00000001, 0x00000000),
+            ("largest-subnormal cancellation", 0x007fffff, 0x807fffff, 0x00000000),
+            ("min-normal cancellation", 0x00800000, 0x80800000, 0x00000000),
+            # Results immediately around the subnormal/normal boundary.
+            ("two min-subnormals", 0x00000001, 0x00000001, 0x00000002),
+            ("two negative min-subnormals", 0x80000001, 0x80000001, 0x80000002),
+            ("min-normal minus largest-subnormal", 0x00800000, 0x807fffff, 0x00000001),
+            ("largest-subnormal minus min-normal", 0x007fffff, 0x80800000, 0x80000001),
+            ("largest-subnormal plus min-subnormal", 0x007fffff, 0x00000001, 0x00800000),
+            ("negative boundary carry", 0x807fffff, 0x80000001, 0x80800000),
         ]
 
         try:
-            for lhs_bits, rhs_bits, expected_bits in cases:
+            for name, lhs_bits, rhs_bits, expected_bits in cases:
                 x.load_val(Float32(lhs_bits))
                 y.load_val(Float32(rhs_bits))
-                with self.subTest(lhs=hex(lhs_bits), rhs=hex(rhs_bits)):
+                with self.subTest(name=name, lhs=hex(lhs_bits), rhs=hex(rhs_bits)):
                     self.assertEqual(design.evaluate().val, expected_bits)
                     self.assertEqual(fn_jit(lhs_bits, rhs_bits), expected_bits)
                     self.assertEqual(fn_no_jit(lhs_bits, rhs_bits), expected_bits)
